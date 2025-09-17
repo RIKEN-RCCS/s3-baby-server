@@ -1,0 +1,5 @@
+.VSCodeCounter/
+architecture.md
+.vscode
+test_aws_cli.sh
+test_server_launch.sh
