@@ -230,6 +230,7 @@
 		 (stop (assoc 'stop item)))
 	    (cond
 	     ((not (eqv? stop #f))
+	      (format #t "STOP TESTING~%")
 	      #t)
 	     ((not (eqv? op #f))
 	      (format #t "testing: ~s ~s~%"
