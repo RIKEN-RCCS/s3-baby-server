@@ -61,7 +61,7 @@
 		      (stderr (get-string-all errp)))
 		 (values (cdr status) stdout stderr))))))))))
 
-(define time-regexp
+(define datetime-regexp
   (string-append
    "^"
    "[0-9]{4}-[0-9]{2}-[0-9]{2}" ;; "2025-08-20"
@@ -70,6 +70,32 @@
    "+"
    "[0-9]{2}:[0-9]{2}" ;; "00:00"
    "$"))
+
+(define (replace-regexp-token s)
+  ;; Replaces pattern tokens in a string with their specifying
+  ;; regexp patterns.  Tokens are "#date", "#time", "#datetime".
+  ;; TOKENS SHOULD BE NO REGEXP PATTERNS.
+  (let ((replacements '(("#date" . "[0-9]{4}-[0-9]{2}-[0-9]{2}")
+			("#time" . "[0-9]{2}:[0-9]{2}:[0-9]{2}")
+			("#datetime" . time-regexp))))
+    (let loop ((s s)
+	       (replacements replacements))
+      (if (null? replacements)
+	  s
+	  (let ((item (car replacements)))
+	    (loop (replace-in-string s (car item) (cdr item))
+		  (cdr replacements)))))))
+
+(define (replace-in-string s token pattern)
+  (let* ((token1 (regexp-quote token)))
+    (cond ((string-match token1 s)
+	   => (lambda (m)
+	       (let ((range (vector-ref m 1)))
+		 (string-append
+		  (substring s 0 (car range))
+		  pattern
+		  (substring s (cdr range) (string-length s))))))
+	  (else s))))
 
 (define (expect-regexp? expect)
   ;; Checks an expect string is for an regexp, i.e., beginning with
@@ -102,7 +128,7 @@
 	   #t)
 	  ((string? result)
 	   (cond ((string=? expect "#time")
-		  (string-match time-regexp result))
+		  (string-match datetime-regexp result))
 		 ((expect-regexp? expect)
 		  => (lambda (regexp)
 		       (string-match regexp result)))
