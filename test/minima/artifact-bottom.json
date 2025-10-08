@@ -1,6 +1,6 @@
 {
-  "date": "2025-10-07",
   "name": "bottom",
+  "date": "2025-09-25",
   "precondition1": "It assumes start with an empty pool directory.",
   "precondition2": "File \"file-5m.txt\" exists on the client side.",
   "test": [
@@ -27,8 +27,8 @@
   "result": "サーブしているディレクトリ下に\"bucket\"ディレクトリが作成される",
   "operation": "aws s3 mb s3://bucket",
   "status": "200 OK",
-  "outcome1": "make_bucket: bucket",
-  "outcome2": "make_bucket: bucket",
+  "outcome1": null,
+  "outcome2": ["make_bucket: bucket"],
 },
 {
   "ID": 3,
@@ -37,8 +37,14 @@
   "result": "サーブしているディレクトリ下がリストアップされる（隠しディレクトリは表示されず、\"bucket\"ディレクトリのみ表示）",
   "operation": "aws s3 ls",
   "status": "200 OK",
-  "outcome1": "[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} bucket",
-  "outcome2": "2025-08-26 14:35:53 1001files\n2025-08-26 14:35:36 abc\n2025-08-21 16:56:21 abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1\n2025-08-20 17:32:06 bucket\n2025-08-26 14:32:36 bucket2\n2025-08-20 17:37:28 test-bucket"
+  "outcome1": null,
+  "outcome2": ["#|date #|time bucket"],
+  "outcome3": ["#|date #|time 1001files",
+	       "#|date #|time abc",
+	       "#|date #|time abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+	       "#|date #|time bucket",
+	       "#|date #|time bucket2",
+	       "#|date #|time test-bucket"]
 },
 {
   "ID": 4,

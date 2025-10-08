@@ -37,6 +37,32 @@
 ;; MEMO: at-at refers to a package.
 ;; (@@ (ice-9 popen) open-process)
 
+(define (list-foldr f init list)
+  ;; foldr : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
+  (match list
+    (() init)
+    ((fst . rst) (f fst (list-foldr f init rst)))))
+
+(define (list-foldl f init list)
+  ;; foldl : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
+  (match list
+    (() init)
+    ((fst . rst) (list-foldl f (f fst init) rst))))
+
+(define date-regexp "[0-9]{4}-[0-9]{2}-[0-9]{2}") ;; "2025-08-20"
+(define time-regexp "[0-9]{2}:[0-9]{2}:[0-9]{2}") ;; "08:32:06"
+
+(define datetime-regexp
+  (string-append
+   "^"
+   date-regexp
+   "T"
+   time-regexp
+   "\\.[0-9]{6}" ;; "08:32:06.081000"
+   "+"
+   "[0-9]{2}:[0-9]{2}" ;; "00:00"
+   "$"))
+
 (define (run-system command)
   ;; Runs a command in a subprocess.  It returns three-values of
   ;; status and strings of stdout and stderr.  It assumes a command
@@ -61,23 +87,28 @@
 		      (stderr (get-string-all errp)))
 		 (values (cdr status) stdout stderr))))))))))
 
-(define datetime-regexp
-  (string-append
-   "^"
-   "[0-9]{4}-[0-9]{2}-[0-9]{2}" ;; "2025-08-20"
-   "T"
-   "[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}" ;; "08:32:06.081000"
-   "+"
-   "[0-9]{2}:[0-9]{2}" ;; "00:00"
-   "$"))
+(define (replace-in-string s token pattern)
+  ;; Replaces a token with a pattern in a string s.  It replaces all
+  ;; occurrences of tokens.
+  (let* ((token1 (regexp-quote token)))
+    (cond ((string-match token1 s)
+	   => (lambda (m)
+	       (let* ((range (vector-ref m 1))
+		      (prefix (substring s 0 (car range)))
+		      (suffix (substring s (cdr range) (string-length s))))
+		 (string-append
+		  prefix
+		  pattern
+		  (replace-in-string suffix token pattern)))))
+	  (else s))))
 
 (define (replace-regexp-token s)
   ;; Replaces pattern tokens in a string with their specifying
   ;; regexp patterns.  Tokens are "#date", "#time", "#datetime".
   ;; TOKENS SHOULD BE NO REGEXP PATTERNS.
-  (let ((replacements '(("#date" . "[0-9]{4}-[0-9]{2}-[0-9]{2}")
-			("#time" . "[0-9]{2}:[0-9]{2}:[0-9]{2}")
-			("#datetime" . time-regexp))))
+  (let ((replacements '(("#date" . date-regexp)
+			("#time" . time-regexp)
+			("#datetime" . datetime-regexp))))
     (let loop ((s s)
 	       (replacements replacements))
       (if (null? replacements)
@@ -85,17 +116,6 @@
 	  (let ((item (car replacements)))
 	    (loop (replace-in-string s (car item) (cdr item))
 		  (cdr replacements)))))))
-
-(define (replace-in-string s token pattern)
-  (let* ((token1 (regexp-quote token)))
-    (cond ((string-match token1 s)
-	   => (lambda (m)
-	       (let ((range (vector-ref m 1)))
-		 (string-append
-		  (substring s 0 (car range))
-		  pattern
-		  (substring s (cdr range) (string-length s))))))
-	  (else s))))
 
 (define (expect-regexp? expect)
   ;; Checks an expect string is for an regexp, i.e., beginning with
@@ -107,7 +127,7 @@
 
 (define (match-to-string expect result)
   ;; Matches a line (prefix) of the result.
-  (string-match (string-append "^" expect "\n") result))
+  (string-match (string-append "^" expect "$") result))
 
 (define (match-to-template expect result)
   ;; Matches a result to an expected, both in json.  It return a
@@ -174,22 +194,46 @@
 (define (read-output-string s)
   (with-input-from-string s json-read))
 
+(define (append-string-vector v)
+  ;; Appends strings in a vector with intervening newlines.
+  (list-foldr (lambda (a b) (string-append a "\n" b)) "" (vector->list v)))
+
+(define (fetch-assoc object slot)
+  ;; Does assoc, but value "null" is treated as key is missing.
+  (cond ((assoc slot object)
+	 => (lambda (pair)
+	      (if (not (eqv? (cdr pair) 'null))
+		  (cdr pair)
+		  #f)))
+	(else #f)))
+
+(define (fetch-outcome object)
+  ;; Fetches an outcome pattern from either slot "outcome1" or
+  ;; "outcome2" in an object.  An "outcome1" slot is json object, but
+  ;; an "outcome2" slot is a pattern string.
+  (cond ((fetch-assoc object 'outcome1)
+	 => (lambda (e) e))
+	((fetch-assoc object 'outcome2)
+	 => (lambda (v) (append-string-vector v)))
+	(else #f)))
+
 (define (check-all tests)
   (let ((n (vector-length tests)))
     (let loop ((i 0))
       (if (< i n)
 	  (let* ((item (vector-ref tests i))
-		 (o (assoc 'operation item))
-		 (expect (cdr (assoc 'outcome1 item))))
-	    (when (not (eq? o #f))
+		 (op (assoc 'operation item))
+		 (expect (fetch-outcome item)))
+	    (cond
+	     ((not (eq? op #f))
 	      (format #t "testing: ~s ~s~%"
 		      (assoc 'name item)
 		      (assoc 'kind item))
 	      (format #t "expect: ~s~%" expect)
-	      (format #t "operation: ~s~%"
-		      (cdr o))
-	      (let-values (((status outs errs) (run-system (cdr o))))
-		(format #t "status: ~s~%" status)
+	      (format #t "operation: ~s~%" (cdr op))
+	      (let-values (((status outs errs) (run-system (cdr op))))
+		(format #t "status: ~s (~s, ~s)~%" status
+			(status:exit-val status) (status:term-sig status))
 		(format #t "stdout: ~s~%" outs)
 		(format #t "stderr: ~s~%" errs)
 		(cond ((not (= status 0))
@@ -209,7 +253,8 @@
 			     (begin
 			       (format #t "BAD result: ~s~%" result)
 			       #f)))))))
-	    (loop (+ i 1)))
+	     (else
+	      (loop (+ i 1)))))
 	  #t))))
 
 (define tests (cdr (assoc 'test
