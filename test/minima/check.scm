@@ -106,9 +106,9 @@
   ;; Replaces pattern tokens in a string with their specifying
   ;; regexp patterns.  Tokens are "#date", "#time", "#datetime".
   ;; TOKENS SHOULD BE NO REGEXP PATTERNS.
-  (let ((replacements '(("#date" . date-regexp)
-			("#time" . time-regexp)
-			("#datetime" . datetime-regexp))))
+  (let ((replacements `(("#date" . ,date-regexp)
+			("#time" . ,time-regexp)
+			("#datetime" . ,datetime-regexp))))
     (let loop ((s s)
 	       (replacements replacements))
       (if (null? replacements)
@@ -127,7 +127,7 @@
 
 (define (match-to-string expect result)
   ;; Matches a line (prefix) of the result.
-  (string-match (string-append "^" expect "$") result))
+  (string-match (string-append "^" (replace-regexp-token expect) "$") result))
 
 (define (match-to-template expect result)
   ;; Matches a result to an expected, both in json.  It return a
@@ -147,12 +147,15 @@
     (cond ((string=? expect "#_")
 	   #t)
 	  ((string? result)
-	   (cond ((string=? expect "#time")
-		  (string-match datetime-regexp result))
-		 ((expect-regexp? expect)
-		  => (lambda (regexp)
-		       (string-match regexp result)))
-		 (else (string=? expect result))))
+
+	   ;; (cond ((string=? expect "#time")
+	   ;; 	  (string-match datetime-regexp result))
+	   ;; 	 ((expect-regexp? expect)
+	   ;; 	  => (lambda (regexp)
+	   ;; 	       (string-match regexp result)))
+	   ;;	 (else (string=? expect result)))
+
+	   (match-to-string expect result))
 	  (else #f)))
    ((list? expect)
     (cond ((list? result)
@@ -223,9 +226,12 @@
       (if (< i n)
 	  (let* ((item (vector-ref tests i))
 		 (op (assoc 'operation item))
-		 (expect (fetch-outcome item)))
+		 (expect (fetch-outcome item))
+		 (stop (assoc 'stop item)))
 	    (cond
-	     ((not (eq? op #f))
+	     ((not (eqv? stop #f))
+	      #t)
+	     ((not (eqv? op #f))
 	      (format #t "testing: ~s ~s~%"
 		      (assoc 'name item)
 		      (assoc 'kind item))
@@ -258,5 +264,5 @@
 	  #t))))
 
 (define tests (cdr (assoc 'test
-			  (with-input-from-file "./artifact-short.json"
+			  (with-input-from-file "./artifact-bottom.json"
 			    json-read))))
