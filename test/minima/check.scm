@@ -18,6 +18,9 @@
  (srfi srfi-60) ;; integers as bits
  (only (rnrs base) assert))
 
+;; (import (system vm trace))
+;; (trace-calls-to-procedure match-to-template)
+
 ;; Make encoding ISO-8859-1.
 ;;(fluid-set! %default-port-encoding #f)
 
@@ -77,7 +80,8 @@
 	(else #f)))
 
 (define (match-to-string expect result)
-  (string-match (string-append "^" expect "$") result))
+  ;; Matches a line (prefix) of the result.
+  (string-match (string-append "^" expect "\n") result))
 
 (define (match-to-template expect result)
   ;; Matches a result to an expected, both in json.  It return a
@@ -107,16 +111,20 @@
    ((list? expect)
     (cond ((list? result)
 	   (let loop ((slots expect))
-	     (match slots
-		    (((key . expect1) . rest)
-		     (cond ((assoc key result)
-			    => (lambda (p)
-				 (let ((result1 (cdr p)))
-				   (if (match-to-template expect1 result1)
-				       (loop rest)
-				       #f))))
-			   (else #f)))
-		    (else #f))))
+	     (if (null? slots)
+		 #t
+		 (match slots
+		   (((key . expect1) . rest)
+		    (cond ((assoc key result)
+			   => (lambda (p)
+				(let ((result1 (cdr p)))
+				  (if (match-to-template expect1 result1)
+				      (loop rest)
+				      #f))))
+			  (else #f)))
+		   (else
+		    (format #t "BAD template (not an alist): (~s)~%" slots)
+		    #f)))))
 	  (else #f)))
    ((vector? expect)
     (cond ((vector? result)
@@ -159,7 +167,7 @@
 		(format #t "stdout: ~s~%" outs)
 		(format #t "stderr: ~s~%" errs)
 		(cond ((not (= status 0))
-		       (format #t "BAD: non-zero status (~s)~%" status)
+		       (format #t "BAD non-zero status: (~s)~%" status)
 		       #f)
 		      ((string? expect)
 		       (let ((result outs))
