@@ -1,13 +1,22 @@
-[
+{
+  "date": "2025-10-07",
+  "name": "bottom",
+  "test": [
 {
   "ID": 1,
   "name": "サーバー接続",
   "kind": "認証・アドレス",
   "result": "エラー（Unauthorized）が出ることなく、サーブしているディレクトリ下がリストアップされる（隠しディレクトリは表示されず、ディレクトリを作成していないため表示なし）",
-  "operation": "aws --endpoint-url http://localhost:9000 s3api list-buckets",
+  "operation": "aws s3api list-buckets",
   "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws --endpoint-url http://localhost:8000 s3api list-buckets\n{\n    \"Buckets\": [],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}",
-  "outcome2": "C:\\Users\\k-ryoh>aws --endpoint-url http://localhost:8000 s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"1001files\",\n            \"CreationDate\": \"2025-08-25T07:42:55.979000+00:00\"\n        },\n        {\n            \"Name\": \"abc\",\n            \"CreationDate\": \"0001-01-01T00:00:00+00:00\"\n        },\n        {\n            \"Name\": \"abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1\",\n            \"CreationDate\": \"2025-08-21T07:56:21.714000+00:00\"\n        },\n        {\n            \"Name\": \"bucket\",\n            \"CreationDate\": \"2025-08-20T08:32:06.081000+00:00\"\n        },\n        {\n            \"Name\": \"test-bucket\",\n            \"CreationDate\": \"2025-08-20T08:37:28.031000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}"
+  "outcome1": {"Buckets": [],
+	       "Owner": null,
+	       "Prefix": null},
+  "outcome2": {"Buckets": [{"Name": "#(.*)",
+			    "CreationDate": "#time"}],
+	       "Owner": {"DisplayName": "#(.*)",
+			 "ID": "#([0-9a-f]*)"},
+	       "Prefix": null}
 },
 {
   "ID": 2,
@@ -320,3 +329,4 @@
   "outcome2": "実行成功、MSGなし（ListBucketsで確認）\nC:\\Users\\k-ryoh>aws --endpoint-url http://localhost:8000 s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"1001files\",\n            \"CreationDate\": \"2025-08-26T05:35:53.083000+00:00\"\n        },\n        {\n            \"Name\": \"abc\",\n            \"CreationDate\": \"2025-08-26T05:35:36.466000+00:00\"\n        },\n        {\n            \"Name\": \"abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1\",\n            \"CreationDate\": \"2025-08-21T07:56:21.714000+00:00\"\n        },\n        {\n            \"Name\": \"bucket\",\n            \"CreationDate\": \"2025-08-20T08:32:06.081000+00:00\"\n        },\n        {\n            \"Name\": \"bucket2\",\n            \"CreationDate\": \"2025-08-26T05:32:36.438000+00:00\"\n        },\n        {\n            \"Name\": \"test-bucket\",\n            \"CreationDate\": \"2025-08-20T08:37:28.031000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}"
 }
 ]
+}

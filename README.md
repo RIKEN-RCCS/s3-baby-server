@@ -1,6 +1,13 @@
 # 概要
 S3互換のサーバー作成
 
+./s3-baby-server serve ~/pool-s3bbs --auth-key s3baby,s3baby
+
+## Restrictions
+
+- File names begin with a dot (".") are hidden.
+
+----------------------------------------------------------------
 
 # サーバーの起動
 **必須引数**

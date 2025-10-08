@@ -1,0 +1,4 @@
+# makefile
+
+all::
+	go build
