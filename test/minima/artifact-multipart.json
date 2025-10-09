@@ -1,0 +1,186 @@
+{
+  "name": "multipart",
+  "date": "2025-09-25",
+  "precondition1": "It assumes start with an empty pool directory.",
+  "precondition2": "Make a file \"file-5m.txt\" on the client side.",
+  "precondition3": "Place some dot-files to check they are not listed.",
+  "precondition4": "./files directory exits and populated by some files.",
+  "test": [
+{
+  "ID": 22,
+  "name": "CreateMultipartUpload",
+  "kind": null,
+  "result": "Start a multipart upload.",
+  "operation": "aws s3api create-multipart-upload --bucket mybucket1 --key data-003.txt",
+  "status": "200 OK",
+  "outcome1": {
+    "Bucket": "mybucket1",
+    "Key": "data-003.txt",
+    "UploadId": "1"
+},
+  "outcome2": null
+},
+{
+  "ID": 25,
+  "name": "UploadPart",
+  "kind": null,
+  "result": "Upload part.",
+  "operation": "aws s3api upload-part --bucket mybucket1 --key data-003.txt --upload-id 1 --part-number 1 --body data-10m.txt",
+  "status": "200 OK",
+  "outcome1": {
+    "ETag": "\"f1c9645dbc14efddc7d8a322685f26eb\"",
+    "ChecksumCRC64NVME": "r3XRsudNx4U="
+  },
+  "outcome2": null
+},
+{
+  "ID": 26,
+  "name": "UploadPartCopy",
+  "kind": null,
+  "result": "",
+  "operation": "aws s3api upload-part-copy --bucket mybucket1 --key data-003.txt --upload-id 1 --part-number 2 --copy-source mybucket1/data-001.txt",
+  "status": "200 OK",
+  "outcome1": {
+    "CopyPartResult": {
+      "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
+      "LastModified": "2025-08-20T00:16:57.371000+00:00"
+    }
+  },
+  "outcome2": null
+},
+{
+  "ID": 27,
+  "name": "ListParts",
+  "kind": null,
+  "result": "",
+  "operation": "aws s3api list-parts --bucket mybucket1 --key data-003.txt --upload-id 1",
+  "status": "200 OK",
+  "outcome1": {
+    "Parts": [
+      {
+        "PartNumber": 1,
+        "LastModified": "2025-08-20T00:15:03.623000+00:00",
+        "ETag": "\"f1c9645dbc14efddc7d8a322685f26eb\"",
+        "Size": 10485760,
+        "ChecksumCRC64NVME": "r3XRsudNx4U="
+      },
+      {
+        "PartNumber": 2,
+        "LastModified": "2025-08-20T00:16:57.371000+00:00",
+        "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
+        "Size": 4194304
+      }
+    ],
+    "ChecksumAlgorithm": "",
+    "Initiator": {
+      "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4",
+      "DisplayName": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
+    },
+    "Owner": {
+      "DisplayName": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4",
+      "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
+    },
+    "StorageClass": "STANDARD",
+    "ChecksumType": ""
+  },
+  "outcome2": null
+},
+{
+  "ID": 28,
+  "name": "ListMultipartUploads",
+  "kind": null,
+  "result": "",
+  "operation": "aws s3api list-multipart-uploads --bucket mybucket1",
+  "status": "200 OK",
+  "outcome1": {
+    "Uploads": [
+      {
+        "UploadId": "NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw",
+        "Key": "multipart.txt",
+        "Initiated": "2025-08-20T00:03:14.479000+00:00",
+        "StorageClass": "",
+        "Owner": {
+          "DisplayName": "",
+          "ID": ""
+        },
+        "Initiator": {
+          "ID": "",
+          "DisplayName": ""
+        }
+      }
+    ],
+    "RequestCharged": null,
+    "Prefix": ""
+  },
+  "outcome2": null
+},
+{
+  "ID": 29,
+  "name": "CompleteMultipartUpload",
+  "kind": null,
+  "result": "",
+  "operation": "aws s3api complete-multipart-upload --bucket mybucket1 --key data-003.txt --upload-id 1 --multipart-upload \"{""Parts"":[{""ETag"":""UploadPart時のetag"",""PartNumber"":1},{""ETag"":""UploadPartCopy時のetag"",""PartNumber"":2}]}\"",
+  "status": "200 OK",
+  "outcome1": {
+    "Location": "http://localhost:8000/bucket/multipart.txt",
+    "mybucket1": "mybucket1",
+    "Key": "multipart.txt",
+    "ETag": "\"4fed5feb2a80bd29e41b3cebab6d37e0-2\""
+  },
+  "outcome2": null
+},
+{
+  "ID": 23,
+  "name": "CreateMultipartUpload",
+  "kind": null,
+  "result": "Start a 2nd multipart upload on the same file.",
+  "operation": "aws s3api create-multipart-upload --bucket mybucket1 --key data-003.txt",
+  "status": "200 OK",
+  "outcome1": {
+    "Bucket": "mybucket1",
+    "Key": "data-003.txt",
+    "UploadId": "1"
+},
+  "outcome2": null
+},
+{
+  "ID": 24,
+  "name": "AbortMultipartUpload",
+  "kind": null,
+  "result": "Abort the 2nd multipart upload.",
+  "operation": "aws s3api abort-multipart-upload --bucket mybucket1 --key multipart.txt --upload-id 2",
+  "status": "200 OK",
+  "outcome1": {},
+  "outcome2": null
+},
+{
+  "ID": 24.5,
+  "name": "ListMultipartUploads",
+  "kind": null,
+  "result": "Check aborted multipart uploads.",
+  "operation": "aws s3api list-multipart-uploads --bucket mybucket1",
+  "status": "200 OK",
+  "outcome1": {
+    "Uploads": [
+      {
+        "UploadId": "NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw",
+        "Key": "multipart.txt",
+        "Initiated": "2025-08-20T00:03:14.479000+00:00",
+        "StorageClass": "",
+        "Owner": {
+          "DisplayName": "",
+          "ID": ""
+        },
+        "Initiator": {
+          "ID": "",
+          "DisplayName": ""
+        }
+      }
+    ],
+    "RequestCharged": null,
+    "Prefix": ""
+  },
+  "outcome2": null
+}
+]
+}

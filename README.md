@@ -4,6 +4,14 @@
 
 ./s3-baby-server serve ~/pool-s3bbs --addr 127.0.0.1:9000 --auth-key s3baby,s3baby
 
+## NEED FIX
+
+- CHECK concurrent multipart uploads (with the same arguments).  A 2nd
+  start of multipart upload (with the same arguments) to cancel the
+  1st one.  Look at the directory ".S3BabyServer/MultipartUpload"
+
+- Increment upload id always.
+
 ## Restrictions
 
 - File names cannot begin with a dot ("."), they are hidden.
