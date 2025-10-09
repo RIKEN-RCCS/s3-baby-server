@@ -12,6 +12,8 @@
 
 - Increment upload id always.
 
+- File ower.
+
 ## Restrictions
 
 - File names cannot begin with a dot ("."), they are hidden.

@@ -2,6 +2,11 @@
 
 It requires guile-3.0.9 or as it uses "spawn" to execute subprocesses.
 
+## Running AWS CLI
+
+- To disable metadata service request, set an enviroment variable as
+  "export AWS_EC2_METADATA_DISABLED=true".  AWS CLI accesses
+  "http://169.254.169.254/latest/api/token" for metadata (?).
 
 ## artifact-bottom.json
 

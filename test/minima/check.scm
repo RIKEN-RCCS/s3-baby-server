@@ -61,14 +61,12 @@
 
 (define datetime-regexp
   (string-append
-   "^"
    date-regexp
    "T"
    time-regexp
-   "\\.[0-9]{6}" ;; "08:32:06.081000"
-   "+"
-   "[0-9]{2}:[0-9]{2}" ;; "00:00"
-   "$"))
+   "(\\.[0-9]{6})?"
+   "\\+"
+   "[0-9]{2}:[0-9]{2}"))
 
 (define (run-system command)
   ;; Runs a command in a subprocess.  It returns three-values of
@@ -124,7 +122,7 @@
 	    (loop (replace-in-string s (car item) (cdr item))
 		  (cdr replacements)))))))
 
-(define (expect-regexp? expect)
+(define (expect-regexp?~ expect)
   ;; Checks an expect string is for an regexp, i.e., beginning with
   ;; "#|".  It returns a pattern for a whole string ("^regexp$").
   (cond ((string-match "^#\\|(.*)$" expect)
@@ -135,6 +133,11 @@
 (define (match-to-string expect result)
   ;; Matches a line (prefix) of the result.
   (string-match (string-append "^" (replace-regexp-token expect) "$") result))
+
+(define (match-to-template~ expect result)
+  (let ((v (match-to-template1 expect result)))
+    (format #t "match-to-template expect=~s result=~s => ~s~%" expect result v)
+    v))
 
 (define (match-to-template expect result)
   ;; Matches a result to an expected, both in json.  It returns a
@@ -180,16 +183,16 @@
 	   (cond ((= (vector-length expect) 0)
 		  (= (vector-length result) 0))
 		 ((= (vector-length expect) 1)
-		  (let ((expect1 (vector-ref expect 1))
+		  (let ((expect1 (vector-ref expect 0))
 			(n (vector-length result)))
-		    (cond ((string=? expect1 "#_")
+		    (cond ((and (string? expect1) (string=? expect1 "#_"))
 			   #t)
 			  ((= (vector-length result) 0)
 			   #f)
 			  (else
 			   (let loop ((i 0))
 			     (if (< i n)
-				 (let ((result1 (vector-ref result 1)))
+				 (let ((result1 (vector-ref result i)))
 				   (if (match-to-template expect1 result1)
 				       (loop (+ i 1))
 				       #f))
@@ -242,7 +245,8 @@
       (format #t "Skipping... test ~s~%" i)
       (loop (+ i 1)))
      ((not (eqv? op #f))
-      (format #t "testing: ~s ~s~%"
+      (format #t "testing: ~s ~s ~s~%"
+	      (assoc 'ID item)
 	      (assoc 'name item)
 	      (assoc 'kind item))
       (format #t "expect: ~s~%" expect)
@@ -292,5 +296,5 @@
 	  #t))))
 
 (define tests (cdr (assoc 'test
-			  (with-input-from-file "./artifact-bottom.json"
+			  (with-input-from-file "./artifact-s3cli.json"
 			    json-read))))

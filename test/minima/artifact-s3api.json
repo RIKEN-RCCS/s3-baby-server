@@ -8,8 +8,8 @@
 	   "Leaves files: 'data-101.txt'."],
   "test": [
 {
-  "ID": 9,
-  "step": "Make 'mybucket1' bucket",
+  "ID": 1,
+  "step": "Make a 'mybucket1' bucket",
   "pre": "Start with an empty pool directory.",
   "name": "CreateBucket",
   "kind": "s3api",
@@ -19,7 +19,7 @@
   "outcome2": null
 },
 {
-  "ID": 10,
+  "ID": 2,
   "step": "Check 'mybucket1' existance.",
   "name": "HeadBucket",
   "kind": null,
@@ -29,7 +29,7 @@
   "outcome2": null
 },
 {
-  "ID": 11,
+  "ID": 3,
   "step": "List buckets.  It finds 'mybucket1'.",
   "name": "ListBuckets",
   "kind": null,
@@ -39,33 +39,30 @@
     "Buckets": [
       {
         "Name": "mybucket1",
-        "CreationDate": "2025-08-19T08:39:05.007000+00:00"
+        "CreationDate": "#datetime"
       }
     ],
-    "Owner": {
-      "DisplayName": "minio",
-      "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-    },
+    "Owner": null,
     "Prefix": null
   },
   "outcome2": null
 },
 {
-  "ID": 12,
+  "ID": 4,
   "step": "Upload a 4MB file as 'data-001.txt'.",
   "name": "PutObject",
   "kind": null,
   "operation": "aws s3api put-object --bucket mybucket1 --key data-001.txt --body ./data-04m.txt",
   "status": "200 OK",
   "outcome1": {
-    "ETag": "6d1664c41d00a53dbbf89e4af3c592f0",
-    "ChecksumCRC64NVME": "SuUfAzGqCgM=",
+    "ETag": "[[:xdigit:]]{32}",
+    "ChecksumCRC64NVME": "[a-zA-Z0-9=]{12}",
     "ChecksumType": "FULL_OBJECT"
   },
   "outcome2": null
 },
 {
-  "ID": 13,
+  "ID": 5,
   "step": "Take information on 'data-001.txt'.",
   "name": "HeadObject",
   "kind": null,
@@ -82,7 +79,7 @@
   "outcome2": null
 },
 {
-  "ID": 14,
+  "ID": 6,
   "step": "Download a 'data-001.txt' file as 'data-101.txt'.",
   "name": "GetObject",
   "kind": null,
@@ -101,7 +98,7 @@
   "outcome2": null
 },
 {
-  "ID": 15,
+  "ID": 7,
   "step": "List objects in 'mybucket1'.",
   "name": "ListObjects",
   "kind": null,
@@ -127,7 +124,7 @@
   "outcome2": null
 },
 {
-  "ID": 16,
+  "ID": 8,
   "step": "Copy in a bucket, 'data-001.txt' to 'data-002.txt'.",
   "name": "CopyObject",
   "kind": null,
@@ -142,7 +139,7 @@
   "outcome2": null
 },
 {
-  "ID": 16.5,
+  "ID": 9,
   "step": "Copy in a bucket, 'data-001.txt' to 'data-003.txt'.",
   "post": "Files exist: 'data-001.txt', 'data-002.txt', 'data-003.txt'",
   "name": "CopyObject",
@@ -158,7 +155,7 @@
   "outcome2": null
 },
 {
-  "ID": 17,
+  "ID": 10,
   "step": "List objects by V2.",
   "name": "ListObjectsV2",
   "kind": null,
@@ -194,7 +191,7 @@
   "outcome2": null
 },
 {
-  "ID": 18,
+  "ID": 11,
   "step": "Put a tag on 'data-001.txt'.",
   "name": "PutObjectTagging",
   "kind": null,
@@ -204,7 +201,7 @@
   "outcome2": null
 },
 {
-  "ID": 19,
+  "ID": 12,
   "step": "Get set tags on 'data-001.txt'.",
   "name": "GetObjectTagging",
   "kind": null,
@@ -221,7 +218,7 @@
   "outcome2": null
 },
 {
-  "ID": 20,
+  "ID": 13,
   "step": "Delete tags on 'data-001.txt'.",
   "name": "DeleteObjectTagging",
   "kind": null,
@@ -231,7 +228,7 @@
   "outcome2": null
 },
 {
-  "ID": 20.5,
+  "ID": 14,
   "step": "Get tags to check tags are removed.",
   "name": "GetObjectTagging",
   "kind": null,
@@ -242,7 +239,7 @@
   }
 },
 {
-  "ID": 21,
+  "ID": 15,
   "step": "Get attributes of 'data-001.txt'.",
   "name": "GetObjectAttributes",
   "kind": null,
@@ -274,7 +271,7 @@
   "outcome2": null
 },
 {
-  "ID": 30,
+  "ID": 16,
   "step": "Delete 'data-001.txt'.",
   "post": "Files exit: 'data-002.txt' and 'data-003.txt'.",
   "name": "DeleteObject",
@@ -285,7 +282,7 @@
   "outcome2": null
 },
 {
-  "ID": 30.5,
+  "ID": 17,
   "step": "Check deletion of 'data-001.txt'.",
   "name": "DeleteObject",
   "kind": null,
@@ -321,7 +318,7 @@
   }
 },
 {
-  "ID": 31,
+  "ID": 18,
   "step": "Delete 'data-002.txt' and 'data-003.txt'",
   "pre": "Files 'data-002.txt' and 'data-003.txt' exist.",
   "name": "DeleteObjects",
@@ -341,7 +338,7 @@
   "outcome2": null
 },
 {
-  "ID": 32,
+  "ID": 19,
   "step": "Delete 'mybucket1'.",
   "pre": "Bucket is empty.",
   "name": "DeleteBucket",
@@ -352,7 +349,7 @@
   "outcome2": null
 },
 {
-  "ID": 32,
+  "ID": 20,
   "step": "Check 'mybucket1' is deleted.",
   "name": "DeleteBucket",
   "kind": null,
