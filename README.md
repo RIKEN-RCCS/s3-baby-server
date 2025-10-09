@@ -1,11 +1,16 @@
-# 概要
-S3互換のサーバー作成
+# README
 
-./s3-baby-server serve ~/pool-s3bbs --auth-key s3baby,s3baby
+## Running a server
+
+./s3-baby-server serve ~/pool-s3bbs --addr 127.0.0.1:9000 --auth-key s3baby,s3baby
 
 ## Restrictions
 
-- File names begin with a dot (".") are hidden.
+- File names cannot begin with a dot ("."), they are hidden.
+
+## Additional Features
+
+- s3bbs stores access logs if a ".access-log" directory exists.
 
 ----------------------------------------------------------------
 

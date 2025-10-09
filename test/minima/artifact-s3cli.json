@@ -1,0 +1,112 @@
+{
+  "name": "s3cli",
+  "date": "2025-09-25",
+  "precondition1": "It assumes start with an empty pool directory.",
+  "precondition2": "Make a file \"file-5m.txt\" on the client side.",
+  "precondition3": "Place some dot-files to check they are not listed.",
+  "precondition4": "./files directory exits and populated by some files.",
+  "postcondition1": "It finishes with an empty pool directory.",
+  "test": [
+{
+  "ID": 1,
+  "name": "server-connection",
+  "kind": "basic",
+  "result": "It displays a list of buckets, which is initially empty.  Check no dot-files are listed.",
+  "operation": "aws s3api list-buckets",
+  "status": "200 OK",
+  "outcome1": {"Buckets": [],
+	       "Owner": null,
+	       "Prefix": null},
+  "outcome2": {"Buckets": [{"Name": "#|.*",
+			    "CreationDate": "#time"}],
+	       "Owner": {"DisplayName": "#|.*",
+			 "ID": "#|[0-9a-f]*"},
+	       "Prefix": null}
+},
+{
+  "ID": 2,
+  "name": "MB",
+  "kind": "s3 command",
+  "result": "It creates a bucket named \"mybucket\".",
+  "operation": "aws s3 mb s3://mybucket",
+  "status": "200 OK",
+  "outcome1": null,
+  "outcome2": ["make_bucket: mybucket"]
+},
+{
+  "ID": 3,
+  "name": "LS",
+  "kind": "s3 command",
+  "result": "It displays a list of buckets.  There is one \"mybucket\" bucket.",
+  "operation": "aws s3 ls",
+  "status": "200 OK",
+  "outcome1": null,
+  "outcome2": ["#date #time mybucket"],
+  "outcome3": ["#date #time 1001files",
+	       "#date #time abc",
+	       "#date #time abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+	       "#date #time bucket",
+	       "#date #time bucket2",
+	       "#date #time test-bucket"]
+},
+{
+  "ID": 4,
+  "name": "CP",
+  "kind": null,
+  "result": "Copy a file smaller than 5MB to \"mybucket\".",
+  "operation": "aws s3 cp --no-progress data-04m.txt s3://mybucket",
+  "status": "200 OK",
+  "outcome1": null,
+  "outcome2": ["upload: .*/data-04m.txt to s3://mybucket/data-04m.txt"]
+},
+{
+  "ID": 5,
+  "name": "CP",
+  "kind": null,
+  "result": "Copy a file larger than 5MB to \"mybucket\".",
+  "operation": "aws s3 cp --no-progress data-10m.txt s3://mybucket",
+  "status": "200 OK",
+  "outcome1": null,
+  "outcome2": ["upload: .*/data-10m.txt to s3://mybucket/data-10m.txt"]
+},
+{
+  "ID": 6,
+  "name": "SYNC",
+  "kind": null,
+  "result": "Copy files in the source directory to \"mybucket\".  File listing order on client host is unfixed.",
+  "operation": "aws s3 sync --no-progress ./files s3://mybucket",
+  "status": "200 OK",
+  "outcome1": null,
+  "outcome2": ["upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
+	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
+	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
+	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt"]
+},
+{
+  "ID": 7,
+  "name": "RM",
+  "kind": null,
+  "result": "Delete a previously copied file in \"mybucket\".",
+  "operation": "aws s3 rm s3://mybucket/data-001.txt",
+  "status": "200 OK",
+  "outcome1": null,
+  "outcome2": ["delete: s3://mybucket/data-001.txt"]
+},
+{
+  "ID": 8,
+  "name": "RB",
+  "kind": null,
+  "result": "Remove \"mybucket\" bucket.  Five files remains in the bucket.",
+  "operation": "aws s3 rb --force s3://mybucket",
+  "status": "200 OK",
+  "outcome1": null,
+  "outcome2": ["delete: s3://mybucket/data-...\\.txt",
+	       "delete: s3://mybucket/data-...\\.txt",
+	       "delete: s3://mybucket/data-...\\.txt",
+	       "delete: s3://mybucket/data-...\\.txt",
+	       "delete: s3://mybucket/data-...\\.txt",
+	       "remove_bucket: mybucket"],
+  "outcome3": "C:\\Users\\k-ryoh>aws s3 rb s3://new-bucket --force\nremove_bucket: new-bucket"
+}
+]
+}

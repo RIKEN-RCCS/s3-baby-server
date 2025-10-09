@@ -2,6 +2,9 @@
 
 ;; This is for "guile --r7rs", 3.0.9 and later.
 
+;; MEMO: AWS CLI s3 command has "--quiet" option but it is too quiet.
+;; And, "--only-show-errors", too.
+
 (import
  (ice-9 exceptions)
  (ice-9 binary-ports)
@@ -10,13 +13,17 @@
  (ice-9 popen)
  (ice-9 format)
  (ice-9 match)
- (scheme base)
+ ;;(scheme base)
+ (only (scheme base) define-record-type textual-port? vector-for-each write-string)
+ (only (rnrs base) infinite? assert)
  (srfi srfi-1) ;; list
  (srfi srfi-11) ;; multiple-values
  ;;(srfi srfi-28) ;; format
- (only (srfi srfi-43) vector-copy) ;; vector-library
+ ;;(only (srfi srfi-43) vector-copy) ;; vector-library
  (srfi srfi-60) ;; integers as bits
- (only (rnrs base) assert))
+ )
+
+;; Importing "(scheme base)" is (likely) not necessary when R7RS.
 
 ;; (import (system vm trace))
 ;; (trace-calls-to-procedure match-to-template)
@@ -103,12 +110,12 @@
 	  (else s))))
 
 (define (replace-regexp-token s)
-  ;; Replaces pattern tokens in a string with their specifying
-  ;; regexp patterns.  Tokens are "#date", "#time", "#datetime".
-  ;; TOKENS SHOULD BE NO REGEXP PATTERNS.
-  (let ((replacements `(("#date" . ,date-regexp)
-			("#time" . ,time-regexp)
-			("#datetime" . ,datetime-regexp))))
+  ;; Replaces pattern tokens in a string with their regexp patterns.
+  ;; Tokens are "#date", "#time", "#datetime".  TOKEN PATTERNS SHOULD
+  ;; BE LISTED IN LONGER TO SHORTER ORDER.
+  (let ((replacements `(("#datetime" . ,datetime-regexp)
+			("#date" . ,date-regexp)
+			("#time" . ,time-regexp))))
     (let loop ((s s)
 	       (replacements replacements))
       (if (null? replacements)
@@ -130,12 +137,13 @@
   (string-match (string-append "^" (replace-regexp-token expect) "$") result))
 
 (define (match-to-template expect result)
-  ;; Matches a result to an expected, both in json.  It return a
-  ;; boolean.  A wilecard string ("#_") may match any entity.  Other
-  ;; strings match strings.  "#time" is a time string, and "#|regexp"
-  ;; is a string by regexp.  A vector pattern be singleton or empty.
-  ;; An empty vector matches any vector.  An object pattern accepts
-  ;; excess entities.
+  ;; Matches a result to an expected, both in json.  It returns a
+  ;; boolean.  A string pattern "#_" is a wildcard matching any
+  ;; entity.  String patterns may include pattern tokens: "#time" is a
+  ;; time string, etc., and "#|regexp" is a regexp pattern.  A vector
+  ;; pattern should be empty or singleton.  A vector pattern ["#_"]
+  ;; matches any vector including empty ones.  An object pattern
+  ;; accepts excess entities.
   (cond
    ((eqv? expect 'null)
     (eqv? expect result))
@@ -147,14 +155,6 @@
     (cond ((string=? expect "#_")
 	   #t)
 	  ((string? result)
-
-	   ;; (cond ((string=? expect "#time")
-	   ;; 	  (string-match datetime-regexp result))
-	   ;; 	 ((expect-regexp? expect)
-	   ;; 	  => (lambda (regexp)
-	   ;; 	       (string-match regexp result)))
-	   ;;	 (else (string=? expect result)))
-
 	   (match-to-string expect result))
 	  (else #f)))
    ((list? expect)
@@ -178,17 +178,25 @@
    ((vector? expect)
     (cond ((vector? result)
 	   (cond ((= (vector-length expect) 0)
-		  #t)
+		  (= (vector-length result) 0))
 		 ((= (vector-length expect) 1)
 		  (let ((expect1 (vector-ref expect 1))
 			(n (vector-length result)))
-		    (let loop ((i 0))
-		      (if (< i n)
-			  (let ((result1 (vector-ref result 1)))
-			    (if (match-to-template expect1 result1)
-				(loop (+ i 1))
-				#f))
-			  #t))))))
+		    (cond ((string=? expect1 "#_")
+			   #t)
+			  ((= (vector-length result) 0)
+			   #f)
+			  (else
+			   (let loop ((i 0))
+			     (if (< i n)
+				 (let ((result1 (vector-ref result 1)))
+				   (if (match-to-template expect1 result1)
+				       (loop (+ i 1))
+				       #f))
+				 #t))))))
+		 (else
+		  (format #t "BAD template (long vector): (~s)~%" expect)
+		  #f)))
 	  (else #f)))
    (else
     (format #t "BAD template: expect=~s~%" expect)
@@ -220,48 +228,67 @@
 	 => (lambda (v) (append-string-vector v)))
 	(else #f)))
 
+(define (check-run item i loop)
+  ;; (item = (vector-ref tests i))
+  (let* ((op (assoc 'operation item))
+	 (expect (fetch-outcome item))
+	 (skip-flag (assoc 'skip item))
+	 (stop-flag (assoc 'stop item)))
+    (cond
+     ((not (eqv? stop-flag #f))
+      (format #t "STOP TESTING~%")
+      #t)
+     ((not (eqv? skip-flag #f))
+      (format #t "Skipping... test ~s~%" i)
+      (loop (+ i 1)))
+     ((not (eqv? op #f))
+      (format #t "testing: ~s ~s~%"
+	      (assoc 'name item)
+	      (assoc 'kind item))
+      (format #t "expect: ~s~%" expect)
+      (format #t "operation: ~s~%" (cdr op))
+      (let-values (((status outs errs) (run-system (cdr op))))
+	(format #t "status: ~s (~s, ~s)~%" status
+		(status:exit-val status) (status:term-sig status))
+	(format #t "stdout: ~s~%" outs)
+	(format #t "stderr: ~s~%" errs)
+	(cond ((not (= status 0))
+	       (format #t "BAD non-zero status: (~s)~%" status)
+	       #f)
+	      ((string? expect)
+	       (let ((result outs))
+		 (if (match-to-string expect result)
+		     (loop (+ i 1))
+		     (begin
+		       (format #t "BAD result: ~s~%" result)
+		       #f))))
+	      (else
+	       (let ((result (with-input-from-string outs json-read)))
+		 (if (match-to-template expect result)
+		     (loop (+ i 1))
+		     (begin
+		       (format #t "BAD result: ~s~%" result)
+		       #f)))))))
+     (else
+      (loop (+ i 1))))))
+
 (define (check-all tests)
   (let ((n (vector-length tests)))
     (let loop ((i 0))
       (if (< i n)
+	  (let ((item (vector-ref tests i)))
+	    (check-run item i loop))
+	  #t))))
+
+(define (check-one id tests)
+  (let ((n (vector-length tests)))
+    (let loop ((i 0))
+      (if (< i n)
 	  (let* ((item (vector-ref tests i))
-		 (op (assoc 'operation item))
-		 (expect (fetch-outcome item))
-		 (stop (assoc 'stop item)))
-	    (cond
-	     ((not (eqv? stop #f))
-	      (format #t "STOP TESTING~%")
-	      #t)
-	     ((not (eqv? op #f))
-	      (format #t "testing: ~s ~s~%"
-		      (assoc 'name item)
-		      (assoc 'kind item))
-	      (format #t "expect: ~s~%" expect)
-	      (format #t "operation: ~s~%" (cdr op))
-	      (let-values (((status outs errs) (run-system (cdr op))))
-		(format #t "status: ~s (~s, ~s)~%" status
-			(status:exit-val status) (status:term-sig status))
-		(format #t "stdout: ~s~%" outs)
-		(format #t "stderr: ~s~%" errs)
-		(cond ((not (= status 0))
-		       (format #t "BAD non-zero status: (~s)~%" status)
-		       #f)
-		      ((string? expect)
-		       (let ((result outs))
-			 (if (match-to-string expect result)
-			     (loop (+ i 1))
-			     (begin
-			       (format #t "BAD result: ~s~%" result)
-			       #f))))
-		      (else
-		       (let ((result (with-input-from-string outs json-read)))
-			 (if (match-to-template expect result)
-			     (loop (+ i 1))
-			     (begin
-			       (format #t "BAD result: ~s~%" result)
-			       #f)))))))
-	     (else
-	      (loop (+ i 1)))))
+		 (id1 (cond ((assoc 'ID item) => cdr) (else #f))))
+	    (if (and id1 (= id id1))
+		(check-run item i (lambda (j) #t))
+		(loop (+ i 1))))
 	  #t))))
 
 (define tests (cdr (assoc 'test

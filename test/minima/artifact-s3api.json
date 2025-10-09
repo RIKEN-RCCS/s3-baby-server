@@ -1,108 +1,16 @@
 {
-  "name": "bottom",
+  "name": "s3api",
   "date": "2025-09-25",
   "precondition1": "It assumes start with an empty pool directory.",
   "precondition2": "Make a file \"file-5m.txt\" on the client side.",
   "precondition3": "Place some dot-files to check they are not listed.",
+  "precondition4": "./files directory exits and populated by some files.",
   "test": [
-{
-  "ID": 1,
-  "name": "server-connection",
-  "kind": "basic",
-  "result": "It displays a list of buckets, which is initially empty.  Check no dot-files are listed.",
-  "operation": "aws s3api list-buckets",
-  "status": "200 OK",
-  "outcome1": {"Buckets": [],
-	       "Owner": null,
-	       "Prefix": null},
-  "outcome2": {"Buckets": [{"Name": "#|.*",
-			    "CreationDate": "#time"}],
-	       "Owner": {"DisplayName": "#|.*",
-			 "ID": "#|[0-9a-f]*"},
-	       "Prefix": null}
-},
-{
-  "ID": 2,
-  "name": "MB",
-  "kind": "s3 command",
-  "result": "It creates a bucket named \"mybucket\".",
-  "operation": "aws s3 mb s3://mybucket",
-  "status": "200 OK",
-  "outcome1": null,
-  "outcome2": ["make_bucket: mybucket"]
-},
-{
-  "ID": 3,
-  "name": "LS",
-  "kind": "s3 command",
-  "result": "It displays a list of buckets.  There is one \"mybucket\" bucket.",
-  "operation": "aws s3 ls",
-  "status": "200 OK",
-  "outcome1": null,
-  "outcome2": ["#date #time mybucket"],
-  "outcome3": ["#date #time 1001files",
-	       "#date #time abc",
-	       "#date #time abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
-	       "#date #time bucket",
-	       "#date #time bucket2",
-	       "#date #time test-bucket"]
-},
-{
-  "stop": true,
-  "ID": 4,
-  "name": null,
-  "kind": "cp",
-  "result": "指定した5MB以下のファイルが\"bucket\"ディレクトリ下にコピーされる",
-  "operation": "aws s3 cp file-4m.txt s3://bucket",
-  "status": "200 OK",
-  "outcome1": "upload: .*/file-4m.txt to s3://bucket/file-4m.txt",
-  "outcome2": "upload: .*/file-4m.txt to s3://bucket/file-4m.txt"
-},
-{
-  "ID": 5,
-  "name": null,
-  "kind": "cp",
-  "result": "指定した5MB超えのファイルが\"bucket\"ディレクトリ下にコピーされる",
-  "operation": "aws s3 cp \"5MB超えのファイルパス\" s3://bucket",
-  "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3 cp C:/test/file-10MB.txt s3://bucket\nupload: ..\\..\\test\\file-10MB.txt to s3://bucket/file-10MB.txt",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3 cp C:/test/file-10MB.txt s3://bucket\nupload: ..\\..\\test\\file-10MB.txt to s3://bucket/file-10MB.txt"
-},
-{
-  "ID": 6,
-  "name": null,
-  "kind": "sync",
-  "result": "同期元のディレクトリパスに存在しているファイルが\"bucket\"ディレクトリにコピーされる",
-  "operation": "aws s3 sync \"同期元のディレクトリパス\" s3://bucket",
-  "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3 sync \"C:/test\" s3://bucket\nupload: ..\\..\\test\\testfile.txt to s3://bucket/testfile.txt\nupload: ..\\..\\test\\testfile2.txt to s3://bucket/testfile2.txt",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3 sync C:/test/sync s3://bucket\nupload: ..\\..\\test\\sync\\testfile.txt to s3://bucket/testfile.txt\nupload: ..\\..\\test\\sync\\testfile2.txt to s3://bucket/testfile2.txt"
-},
-{
-  "ID": 7,
-  "name": null,
-  "kind": "rm",
-  "result": "コピーした\"bucket\"ディレクトリ下のファイルが削除される",
-  "operation": "aws s3 rm s3://bucket/\"コピーしたファイル名\"",
-  "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3 rm s3://bucket/testfile.txt\ndelete: s3://bucket/testfile.txt",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3 rm s3://bucket/testfile.txt\ndelete: s3://bucket/testfile.txt"
-},
-{
-  "ID": 8,
-  "name": null,
-  "kind": "rb",
-  "result": "\"bucket\"ディレクトリが削除される",
-  "operation": "aws s3 rb s3://bucket --force",
-  "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3 rb s3://bucket --force\nremove_bucket: bucket",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3 rb s3://new-bucket --force\nremove_bucket: new-bucket"
-},
 {
   "ID": 9,
   "name": "低レベルAPI",
   "kind": "CreateBucket",
-  "result": "\"bucket\"ディレクトリが作成される",
+  "result": "\"mybucket\"ディレクトリが作成される",
   "operation": "aws s3api create-bucket --bucket bucket",
   "status": "200 OK",
   "outcome1": "C:\\Users\\k-ryoh>aws s3api create-bucket --bucket bucket\n{\n    \"Location\": \"/bucket\"\n}",
@@ -122,20 +30,20 @@
   "ID": 11,
   "name": null,
   "kind": "ListBuckets",
-  "result": "サーブしているディレクトリ下がリストアップされる（隠しディレクトリは表示されず、\"bucket\"ディレクトリのみ表示）",
+  "result": "サーブしているディレクトリ下がリストアップされる（隠しディレクトリは表示されず、\"mybucket\"ディレクトリのみ表示）",
   "operation": "aws s3api list-buckets",
   "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"bucket\",\n            \"CreationDate\": \"2025-08-19T08:39:05.007000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"1001files\",\n            \"CreationDate\": \"2025-08-26T05:35:53.083000+00:00\"\n        },\n        {\n            \"Name\": \"abc\",\n            \"CreationDate\": \"2025-08-26T05:35:36.466000+00:00\"\n        },\n        {\n            \"Name\": \"abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1\",\n            \"CreationDate\": \"2025-08-21T07:56:21.714000+00:00\"\n        },\n        {\n            \"Name\": \"bucket\",\n            \"CreationDate\": \"2025-08-20T08:32:06.081000+00:00\"\n        },\n        {\n            \"Name\": \"bucket2\",\n            \"CreationDate\": \"2025-08-26T05:32:36.438000+00:00\"\n        },\n        {\n            \"Name\": \"new-bucket2\",\n            \"CreationDate\": \"2025-08-26T05:47:47.223000+00:00\"\n        },\n        {\n            \"Name\": \"test-bucket\",\n            \"CreationDate\": \"2025-08-20T08:37:28.031000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}"
+  "outcome1": "C:\\Users\\k-ryoh>aws s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"mybucket\",\n            \"CreationDate\": \"2025-08-19T08:39:05.007000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}",
+  "outcome2": "C:\\Users\\k-ryoh>aws s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"1001files\",\n            \"CreationDate\": \"2025-08-26T05:35:53.083000+00:00\"\n        },\n        {\n            \"Name\": \"abc\",\n            \"CreationDate\": \"2025-08-26T05:35:36.466000+00:00\"\n        },\n        {\n            \"Name\": \"abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1\",\n            \"CreationDate\": \"2025-08-21T07:56:21.714000+00:00\"\n        },\n        {\n            \"Name\": \"mybucket\",\n            \"CreationDate\": \"2025-08-20T08:32:06.081000+00:00\"\n        },\n        {\n            \"Name\": \"bucket2\",\n            \"CreationDate\": \"2025-08-26T05:32:36.438000+00:00\"\n        },\n        {\n            \"Name\": \"new-bucket2\",\n            \"CreationDate\": \"2025-08-26T05:47:47.223000+00:00\"\n        },\n        {\n            \"Name\": \"test-bucket\",\n            \"CreationDate\": \"2025-08-20T08:37:28.031000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}"
 },
 {
   "ID": 12,
   "name": null,
   "kind": "PutObject",
-  "result": "\"bucket\"ディレクトリ下に指定した5MB以下のテキストファイルがobject.txtに名前が変更され、アップロードされる。",
+  "result": "\"mybucket\"ディレクトリ下に指定した5MB以下のテキストファイルがobject.txtに名前が変更され、アップロードされる。",
   "operation": "aws s3api put-object --bucket bucket --key object.txt --body \"5MB以下のファイルパス\"",
   "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3api put-object --bucket bucket --key object.txt --body C:/test/file-4MB.txt\n{\n    \"ETag\": \"\\\"b5cfa9d6c8febd618f91ac2843d50a1c\\\"\",\n    \"ChecksumCRC64NVME\": \"BDJX5ole/O0=\",\n    \"ChecksumType\": \"FULL_OBJECT\"\n}",
+  "outcome1": "C:\\Users\\k-ryoh>aws s3api put-object --bucket bucket --key object.txt --body C:/test/data-4m.txt\n{\n    \"ETag\": \"\\\"b5cfa9d6c8febd618f91ac2843d50a1c\\\"\",\n    \"ChecksumCRC64NVME\": \"BDJX5ole/O0=\",\n    \"ChecksumType\": \"FULL_OBJECT\"\n}",
   "outcome2": "C:\\Users\\k-ryoh>aws s3api put-object --bucket new-bucket2 --key object.txt --body \"C:\\test\\testfile.txt\"\n{\n    \"ETag\": \"\\\"b0e1441f05c49e8d891520583bceab70\\\"\",\n    \"ChecksumCRC64NVME\": \"vJRcOsbBoE4=\",\n    \"ChecksumType\": \"FULL_OBJECT\"\n}"
 },
 {
@@ -162,7 +70,7 @@
   "ID": 15,
   "name": null,
   "kind": "ListObjects",
-  "result": "\"bucket\"ディレクトリ下のファイル情報がHeadObjectとは違う形で取得できる",
+  "result": "\"mybucket\"ディレクトリ下のファイル情報がHeadObjectとは違う形で取得できる",
   "operation": "aws s3api list-objects --bucket bucket",
   "status": "200 OK",
   "outcome1": "C:\\Users\\k-ryoh>aws s3api list-objects --bucket bucket\n{\n    \"Contents\": [\n        {\n            \"Key\": \"object.txt\",\n            \"LastModified\": \"2025-08-19T08:42:29.498000+00:00\",\n            \"ETag\": \"\\\"b5cfa9d6c8febd618f91ac2843d50a1c\\\"\",\n            \"Size\": 4194304,\n            \"StorageClass\": \"STANDARD\",\n            \"Owner\": {\n                \"DisplayName\": \"minio\",\n                \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n            }\n        }\n    ],\n    \"RequestCharged\": null,\n    \"Prefix\": \"\"\n}",
@@ -172,7 +80,7 @@
   "ID": 16,
   "name": null,
   "kind": "CopyObject",
-  "result": "object.txtの内容が\"bucket\"ディレクトリ下にcopy.txtとしてコピーされる",
+  "result": "object.txtの内容が\"mybucket\"ディレクトリ下にcopy.txtとしてコピーされる",
   "operation": "aws s3api copy-object --bucket bucket --key copy.txt --copy-source bucket/object.txt",
   "status": "200 OK",
   "outcome1": "C:\\Users\\k-ryoh>aws s3api copy-object --bucket bucket --key copy.txt --copy-source bucket/object.txt\n{\n    \"CopyObjectResult\": {\n        \"ETag\": \"\\\"b5cfa9d6c8febd618f91ac2843d50a1c\\\"\",\n        \"LastModified\": \"2025-08-19T08:45:32.882000+00:00\"\n    }\n}",
@@ -235,8 +143,8 @@
   "result": ".S3BabyServer/MultipartUploadディレクトリにUploadIDディレクトリ（1）が作成される",
   "operation": "aws s3api create-multipart-upload --bucket bucket --key multipart.txt",
   "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket bucket --key multipart.txt\n{\n    \"Bucket\": \"bucket\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw\"\n}",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket new-bucket2 --key multipart.txt\n{\n    \"Bucket\": \"new-bucket2\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjY2ZjQ2YmM0LTU4ODktNDUzOS05YmZlLWVjOTYzYTJiOWMzOHgxNzU2MTg5MjQwODk1NTI1NzU0\"\n}"
+  "outcome1": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket bucket --key multipart.txt\n{\n    \"mybucket\": \"mybucket\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw\"\n}",
+  "outcome2": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket new-bucket2 --key multipart.txt\n{\n    \"mybucket\": \"new-bucket2\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjY2ZjQ2YmM0LTU4ODktNDUzOS05YmZlLWVjOTYzYTJiOWMzOHgxNzU2MTg5MjQwODk1NTI1NzU0\"\n}"
 },
 {
   "ID": 23,
@@ -245,8 +153,8 @@
   "result": ".S3BabyServer/MultipartUploadディレクトリにUploadIDディレクトリ（2）が作成される",
   "operation": "aws s3api create-multipart-upload --bucket bucket --key multipart.txt",
   "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket bucket --key multipart.txt\n{\n    \"Bucket\": \"bucket\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLjZkZDZkNGY1LThkZTctNGM5Yi04MjlkLWY3YWNkNDUzZGYzMHgxNzU1NjQ4NTgwMjA4ODAzNjEz\"\n}",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket new-bucket2 --key multipart.txt\n{\n    \"Bucket\": \"new-bucket2\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjNkN2M0MmY3LTIxNzUtNDNmOC04M2JmLWM4NDYyMDgxYjkyOHgxNzU2MTg5MzIxNTg0NTY1NzQ4\"\n}"
+  "outcome1": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket bucket --key multipart.txt\n{\n    \"mybucket\": \"mybucket\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLjZkZDZkNGY1LThkZTctNGM5Yi04MjlkLWY3YWNkNDUzZGYzMHgxNzU1NjQ4NTgwMjA4ODAzNjEz\"\n}",
+  "outcome2": "C:\\Users\\k-ryoh>aws s3api create-multipart-upload --bucket new-bucket2 --key multipart.txt\n{\n    \"mybucket\": \"new-bucket2\",\n    \"Key\": \"multipart.txt\",\n    \"UploadId\": \"YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjNkN2M0MmY3LTIxNzUtNDNmOC04M2JmLWM4NDYyMDgxYjkyOHgxNzU2MTg5MzIxNTg0NTY1NzQ4\"\n}"
 },
 {
   "ID": 24,
@@ -265,8 +173,8 @@
   "result": "UploadIDディレクトリ（1）内にパーナンバーファイル（1）が作成される\n内容としてbodyに指定したファイルがアップロードされている",
   "operation": "aws s3api upload-part --bucket bucket --key multipart.txt --part-number 1 --body \"5MB超えのファイルパス\" --upload-id 1",
   "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3api upload-part --bucket bucket --key multipart.txt --part-number 1 --body C:\\test\\file-10MB.txt --upload-id NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw\n{\n    \"ETag\": \"\\\"f1c9645dbc14efddc7d8a322685f26eb\\\"\",\n    \"ChecksumCRC64NVME\": \"r3XRsudNx4U=\"\n}",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3api upload-part --bucket new-bucket2 --key multipart.txt --part-number 1 --body \"C:\\test\\file-10MB.txt\" --upload-id YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjY2ZjQ2YmM0LTU4ODktNDUzOS05YmZlLWVjOTYzYTJiOWMzOHgxNzU2MTg5MjQwODk1NTI1NzU0\n{\n    \"ETag\": \"\\\"f1c9645dbc14efddc7d8a322685f26eb\\\"\",\n    \"ChecksumCRC64NVME\": \"r3XRsudNx4U=\"\n}"
+  "outcome1": "C:\\Users\\k-ryoh>aws s3api upload-part --bucket bucket --key multipart.txt --part-number 1 --body C:\\test\\data-10m.txt --upload-id NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw\n{\n    \"ETag\": \"\\\"f1c9645dbc14efddc7d8a322685f26eb\\\"\",\n    \"ChecksumCRC64NVME\": \"r3XRsudNx4U=\"\n}",
+  "outcome2": "C:\\Users\\k-ryoh>aws s3api upload-part --bucket new-bucket2 --key multipart.txt --part-number 1 --body \"C:\\test\\data-10m.txt\" --upload-id YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjY2ZjQ2YmM0LTU4ODktNDUzOS05YmZlLWVjOTYzYTJiOWMzOHgxNzU2MTg5MjQwODk1NTI1NzU0\n{\n    \"ETag\": \"\\\"f1c9645dbc14efddc7d8a322685f26eb\\\"\",\n    \"ChecksumCRC64NVME\": \"r3XRsudNx4U=\"\n}"
 },
 {
   "ID": 26,
@@ -302,11 +210,11 @@
   "ID": 29,
   "name": null,
   "kind": "CompleteMultipartUpload",
-  "result": "\"bucket\"ディレクトリ下にmultipart.txtファイルが作成され、2つのパートファイルが結合された内容になっている\nUploadIDディレクトリ（1）が削除される",
+  "result": "\"mybucket\"ディレクトリ下にmultipart.txtファイルが作成され、2つのパートファイルが結合された内容になっている\nUploadIDディレクトリ（1）が削除される",
   "operation": "aws s3api complete-multipart-upload --bucket bucket --key multipart.txt --upload-id 1 --multipart-upload \"{\"\"Parts\"\":[{\"\"ETag\"\":\"\"UploadPart時のetag\"\",\"\"PartNumber\"\":1},{\"\"ETag\"\":\"\"UploadPartCopy時のetag\"\",\"\"PartNumber\"\":2}]}\"",
   "status": "200 OK",
-  "outcome1": "C:\\Users\\k-ryoh>aws s3api complete-multipart-upload --bucket bucket --key multipart.txt --upload-id NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw --multipart-upload \"{\"\"Parts\"\":[{\"\"ETag\"\":\"\\\"f1c9645dbc14efddc7d8a322685f26eb\\\"\",\"\"PartNumber\"\":1},{\"\"ETag\"\":\"\\\"b5cfa9d6c8febd618f91ac2843d50a1c\\\"\",\"\"PartNumber\"\":2}]}\"\n{\n    \"Location\": \"http://localhost:8000/bucket/multipart.txt\",\n    \"Bucket\": \"bucket\",\n    \"Key\": \"multipart.txt\",\n    \"ETag\": \"\\\"4fed5feb2a80bd29e41b3cebab6d37e0-2\\\"\"\n}",
-  "outcome2": "C:\\Users\\k-ryoh>aws s3api complete-multipart-upload --bucket new-bucket2 --key multipart.txt --upload-id YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjY2ZjQ2YmM0LTU4ODktNDUzOS05YmZlLWVjOTYzYTJiOWMzOHgxNzU2MTg5MjQwODk1NTI1NzU0 --multipart-upload \"{\"\"Parts\"\":[{\"\"ETag\"\":\"\"f1c9645dbc14efddc7d8a322685f26eb\"\",\"\"PartNumber\"\":1},{\"\"ETag\"\":\"\"b0e1441f05c49e8d891520583bceab70\"\",\"\"PartNumber\"\":2}]}\"\n{\n    \"Location\": \"http://localhost:8000/new-bucket2/multipart.txt\",\n    \"Bucket\": \"new-bucket2\",\n    \"Key\": \"multipart.txt\",\n    \"ETag\": \"\\\"67ac2ca2a6c9f875338d1ddd39a979ed-2\\\"\"\n}"
+  "outcome1": "C:\\Users\\k-ryoh>aws s3api complete-multipart-upload --bucket bucket --key multipart.txt --upload-id NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw --multipart-upload \"{\"\"Parts\"\":[{\"\"ETag\"\":\"\\\"f1c9645dbc14efddc7d8a322685f26eb\\\"\",\"\"PartNumber\"\":1},{\"\"ETag\"\":\"\\\"b5cfa9d6c8febd618f91ac2843d50a1c\\\"\",\"\"PartNumber\"\":2}]}\"\n{\n    \"Location\": \"http://localhost:8000/bucket/multipart.txt\",\n    \"mybucket\": \"mybucket\",\n    \"Key\": \"multipart.txt\",\n    \"ETag\": \"\\\"4fed5feb2a80bd29e41b3cebab6d37e0-2\\\"\"\n}",
+  "outcome2": "C:\\Users\\k-ryoh>aws s3api complete-multipart-upload --bucket new-bucket2 --key multipart.txt --upload-id YWY2NmRlN2YtZTIyYi00YzQ3LTk3MmQtMTg3M2EwYjRhZTk1LjY2ZjQ2YmM0LTU4ODktNDUzOS05YmZlLWVjOTYzYTJiOWMzOHgxNzU2MTg5MjQwODk1NTI1NzU0 --multipart-upload \"{\"\"Parts\"\":[{\"\"ETag\"\":\"\"f1c9645dbc14efddc7d8a322685f26eb\"\",\"\"PartNumber\"\":1},{\"\"ETag\"\":\"\"b0e1441f05c49e8d891520583bceab70\"\",\"\"PartNumber\"\":2}]}\"\n{\n    \"Location\": \"http://localhost:8000/new-bucket2/multipart.txt\",\n    \"mybucket\": \"new-bucket2\",\n    \"Key\": \"multipart.txt\",\n    \"ETag\": \"\\\"67ac2ca2a6c9f875338d1ddd39a979ed-2\\\"\"\n}"
 },
 {
   "ID": 30,
@@ -332,11 +240,11 @@
   "ID": 32,
   "name": null,
   "kind": "DeleteBucket",
-  "result": "\"bucket\"ディレクトリが削除される",
+  "result": "\"mybucket\"ディレクトリが削除される",
   "operation": "aws s3api delete-bucket --bucket bucket",
   "status": "204 NoContent",
   "outcome1": "実行成功、MSGなし（ListBucketsで確認）\nC:\\Users\\k-ryoh>aws s3api list-buckets\n{\n    \"Buckets\": [],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}",
-  "outcome2": "実行成功、MSGなし（ListBucketsで確認）\nC:\\Users\\k-ryoh>aws s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"1001files\",\n            \"CreationDate\": \"2025-08-26T05:35:53.083000+00:00\"\n        },\n        {\n            \"Name\": \"abc\",\n            \"CreationDate\": \"2025-08-26T05:35:36.466000+00:00\"\n        },\n        {\n            \"Name\": \"abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1\",\n            \"CreationDate\": \"2025-08-21T07:56:21.714000+00:00\"\n        },\n        {\n            \"Name\": \"bucket\",\n            \"CreationDate\": \"2025-08-20T08:32:06.081000+00:00\"\n        },\n        {\n            \"Name\": \"bucket2\",\n            \"CreationDate\": \"2025-08-26T05:32:36.438000+00:00\"\n        },\n        {\n            \"Name\": \"test-bucket\",\n            \"CreationDate\": \"2025-08-20T08:37:28.031000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}"
+  "outcome2": "実行成功、MSGなし（ListBucketsで確認）\nC:\\Users\\k-ryoh>aws s3api list-buckets\n{\n    \"Buckets\": [\n        {\n            \"Name\": \"1001files\",\n            \"CreationDate\": \"2025-08-26T05:35:53.083000+00:00\"\n        },\n        {\n            \"Name\": \"abc\",\n            \"CreationDate\": \"2025-08-26T05:35:36.466000+00:00\"\n        },\n        {\n            \"Name\": \"abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1\",\n            \"CreationDate\": \"2025-08-21T07:56:21.714000+00:00\"\n        },\n        {\n            \"Name\": \"mybucket\",\n            \"CreationDate\": \"2025-08-20T08:32:06.081000+00:00\"\n        },\n        {\n            \"Name\": \"bucket2\",\n            \"CreationDate\": \"2025-08-26T05:32:36.438000+00:00\"\n        },\n        {\n            \"Name\": \"test-bucket\",\n            \"CreationDate\": \"2025-08-20T08:37:28.031000+00:00\"\n        }\n    ],\n    \"Owner\": {\n        \"DisplayName\": \"minio\",\n        \"ID\": \"02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4\"\n    },\n    \"Prefix\": null\n}"
 }
 ]
 }
