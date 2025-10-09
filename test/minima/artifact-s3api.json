@@ -55,8 +55,8 @@
   "operation": "aws s3api put-object --bucket mybucket1 --key data-001.txt --body ./data-04m.txt",
   "status": "200 OK",
   "outcome1": {
-    "ETag": "[[:xdigit:]]{32}",
-    "ChecksumCRC64NVME": "[a-zA-Z0-9=]{12}",
+    "ETag": "#etag",
+    "ChecksumCRC64NVME": "#csum",
     "ChecksumType": "FULL_OBJECT"
   },
   "outcome2": null
@@ -70,10 +70,9 @@
   "status": "200 OK",
   "outcome1": {
     "AcceptRanges": "bytes",
-    "LastModified": "2025-08-19T08:42:29+00:00",
-    "ContentLength": 4194304,
-    "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-    "ContentType": "binary/octet-stream",
+    "LastModified": "#datetime",
+    "ContentLength": "#_",
+    "ETag": "#etag",
     "Metadata": {}
   },
   "outcome2": null

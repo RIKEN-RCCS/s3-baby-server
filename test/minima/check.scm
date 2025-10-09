@@ -113,7 +113,9 @@
   ;; BE LISTED IN LONGER TO SHORTER ORDER.
   (let ((replacements `(("#datetime" . ,datetime-regexp)
 			("#date" . ,date-regexp)
-			("#time" . ,time-regexp))))
+			("#time" . ,time-regexp)
+			("#etag" . "[[:xdigit:]]{32}")
+			("#csum" . "[a-zA-Z0-9+/=]{12}"))))
     (let loop ((s s)
 	       (replacements replacements))
       (if (null? replacements)
