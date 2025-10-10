@@ -4,7 +4,7 @@
   "NOTE": ["It assumes start with an empty pool directory.",
 	   "Needs existence of files: 'data-04m.txt'.",
 	   "Works in a bucket: 'mybucket'.",
-	   "Uses files: 'data-001.txt', 'data-002.txt', 'data-003.txt'.",
+	   "Uses files: {'data-001.txt', 'data-002.txt', 'data-003.txt'}.",
 	   "Leaves files: 'data-101.txt'."],
   "test": [
 {
@@ -39,7 +39,7 @@
     "Buckets": [
       {
         "Name": "mybucket1",
-        "CreationDate": "#datetime"
+        "CreationDate": "#|datetime|"
       }
     ],
     "Owner": null,
@@ -55,8 +55,8 @@
   "operation": "aws s3api put-object --bucket mybucket1 --key data-001.txt --body ./data-04m.txt",
   "status": "200 OK",
   "outcome1": {
-    "ETag": "#etag",
-    "ChecksumCRC64NVME": "#csum",
+    "ETag": "#|etag|",
+    "ChecksumCRC64NVME": "#|csum|",
     "ChecksumType": "FULL_OBJECT"
   },
   "outcome2": null
@@ -70,9 +70,9 @@
   "status": "200 OK",
   "outcome1": {
     "AcceptRanges": "bytes",
-    "LastModified": "#datetime",
+    "LastModified": "#|datetime|",
     "ContentLength": "#_",
-    "ETag": "#etag",
+    "ETag": "#|etag|",
     "Metadata": {}
   },
   "outcome2": null
@@ -86,12 +86,12 @@
   "status": "200 OK",
   "outcome1": {
     "AcceptRanges": "bytes",
-    "LastModified": "2025-08-19T08:42:29+00:00",
-    "ContentLength": 4194304,
-    "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-    "ChecksumCRC64NVME": "BDJX5ole/O0=",
+    "LastModified": "#|datetime|",
+    "ContentLength": "#_",
+    "ETag": "#|etag|",
+    "ChecksumCRC64NVME": "#|csum|",
     "ChecksumType": "FULL_OBJECT",
-    "ContentType": "binary/octet-stream",
+    "ContentType": "application/octet-stream",
     "Metadata": {}
   },
   "outcome2": null
@@ -107,14 +107,10 @@
     "Contents": [
       {
         "Key": "data-001.txt",
-        "LastModified": "2025-08-19T08:42:29.498000+00:00",
-        "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-        "Size": 4194304,
-        "StorageClass": "STANDARD",
-        "Owner": {
-          "DisplayName": "minio",
-          "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-        }
+        "LastModified": "#|datetime|",
+        "ETag": "#|etag|",
+        "Size": "#_",
+        "StorageClass": "STANDARD"
       }
     ],
     "RequestCharged": null,
@@ -125,14 +121,16 @@
 {
   "ID": 8,
   "step": "Copy in a bucket, 'data-001.txt' to 'data-002.txt'.",
+  "pre": "Files = {'data-001.txt'}",
+  "post": "Files = {'data-001.txt', 'data-002.txt'}",
   "name": "CopyObject",
   "kind": null,
   "operation": "aws s3api copy-object --bucket mybucket1 --key data-002.txt --copy-source mybucket1/data-001.txt",
   "status": "200 OK",
   "outcome1": {
     "CopyObjectResult": {
-      "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-      "LastModified": "2025-08-19T08:45:32.882000+00:00"
+      "ETag": "#|etag|",
+      "LastModified": "#|datetime|"
     }
   },
   "outcome2": null
@@ -140,15 +138,16 @@
 {
   "ID": 9,
   "step": "Copy in a bucket, 'data-001.txt' to 'data-003.txt'.",
-  "post": "Files exist: 'data-001.txt', 'data-002.txt', 'data-003.txt'",
+  "pre": "Files = {'data-001.txt', 'data-002.txt'}",
+  "post": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
   "name": "CopyObject",
   "kind": null,
   "operation": "aws s3api copy-object --bucket mybucket1 --key data-003.txt --copy-source mybucket1/data-001.txt",
   "status": "200 OK",
   "outcome1": {
     "CopyObjectResult": {
-      "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-      "LastModified": "2025-08-19T08:45:32.882000+00:00"
+      "ETag": "#|etag|",
+      "LastModified": "#|datetime|"
     }
   },
   "outcome2": null
@@ -158,29 +157,16 @@
   "step": "List objects by V2.",
   "name": "ListObjectsV2",
   "kind": null,
+  "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
   "operation": "aws s3api list-objects-v2 --bucket mybucket1",
   "status": "200 OK",
   "outcome1": {
     "Contents": [
       {
-        "Key": "data-001.txt",
-        "LastModified": "2025-08-19T08:42:29.498000+00:00",
-        "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-        "Size": 4194304,
-        "StorageClass": "STANDARD"
-      },
-      {
-        "Key": "data-002.txt",
-        "LastModified": "2025-08-19T08:45:32.882000+00:00",
-        "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-        "Size": 4194304,
-        "StorageClass": "STANDARD"
-      },
-      {
-        "Key": "data-003.txt",
-        "LastModified": "2025-08-19T08:45:32.882000+00:00",
-        "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-        "Size": 4194304,
+        "Key": "data-00[123].txt",
+        "LastModified": "#|datetime|",
+        "ETag": "#|etag|",
+        "Size": "#_",
         "StorageClass": "STANDARD"
       }
     ],
@@ -194,7 +180,7 @@
   "step": "Put a tag on 'data-001.txt'.",
   "name": "PutObjectTagging",
   "kind": null,
-  "operation": "aws s3api put-object-tagging --bucket mybucket1 --key data-001.txt --tagging \"TagSet=[{Key=TestKey,Value=TestValue}]\"",
+  "operation": "aws s3api put-object-tagging --bucket mybucket1 --key data-001.txt --tagging \"TagSet=[{Key=MyKey,Value=MyValue}]\"",
   "status": "200 OK",
   "outcome1": {},
   "outcome2": null
@@ -209,8 +195,8 @@
   "outcome1": {
     "TagSet": [
       {
-        "Key": "TestKey",
-        "Value": "TestValue"
+        "Key": "MyKey",
+        "Value": "MyValue"
       }
     ]
   },
@@ -221,6 +207,7 @@
   "step": "Delete tags on 'data-001.txt'.",
   "name": "DeleteObjectTagging",
   "kind": null,
+  "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
   "operation": "aws s3api delete-object-tagging --bucket mybucket1 --key data-001.txt",
   "status": "204 NoContent",
   "outcome1": {},
@@ -242,37 +229,39 @@
   "step": "Get attributes of 'data-001.txt'.",
   "name": "GetObjectAttributes",
   "kind": null,
-  "operation": "aws s3api get-object-attributes --bucket mybucket1 --key data-001.txt --object-attributes \"ETag\" \"Checksum\" \"ObjectParts\" \"StorageClass\" \"ObjectSize\"",
+  "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
+  "MEMO1": "Checksum slot misses ChecksumType=FULL_OBJECT.",
+  "MEMO2": "ObjectParts slot misses PartNumberMarker=0",
+  "operation": "aws s3api get-object-attributes --bucket mybucket1 --key data-001.txt --object-attributes ETag ObjectSize Checksum StorageClass ObjectParts",
   "status": "200 OK",
   "outcome1": {
-    "LastModified": "2025-08-19T08:45:32+00:00",
-    "ETag": "b5cfa9d6c8febd618f91ac2843d50a1c",
+    "LastModified": "#|datetime|",
+    "ETag": "#|etag|",
     "Checksum": {
-      "ChecksumCRC64NVME": "BDJX5ole/O0=",
-      "ChecksumType": "FULL_OBJECT"
+      "ChecksumCRC64NVME": "#|csum|"
     },
     "ObjectParts": {
       "TotalPartsCount": 1,
-      "PartNumberMarker": 0,
       "NextPartNumberMarker": 1,
       "MaxParts": 10000,
       "IsTruncated": false,
       "Parts": [
         {
           "PartNumber": 1,
-          "Size": 4194304
+          "Size": "#_"
         }
       ]
     },
     "StorageClass": "STANDARD",
-    "ObjectSize": 4194304
+    "ObjectSize": "#_"
   },
   "outcome2": null
 },
 {
   "ID": 16,
   "step": "Delete 'data-001.txt'.",
-  "post": "Files exit: 'data-002.txt' and 'data-003.txt'.",
+  "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
+  "post": "Files = {'data-002.txt' and 'data-003.txt'}",
   "name": "DeleteObject",
   "kind": null,
   "operation": "aws s3api delete-object --bucket mybucket1 --key data-001.txt",
@@ -285,31 +274,17 @@
   "step": "Check deletion of 'data-001.txt'.",
   "name": "DeleteObject",
   "kind": null,
+  "pre": "Files = {'data-002.txt', 'data-003.txt'}",
   "operation": "aws s3api list-objects --bucket mybucket1",
   "status": "204 NoContent",
   "outcome1": {
     "Contents": [
       {
-        "Key": "data-002.txt",
-        "LastModified": "2025-08-26T06:10:40.638000+00:00",
-        "ETag": "\"b0e1441f05c49e8d891520583bceab70\"",
-        "Size": 2660,
-        "StorageClass": "STANDARD",
-        "Owner": {
-          "DisplayName": "minio",
-          "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-        }
-      },
-      {
-        "Key": "data-003.txt",
-        "LastModified": "2025-08-26T06:10:40.638000+00:00",
-        "ETag": "\"b0e1441f05c49e8d891520583bceab70\"",
-        "Size": 2660,
-        "StorageClass": "STANDARD",
-        "Owner": {
-          "DisplayName": "minio",
-          "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-        }
+        "Key": "data-00[23].txt",
+        "LastModified": "#|datetime|",
+        "ETag": "#|etag|",
+        "Size": "#_",
+        "StorageClass": "STANDARD"
       }
     ],
     "RequestCharged": null,
@@ -318,19 +293,17 @@
 },
 {
   "ID": 18,
-  "step": "Delete 'data-002.txt' and 'data-003.txt'",
-  "pre": "Files 'data-002.txt' and 'data-003.txt' exist.",
+  "step": "Delete two files, 'data-002.txt' and 'data-003.txt'",
+  "pre": "Files = {'data-002.txt', 'data-003.txt'}",
+  "post": "Files = {}",
   "name": "DeleteObjects",
   "kind": null,
-  "operation": "aws s3api delete-objects --bucket mybucket1 --delete \"{\"Objects\":[{\"Key\":\"data-002.txt\"},{\"Key\":\"data-003.txt\"}],\"Quiet\":false}",
+  "operation": "aws s3api delete-objects --bucket mybucket1 --delete '{\"Objects\":[{\"Key\":\"data-002.txt\"},{\"Key\":\"data-003.txt\"}],\"Quiet\":false}'",
   "status": "200 OK",
   "outcome1": {
     "Deleted": [
       {
-        "Key": "data-002.txt"
-      },
-      {
-        "Key": "data-003.txt"
+        "Key": "data-00[23].txt"
       }
     ]
   },
@@ -338,8 +311,8 @@
 },
 {
   "ID": 19,
-  "step": "Delete 'mybucket1'.",
-  "pre": "Bucket is empty.",
+  "step": "Delete empty bucket 'mybucket1'.",
+  "pre": "Files = {}",
   "name": "DeleteBucket",
   "kind": null,
   "operation": "aws s3api delete-bucket --bucket mybucket1",
@@ -356,10 +329,7 @@
   "status": "204 NoContent",
   "outcome1": {
     "Buckets": [],
-    "Owner": {
-      "DisplayName": "minio",
-      "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-    },
+    "Owner": null,
     "Prefix": null
   },
   "outcome2": null

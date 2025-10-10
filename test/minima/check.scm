@@ -109,47 +109,49 @@
 
 (define (replace-regexp-token s)
   ;; Replaces pattern tokens in a string with their regexp patterns.
-  ;; Tokens are "#date", "#time", "#datetime".  TOKEN PATTERNS SHOULD
-  ;; BE LISTED IN LONGER TO SHORTER ORDER.
-  (let ((replacements `(("#datetime" . ,datetime-regexp)
-			("#date" . ,date-regexp)
-			("#time" . ,time-regexp)
-			("#etag" . "[[:xdigit:]]{32}")
-			("#csum" . "[a-zA-Z0-9+/=]{12}"))))
+  ;; It returns a pattern "^...$" for matching an entire line.  Tokens
+  ;; are "#|datetime|", "#|date|", "#|time|", etc.  (TOKEN PATTERNS
+  ;; SHOULD BE LISTED IN LONGER TO SHORTER ORDER).
+  (let ((replacements `(("#|datetime|" . ,datetime-regexp)
+			("#|date|" . ,date-regexp)
+			("#|time|" . ,time-regexp)
+			("#|etag|" . "(\")?[[:xdigit:]]{32}(\")?")
+			("#|csum|" . "[a-zA-Z0-9+/=]{12}"))))
     (let loop ((s s)
 	       (replacements replacements))
       (if (null? replacements)
-	  s
+	  (string-append "^" s "$")
 	  (let ((item (car replacements)))
 	    (loop (replace-in-string s (car item) (cdr item))
 		  (cdr replacements)))))))
 
-(define (expect-regexp?~ expect)
-  ;; Checks an expect string is for an regexp, i.e., beginning with
-  ;; "#|".  It returns a pattern for a whole string ("^regexp$").
-  (cond ((string-match "^#\\|(.*)$" expect)
-	 => (lambda (s)
-	      (string-append "^" (match:substring s 1) "$")))
+(define (match-to-string expect result)
+  ;; Matches a line of the result.  It returns a boolean.  It checks a
+  ;; match is the whole string, in order to detect erroneous regexps.
+  (cond ((string-match (replace-regexp-token expect) result)
+	 => (lambda (m)
+	      (= (cdr (vector-ref m 1)) (string-length (vector-ref m 0)))))
 	(else #f)))
 
-(define (match-to-string expect result)
-  ;; Matches a line (prefix) of the result.
-  (string-match (string-append "^" (replace-regexp-token expect) "$") result))
-
-(define (match-to-template~ expect result)
+(define (match-to-template expect result)
   (let ((v (match-to-template1 expect result)))
-    (format #t "match-to-template expect=~s result=~s => ~s~%" expect result v)
+    (when #f
+      (format #t "match-to-template expect=~s result=~s => ~s~%" expect result v))
     v))
 
-(define (match-to-template expect result)
-  ;; Matches a result to an expected, both in json.  It returns a
-  ;; boolean.  A string pattern "#_" is a wildcard matching any
-  ;; entity.  String patterns may include pattern tokens: "#time" is a
-  ;; time string, etc., and "#|regexp" is a regexp pattern.  A vector
-  ;; pattern should be empty or singleton.  A vector pattern ["#_"]
-  ;; matches any vector including empty ones.  An object pattern
-  ;; accepts excess entities.
+(define (match-to-template1 expect result)
+  ;; Matches an expected template to a result, both in json.  It
+  ;; returns a boolean.  A string pattern "#_" is a wildcard matching
+  ;; any entity.  A string is a regexp pattern, which may include
+  ;; pattern tokens like "#|time|".  A vector pattern should be empty
+  ;; or singleton.  A vector pattern ["#_"] matches any vector
+  ;; including empty ones.  A empty pattern "{}" matches an empty
+  ;; result "" as well as an empty object "{}".  Note the json reader
+  ;; returns #<eof> for an empty string.  An object pattern accepts
+  ;; excess entities.
   (cond
+   ((eqv? expect '())
+    (or (eqv? result '()) (eof-object? result)))
    ((eqv? expect 'null)
     (eqv? expect result))
    ((boolean? expect)

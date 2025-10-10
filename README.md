@@ -12,7 +12,10 @@
 
 - Increment upload id always.
 
-- File ower.
+- File ower.  "Ower" is missing in ListObjects.
+
+- ContentType (maybe) better be "binary/octet-stream"
+than "application/octet-stream".
 
 ## Restrictions
 

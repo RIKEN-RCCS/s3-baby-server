@@ -129,6 +129,41 @@
   },
   "outcome2": null
 },
+
+{
+  "ID": 15,
+  "step": "Get attributes of 'data-001.txt'.",
+  "name": "GetObjectAttributes",
+  "kind": null,
+  "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
+  "operation": "aws s3api get-object-attributes --bucket mybucket1 --key data-001.txt --object-attributes \"ETag\" \"Checksum\" \"ObjectParts\" \"StorageClass\" \"ObjectSize\"",
+  "status": "200 OK",
+  "outcome1": {
+    "LastModified": "#|datetime|",
+    "ETag": "#|etag|",
+    "Checksum": {
+      "ChecksumCRC64NVME": "#|csum|",
+      "ChecksumType": "FULL_OBJECT"
+    },
+    "ObjectParts": {
+      "TotalPartsCount": 1,
+      "PartNumberMarker": 0,
+      "NextPartNumberMarker": 1,
+      "MaxParts": 10000,
+      "IsTruncated": false,
+      "Parts": [
+        {
+          "PartNumber": 1,
+          "Size": "#_"
+        }
+      ]
+    },
+    "StorageClass": "STANDARD",
+    "ObjectSize": "#_"
+  },
+  "outcome2": null
+}
+
 {
   "ID": 23,
   "name": "CreateMultipartUpload",
