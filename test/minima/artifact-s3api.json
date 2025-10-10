@@ -1,11 +1,11 @@
 {
   "name": "s3api",
   "date": "2025-09-25",
-  "NOTE": ["It assumes start with an empty pool directory.",
-	   "Needs existence of files: 'data-04m.txt'.",
+  "NOTE": ["It should start with an empty pool directory.",
+	   "Needs files on the client: {'data-04m.txt'}.",
 	   "Works in a bucket: 'mybucket'.",
 	   "Uses files: {'data-001.txt', 'data-002.txt', 'data-003.txt'}.",
-	   "Leaves files: 'data-101.txt'."],
+	   "Leaves files on the client: {'data-101.txt'}."],
   "test": [
 {
   "ID": 1,
