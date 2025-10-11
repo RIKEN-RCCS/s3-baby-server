@@ -44,17 +44,17 @@
 ;; MEMO: at-at refers to a package.
 ;; (@@ (ice-9 popen) open-process)
 
-(define (list-foldr f init list)
+(define (foldr f init list)
   ;; foldr : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
   (match list
     (() init)
-    ((fst . rst) (f fst (list-foldr f init rst)))))
+    ((fst . rst) (f fst (foldr f init rst)))))
 
-(define (list-foldl f init list)
+(define (foldl f init list)
   ;; foldl : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
   (match list
     (() init)
-    ((fst . rst) (list-foldl f (f fst init) rst))))
+    ((fst . rst) (foldl f (f fst init) rst))))
 
 (define date-regexp "[0-9]{4}-[0-9]{2}-[0-9]{2}") ;; "2025-08-20"
 (define time-regexp "[0-9]{2}:[0-9]{2}:[0-9]{2}") ;; "08:32:06"
@@ -134,8 +134,10 @@
 	(else #f)))
 
 (define (match-to-template expect result)
-  (let ((v (match-to-template1 expect result)))
-    (when #f
+  ;; (* Prints traces of match-to-template.  See match-to-template1. *)
+  (let ((trace-on #f)
+(v (match-to-template1 expect result)))
+    (when trace-on
       (format #t "match-to-template expect=~s result=~s => ~s~%" expect result v))
     v))
 
@@ -214,7 +216,7 @@
 
 (define (append-string-vector v)
   ;; Appends strings in a vector with intervening newlines.
-  (list-foldr (lambda (a b) (string-append a "\n" b)) "" (vector->list v)))
+  (foldr (lambda (a b) (string-append a "\n" b)) "" (vector->list v)))
 
 (define (fetch-assoc object slot)
   ;; Does assoc, but value "null" is treated as key is missing.
@@ -300,5 +302,5 @@
 	  #t))))
 
 (define tests (cdr (assoc 'test
-			  (with-input-from-file "./artifact-s3cli.json"
+			  (with-input-from-file "./artifact-multipart.json"
 			    json-read))))

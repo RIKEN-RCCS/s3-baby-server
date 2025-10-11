@@ -1,32 +1,44 @@
 {
   "name": "multipart",
   "date": "2025-09-25",
-  "precondition1": "It assumes start with an empty pool directory.",
-  "precondition2": "Make a file \"file-5m.txt\" on the client side.",
-  "precondition3": "Place some dot-files to check they are not listed.",
-  "precondition4": "./files directory exits and populated by some files.",
+  "NOTE": ["It should start with an empty pool directory.",
+	   "Make a file \"file-5m.txt\" on the client side.",
+	   "Place some dot-files to check they are not listed.",
+	   "./files directory exits and populated by some files."],
   "test": [
 {
+  "ID": 1,
+  "step": "Make a 'mybucket1' bucket.",
+  "pre": "Buckets={}",
+  "name": "CreateBucket",
+  "kind": "s3api",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket mybucket1",
+  "status": 0,
+  "outcome1": {"Location": "/mybucket1"},
+  "outcome2": null
+},
+{
   "ID": 22,
+  "step": "Start a multipart upload.",
   "name": "CreateMultipartUpload",
   "kind": null,
-  "result": "Start a multipart upload.",
-  "operation": "aws s3api create-multipart-upload --bucket mybucket1 --key data-003.txt",
-  "status": "200 OK",
+  "pre": "Files = {}",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket mybucket1 --key data-001.txt",
+  "status": 0,
   "outcome1": {
     "Bucket": "mybucket1",
-    "Key": "data-003.txt",
+    "Key": "data-001.txt",
     "UploadId": "1"
-},
+  },
   "outcome2": null
 },
 {
   "ID": 25,
+  "step": "Upload part.",
   "name": "UploadPart",
   "kind": null,
-  "result": "Upload part.",
-  "operation": "aws s3api upload-part --bucket mybucket1 --key data-003.txt --upload-id 1 --part-number 1 --body data-10m.txt",
-  "status": "200 OK",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --part-number 1 --body data-10m.txt",
+  "status": 0,
   "outcome1": {
     "ETag": "\"f1c9645dbc14efddc7d8a322685f26eb\"",
     "ChecksumCRC64NVME": "r3XRsudNx4U="
@@ -35,11 +47,11 @@
 },
 {
   "ID": 26,
+  "step": "",
   "name": "UploadPartCopy",
   "kind": null,
-  "result": "",
-  "operation": "aws s3api upload-part-copy --bucket mybucket1 --key data-003.txt --upload-id 1 --part-number 2 --copy-source mybucket1/data-001.txt",
-  "status": "200 OK",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --part-number 2 --copy-source mybucket1/data-001.txt",
+  "status": 0,
   "outcome1": {
     "CopyPartResult": {
       "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
@@ -50,11 +62,11 @@
 },
 {
   "ID": 27,
+  "step": "",
   "name": "ListParts",
   "kind": null,
-  "result": "",
-  "operation": "aws s3api list-parts --bucket mybucket1 --key data-003.txt --upload-id 1",
-  "status": "200 OK",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1",
+  "status": 0,
   "outcome1": {
     "Parts": [
       {
@@ -87,11 +99,11 @@
 },
 {
   "ID": 28,
+  "step": "",
   "name": "ListMultipartUploads",
   "kind": null,
-  "result": "",
-  "operation": "aws s3api list-multipart-uploads --bucket mybucket1",
-  "status": "200 OK",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket mybucket1",
+  "status": 0,
   "outcome1": {
     "Uploads": [
       {
@@ -116,11 +128,11 @@
 },
 {
   "ID": 29,
+  "step": "",
   "name": "CompleteMultipartUpload",
   "kind": null,
-  "result": "",
-  "operation": "aws s3api complete-multipart-upload --bucket mybucket1 --key data-003.txt --upload-id 1 --multipart-upload \"{""Parts"":[{""ETag"":""UploadPart時のetag"",""PartNumber"":1},{""ETag"":""UploadPartCopy時のetag"",""PartNumber"":2}]}\"",
-  "status": "200 OK",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --multipart-upload \"{""Parts"":[{""ETag"":""UploadPart時のetag"",""PartNumber"":1},{""ETag"":""UploadPartCopy時のetag"",""PartNumber"":2}]}\"",
+  "status": 0,
   "outcome1": {
     "Location": "http://localhost:8000/bucket/multipart.txt",
     "mybucket1": "mybucket1",
@@ -136,8 +148,8 @@
   "name": "GetObjectAttributes",
   "kind": null,
   "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
-  "operation": "aws s3api get-object-attributes --bucket mybucket1 --key data-001.txt --object-attributes \"ETag\" \"Checksum\" \"ObjectParts\" \"StorageClass\" \"ObjectSize\"",
-  "status": "200 OK",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket mybucket1 --key data-001.txt --object-attributes \"ETag\" \"Checksum\" \"ObjectParts\" \"StorageClass\" \"ObjectSize\"",
+  "status": 0,
   "outcome1": {
     "LastModified": "#|datetime|",
     "ETag": "#|etag|",
@@ -166,35 +178,35 @@
 
 {
   "ID": 23,
+  "step": "Start a 2nd multipart upload on the same file.",
   "name": "CreateMultipartUpload",
   "kind": null,
-  "result": "Start a 2nd multipart upload on the same file.",
-  "operation": "aws s3api create-multipart-upload --bucket mybucket1 --key data-003.txt",
-  "status": "200 OK",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket mybucket1 --key data-002.txt",
+  "status": 0,
   "outcome1": {
     "Bucket": "mybucket1",
-    "Key": "data-003.txt",
+    "Key": "data-002.txt",
     "UploadId": "1"
 },
   "outcome2": null
 },
 {
   "ID": 24,
+  "step": "Abort the 2nd multipart upload.",
   "name": "AbortMultipartUpload",
   "kind": null,
-  "result": "Abort the 2nd multipart upload.",
-  "operation": "aws s3api abort-multipart-upload --bucket mybucket1 --key multipart.txt --upload-id 2",
-  "status": "200 OK",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket mybucket1 --key multipart.txt --upload-id 2",
+  "status": 0,
   "outcome1": {},
   "outcome2": null
 },
 {
   "ID": 24.5,
+  "step": "Check aborted multipart uploads.",
   "name": "ListMultipartUploads",
   "kind": null,
-  "result": "Check aborted multipart uploads.",
-  "operation": "aws s3api list-multipart-uploads --bucket mybucket1",
-  "status": "200 OK",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket mybucket1",
+  "status": 0,
   "outcome1": {
     "Uploads": [
       {
