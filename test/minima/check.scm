@@ -14,18 +14,22 @@
  (ice-9 format)
  (ice-9 match)
  ;;(scheme base)
- (only (scheme base) define-record-type textual-port? vector-for-each write-string)
+ (only (scheme base) define-record-type textual-port? write-string)
+ (only (scheme base) vector-map vector-for-each)
+ ;;(only (srfi srfi-43) vector-map) ;; vector-library
+ ;;(srfi srfi-133) ;; r7rs-vector-library (NO srfi-133 in Guile)
  (only (rnrs base) infinite? assert)
  (srfi srfi-1) ;; list
  (srfi srfi-11) ;; multiple-values
  ;;(srfi srfi-28) ;; format
- ;;(only (srfi srfi-43) vector-copy) ;; vector-library
  (srfi srfi-60) ;; integers as bits
  )
 
 ;; Importing "(scheme base)" is (likely) not necessary when R7RS.
 
 ;; (import (system vm trace))
+;; (import (system vm trap-state))
+;; (add-trace-at-procedure-call! f)
 ;; (trace-calls-to-procedure match-to-template)
 
 ;; Make encoding ISO-8859-1.
@@ -55,6 +59,10 @@
   (match list
     (() init)
     ((fst . rst) (foldl f (f fst init) rst))))
+
+(define (extend-alist k v alist)
+  ;; It uses equal? as the comparator adhering to assoc.
+  (acons k v (remove (lambda (pair) (equal? k (car pair))) alist)))
 
 (define date-regexp "[0-9]{4}-[0-9]{2}-[0-9]{2}") ;; "2025-08-20"
 (define time-regexp "[0-9]{2}:[0-9]{2}:[0-9]{2}") ;; "08:32:06"
@@ -92,22 +100,30 @@
 		      (stderr (get-string-all errp)))
 		 (values (cdr status) stdout stderr))))))))))
 
-(define (replace-in-string s token pattern)
-  ;; Replaces a token with a pattern in a string s.  It replaces all
-  ;; occurrences of tokens.
-  (let* ((token1 (regexp-quote token)))
-    (cond ((string-match token1 s)
+(define (substitute-string s key val)
+  ;; Replaces a key string with a val string in a string s.  It
+  ;; replaces all occurrences of a key.
+  (let* ((key1 (regexp-quote key)))
+    (cond ((string-match key1 s)
 	   => (lambda (m)
-	       (let* ((range (vector-ref m 1))
-		      (prefix (substring s 0 (car range)))
-		      (suffix (substring s (cdr range) (string-length s))))
+		(let* ((range (vector-ref m 1))
+		       (prefix (substring s 0 (car range)))
+		       (suffix (substring s (cdr range) (string-length s))))
 		 (string-append
 		  prefix
-		  pattern
-		  (replace-in-string suffix token pattern)))))
+		  val
+		  (substitute-string suffix key val)))))
 	  (else s))))
 
-(define (replace-regexp-token s)
+(define (substitute-strings s keyvals)
+  (if (null? keyvals)
+      s
+      (let* ((pair (car keyvals))
+	     (key (car pair))
+	     (val (cdr pair)))
+	(substitute-strings (substitute-string s key val) (cdr keyvals)))))
+
+(define (substitute-regexp-token s)
   ;; Replaces pattern tokens in a string with their regexp patterns.
   ;; It returns a pattern "^...$" for matching an entire line.  Tokens
   ;; are "#|datetime|", "#|date|", "#|time|", etc.  (TOKEN PATTERNS
@@ -117,18 +133,13 @@
 			("#|time|" . ,time-regexp)
 			("#|etag|" . "(\")?[[:xdigit:]]{32}(\")?")
 			("#|csum|" . "[a-zA-Z0-9+/=]{12}"))))
-    (let loop ((s s)
-	       (replacements replacements))
-      (if (null? replacements)
-	  (string-append "^" s "$")
-	  (let ((item (car replacements)))
-	    (loop (replace-in-string s (car item) (cdr item))
-		  (cdr replacements)))))))
+    (let ((s1 (substitute-strings s replacements)))
+      (string-append "^" s1 "$"))))
 
 (define (match-to-string expect result)
   ;; Matches a line of the result.  It returns a boolean.  It checks a
   ;; match is the whole string, in order to detect erroneous regexps.
-  (cond ((string-match (replace-regexp-token expect) result)
+  (cond ((string-match (substitute-regexp-token expect) result)
 	 => (lambda (m)
 	      (= (cdr (vector-ref m 1)) (string-length (vector-ref m 0)))))
 	(else #f)))
@@ -218,29 +229,75 @@
   ;; Appends strings in a vector with intervening newlines.
   (foldr (lambda (a b) (string-append a "\n" b)) "" (vector->list v)))
 
-(define (fetch-assoc object slot)
-  ;; Does assoc, but value "null" is treated as key is missing.
-  (cond ((assoc slot object)
-	 => (lambda (pair)
-	      (if (not (eqv? (cdr pair) 'null))
-		  (cdr pair)
-		  #f)))
+(define (make-entity-value v)
+  (cond ((eqv? v 'null) #f)
+	((eqv? v #f) 'false)
+	((eqv? v #t) 'true)
+	(else v)))
+
+(define (fetch-assoc entity slot)
+  ;; Does assoc, but value "null" is treated as key is missing.  It
+  ;; maps #f to 'false and #t to 'true, to use false as a valid value.
+  (cond ((assoc slot entity)
+	 => (lambda (pair) (make-entity-value (cdr pair))))
 	(else #f)))
 
-(define (fetch-outcome object)
+(define (fetch-outcome-slot article)
   ;; Fetches an outcome pattern from either slot "outcome1" or
-  ;; "outcome2" in an object.  An "outcome1" slot is json object, but
-  ;; an "outcome2" slot is a pattern string.
-  (cond ((fetch-assoc object 'outcome1)
+  ;; "outcome2" in a test article.  An "outcome1" slot is json object,
+  ;; but an "outcome2" slot is a pattern string.
+  (cond ((fetch-assoc article 'outcome1)
 	 => (lambda (e) e))
-	((fetch-assoc object 'outcome2)
+	((fetch-assoc article 'outcome2)
 	 => (lambda (v) (append-string-vector v)))
 	(else #f)))
 
-(define (check-run item i loop)
+(define (fetch-slot entity path)
+  ;; Note the key part of alist is a symbol.
+  (let ((path1 (vector-map string->symbol path)))
+    (fetch-slot1 entity path1 0)))
+
+(define (fetch-slot1 entity path i)
+  ;; Accesses for a path of keys in an entity.  It returns 'true or
+  ;; 'false for boolean values.  It cannot access in a vector.  Call
+  ;; this with i=0.
+  (format #t "fetch-slot1 ~s ~s ~s~%" entity path i)
+  (if (= i (vector-length path))
+      entity
+      (let ((key (vector-ref path i)))
+	(cond ((fetch-assoc entity key)
+	       => (lambda (entity1)
+		    (fetch-slot1 entity1 path (+ i 1))))
+	      (else
+	       (format #t "BAD record slot: path=~s~%" path)
+	       #f)))))
+
+(define (record-values env entity records i)
+  ;; Extends key-value bindings by making an alist by fetching values
+  ;; from the entity.  It returns an exteded bindings.  It checks an
+  ;; entry one-by-one in records.  Call this with i=0.  An entry in
+  ;; records is an alist and needs double parentheses in matching.
+  (if (= i (vector-length records))
+      env
+      (match (vector-ref records 0)
+	(((key . path))
+	 (let ((var (string-append "#" (symbol->string key)))
+	       (val (fetch-slot entity path)))
+	   (format #t "Recording key=~s value=~s~%" var val)
+	   (record-values (extend-alist var val env) entity records (+ i 1))))
+	(else
+	 (format #t "BAD record slot: record=~s~%" records)
+	 env))))
+
+(define (check-run item i env test-loop)
   ;; (item = (vector-ref tests i))
-  (let* ((op (assoc 'operation item))
-	 (expect (fetch-outcome item))
+  (let* ((op (cond ((assoc 'operation item)
+		    => (lambda (pair) (substitute-strings (cdr pair) env)))
+		   (else #f)))
+	 (expect (fetch-outcome-slot item))
+	 (records (cond ((fetch-assoc item 'record)
+			 => (lambda (e) e))
+			(else #())))
 	 (skip-flag (assoc 'skip item))
 	 (stop-flag (assoc 'stop item)))
     (cond
@@ -248,16 +305,17 @@
       (format #t "STOP TESTING~%")
       #t)
      ((not (eqv? skip-flag #f))
-      (format #t "Skipping... test ~s~%" i)
-      (loop (+ i 1)))
+      (format #t "Skipping test ~s~%" i)
+      (test-loop (+ i 1) env))
      ((not (eqv? op #f))
       (format #t "testing: ~s ~s ~s~%"
 	      (assoc 'ID item)
 	      (assoc 'name item)
 	      (assoc 'kind item))
+      (format #t "environment: ~s~%" env)
       (format #t "expect: ~s~%" expect)
-      (format #t "operation: ~s~%" (cdr op))
-      (let-values (((status outs errs) (run-system (cdr op))))
+      (format #t "operation: ~s~%" op)
+      (let-values (((status outs errs) (run-system op)))
 	(format #t "status: ~s (~s, ~s)~%" status
 		(status:exit-val status) (status:term-sig status))
 	(format #t "stdout: ~s~%" outs)
@@ -267,38 +325,44 @@
 	       #f)
 	      ((string? expect)
 	       (let ((result outs))
-		 (if (match-to-string expect result)
-		     (loop (+ i 1))
-		     (begin
-		       (format #t "BAD result: ~s~%" result)
-		       #f))))
+		 (cond ((match-to-string expect result)
+			(test-loop (+ i 1) env))
+		       (else
+			(format #t "BAD result: ~s~%" result)
+			#f))))
 	      (else
 	       (let ((result (with-input-from-string outs json-read)))
-		 (if (match-to-template expect result)
-		     (loop (+ i 1))
-		     (begin
-		       (format #t "BAD result: ~s~%" result)
-		       #f)))))))
+		 (cond ((match-to-template expect result)
+			(let ((env1 (record-values env result records 0)))
+			  (test-loop (+ i 1) env1)))
+		       (else
+			(format #t "BAD result: ~s~%" result)
+			#f)))))))
      (else
-      (loop (+ i 1))))))
+      (test-loop (+ i 1) env)))))
 
 (define (check-all tests)
+  ;; Runs a list of tests.
   (let ((n (vector-length tests)))
-    (let loop ((i 0))
+    (let test-loop ((i 0)
+		    (env '()))
       (if (< i n)
 	  (let ((item (vector-ref tests i)))
-	    (check-run item i loop))
+	    (check-run item i env test-loop))
 	  #t))))
 
 (define (check-one id tests)
+  ;; Runs one test with a given id.  Note this cannot pass
+  ;; variable-value bindings.
   (let ((n (vector-length tests)))
-    (let loop ((i 0))
+    (let test-loop ((i 0)
+		    (env '()))
       (if (< i n)
 	  (let* ((item (vector-ref tests i))
 		 (id1 (cond ((assoc 'ID item) => cdr) (else #f))))
 	    (if (and id1 (= id id1))
-		(check-run item i (lambda (j) #t))
-		(loop (+ i 1))))
+		(check-run item i env (lambda (j env) #t))
+		(test-loop (+ i 1) env)))
 	  #t))))
 
 (define tests (cdr (assoc 'test

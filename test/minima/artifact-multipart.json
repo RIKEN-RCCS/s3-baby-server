@@ -18,30 +18,31 @@
   "outcome2": null
 },
 {
-  "ID": 22,
+  "ID": 2,
   "step": "Start a multipart upload.",
   "name": "CreateMultipartUpload",
   "kind": null,
   "pre": "Files = {}",
   "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket mybucket1 --key data-001.txt",
   "status": 0,
+  "record": [{"upload-id": ["UploadId"]}],
   "outcome1": {
     "Bucket": "mybucket1",
     "Key": "data-001.txt",
-    "UploadId": "1"
+    "UploadId": "#_"
   },
   "outcome2": null
 },
 {
-  "ID": 25,
+  "ID": 3,
   "step": "Upload part.",
   "name": "UploadPart",
   "kind": null,
-  "operation": "aws s3api upload-part --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --part-number 1 --body data-10m.txt",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id #upload-id --part-number 1 --body data-10m.txt",
   "status": 0,
   "outcome1": {
-    "ETag": "\"f1c9645dbc14efddc7d8a322685f26eb\"",
-    "ChecksumCRC64NVME": "r3XRsudNx4U="
+    "ETag": "#|etag|",
+    "ChecksumCRC64NVME": "#|csum|"
   },
   "outcome2": null
 },
@@ -131,7 +132,7 @@
   "step": "",
   "name": "CompleteMultipartUpload",
   "kind": null,
-  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --multipart-upload \"{""Parts"":[{""ETag"":""UploadPart時のetag"",""PartNumber"":1},{""ETag"":""UploadPartCopy時のetag"",""PartNumber"":2}]}\"",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --multipart-upload '{\"Parts\":[{\"ETag\":\"UploadPart時のetag\",\"PartNumber\":1},{\"ETag\":\"UploadPartCopy時のetag\",\"PartNumber\":2}]}'",
   "status": 0,
   "outcome1": {
     "Location": "http://localhost:8000/bucket/multipart.txt",
@@ -174,7 +175,7 @@
     "ObjectSize": "#_"
   },
   "outcome2": null
-}
+},
 
 {
   "ID": 23,
