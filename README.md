@@ -17,6 +17,10 @@
 - ContentType (maybe) better be "binary/octet-stream"
 than "application/octet-stream".
 
+- https support, with oreore-cert creation.
+
+- control support, under a dummy bucket "s3bbs.ctl".
+
 ## Restrictions
 
 - File names cannot begin with a dot ("."), they are hidden.

@@ -1,104 +1,145 @@
-ENDPOINT=http://localhost:7000
-BUCKET=bucket0
-KEY=test_object.txt
-COPY_KEY=object.txt
-MULTIPART_KEY=test_multipart_upload.txt
-LOCAL_FILE=test.txt
+#!/bin/ksh -x
 
-# 初期化
-echo "[Init] S3 API簡易自動テスト開始"
+# Simple tests with AWS CLI (2025-09-25).
+
+# It runs AWS CLI s3api commands and expects the commands succeeds.
+# It sets shell "-e" to stop on an error.  Start with nothing in the
+# pool.  No $BUCKET exists, in particular.  It is tested with AWS CLI
+# v2.31.13.
+
+# It uses a temporary file "zzz.json" and leaves it.
+
+set -e
+
+BUCKET=mybucket1
+KEY1=test_object.txt
+KEY2=object.txt
+KEY3=test_multipart_upload.txt
+TESTFILE=data-10m.txt
+RESULT=zzz.json
+
+echo "[Init] Test starts."
+
 echo "====================================="
-echo "[Info] ENDPOINT=$ENDPOINT"
 echo "[Info] BUCKET=$BUCKET"
+echo "[Info] KEY1=$KEY1"
+echo "[Info] KEY2=$KEY2"
+echo "[Info] KEY3=$KEY3"
+echo "[Info] TESTFILE=$TESTFILE"
+echo "[Info] RESULT=$RESULT"
 echo "====================================="
+
+echo "[Info] Making a test file when not exists"
+
+rm -f $RESULT
+
+if [ ! -e $TESTFILE ]; then
+    touch $TESTFILE
+    shred -n 1 -s 10M $TESTFILE
+fi
 
 echo "[Test] list-buckets"
-aws --endpoint-url $ENDPOINT s3api list-buckets
+
+aws s3api list-buckets --no-cli-pager
 
 echo "[Test] create-bucket"
-aws --endpoint-url $ENDPOINT s3api create-bucket --bucket $BUCKET --object-ownership BucketOwnerEnforced
+
+aws s3api create-bucket --no-cli-pager --bucket $BUCKET --object-ownership BucketOwnerEnforced
 
 echo "[Test] head-bucket"
-aws --endpoint-url $ENDPOINT s3api head-bucket --bucket $BUCKET
+
+aws s3api head-bucket --no-cli-pager --bucket $BUCKET
 
 echo "[Test] list-buckets"
-aws --endpoint-url $ENDPOINT s3api list-buckets --max-buckets 2 --prefix bucket
 
-echo "Hello" > $LOCAL_FILE
+aws s3api list-buckets --no-cli-pager --max-buckets 2 --prefix bucket
+
 echo "[Test] put-object"
-aws --endpoint-url $ENDPOINT s3api put-object --bucket $BUCKET --key $KEY --body $LOCAL_FILE \
-  --tagging "testTag=testProject&testT=testP" --cache-control no-cache
+
+aws s3api put-object --no-cli-pager --bucket $BUCKET --key $KEY1 --body $TESTFILE --tagging "testTag=testProject&testT=testP" --cache-control no-cache
 
 echo "[Test] head-object"
-aws --endpoint-url $ENDPOINT s3api head-object --bucket $BUCKET --key $KEY
+
+aws s3api head-object --no-cli-pager --bucket $BUCKET --key $KEY1
 
 echo "[Test] get-object"
-aws --endpoint-url $ENDPOINT s3api get-object --bucket $BUCKET --key $KEY download.txt
+
+aws s3api get-object --no-cli-pager --bucket $BUCKET --key $KEY1 download.txt
 
 echo "[Test] list-objects"
-aws --endpoint-url $ENDPOINT s3api list-objects --bucket $BUCKET
+
+aws s3api list-objects --no-cli-pager --bucket $BUCKET
 
 echo "[Test] copy-object"
-aws --endpoint-url $ENDPOINT s3api copy-object --bucket $BUCKET --key $COPY_KEY \
-  --copy-source "$BUCKET/$KEY" --tagging-directive REPLACE \
-  --tagging "testTag=testProject&Tag=testPJ"
+
+aws s3api copy-object --no-cli-pager --bucket $BUCKET --key $KEY2 --copy-source "$BUCKET/$KEY1" --tagging-directive REPLACE --tagging "testTag=testProject&Tag=testPJ"
 
 echo "[Test] list-objects-v2"
-aws --endpoint-url $ENDPOINT s3api list-objects-v2 --bucket $BUCKET --prefix "object" --max-keys 2
+
+aws s3api list-objects-v2 --no-cli-pager --bucket $BUCKET --prefix "object" --max-keys 2
 
 echo "[Test] put-object-tagging"
-aws --endpoint-url $ENDPOINT s3api put-object-tagging --bucket $BUCKET --key $COPY_KEY \
-  --tagging 'TagSet=[{Key=Environment,Value=Dev}, {Key=E,Value=D}]'
+
+aws s3api put-object-tagging --no-cli-pager --bucket $BUCKET --key $KEY2 --tagging 'TagSet=[{Key=Environment,Value=Dev}, {Key=E,Value=D}]'
 
 echo "[Test] get-object-tagging"
-aws --endpoint-url $ENDPOINT s3api get-object-tagging --bucket $BUCKET --key $COPY_KEY
+
+aws s3api get-object-tagging --no-cli-pager --bucket $BUCKET --key $KEY2
 
 echo "[Test] delete-object-tagging"
-aws --endpoint-url $ENDPOINT s3api delete-object-tagging --bucket $BUCKET --key $COPY_KEY
+
+aws s3api delete-object-tagging --no-cli-pager --bucket $BUCKET --key $KEY2
 
 echo "[Test] get-object-attributes"
-aws --endpoint-url $ENDPOINT s3api get-object-attributes --bucket $BUCKET --key $COPY_KEY \
-  --object-attributes "ETag,Checksum,ObjectParts,StorageClass,ObjectSize"
+
+aws s3api get-object-attributes --no-cli-pager --bucket $BUCKET --key $KEY2 --object-attributes ETag Checksum ObjectParts StorageClass ObjectSize
 
 echo "[Test] create-multipart-upload"
-UPLOAD_ID=$(aws --endpoint-url $ENDPOINT s3api create-multipart-upload --bucket $BUCKET --key $MULTIPART_KEY \
-  --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" \
-  | jq -r '.UploadId')
 
-echo "[Info] 5MB以上のテストファイルを作成"
-dd if=/dev/zero of=$LOCAL_FILE bs=1M count=5
+#UPLOAD_ID=$(aws s3api create-multipart-upload --no-cli-pager --bucket $BUCKET --key $KEY3 --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" | jq -r '.UploadId')
+
+aws s3api create-multipart-upload --no-cli-pager --bucket $BUCKET --key $KEY3 --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" | tee $RESULT
+UPLOAD_ID=$(jq -r '.UploadId' < $RESULT)
 
 echo "[Test] upload-part"
-aws --endpoint-url $ENDPOINT s3api upload-part --bucket $BUCKET --key $MULTIPART_KEY --part-number 1 \
-  --body $LOCAL_FILE --upload-id $UPLOAD_ID
+
+aws s3api upload-part --no-cli-pager --bucket $BUCKET --key $KEY3 --part-number 1 --body $TESTFILE --upload-id $UPLOAD_ID
 
 echo "[Test] upload-part-copy"
-aws --endpoint-url $ENDPOINT s3api upload-part-copy --bucket $BUCKET --key $MULTIPART_KEY --part-number 2 \
-  --copy-source "$BUCKET/$COPY_KEY" --upload-id $UPLOAD_ID
+
+aws s3api upload-part-copy --no-cli-pager --bucket $BUCKET --key $KEY3 --part-number 2 --copy-source "$BUCKET/$KEY2" --upload-id $UPLOAD_ID
 
 echo "[Test] list-parts"
-aws --endpoint-url $ENDPOINT s3api list-parts --bucket $BUCKET --key $MULTIPART_KEY --upload-id $UPLOAD_ID
+
+aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID
 
 echo "[Test] list-multipart-uploads"
-aws --endpoint-url $ENDPOINT s3api list-multipart-uploads --bucket $BUCKET
+
+aws s3api list-multipart-uploads --no-cli-pager --bucket $BUCKET
 
 echo "[Test] complete-multipart-upload"
-ETAG1=$(aws --endpoint-url $ENDPOINT s3api list-parts --bucket $BUCKET --key $MULTIPART_KEY --upload-id $UPLOAD_ID \
-  | jq '.Parts[0].ETag')
-ETAG2=$(aws --endpoint-url $ENDPOINT s3api list-parts --bucket $BUCKET --key $MULTIPART_KEY --upload-id $UPLOAD_ID \
-  | jq '.Parts[1].ETag')
-aws --endpoint-url $ENDPOINT s3api complete-multipart-upload --bucket $BUCKET --key $MULTIPART_KEY --upload-id $UPLOAD_ID \
-  --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
+
+#ETAG1=$(aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | jq '.Parts[0].ETag')
+#ETAG2=$(aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | jq '.Parts[1].ETag')
+
+aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | tee $RESULT
+ETAG1=$(jq '.Parts[0].ETag' < $RESULT)
+aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | tee $RESULT
+ETAG2=$(jq '.Parts[1].ETag' < $RESULT)
+
+aws s3api complete-multipart-upload --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
 
 echo "[Test] delete-object"
-aws --endpoint-url $ENDPOINT s3api delete-object --bucket $BUCKET --key $KEY
+
+aws s3api delete-object --no-cli-pager --bucket $BUCKET --key $KEY1
 
 echo "[Test] delete-objects"
-aws --endpoint-url $ENDPOINT s3api delete-objects --bucket $BUCKET \
-  --delete "{\"Objects\":[{\"Key\":\"$COPY_KEY\"},{\"Key\":\"$MULTIPART_KEY\"}],\"Quiet\":false}"
+
+aws s3api delete-objects --no-cli-pager --bucket $BUCKET --delete "{\"Objects\":[{\"Key\":\"$KEY2\"},{\"Key\":\"$KEY3\"}],\"Quiet\":false}"
 
 echo "[Test] delete-bucket"
-aws --endpoint-url $ENDPOINT s3api delete-bucket --bucket $BUCKET
+
+aws s3api delete-bucket --no-cli-pager --bucket $BUCKET
 
 echo "====================================="
-echo "[Done] S3 API簡易自動テスト完了"
+echo "[Done] Test done successfully."
