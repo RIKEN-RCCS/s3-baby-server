@@ -4,8 +4,8 @@
   "NOTE": ["It should start with an empty pool directory.",
 	   "Places some dot-files to check they are not listed.",
 	   "Needs files on the client: {'data-04m.txt', data-10m.txt'}.",
-	   "Populates the './testfiles' directory on the client.",
-	   "Needs files in './testfiles': {'data-00[1234].txt'}."],
+	   "Populates the './datafiles' directory on the client.",
+	   "Needs files in './datafiles': {'data-00[1234].txt'}."],
   "test": [
 {
   "ID": 1,
@@ -61,10 +61,10 @@
 },
 {
   "ID": 6,
-  "step": "Copy files in the source directory './testfiles' to 'mybucket'.",
+  "step": "Copy files in the source directory './datafiles' to 'mybucket'.",
   "name": "SYNC",
   "kind": null,
-  "operation": "aws s3 sync --no-progress ./testfiles s3://mybucket",
+  "operation": "aws s3 sync --no-progress ./datafiles s3://mybucket",
   "status": "200 OK",
   "outcome1": null,
   "outcome2": ["upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",

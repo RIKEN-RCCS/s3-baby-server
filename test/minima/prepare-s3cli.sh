@@ -12,10 +12,10 @@ rm -f data-10m.txt
 touch data-10m.txt
 shred -n 1 -s 10M data-10m.txt
 
-if [ ! -d files ]; then
-    mkdir ./files
+if [ ! -d ./datafiles ]; then
+    mkdir ./datafiles
 fi
-cp data-10m.txt ./testfiles/data-001.txt
-cp data-10m.txt ./testfiles/data-002.txt
-cp data-10m.txt ./testfiles/data-003.txt
-cp data-10m.txt ./testfiles/data-004.txt
+cp data-10m.txt ./datafiles/data-001.txt
+cp data-10m.txt ./datafiles/data-002.txt
+cp data-10m.txt ./datafiles/data-003.txt
+cp data-10m.txt ./datafiles/data-004.txt
