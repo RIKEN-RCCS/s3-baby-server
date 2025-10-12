@@ -1,0 +1,4003 @@
+{
+  "name": "argument",
+  "date": "2025-09-25",
+  "NOTE": [""],
+  "test": [
+{
+  "ID": 1,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "AbortMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --key test-multipart.txt --upload-id xxxxxxxxxxxxxxxx",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 2,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "AbortMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --upload-id xxxxxxxxxxxxxxxx",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 3,
+  "criterion": "Missing required parameter: UploadId missing",
+  "api": "AbortMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 4,
+  "criterion": "存在しないBucketでマルチパート中止",
+  "api": "AbortMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket non-exist-bucket --key test-multipart.txt --upload-id 1",
+  "status": "404 Not Found",
+  "result": "UploadIDディレクトリ（1）が削除されずエラー出力"
+},
+{
+  "ID": 5,
+  "criterion": "存在しないuploadIdでマルチパート中止",
+  "api": "AbortMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 9999",
+  "status": "404 Not Found",
+  "result": "UploadIDディレクトリ（1）が削除されずエラー出力"
+},
+{
+  "ID": 6,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket abc --key test-multipart.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 7,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket ab --key test-multipart.txt --upload-id 1",
+  "status": "404 Not Found",
+  "result": "UploadIDディレクトリ（1）が削除されずエラー出力"
+},
+{
+  "ID": 8,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-multipart.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 9,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-multipart.txt --upload-id 1",
+  "status": "404 Not Found",
+  "result": "UploadIDディレクトリ（1）が削除されずエラー出力"
+},
+{
+  "ID": 10,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test@bucket --key test-multipart.txt --upload-id 1",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 11,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 12,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1",
+  "status": 64512,
+  "result": "UploadIDディレクトリが作成されないため、削除もできない"
+},
+{
+  "ID": 13,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart@test.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 14,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key multipartテストオブジェクト.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 14,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key \"multipartテスト オブジェクト.txt\" --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 14,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key \"multipartテスト　オブジェクト.txt\" --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 15,
+  "criterion": "Keyの境界値テスト: 空文字",
+  "api": "AbortMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket test-bucket --key \"\" --upload-id 1",
+  "status": "400 Bad Request",
+  "result": "UploadIDディレクトリ（1）が削除されずエラー出力"
+},
+{
+  "ID": 16,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "CompleteMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 17,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "CompleteMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 18,
+  "criterion": "Missing required parameter: uploadId missing",
+  "api": "CompleteMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart.txt --multipart-upload file://test-parts.json",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 19,
+  "criterion": "Missing required parameter: multipart-upload missing",
+  "api": "CompleteMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 20,
+  "criterion": "存在しないBucketでマルチパート完了",
+  "api": "CompleteMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket non-exist-bucket --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "404 Not Found",
+  "result": "test-multipart.txtファイルが作成されず、UploadIDディレクトリ（1）も削除されずエラー出力"
+},
+{
+  "ID": 21,
+  "criterion": "存在しないuploadIdでマルチパート完了",
+  "api": "CompleteMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 9999 --multipart-upload file://test-parts.json",
+  "status": "404 Not Found",
+  "result": "test-multipart.txtファイルが作成されず、UploadIDディレクトリ（1）も削除されずエラー出力"
+},
+{
+  "ID": 22,
+  "criterion": "無効なpartsファイルでマルチパート完了",
+  "api": "CompleteMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --multipart-upload file://invalid-parts.json",
+  "status": "400 Bad Request",
+  "result": "test-multipart.txtファイルが作成されず、UploadIDディレクトリ（1）も削除されずエラー出力"
+},
+{
+  "ID": 23,
+  "criterion": "有効なマルチパートアップロードの完了",
+  "api": "CompleteMultipartUpload",
+  "kind": "OK",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "test-multipart.txtファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 24,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket abc --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "test-multipart.txtファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 25,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket ab --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "404 Not Found",
+  "result": "test-multipart.txtファイルが作成されず、UploadIDディレクトリ（1）も削除されずエラー出力"
+},
+{
+  "ID": 26,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "test-multipart.txtファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 27,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "404 Not Found",
+  "result": "test-multipart.txtファイルが作成されず、UploadIDディレクトリ（1）も削除されずエラー出力"
+},
+{
+  "ID": 28,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test@bucket --key test-multipart.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 29,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "500 Internal Error",
+  "result": "UploadIDディレクトリが作成されないため、結合も削除もできない"
+},
+{
+  "ID": 30,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "400 Bad Request",
+  "result": "UploadIDディレクトリが作成されないため、結合も削除もできない"
+},
+{
+  "ID": 29,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "Keyが255文字（拡張子含む）のファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 30,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "400 Bad Request",
+  "result": "Keyが256文字（拡張子含む）ファイルが作成されず、UploadIDディレクトリ（1）も削除されずエラー出力"
+},
+{
+  "ID": 31,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key test-multipart@test.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "test-multipart@test.txtファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 32,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key multipartテストオブジェクト.txt --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "multipartテストオブジェクト.txtファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 32,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key \"multipartテスト オブジェクト.txt\" --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "multipartテストオブジェクト.txtファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 32,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key \"multipartテスト　オブジェクト.txt\" --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "200 OK",
+  "result": "multipartテストオブジェクト.txtファイルが作成され、2つのパートファイルが結合された内容になっている、UploadIDディレクトリ（1）が削除される"
+},
+{
+  "ID": 33,
+  "criterion": "Keyの境界値テスト: 空文字",
+  "api": "CompleteMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket test-bucket --key \"\" --upload-id 1 --multipart-upload file://test-parts.json",
+  "status": "400 Bad Request",
+  "result": "ファイルが作成されず、UploadIDディレクトリ（1）も削除されずエラー出力"
+},
+{
+  "ID": 34,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "CopyObject",
+  "kind": "Missing",
+  "operation": "aws s3api copy-object --no-cli-pager --key test-copy.txt --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 35,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "CopyObject",
+  "kind": "Missing",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 36,
+  "criterion": "Missing required parameter: copy-source missing",
+  "api": "CopyObject",
+  "kind": "Missing",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 37,
+  "criterion": "存在しないBucketへのコピー",
+  "api": "CopyObject",
+  "kind": "Missing",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket non-exist-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt",
+  "status": "404 Not Found",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされずエラー出力"
+},
+{
+  "ID": 38,
+  "criterion": "存在しないコピー元オブジェクト",
+  "api": "CopyObject",
+  "kind": "Missing",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source source-bucket/non-exist-key",
+  "status": "404 Not Found",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされずエラー出力"
+},
+{
+  "ID": 39,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket abc --key test-copy.txt --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされる"
+},
+{
+  "ID": 40,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket ab --key test-copy.txt --copy-source test-bucket/test-object.txt",
+  "status": "404 Not Found",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされずエラー出力"
+},
+{
+  "ID": 41,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-copy.txt --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされる"
+},
+{
+  "ID": 42,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-copy.txt --copy-source test-bucket/test-object.txt",
+  "status": "404 Not Found",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされずエラー出力"
+},
+{
+  "ID": 43,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test@bucket --key test-copy.txt --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 44,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --copy-source test-bucket/test-object.txt",
+  "status": "500 Internal Error",
+  "result": "test-object.txtの内容がa*1024.txtとしてコピーされる"
+},
+{
+  "ID": 45,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --copy-source test-bucket/test-object.txt",
+  "status": "500 Internal Error",
+  "result": "test-object.txtの内容がa*1025.txtとしてコピーされずエラー出力"
+},
+{
+  "ID": 44,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がa*255.txtとしてコピーされる"
+},
+{
+  "ID": 45,
+  "criterion": "Keyの境界値テスト: 最大長超過(256字)",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --copy-source test-bucket/test-object.txt",
+  "status": "400 Bad Request",
+  "result": "test-object.txtの内容がa*256.txtとしてコピーされずエラー出力"
+},
+{
+  "ID": 46,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test@object.txt --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がtest@object.txtとしてコピーされる"
+},
+{
+  "ID": 47,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がテストオブジェクト.txtとしてコピーされる"
+},
+{
+  "ID": 47,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がテストオブジェクト.txtとしてコピーされる"
+},
+{
+  "ID": 47,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がテストオブジェクト.txtとしてコピーされる"
+},
+{
+  "ID": 48,
+  "criterion": "Keyの境界値テスト: 空文字",
+  "api": "CopyObject",
+  "kind": "Range",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key \"\" --copy-source test-bucket/test-object.txt",
+  "status": "400 Bad Request",
+  "result": "test-object.txtの内容が\"\"としてコピーされずエラー出力"
+},
+{
+  "ID": 49,
+  "criterion": "If-Match と If-None-Match、If-Modified-Since と If-Unmodified-Since\n全て条件満たすケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagの値\" --copy-source-if-none-match \"test-object.txtのEtagとは違う値\" --copy-source-if-modified-since \"2024-01-01\" --copy-source-if-unmodified-since \"2026-01-01\"",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がテストオブジェクト.txtとしてコピーされる"
+},
+{
+  "ID": 50,
+  "criterion": "If-Match と If-None-Match、If-Modified-Since と If-Unmodified-Since\nIf-Matchのみ条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagとは違う値\" --copy-source-if-none-match \"test-object.txtのEtagとは違う値\" --copy-source-if-modified-since \"2024-01-01\" --copy-source-if-unmodified-since \"2026-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 51,
+  "criterion": "If-Match と If-None-Match、If-Modified-Since と If-Unmodified-Since\nIf-Modified-Sinceのみ条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagの値\" --copy-source-if-none-match \"test-object.txtのEtagとは違う値\" --copy-source-if-modified-since \"2026-01-01\" --copy-source-if-unmodified-since \"2026-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 52,
+  "criterion": "If-Match と If-None-Match の両方指定\nどちらも条件満たすケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagの値\" --copy-source-if-none-match \"test-object.txtのEtagとは違う値\"",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がテストオブジェクト.txtとしてコピーされる"
+},
+{
+  "ID": 53,
+  "criterion": "If-Match と If-None-Match の両方指定\nIf-None-Match 条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagの値\" --copy-source-if-none-match \"test-object.txtのEtagの値\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 54,
+  "criterion": "If-Modified-Since と If-Unmodified-Since の両方指定\nどちらも条件満たすケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-modified-since \"2024-01-01\" --copy-source-if-unmodified-since \"2026-01-01\"",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がテストオブジェクト.txtとしてコピーされる"
+},
+{
+  "ID": 55,
+  "criterion": "If-Modified-Since と If-Unmodified-Since の両方指定\nIf-Unmodified-Since 条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-modified-since \"2024-01-01\" --copy-source-if-unmodified-since \"2024-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 56,
+  "criterion": "If-Match 条件満たすケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagの値\"",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされる"
+},
+{
+  "ID": 57,
+  "criterion": "If-Match 条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagとは違う値\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 58,
+  "criterion": "If-None-Match 条件満たすケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-none-match \"test-object.txtのEtagとは違う値\"",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされる"
+},
+{
+  "ID": 59,
+  "criterion": "If-None-Match 条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-none-match \"test-object.txtのEtagの値\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 60,
+  "criterion": "If-Modified-Since 条件満たすケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-modified-since \"2024-01-01\"",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされる"
+},
+{
+  "ID": 61,
+  "criterion": "If-Modified-Since 条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-modified-since \"2026-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 62,
+  "criterion": "If-Unmodified-Since 条件満たすケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-unmodified-since \"2026-01-01\"",
+  "status": "200 OK",
+  "result": "test-object.txtの内容がtest-copy.txtとしてコピーされる"
+},
+{
+  "ID": 63,
+  "criterion": "If-Unmodified-Since 条件満たさないケース",
+  "api": "CopyObject",
+  "kind": "Conditional",
+  "operation": "aws s3api copy-object --no-cli-pager --bucket test-bucket --key test-copy.txt --copy-source test-bucket/test-object.txt --copy-source-if-unmodified-since \"2024-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "test-object.txtの内容がコピーされずエラー出力"
+},
+{
+  "ID": 64,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "CreateBucket",
+  "kind": "Missing",
+  "operation": "aws s3api create-bucket --no-cli-pager",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 65,
+  "criterion": "既存のBucket名で作成",
+  "api": "CreateBucket",
+  "kind": "Missing",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket bucket",
+  "status": "409 Conflict",
+  "result": "ディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 66,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket abc",
+  "status": "200 OK",
+  "result": "ディレクトリが作成される"
+},
+{
+  "ID": 67,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+  "status": "200 OK",
+  "result": "ディレクトリが作成される"
+},
+{
+  "ID": 68,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket test@bucket",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 69,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket ab",
+  "status": "400 Bad Request",
+  "result": "ディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 70,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz14",
+  "status": "400 Bad Request",
+  "result": "ディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 71,
+  "criterion": "Bucketの境界値テスト: 無効な文字含む(ピリオド開始)",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket .test-bucket",
+  "status": "400 Bad Request",
+  "result": "ディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 72,
+  "criterion": "Bucketの境界値テスト: 無効な文字含む(ピリオド終了)",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket test-bucket.",
+  "status": "400 Bad Request",
+  "result": "ディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 73,
+  "criterion": "Bucketの境界値テスト: 無効な文字含む(連続ピリオド)",
+  "api": "CreateBucket",
+  "kind": "Range",
+  "operation": "aws s3api create-bucket --no-cli-pager --bucket test..bucket",
+  "status": "400 Bad Request",
+  "result": "ディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 74,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "CreateMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --key test-multipart.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 75,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "CreateMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 76,
+  "criterion": "存在しないBucketでマルチパート開始",
+  "api": "CreateMultipartUpload",
+  "kind": "Missing",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket non-exist-bucket --key test-multipart.txt",
+  "status": "404 Not Found",
+  "result": "UploadIDディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 77,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket abc --key test-multipart.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリが作成される"
+},
+{
+  "ID": 78,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-multipart.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリが作成される"
+},
+{
+  "ID": 79,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test@bucket --key test-multipart.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 80,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket ab --key test-multipart.txt",
+  "status": "404 Not Found",
+  "result": "UploadIDディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 81,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-multipart.txt",
+  "status": "404 Not Found",
+  "result": "UploadIDディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 82,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリが作成される"
+},
+{
+  "ID": 83,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "400 Bad Request",
+  "result": "UploadIDディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 84,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket --key test@object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリが作成される"
+},
+{
+  "ID": 85,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリが作成される"
+},
+{
+  "ID": 85,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\"",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリが作成される"
+},
+{
+  "ID": 85,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\"",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリが作成される"
+},
+{
+  "ID": 86,
+  "criterion": "Keyの境界値テスト: 空文字",
+  "api": "CreateMultipartUpload",
+  "kind": "Range",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket test-bucket --key \"\"",
+  "status": "400 Bad Request",
+  "result": "UploadIDディレクトリが作成されずエラー出力"
+},
+{
+  "ID": 87,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "DeleteBucket",
+  "kind": "Missing",
+  "operation": "aws s3api delete-bucket --no-cli-pager",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 88,
+  "criterion": "存在しないBucket削除",
+  "api": "DeleteBucket",
+  "kind": "Missing",
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket non-exist-bucket",
+  "status": "404 Not Found",
+  "result": "ディレクトリが削除されずエラー出力"
+},
+{
+  "ID": 89,
+  "criterion": "空でないBucket削除",
+  "api": "DeleteBucket",
+  "kind": "Missing",
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket test-bucket",
+  "status": "409 Conflict",
+  "result": "ディレクトリ内にファイルが存在している場合はエラー出力"
+},
+{
+  "ID": 90,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "DeleteBucket",
+  "kind": "Range",
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket abc",
+  "status": "204 No Content",
+  "result": "ディレクトリが削除される"
+},
+{
+  "ID": 91,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "DeleteBucket",
+  "kind": "Range",
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+  "status": "204 No Content",
+  "result": "ディレクトリが削除される"
+},
+{
+  "ID": 92,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "DeleteBucket",
+  "kind": "Range",
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket ab",
+  "status": "204 No Content",
+  "result": "ディレクトリが削除される"
+},
+{
+  "ID": 93,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "DeleteBucket",
+  "kind": "Range",
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12",
+  "status": "204 No Content",
+  "result": "ディレクトリが削除される"
+},
+{
+  "ID": 94,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "DeleteBucket",
+  "kind": "Range",
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket test@bucket",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 95,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "DeleteObject",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object --no-cli-pager --key test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 96,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "DeleteObject",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 97,
+  "criterion": "存在しないObject削除",
+  "api": "DeleteObject",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key non-exist-object.txt",
+  "status": "204 No Content",
+  "result": "エラーにならず正常終了"
+},
+{
+  "ID": 98,
+  "criterion": "存在しないBucketのObject削除",
+  "api": "DeleteObject",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket non-exist-bucket --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 99,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket abc --key test-object.txt",
+  "status": "204 No Content",
+  "result": "ファイルが削除される"
+},
+{
+  "ID": 100,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt",
+  "status": "204 No Content",
+  "result": "ファイルが削除される"
+},
+{
+  "ID": 101,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket ab --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 102,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 103,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test@bucket --key test-object.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 104,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "500 Internal Error",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 105,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "400 Bad Request",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 104,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "204 No Content",
+  "result": "ファイルが削除される"
+},
+{
+  "ID": 105,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "400 Bad Request",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 106,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key test@object.txt",
+  "status": "204 No Content",
+  "result": "ファイルが削除される"
+},
+{
+  "ID": 107,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt",
+  "status": "204 No Content",
+  "result": "ファイルが削除される"
+},
+{
+  "ID": 107,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\"",
+  "status": "204 No Content",
+  "result": "ファイルが削除される"
+},
+{
+  "ID": 107,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "DeleteObject",
+  "kind": "Range",
+  "operation": "aws s3api delete-object --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\"",
+  "status": "204 No Content",
+  "result": "ファイルが削除される"
+},
+{
+  "ID": 108,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "DeleteObjects",
+  "kind": "Missing",
+  "operation": "aws s3api delete-objects --no-cli-pager --delete file://test-delete.json",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 109,
+  "criterion": "Missing required parameter: Delete missing",
+  "api": "DeleteObjects",
+  "kind": "Missing",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket test-bucket",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 110,
+  "criterion": "存在しないBucketで複数削除",
+  "api": "DeleteObjects",
+  "kind": "Missing",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket non-exist-bucket --delete file://test-delete.json",
+  "status": "404 Not Found",
+  "result": "複数ファイルが削除されずエラー出力"
+},
+{
+  "ID": 111,
+  "criterion": "無効なJSONファイル指定",
+  "api": "DeleteObjects",
+  "kind": "Missing",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket test-bucket --delete file://invalid.json",
+  "status": "400 Bad Request",
+  "result": "複数ファイルが削除されずエラー出力"
+},
+{
+  "ID": 112,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket abc --delete file://test-delete.json",
+  "status": "200 OK",
+  "result": "指定した複数ファイルが削除される"
+},
+{
+  "ID": 113,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --delete file://test-delete.json",
+  "status": "200 OK",
+  "result": "指定した複数ファイルが削除される"
+},
+{
+  "ID": 114,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket ab --delete file://test-delete.json",
+  "status": "404 Not Found",
+  "result": "複数ファイルが削除されずエラー出力"
+},
+{
+  "ID": 115,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --delete file://test-delete.json",
+  "status": "404 Not Found",
+  "result": "複数ファイルが削除されずエラー出力"
+},
+{
+  "ID": 116,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket test@bucket --delete file://test-delete.json",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 117,
+  "criterion": "削除対象の境界値テスト: 最大1000個",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket test-bucket --delete file://delete-1000.json",
+  "status": "200 OK",
+  "result": "1000個のファイルが削除される"
+},
+{
+  "ID": 118,
+  "criterion": "削除対象の境界値テスト: 1001個（範囲外）",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket test-bucket --delete file://delete-1001.json",
+  "status": "400 Bad Request",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 119,
+  "criterion": "削除対象の境界値テスト: 0個",
+  "api": "DeleteObjects",
+  "kind": "Range",
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket test-bucket --delete file://delete-empty.json",
+  "status": "400 Bad Request",
+  "result": "ファイルが削除されずエラー出力"
+},
+{
+  "ID": 120,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "DeleteObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --key test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 121,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "DeleteObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 122,
+  "criterion": "存在しないBucketのタグ削除",
+  "api": "DeleteObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket non-exist-bucket --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが削除されずエラー出力"
+},
+{
+  "ID": 123,
+  "criterion": "存在しないObjectのタグ削除",
+  "api": "DeleteObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key non-exist-key.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが削除されずエラー出力"
+},
+{
+  "ID": 124,
+  "criterion": "タグが存在しないObjectのタグ削除",
+  "api": "DeleteObjectTagging",
+  "kind": "OK",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key no-tags-object.txt",
+  "status": "204 No Content",
+  "result": "エラーにならず正常終了"
+},
+{
+  "ID": 125,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket abc --key test-object.txt",
+  "status": "204 No Content",
+  "result": "メタデータファイルが削除される"
+},
+{
+  "ID": 126,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt",
+  "status": "204 No Content",
+  "result": "メタデータファイルが削除される"
+},
+{
+  "ID": 127,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket ab --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが削除されずエラー出力"
+},
+{
+  "ID": 128,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが削除されずエラー出力"
+},
+{
+  "ID": 129,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test@bucket --key test-object.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 130,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": 64512,
+  "result": "ファイルの作成ができないため、メタデータの削除ができない"
+},
+{
+  "ID": 131,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": 64512,
+  "result": "ファイルの作成ができないため、メタデータの削除ができない"
+},
+{
+  "ID": 130,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "204 No Content",
+  "result": "メタデータファイルが削除される"
+},
+{
+  "ID": 131,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "500 Internal Error",
+  "result": "メタデータファイルが削除されずエラー出力"
+},
+{
+  "ID": 132,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key test@object.txt",
+  "status": "204 No Content",
+  "result": "メタデータファイルが削除される"
+},
+{
+  "ID": 133,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt",
+  "status": "204 No Content",
+  "result": "メタデータファイルが削除される"
+},
+{
+  "ID": 133,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\"",
+  "status": "204 No Content",
+  "result": "メタデータファイルが削除される"
+},
+{
+  "ID": 133,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "DeleteObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\"",
+  "status": "204 No Content",
+  "result": "メタデータファイルが削除される"
+},
+{
+  "ID": 134,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "GetObject",
+  "kind": "Missing",
+  "operation": "aws s3api get-object --no-cli-pager --key test-object.txt output.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 135,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "GetObject",
+  "kind": "Missing",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket output.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 136,
+  "criterion": "存在しないBucketからの取得",
+  "api": "GetObject",
+  "kind": "Missing",
+  "operation": "aws s3api get-object --no-cli-pager --bucket non-exist-bucket --key test-object.txt output.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 137,
+  "criterion": "存在しないObjectの取得",
+  "api": "GetObject",
+  "kind": "Missing",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key non-exist-key.txt output.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 138,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket abc --key test-object.txt output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 139,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 140,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket ab --key test-object.txt output.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 141,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt output.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 142,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test@bucket --key test-object.txt output.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 143,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt output.txt",
+  "status": "500 Internal Error",
+  "result": "ファイルの作成ができないため、ファイル情報も取得できない"
+},
+{
+  "ID": 144,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt output.txt",
+  "status": "500 Internal Error",
+  "result": "ファイルの作成ができないため、ファイル情報も取得できない"
+},
+{
+  "ID": 143,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 144,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt output.txt",
+  "status": "400 Bad Request",
+  "result": "ファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 145,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test@object.txt output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 146,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 146,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 146,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 147,
+  "criterion": "partNumberの境界値テスト: 最小値(1)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 1 output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 148,
+  "criterion": "partNumberの境界値テスト: 最大値(10000)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 10000 output.txt",
+  "status": "400 Bad Request",
+  "result": "パート情報は保持しないためファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 149,
+  "criterion": "partNumberの境界値テスト: 範囲外(0)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 0 output.txt",
+  "status": "400 Bad Request",
+  "result": "ファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 150,
+  "criterion": "partNumberの境界値テスト: 範囲外(10001)",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 10001 output.txt",
+  "status": "400 Bad Request",
+  "result": "ファイル情報・内容が取得されずエラー出力"
+},
+{
+  "ID": 151,
+  "criterion": "Rangeヘッダーテスト: バイト範囲指定",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --range \"bytes=0-1023\" output.txt",
+  "status": "206 Partial Content",
+  "result": "指定範囲のファイル内容がoutput.txtに取得される"
+},
+{
+  "ID": 152,
+  "criterion": "Rangeヘッダーテスト: 無効な範囲指定",
+  "api": "GetObject",
+  "kind": "Range",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --range \"bytes=1000-500\" output.txt",
+  "status": "416 Range Not Satisfiable",
+  "result": "ファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 153,
+  "criterion": "If-Match 条件満たすケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-match \"test-object.txtのEtagの値\" output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 154,
+  "criterion": "If-Match 条件満たさないケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-match \"test-object.txtのEtagとは違う値\" output.txt",
+  "status": "412 Precondition Failed",
+  "result": "ファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 155,
+  "criterion": "If-None-Match 条件満たすケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-none-match \"test-object.txtのEtagとは違う値\" output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 156,
+  "criterion": "If-None-Match 条件満たさないケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-none-match \"test-object.txtのEtagの値\" output.txt",
+  "status": "304 Not Modified",
+  "result": "ファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 157,
+  "criterion": "If-Modified-Since 条件満たすケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-modified-since \"2024-01-01\" output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 158,
+  "criterion": "If-Modified-Since 条件満たさないケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-modified-since \"2026-01-01\" output.txt",
+  "status": "304 Not Modified",
+  "result": "ファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 159,
+  "criterion": "If-Unmodified-Since 条件満たすケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-unmodified-since \"2026-01-01\" output.txt",
+  "status": "200 OK",
+  "result": "ファイル情報・内容がoutput.txtに取得される"
+},
+{
+  "ID": 160,
+  "criterion": "If-Unmodified-Since 条件満たさないケース",
+  "api": "GetObject",
+  "kind": "Conditional",
+  "operation": "aws s3api get-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-unmodified-since \"2024-01-01\" output.txt",
+  "status": "412 Precondition Failed",
+  "result": "ファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 161,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "GetObjectAttributes",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --key test-object.txt --object-attributes \"ETag\"",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 162,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "GetObjectAttributes",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --object-attributes \"ETag\"",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 163,
+  "criterion": "Missing required parameter: object-attributes missing",
+  "api": "GetObjectAttributes",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 164,
+  "criterion": "存在しないBucketでの属性取得",
+  "api": "GetObjectAttributes",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket non-exist-bucket --key test-object.txt --object-attributes \"ETag\"",
+  "status": "404 Not Found",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 165,
+  "criterion": "存在しないObjectの属性取得",
+  "api": "GetObjectAttributes",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key non-exist-key.txt --object-attributes \"ETag\"",
+  "status": "404 Not Found",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 166,
+  "criterion": "存在するObjectの属性取得",
+  "api": "GetObjectAttributes",
+  "kind": "OK",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test-object.txt --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 167,
+  "criterion": "存在するObjectの属性取得",
+  "api": "GetObjectAttributes",
+  "kind": "OK",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test-object.txt --object-attributes \"Checksum\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 168,
+  "criterion": "存在するObjectの属性取得",
+  "api": "GetObjectAttributes",
+  "kind": "OK",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test-object.txt --object-attributes \"ObjectParts\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 169,
+  "criterion": "存在するObjectの属性取得",
+  "api": "GetObjectAttributes",
+  "kind": "OK",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test-object.txt --object-attributes \"StorageClass\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 170,
+  "criterion": "存在するObjectの属性取得",
+  "api": "GetObjectAttributes",
+  "kind": "OK",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test-object.txt --object-attributes \"ObjectSize\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 171,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket abc --key test-object.txt --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 172,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 173,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket ab --key test-object.txt --object-attributes \"ETag\"",
+  "status": "404 Not Found",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 174,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt --object-attributes \"ETag\"",
+  "status": "404 Not Found",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 175,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test@bucket --key test-object.txt --object-attributes \"ETag\"",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 176,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --object-attributes \"ETag\"",
+  "status": "500 Internal Error",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 177,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --object-attributes \"ETag\"",
+  "status": "500 Internal Error",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 176,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 177,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --object-attributes \"ETag\"",
+  "status": "404 Not Found",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 178,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test@object.txt --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 179,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 179,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 179,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" --object-attributes \"ETag\"",
+  "status": "200 OK",
+  "result": "指定のファイル属性情報が取得される"
+},
+{
+  "ID": 180,
+  "criterion": "object-attributesの境界値テスト: 無効な属性",
+  "api": "GetObjectAttributes",
+  "kind": "Range",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket test-bucket --key test-object.txt --object-attributes \"LastModified\"",
+  "status": "400 Bad Request",
+  "result": "オブジェクト属性が取得されずエラー出力"
+},
+{
+  "ID": 181,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "GetObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --key test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 182,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "GetObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 183,
+  "criterion": "存在しないBucketでのタグ取得",
+  "api": "GetObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket non-exist-bucket --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 184,
+  "criterion": "存在しないObjectのタグ取得",
+  "api": "GetObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key non-exist-key.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 185,
+  "criterion": "タグが存在しないObjectのタグ取得",
+  "api": "GetObjectTagging",
+  "kind": "OK",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key no-tags-object.txt",
+  "status": "200 OK",
+  "result": "空のタグセットが取得される"
+},
+{
+  "ID": 186,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket abc --key test-object.txt",
+  "status": "200 OK",
+  "result": "メタデータファイル内容が取得される"
+},
+{
+  "ID": 187,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt",
+  "status": "200 OK",
+  "result": "メタデータファイル内容が取得される"
+},
+{
+  "ID": 188,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket ab --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 189,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 190,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test@bucket --key test-object.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 191,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "500 Internal Error",
+  "result": "メタデータファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 192,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "500 Internal Error",
+  "result": "メタデータファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 191,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "200 OK",
+  "result": "メタデータファイル内容が取得される"
+},
+{
+  "ID": 192,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "404 Not Found",
+  "result": "メタデータファイル内容が取得されずエラー出力"
+},
+{
+  "ID": 193,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key test@object.txt",
+  "status": "200 OK",
+  "result": "メタデータファイル内容が取得される"
+},
+{
+  "ID": 194,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt",
+  "status": "200 OK",
+  "result": "メタデータファイル内容が取得される"
+},
+{
+  "ID": 194,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\"",
+  "status": "200 OK",
+  "result": "メタデータファイル内容が取得される"
+},
+{
+  "ID": 194,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "GetObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api get-object-tagging --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\"",
+  "status": "200 OK",
+  "result": "メタデータファイル内容が取得される"
+},
+{
+  "ID": 195,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "HeadBucket",
+  "kind": "Missing",
+  "operation": "aws s3api head-bucket --no-cli-pager",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 196,
+  "criterion": "存在しないBucketの確認",
+  "api": "HeadBucket",
+  "kind": "Missing",
+  "operation": "aws s3api head-bucket --no-cli-pager --bucket non-exist-bucket",
+  "status": "404 Not Found",
+  "result": "バケット情報が取得されずエラー出力"
+},
+{
+  "ID": 197,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "HeadBucket",
+  "kind": "Range",
+  "operation": "aws s3api head-bucket --no-cli-pager --bucket abc",
+  "status": "200 OK",
+  "result": "ディレクトリ情報が取得される"
+},
+{
+  "ID": 198,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "HeadBucket",
+  "kind": "Range",
+  "operation": "aws s3api head-bucket --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+  "status": "200 OK",
+  "result": "該当ディレクトリ情報が取得される"
+},
+{
+  "ID": 199,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "HeadBucket",
+  "kind": "Range",
+  "operation": "aws s3api head-bucket --no-cli-pager --bucket ab",
+  "status": "200 OK",
+  "result": "ディレクトリ情報が取得される"
+},
+{
+  "ID": 200,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "HeadBucket",
+  "kind": "Range",
+  "operation": "aws s3api head-bucket --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12",
+  "status": "200 OK",
+  "result": "該当ディレクトリ情報が取得される"
+},
+{
+  "ID": 201,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "HeadBucket",
+  "kind": "Range",
+  "operation": "aws s3api head-bucket --no-cli-pager --bucket test@bucket",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 202,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "HeadObject",
+  "kind": "Missing",
+  "operation": "aws s3api head-object --no-cli-pager --key test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 203,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "HeadObject",
+  "kind": "Missing",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 204,
+  "criterion": "存在しないBucketのObject確認",
+  "api": "HeadObject",
+  "kind": "Missing",
+  "operation": "aws s3api head-object --no-cli-pager --bucket non-exist-bucket --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 205,
+  "criterion": "存在しないObjectの確認",
+  "api": "HeadObject",
+  "kind": "Missing",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key non-exist-key.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 206,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket abc --key test-object.txt",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 207,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 208,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket ab --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 209,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt",
+  "status": "404 Not Found",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 210,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test@bucket --key test-object.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 211,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "500 Internal Error",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 212,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "400 Bad Request",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 211,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 212,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+  "status": "400 Bad Request",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 213,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test@object.txt",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 214,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 214,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\"",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 214,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\"",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 215,
+  "criterion": "partNumberの境界値テスト: 最小値(1)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 1",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 216,
+  "criterion": "partNumberの境界値テスト: 最大値(10000)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 10000",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 217,
+  "criterion": "partNumberの境界値テスト: 範囲外(0)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 0",
+  "status": "400 Bad Request",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 218,
+  "criterion": "partNumberの境界値テスト: 範囲外(10001)",
+  "api": "HeadObject",
+  "kind": "Range",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --part-number 10001",
+  "status": "400 Bad Request",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 219,
+  "criterion": "If-Match 条件満たすケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-match \"test-object.txtのEtagの値\"",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 220,
+  "criterion": "If-Match 条件満たさないケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-match \"test-object.txtのEtagとは違う値\"",
+  "status": "412 Precondition Failed",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 221,
+  "criterion": "If-None-Match 条件満たすケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-none-match \"test-object.txtのEtagとは違う値\"",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 222,
+  "criterion": "If-None-Match 条件満たさないケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-none-match \"test-object.txtのEtagの値\"",
+  "status": "304 Not Modified",
+  "result": "ファイル情報が取得されずヘッダーのみ返却"
+},
+{
+  "ID": 223,
+  "criterion": "If-Modified-Since 条件満たすケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-modified-since \"2024-01-01\"",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 224,
+  "criterion": "If-Modified-Since 条件満たさないケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-modified-since \"2026-01-01\"",
+  "status": "304 Not Modified",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 225,
+  "criterion": "If-Unmodified-Since 条件満たすケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-unmodified-since \"2026-01-01\"",
+  "status": "200 OK",
+  "result": "ファイル情報が取得される"
+},
+{
+  "ID": 226,
+  "criterion": "If-Unmodified-Since 条件満たさないケース",
+  "api": "HeadObject",
+  "kind": "Conditional",
+  "operation": "aws s3api head-object --no-cli-pager --bucket test-bucket --key test-object.txt --if-unmodified-since \"2024-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "ファイル情報が取得されずエラー出力"
+},
+{
+  "ID": 227,
+  "criterion": "バケットが存在しない場合の一覧取得",
+  "api": "ListBuckets",
+  "kind": "OK",
+  "operation": "aws s3api list-buckets --no-cli-pager",
+  "status": "200 OK",
+  "result": "空のバケット一覧が取得される"
+},
+{
+  "ID": 228,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "ListMultipartUploads",
+  "kind": "Missing",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 229,
+  "criterion": "存在しないBucketでの一覧取得",
+  "api": "ListMultipartUploads",
+  "kind": "Missing",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket non-exist-bucket",
+  "status": "404 Not Found",
+  "result": "マルチパートアップロード一覧が取得されずエラー出力"
+},
+{
+  "ID": 230,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket abc",
+  "status": "200 OK",
+  "result": "マルチパートディレクトリ情報が取得される"
+},
+{
+  "ID": 231,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+  "status": "200 OK",
+  "result": "マルチパートディレクトリ情報が取得される"
+},
+{
+  "ID": 232,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket ab",
+  "status": "404 Not Found",
+  "result": "マルチパートアップロード一覧が取得されずエラー出力"
+},
+{
+  "ID": 233,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12",
+  "status": "404 Not Found",
+  "result": "マルチパートアップロード一覧が取得されずエラー出力"
+},
+{
+  "ID": 234,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket test@bucket",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 235,
+  "criterion": "max-uploadsの境界値テスト: 最小値(0)",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket test-bucket --max-uploads 0",
+  "status": "200 OK",
+  "result": "0件のマルチパートアップロード一覧が取得される"
+},
+{
+  "ID": 236,
+  "criterion": "max-uploadsの境界値テスト: 最大値(1000)",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket test-bucket --max-uploads 1000",
+  "status": "200 OK",
+  "result": "最大1000件のマルチパートアップロード一覧が取得される"
+},
+{
+  "ID": 237,
+  "criterion": "max-uploadsの境界値テスト: 範囲外(1001)",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket test-bucket --max-uploads 1001",
+  "status": "400 Bad Request",
+  "result": "マルチパートアップロード一覧が取得されずエラー出力"
+},
+{
+  "ID": 238,
+  "criterion": "key-markerテスト: 有効なマーカー",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket test-bucket --key-marker \"test-object.txt\"",
+  "status": "200 OK",
+  "result": "指定キー以降のマルチパートアップロード一覧が取得される"
+},
+{
+  "ID": 239,
+  "criterion": "upload-id-markerテスト: 有効なマーカー",
+  "api": "ListMultipartUploads",
+  "kind": "Range",
+  "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket test-bucket --upload-id-marker \"1\"",
+  "status": "200 OK",
+  "result": "指定アップロードID以降のマルチパートアップロード一覧が取得される"
+},
+{
+  "ID": 240,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "ListObjects",
+  "kind": "Missing",
+  "operation": "aws s3api list-objects --no-cli-pager",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 241,
+  "criterion": "存在しないBucketでの一覧取得",
+  "api": "ListObjects",
+  "kind": "Missing",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket non-exist-bucket",
+  "status": "404 Not Found",
+  "result": "オブジェクト一覧が取得されずエラー出力"
+},
+{
+  "ID": 242,
+  "criterion": "存在するBucketでの一覧取得",
+  "api": "ListObjects",
+  "kind": "OK",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket",
+  "status": "200 OK",
+  "result": "バケット内のオブジェクト一覧が取得される"
+},
+{
+  "ID": 243,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket abc",
+  "status": "200 OK",
+  "result": "オブジェクト一覧が取得される"
+},
+{
+  "ID": 244,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+  "status": "200 OK",
+  "result": "オブジェクト一覧が取得される"
+},
+{
+  "ID": 245,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket ab",
+  "status": "404 Not Found",
+  "result": "オブジェクト一覧が取得されずエラー出力"
+},
+{
+  "ID": 246,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12",
+  "status": "404 Not Found",
+  "result": "オブジェクト一覧が取得されずエラー出力"
+},
+{
+  "ID": 247,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test@bucket",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 248,
+  "criterion": "max-keysの境界値テスト: 0",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket --max-keys 0",
+  "status": "200 OK",
+  "result": "0件のオブジェクト一覧が取得される"
+},
+{
+  "ID": 249,
+  "criterion": "max-keysの境界値テスト: 最大値(1000)",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket --max-keys 1000",
+  "status": "200 OK",
+  "result": "最大1000件のオブジェクト一覧が取得される"
+},
+{
+  "ID": 250,
+  "criterion": "max-keysの境界値テスト: 範囲外(1001)",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket --max-keys 1001",
+  "status": "200 OK",
+  "result": "最大1000件のオブジェクト一覧が取得される"
+},
+{
+  "ID": 251,
+  "criterion": "prefixテスト: 有効なプレフィックス",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket --prefix \"test\"",
+  "status": "200 OK",
+  "result": "プレフィックスにマッチしたオブジェクト一覧が取得される"
+},
+{
+  "ID": 252,
+  "criterion": "delimiterテスト: 有効なデリミタ",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket --delimiter \"/\"",
+  "status": "200 OK",
+  "result": "デリミタで区切られたオブジェクト一覧が取得される"
+},
+{
+  "ID": 253,
+  "criterion": "markerテスト: 有効なマーカー",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket --marker \"test-object.txt\"",
+  "status": "200 OK",
+  "result": "マーカー以降のオブジェクト一覧が取得される"
+},
+{
+  "ID": 254,
+  "criterion": "encoding-typeテスト: url指定",
+  "api": "ListObjects",
+  "kind": "Range",
+  "operation": "aws s3api list-objects --no-cli-pager --bucket test-bucket --encoding-type url",
+  "status": "200 OK",
+  "result": "URLエンコードされたオブジェクト一覧が取得される"
+},
+{
+  "ID": 255,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "ListObjectsV2",
+  "kind": "Missing",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 256,
+  "criterion": "存在しないBucketでの一覧取得",
+  "api": "ListObjectsV2",
+  "kind": "Missing",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket non-exist-bucket",
+  "status": "404 Not Found",
+  "result": "オブジェクト一覧が取得されずエラー出力"
+},
+{
+  "ID": 257,
+  "criterion": "存在するBucketでの一覧取得",
+  "api": "ListObjectsV2",
+  "kind": "OK",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket",
+  "status": "200 OK",
+  "result": "バケット内のオブジェクト一覧が取得される"
+},
+{
+  "ID": 258,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket abc",
+  "status": "200 OK",
+  "result": "オブジェクト一覧が取得される"
+},
+{
+  "ID": 259,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1",
+  "status": "200 OK",
+  "result": "オブジェクト一覧が取得される"
+},
+{
+  "ID": 260,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket ab",
+  "status": "200 OK",
+  "result": "オブジェクト一覧が取得される"
+},
+{
+  "ID": 261,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12",
+  "status": "200 OK",
+  "result": "オブジェクト一覧が取得される"
+},
+{
+  "ID": 262,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test@bucket",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 263,
+  "criterion": "max-keysの境界値テスト: 0",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --max-keys 0",
+  "status": "200 OK",
+  "result": "0件のオブジェクト一覧が取得される"
+},
+{
+  "ID": 264,
+  "criterion": "max-keysの境界値テスト: 最大値(1000)",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --max-keys 1000",
+  "status": "200 OK",
+  "result": "最大1000件のオブジェクト一覧が取得される"
+},
+{
+  "ID": 265,
+  "criterion": "max-keysの境界値テスト: 範囲外(1001)",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --max-keys 1001",
+  "status": "200 OK",
+  "result": "最大1000件のオブジェクト一覧が取得される"
+},
+{
+  "ID": 266,
+  "criterion": "prefixテスト: 有効なプレフィックス",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --prefix \"test\"",
+  "status": "200 OK",
+  "result": "プレフィックスにマッチしたオブジェクト一覧が取得される"
+},
+{
+  "ID": 267,
+  "criterion": "delimiterテスト: 有効なデリミタ",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --delimiter \"/\"",
+  "status": "200 OK",
+  "result": "デリミタで区切られたオブジェクト一覧が取得される"
+},
+{
+  "ID": 268,
+  "criterion": "start-afterテスト: 有効な開始キー",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --start-after \"test-object.txt\"",
+  "status": "200 OK",
+  "result": "指定キー以降のオブジェクト一覧が取得される"
+},
+{
+  "ID": 269,
+  "criterion": "continuation-tokenテスト: 有効なトークン",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --continuation-token \"max-keysを指定したときのtokenの値\"",
+  "status": "200 OK",
+  "result": "継続トークンに基づくオブジェクト一覧が取得される"
+},
+{
+  "ID": 270,
+  "criterion": "encoding-typeテスト: url指定",
+  "api": "ListObjectsV2",
+  "kind": "Range",
+  "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket test-bucket --encoding-type url",
+  "status": "200 OK",
+  "result": "URLエンコードされたオブジェクト一覧が取得される"
+},
+{
+  "ID": 271,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "ListParts",
+  "kind": "Missing",
+  "operation": "aws s3api list-parts --no-cli-pager --key test-multipart.txt --upload-id 1",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 272,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "ListParts",
+  "kind": "Missing",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --upload-id 1",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 273,
+  "criterion": "Missing required parameter: uploadId missing",
+  "api": "ListParts",
+  "kind": "Missing",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test-multipart.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 274,
+  "criterion": "存在しないBucketでのパート一覧",
+  "api": "ListParts",
+  "kind": "Missing",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket non-exist-bucket --key test-multipart.txt --upload-id 1",
+  "status": "404 Not Found",
+  "result": "パート一覧が取得されずエラー出力"
+},
+{
+  "ID": 275,
+  "criterion": "存在しないuploadIdでのパート一覧",
+  "api": "ListParts",
+  "kind": "Missing",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 9999",
+  "status": "404 Not Found",
+  "result": "パート一覧が取得されずエラー出力"
+},
+{
+  "ID": 276,
+  "criterion": "有効なマルチパートアップロードのパート一覧",
+  "api": "ListParts",
+  "kind": "OK",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報（パート一覧）が取得される"
+},
+{
+  "ID": 277,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket abc --key test-multipart.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報が取得される"
+},
+{
+  "ID": 278,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-multipart.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報が取得される"
+},
+{
+  "ID": 279,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket ab --key test-multipart.txt --upload-id 1",
+  "status": "404 Not Found",
+  "result": "パート一覧が取得されずエラー出力"
+},
+{
+  "ID": 280,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-multipart.txt --upload-id 1",
+  "status": "404 Not Found",
+  "result": "パート一覧が取得されずエラー出力"
+},
+{
+  "ID": 281,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test@bucket --key test-multipart.txt --upload-id 1",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 282,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報が取得される"
+},
+{
+  "ID": 283,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --upload-id 1",
+  "status": "400 Bad Request",
+  "result": "パート一覧が取得されずエラー出力"
+},
+{
+  "ID": 284,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test@object.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報が取得される"
+},
+{
+  "ID": 285,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報が取得される"
+},
+{
+  "ID": 285,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報が取得される"
+},
+{
+  "ID": 285,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" --upload-id 1",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリ情報が取得される"
+},
+{
+  "ID": 286,
+  "criterion": "max-partsの境界値テスト: 最小値(0)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --max-parts 0",
+  "status": "200 OK",
+  "result": "0件のパート一覧が取得される"
+},
+{
+  "ID": 287,
+  "criterion": "max-partsの境界値テスト: 最大値(1000)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --max-parts 1000",
+  "status": "200 OK",
+  "result": "最大1000件のパート一覧が取得される"
+},
+{
+  "ID": 288,
+  "criterion": "max-partsの境界値テスト: 範囲外(1001)",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --max-parts 1001",
+  "status": "200 OK",
+  "result": "最大1000件のパート一覧が取得される"
+},
+{
+  "ID": 289,
+  "criterion": "part-number-markerテスト: 有効なマーカー",
+  "api": "ListParts",
+  "kind": "Range",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --part-number-marker 1",
+  "status": "200 OK",
+  "result": "指定パート番号以降のパート一覧が取得される"
+},
+{
+  "ID": 290,
+  "criterion": "If-Match 条件満たすケース",
+  "api": "PutObject",
+  "kind": "Conditional",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-object.txt --body test-file.txt --if-match \"test-object.txtのEtagの値\"",
+  "status": "200 OK",
+  "result": "ファイルがアップロードされる"
+},
+{
+  "ID": 291,
+  "criterion": "If-Match 条件満たさないケース",
+  "api": "PutObject",
+  "kind": "Conditional",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-object.txt --body test-file.txt --if-match \"test-object.txtのEtagとは違う値\"",
+  "status": "412 Precondition Failed",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 292,
+  "criterion": "If-None-Match 条件満たすケース",
+  "api": "PutObject",
+  "kind": "Conditional",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-object.txt --body test-file.txt --if-none-match \"test-object.txtのEtagとは違う値\"",
+  "status": "200 OK",
+  "result": "ファイルがアップロードされる"
+},
+{
+  "ID": 293,
+  "criterion": "If-None-Match 条件満たさないケース",
+  "api": "PutObject",
+  "kind": "Conditional",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-object.txt --body test-file.txt --if-none-match \"test-object.txtのEtagの値\"",
+  "status": "412 Precondition Failed",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 298,
+  "criterion": "Cache-Control指定",
+  "api": "PutObject",
+  "kind": "Conditional",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-object.txt --body test-file.txt --cache-control \"no-cache\"",
+  "status": "200 OK",
+  "result": "Cache-Controlメタデータ付きでファイルがアップロードされる"
+},
+{
+  "ID": 299,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "PutObject",
+  "kind": "Missing",
+  "operation": "aws s3api put-object --no-cli-pager --key test-object.txt --body test-file.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 300,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "PutObject",
+  "kind": "Missing",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --body test-file.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 301,
+  "criterion": "存在しないBucketへのアップロード",
+  "api": "PutObject",
+  "kind": "Missing",
+  "operation": "aws s3api put-object --no-cli-pager --bucket non-exist-bucket --key test-object.txt --body test-file.txt",
+  "status": "404 Not Found",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 302,
+  "criterion": "存在しないファイルのアップロード",
+  "api": "PutObject",
+  "kind": "Missing",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-object.txt --body non-exist-file.txt",
+  "status": 64512,
+  "result": "bodyとして送れないためコマンド実行できない"
+},
+{
+  "ID": 303,
+  "criterion": "既存オブジェクトの上書き",
+  "api": "PutObject",
+  "kind": "OK",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-object.txt --body updated-file.txt",
+  "status": "200 OK",
+  "result": "既存オブジェクトの上書きされる"
+},
+{
+  "ID": 304,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket abc --key test-object.txt --body test-file.txt",
+  "status": "200 OK",
+  "result": "ディレクトリ下にファイルがアップロードされる"
+},
+{
+  "ID": 305,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt --body test-file.txt",
+  "status": "200 OK",
+  "result": "該当ディレクトリ下にファイルがアップロードされる"
+},
+{
+  "ID": 306,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket ab --key test-object.txt --body test-file.txt",
+  "status": "404 Not Found",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 307,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt --body test-file.txt",
+  "status": "404 Not Found",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 308,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test@bucket --key test-object.txt --body test-file.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 309,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --body test-file.txt",
+  "status": "500 Internal Error",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 310,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --body test-file.txt",
+  "status": "400 Bad Request",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 309,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --body test-file.txt",
+  "status": "200 OK",
+  "result": "ファイルがアップロードされる"
+},
+{
+  "ID": 310,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --body test-file.txt",
+  "status": "404 Not Found",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 311,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test@object.txt --body test-file.txt",
+  "status": "200 OK",
+  "result": "test@object.txtファイルがアップロードされる"
+},
+{
+  "ID": 312,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt --body test-file.txt",
+  "status": "200 OK",
+  "result": "テストオブジェクト.txtファイルがアップロードされる"
+},
+{
+  "ID": 312,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" --body test-file.txt",
+  "status": "200 OK",
+  "result": "テストオブジェクト.txtファイルがアップロードされる"
+},
+{
+  "ID": 312,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" --body test-file.txt",
+  "status": "200 OK",
+  "result": "テストオブジェクト.txtファイルがアップロードされる"
+},
+{
+  "ID": 313,
+  "criterion": "Keyの境界値テスト: 空文字",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key \"\" --body test-file.txt",
+  "status": "400 Bad Request",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 314,
+  "criterion": "Content-Lengthの境界値テスト: 0",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-empty.txt --body /dev/null",
+  "status": "200 OK",
+  "result": "0バイトファイルがアップロードされる"
+},
+{
+  "ID": 315,
+  "criterion": "Content-Lengthの境界値テスト: 最大値(5GB)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-large.txt --body large-file-5gb.txt",
+  "status": "200 OK",
+  "result": "5GBファイルがアップロードされる"
+},
+{
+  "ID": 316,
+  "criterion": "Content-Lengthの境界値テスト: 範囲外(5GB超)",
+  "api": "PutObject",
+  "kind": "Range",
+  "operation": "aws s3api put-object --no-cli-pager --bucket test-bucket --key test-toolarge.txt --body large-file-over5gb.txt",
+  "status": "400 Bad Request",
+  "result": "ファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 317,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "PutObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --key test-object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 318,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "PutObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 319,
+  "criterion": "Missing required parameter: Tagging missing",
+  "api": "PutObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 320,
+  "criterion": "存在しないBucketでのタグ追加",
+  "api": "PutObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket non-exist-bucket --key test-object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 321,
+  "criterion": "存在しないObjectへのタグ追加",
+  "api": "PutObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key non-exist-key.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 322,
+  "criterion": "無効なタグフォーマット",
+  "api": "PutObjectTagging",
+  "kind": "Missing",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key:updated,Value:newvalue}]\"",
+  "status": "400 Bad Request",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 323,
+  "criterion": "既存タグの上書き",
+  "api": "PutObjectTagging",
+  "kind": "OK",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=updated,Value=newvalue}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが更新される"
+},
+{
+  "ID": 324,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket abc --key test-object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 325,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 326,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket ab --key test-object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 327,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "404 Not Found",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 328,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test@bucket --key test-object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 329,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "500 Internal Error",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 330,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "400 Bad Request",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 329,
+  "criterion": "Keyの境界値テスト: 最大長(250文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 329,
+  "criterion": "Keyの境界値テスト: 最大長(251文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "500 Internal Error",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 329,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "500 Internal Error",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 330,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "500 Internal Error",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 331,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test@object.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 332,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 332,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 332,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" --tagging \"TagSet=[{Key=test,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 333,
+  "criterion": "タグ数の境界値テスト: 最大10個",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=tag1,Value=value1},{Key=tag2,Value=value2},{Key=tag3,Value=value3},{Key=tag4,Value=value4},{Key=tag5,Value=value5},{Key=tag6,Value=value6},{Key=tag7,Value=value7},{Key=tag8,Value=value8},{Key=tag9,Value=value9},{Key=tag10,Value=value10}]\"",
+  "status": "200 OK",
+  "result": "10個のタグを含むメタデータファイルが作成される"
+},
+{
+  "ID": 334,
+  "criterion": "タグ数の境界値テスト: 11個（範囲外）",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=tag1,Value=value1},{Key=tag2,Value=value2},{Key=tag3,Value=value3},{Key=tag4,Value=value4},{Key=tag5,Value=value5},{Key=tag6,Value=value6},{Key=tag7,Value=value7},{Key=tag8,Value=value8},{Key=tag9,Value=value9},{Key=tag10,Value=value10},{Key=tag11,Value=value11}]\"",
+  "status": "400 Bad Request",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 335,
+  "criterion": "タグキーの境界値テスト: 最大128文字",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,Value=value}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 336,
+  "criterion": "タグキーの境界値テスト: 129文字（範囲外）",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,Value=value}]\"",
+  "status": "400 Bad Request",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 337,
+  "criterion": "タグ値の境界値テスト: 最大256文字",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=test,Value=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 338,
+  "criterion": "タグ値の境界値テスト: 257文字（範囲外）",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=test,Value=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}]\"",
+  "status": "400 Bad Request",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 339,
+  "criterion": "タグキーの境界値テスト: 空文字",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=,Value=value}]\"",
+  "status": "400 Bad Request",
+  "result": "メタデータファイルが作成されずエラー出力"
+},
+{
+  "ID": 340,
+  "criterion": "タグ値の境界値テスト: 空文字",
+  "api": "PutObjectTagging",
+  "kind": "Range",
+  "operation": "aws s3api put-object-tagging --no-cli-pager --bucket test-bucket --key test-object.txt --tagging \"TagSet=[{Key=test,Value=''}]\"",
+  "status": "200 OK",
+  "result": "メタデータファイルが作成される"
+},
+{
+  "ID": 341,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "UploadPart",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part --no-cli-pager --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 342,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "UploadPart",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 343,
+  "criterion": "Missing required parameter: partNumber missing",
+  "api": "UploadPart",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --body test-part1.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 344,
+  "criterion": "Missing required parameter: uploadId missing",
+  "api": "UploadPart",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --body test-part1.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 345,
+  "criterion": "存在しないBucketへのパートアップロード",
+  "api": "UploadPart",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket non-exist-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 346,
+  "criterion": "存在しないuploadIdでのパートアップロード",
+  "api": "UploadPart",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 9999 --body test-part1.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 347,
+  "criterion": "存在しないファイルのパートアップロード",
+  "api": "UploadPart",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --body non-exist-part.txt",
+  "status": "404 Not Found",
+  "result": "bodyとして送れないためコマンド実行できない"
+},
+{
+  "ID": 348,
+  "criterion": "新しいパートのアップロード",
+  "api": "UploadPart",
+  "kind": "OK",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにtest-part1.txtファイルがアップロードされる"
+},
+{
+  "ID": 349,
+  "criterion": "既存パートの上書き",
+  "api": "UploadPart",
+  "kind": "OK",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --body updated-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリのパートファイルが上書きされる"
+},
+{
+  "ID": 350,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket abc --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 351,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 352,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket ab --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 353,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 354,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test@bucket --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 355,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "500 Internal Error",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 356,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 355,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 356,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 357,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test@object.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 358,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 358,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 358,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 359,
+  "criterion": "partNumberの境界値テスト: 最小値(1)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --body test-part1.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 360,
+  "criterion": "partNumberの境界値テスト: 最大値(10000)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 10000 --upload-id 1 --body test-part10000.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがアップロードされる"
+},
+{
+  "ID": 361,
+  "criterion": "partNumberの境界値テスト: 範囲外(0)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 0 --upload-id 1 --body test-part0.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 362,
+  "criterion": "partNumberの境界値テスト: 範囲外(10001)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 10001 --upload-id 1 --body test-part10001.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがアップロードされずエラー出力"
+},
+{
+  "ID": 363,
+  "criterion": "Content-Lengthの境界値テスト: 最小サイズ(5MB)",
+  "api": "UploadPart",
+  "kind": "Range",
+  "operation": "aws s3api upload-part --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --body part-5mb.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリに5MBファイルがアップロードされる"
+},
+{
+  "ID": 364,
+  "criterion": "Missing required parameter: Bucket missing",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 365,
+  "criterion": "Missing required parameter: Key missing",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 366,
+  "criterion": "Missing required parameter: partNumber missing",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 367,
+  "criterion": "Missing required parameter: uploadId missing",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 368,
+  "criterion": "Missing required parameter: copy-source missing",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1",
+  "status": 64512,
+  "result": "Running CLI fails due to bad parameters."
+},
+{
+  "ID": 369,
+  "criterion": "存在しないBucketへのパートコピー",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket non-exist-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 370,
+  "criterion": "存在しないuploadIdでのパートコピー",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 9999 --copy-source test-bucket/test-object.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 371,
+  "criterion": "存在しないコピー元オブジェクト",
+  "api": "UploadPartCopy",
+  "kind": "Missing",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source source-bucket/non-exist-key",
+  "status": "404 Not Found",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 372,
+  "criterion": "Bucketの境界値テスト: 最小長(3文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket abc --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 373,
+  "criterion": "Bucketの境界値テスト: 最大長(63文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1 --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 374,
+  "criterion": "Bucketの境界値テスト: 最小長未満(2文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket ab --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 375,
+  "criterion": "Bucketの境界値テスト: 最大長超過(64文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz12 --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "404 Not Found",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 376,
+  "criterion": "Bucketの境界値テスト: 特殊文字含む",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test@bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": 64512,
+  "result": "特殊文字含むBucket名はCLIリクエストが失敗するため実行できない"
+},
+{
+  "ID": 377,
+  "criterion": "Keyの境界値テスト: 最大長(1024文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "500 Internal Error",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 378,
+  "criterion": "Keyの境界値テスト: 最大長超過(1025文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 377,
+  "criterion": "Keyの境界値テスト: 最大長(255文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 378,
+  "criterion": "Keyの境界値テスト: 最大長超過(256文字)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 379,
+  "criterion": "Keyの境界値テスト: 特殊文字含む",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test@object.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 380,
+  "criterion": "Keyの境界値テスト: 日本語含む",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key テストオブジェクト.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 380,
+  "criterion": "Keyの境界値テスト: 半角スペース含む",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key \"テスト オブジェクト.txt\" --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 380,
+  "criterion": "Keyの境界値テスト: 全角スペース含む",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key \"テスト　オブジェクト.txt\" --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 381,
+  "criterion": "partNumberの境界値テスト: 最小値(1)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 382,
+  "criterion": "partNumberの境界値テスト: 最大値(10000)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 10000 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 383,
+  "criterion": "partNumberの境界値テスト: 範囲外(0)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 0 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 384,
+  "criterion": "partNumberの境界値テスト: 範囲外(10001)",
+  "api": "UploadPartCopy",
+  "kind": "Range",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 10001 --upload-id 1 --copy-source test-bucket/test-object.txt",
+  "status": "400 Bad Request",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 385,
+  "criterion": "If-Match 条件満たすケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagの値\"",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 386,
+  "criterion": "If-Match 条件満たさないケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-match \"test-object.txtのEtagとは違う値\"",
+  "status": "412 Precondition Failed",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 387,
+  "criterion": "If-None-Match 条件満たすケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-none-match \"test-object.txtのEtagとは違う値\"",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 388,
+  "criterion": "If-None-Match 条件満たさないケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-none-match \"test-object.txtのEtagの値\"",
+  "status": "412 Precondition Failed",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 389,
+  "criterion": "If-Modified-Since 条件満たすケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-modified-since \"2024-01-01\"",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 390,
+  "criterion": "If-Modified-Since 条件満たさないケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-modified-since \"2026-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "パートファイルがコピーされずエラー出力"
+},
+{
+  "ID": 391,
+  "criterion": "If-Unmodified-Since 条件満たすケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-unmodified-since \"2026-01-01\"",
+  "status": "200 OK",
+  "result": "UploadIDディレクトリにファイルがコピーされる"
+},
+{
+  "ID": 392,
+  "criterion": "If-Unmodified-Since 条件満たさないケース",
+  "api": "UploadPartCopy",
+  "kind": "Conditional",
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket test-bucket --key test-multipart.txt --part-number 1 --upload-id 1 --copy-source test-bucket/test-object.txt --copy-source-if-unmodified-since \"2024-01-01\"",
+  "status": "412 Precondition Failed",
+  "result": "パートファイルがコピーされずエラー出力"
+}
+]
+}
