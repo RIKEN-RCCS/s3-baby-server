@@ -201,22 +201,6 @@
   "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket mybucket1",
   "status": 0,
   "outcome1": {
-    "Uploads": [
-      {
-        "UploadId": "#+",
-        "Key": "data-201.txt",
-        "Initiated": "#|datetime|",
-        "StorageClass": "",
-        "Owner": {
-          "ID": "#_",
-          "DisplayName": "#_"
-        },
-        "Initiator": {
-          "ID": "#_",
-          "DisplayName": "#_"
-        }
-      }
-    ],
     "RequestCharged": null,
     "Prefix": ""
   },

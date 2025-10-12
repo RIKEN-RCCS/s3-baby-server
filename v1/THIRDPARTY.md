@@ -13,5 +13,7 @@ used.  Please inform us, if some software is missing.
 
 ## Development Tools
 
+- Golang
+- jq http://stedolan.github.io/jq/
 - GNU Guile
 - srfi-180 implementation
