@@ -39,3 +39,7 @@ Values are one of the following data types in json,
 - array
 - boolean
 - null
+
+## TODO: CHECK ERROR CASES
+
+- CompleteMultipartUpload operation: "EntityTooSmallError"

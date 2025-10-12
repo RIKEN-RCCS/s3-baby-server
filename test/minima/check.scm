@@ -15,7 +15,7 @@
  (ice-9 match)
  ;;(scheme base)
  (only (scheme base) define-record-type textual-port? write-string)
- (only (scheme base) vector-map vector-for-each)
+ (only (scheme base) vector-map vector-for-each vector->list)
  ;;(only (srfi srfi-43) vector-map) ;; vector-library
  ;;(srfi srfi-133) ;; r7rs-vector-library (NO srfi-133 in Guile)
  (only (rnrs base) infinite? assert)
@@ -45,8 +45,11 @@
   (number? (string->number string)))
 (load "srfi-180-body.scm")
 
-;; MEMO: at-at refers to a package.
-;; (@@ (ice-9 popen) open-process)
+(define (foldl f init list)
+  ;; foldl : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
+  (match list
+    (() init)
+    ((fst . rst) (foldl f (f fst init) rst))))
 
 (define (foldr f init list)
   ;; foldr : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
@@ -54,15 +57,18 @@
     (() init)
     ((fst . rst) (f fst (foldr f init rst)))))
 
-(define (foldl f init list)
-  ;; foldl : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
-  (match list
-    (() init)
-    ((fst . rst) (foldl f (f fst init) rst))))
-
 (define (extend-alist k v alist)
   ;; It uses equal? as the comparator adhering to assoc.
   (acons k v (remove (lambda (pair) (equal? k (car pair))) alist)))
+
+(define (append-string-vector v sep)
+  ;; Appends strings in a vector with an intervening separator.
+  (if (= (vector-length v) 0)
+      ""
+      (let* ((t (list (vector-ref v (- (vector-length v) 1))))
+	     (v1 (vector->list v 0 (- (vector-length v) 1)))
+	     (x (foldr (lambda (a b) (cons a (cons sep b))) t v1)))
+	(apply string-append x))))
 
 (define date-regexp "[0-9]{4}-[0-9]{2}-[0-9]{2}") ;; "2025-08-20"
 (define time-regexp "[0-9]{2}:[0-9]{2}:[0-9]{2}") ;; "08:32:06"
@@ -101,8 +107,8 @@
 		 (values (cdr status) stdout stderr))))))))))
 
 (define (substitute-string s key val)
-  ;; Replaces a key string with a val string in a string s.  It
-  ;; replaces all occurrences of a key.
+  ;; Replaces a key string with a val string in a string s.  A key is
+  ;; regexp.  It replaces all occurrences of a key.
   (let* ((key1 (regexp-quote key)))
     (cond ((string-match key1 s)
 	   => (lambda (m)
@@ -116,6 +122,7 @@
 	  (else s))))
 
 (define (substitute-strings s keyvals)
+  ;; Substitute strings specified by an alist.
   (if (null? keyvals)
       s
       (let* ((pair (car keyvals))
@@ -144,12 +151,14 @@
 	      (= (cdr (vector-ref m 1)) (string-length (vector-ref m 0)))))
 	(else #f)))
 
+(define match-to-template-tracing #f)
+
 (define (match-to-template expect result)
   ;; (* Prints traces of match-to-template.  See match-to-template1. *)
-  (let ((trace-on #f)
-(v (match-to-template1 expect result)))
-    (when trace-on
-      (format #t "match-to-template expect=~s result=~s => ~s~%" expect result v))
+  (let ((v (match-to-template1 expect result)))
+    (when match-to-template-tracing
+      (format #t "match-to-template expect=~s result=~s => ~s~%"
+	      expect result v))
     v))
 
 (define (match-to-template1 expect result)
@@ -222,13 +231,6 @@
     (format #t "BAD template: expect=~s~%" expect)
     #f)))
 
-(define (read-output-string s)
-  (with-input-from-string s json-read))
-
-(define (append-string-vector v)
-  ;; Appends strings in a vector with intervening newlines.
-  (foldr (lambda (a b) (string-append a "\n" b)) "" (vector->list v)))
-
 (define (make-entity-value v)
   (cond ((eqv? v 'null) #f)
 	((eqv? v #f) 'false)
@@ -249,27 +251,25 @@
   (cond ((fetch-assoc article 'outcome1)
 	 => (lambda (e) e))
 	((fetch-assoc article 'outcome2)
-	 => (lambda (v) (append-string-vector v)))
+	 => (lambda (v) (string-append (append-string-vector v "\n") "\n")))
 	(else #f)))
 
-(define (fetch-slot entity path)
-  ;; Note the key part of alist is a symbol.
-  (let ((path1 (vector-map string->symbol path)))
-    (fetch-slot1 entity path1 0)))
-
-(define (fetch-slot1 entity path i)
-  ;; Accesses for a path of keys in an entity.  It returns 'true or
-  ;; 'false for boolean values.  It cannot access in a vector.  Call
-  ;; this with i=0.
-  (format #t "fetch-slot1 ~s ~s ~s~%" entity path i)
+(define (fetch-json-slot entity path i)
+  ;; Accesses for a path of keys in an entity.  A key is a string or a
+  ;; number, and it access in a vector when a key is a number.  Note
+  ;; the key part of an entity is a symbol.  It returns 'true or
+  ;; 'false for boolean values.  Call this with i=0.
+  (format #t "fetch-json-slot ~s ~s ~s~%" entity path i)
   (if (= i (vector-length path))
       entity
       (let ((key (vector-ref path i)))
-	(cond ((fetch-assoc entity key)
+	(cond ((number? key)
+	       (vector-ref entity key))
+	      ((fetch-assoc entity (string->symbol key))
 	       => (lambda (entity1)
-		    (fetch-slot1 entity1 path (+ i 1))))
+		    (fetch-json-slot entity1 path (+ i 1))))
 	      (else
-	       (format #t "BAD record slot: path=~s~%" path)
+	       (format #t "BAD entity slot: path=~s~%" path)
 	       #f)))))
 
 (define (record-values env entity records i)
@@ -282,7 +282,7 @@
       (match (vector-ref records 0)
 	(((key . path))
 	 (let ((var (string-append "#" (symbol->string key)))
-	       (val (fetch-slot entity path)))
+	       (val (fetch-json-slot entity path 0)))
 	   (format #t "Recording key=~s value=~s~%" var val)
 	   (record-values (extend-alist var val env) entity records (+ i 1))))
 	(else
@@ -351,12 +351,12 @@
 	    (check-run item i env test-loop))
 	  #t))))
 
-(define (check-one id tests)
+(define (check-one id tests env)
   ;; Runs one test with a given id.  Note this cannot pass
   ;; variable-value bindings.
   (let ((n (vector-length tests)))
     (let test-loop ((i 0)
-		    (env '()))
+		    (env env))
       (if (< i n)
 	  (let* ((item (vector-ref tests i))
 		 (id1 (cond ((assoc 'ID item) => cdr) (else #f))))

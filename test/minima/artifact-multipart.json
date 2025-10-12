@@ -2,12 +2,12 @@
   "name": "multipart",
   "date": "2025-09-25",
   "NOTE": ["It should start with an empty pool directory.",
-	   "Make a file \"file-5m.txt\" on the client side.",
+	   "It needs a file \"file-4m.txt\" on the client side.",
 	   "Place some dot-files to check they are not listed.",
 	   "./files directory exits and populated by some files."],
   "test": [
 {
-  "ID": 1,
+  "ID": 801,
   "step": "Make a 'mybucket1' bucket.",
   "pre": "Buckets={}",
   "name": "CreateBucket",
@@ -18,27 +18,42 @@
   "outcome2": null
 },
 {
-  "ID": 2,
+  "ID": 802,
+  "step": "Upload an 10MB file as 'data-001.txt'.",
+  "name": "PutObject",
+  "kind": null,
+  "operation": "aws s3api put-object --no-cli-pager --bucket mybucket1 --key data-001.txt --body ./data-10m.txt",
+  "status": 0,
+  "outcome1": {
+    "ETag": "#|etag|",
+    "ChecksumCRC64NVME": "#|csum|",
+    "ChecksumType": "FULL_OBJECT"
+  },
+  "outcome2": null
+},
+{
+  "ID": 1,
   "step": "Start a multipart upload.",
   "name": "CreateMultipartUpload",
   "kind": null,
   "pre": "Files = {}",
-  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket mybucket1 --key data-001.txt",
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket mybucket1 --key data-101.txt",
   "status": 0,
-  "record": [{"upload-id": ["UploadId"]}],
+  "record": [{"upload1-id": ["UploadId"]}],
   "outcome1": {
     "Bucket": "mybucket1",
-    "Key": "data-001.txt",
+    "Key": "data-101.txt",
     "UploadId": "#_"
   },
   "outcome2": null
 },
 {
-  "ID": 3,
-  "step": "Upload part.",
+  "ID": 2,
+  "step": "Upload Part.",
   "name": "UploadPart",
   "kind": null,
-  "operation": "aws s3api upload-part --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id #upload-id --part-number 1 --body data-10m.txt",
+  "record": [{"part1-etag": ["ETag"]}],
+  "operation": "aws s3api upload-part --no-cli-pager --bucket mybucket1 --key data-101.txt --upload-id #upload1-id --part-number 1 --body data-10m.txt",
   "status": 0,
   "outcome1": {
     "ETag": "#|etag|",
@@ -47,60 +62,49 @@
   "outcome2": null
 },
 {
-  "ID": 26,
-  "step": "",
+  "ID": 3,
+  "step": "Upload Part Copy.",
   "name": "UploadPartCopy",
   "kind": null,
-  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --part-number 2 --copy-source mybucket1/data-001.txt",
+  "record": [{"part2-etag": ["CopyPartResult", "ETag"]}],
+  "operation": "aws s3api upload-part-copy --no-cli-pager --bucket mybucket1 --key data-101.txt --upload-id #upload1-id --part-number 2 --copy-source mybucket1/data-001.txt",
   "status": 0,
   "outcome1": {
     "CopyPartResult": {
-      "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-      "LastModified": "2025-08-20T00:16:57.371000+00:00"
+      "ETag": "#|etag|",
+      "LastModified": "#|datetime|"
     }
   },
   "outcome2": null
 },
 {
-  "ID": 27,
-  "step": "",
+  "ID": 4,
+  "step": "List Parts.",
   "name": "ListParts",
   "kind": null,
-  "operation": "aws s3api list-parts --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1",
+  "operation": "aws s3api list-parts --no-cli-pager --bucket mybucket1 --key data-101.txt --upload-id #upload1-id",
   "status": 0,
   "outcome1": {
     "Parts": [
       {
-        "PartNumber": 1,
-        "LastModified": "2025-08-20T00:15:03.623000+00:00",
-        "ETag": "\"f1c9645dbc14efddc7d8a322685f26eb\"",
-        "Size": 10485760,
-        "ChecksumCRC64NVME": "r3XRsudNx4U="
-      },
-      {
-        "PartNumber": 2,
-        "LastModified": "2025-08-20T00:16:57.371000+00:00",
-        "ETag": "\"b5cfa9d6c8febd618f91ac2843d50a1c\"",
-        "Size": 4194304
+        "PartNumber": "#_",
+        "LastModified": "#|datetime|",
+        "ETag": "#|etag|",
+        "ChecksumCRC64NVME": "#|csum|",
+        "Size": "#_"
       }
     ],
-    "ChecksumAlgorithm": "",
-    "Initiator": {
-      "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4",
-      "DisplayName": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-    },
-    "Owner": {
-      "DisplayName": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4",
-      "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-    },
+    "ChecksumAlgorithm": "#_",
+    "Initiator": "#_",
+    "Owner": "#_",
     "StorageClass": "STANDARD",
-    "ChecksumType": ""
+    "ChecksumType": "#_"
   },
   "outcome2": null
 },
 {
-  "ID": 28,
-  "step": "",
+  "ID": 5,
+  "step": "List Multipart Uploads.",
   "name": "ListMultipartUploads",
   "kind": null,
   "operation": "aws s3api list-multipart-uploads --no-cli-pager --bucket mybucket1",
@@ -108,18 +112,10 @@
   "outcome1": {
     "Uploads": [
       {
-        "UploadId": "NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw",
-        "Key": "multipart.txt",
-        "Initiated": "2025-08-20T00:03:14.479000+00:00",
-        "StorageClass": "",
-        "Owner": {
-          "DisplayName": "",
-          "ID": ""
-        },
-        "Initiator": {
-          "ID": "",
-          "DisplayName": ""
-        }
+        "UploadId": "#_",
+        "Key": "#_",
+        "Initiated": "#|datetime|",
+        "StorageClass": "STANDARD"
       }
     ],
     "RequestCharged": null,
@@ -128,39 +124,35 @@
   "outcome2": null
 },
 {
-  "ID": 29,
+  "ID": 6,
   "step": "",
   "name": "CompleteMultipartUpload",
   "kind": null,
-  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket mybucket1 --key data-001.txt --upload-id 1 --multipart-upload '{\"Parts\":[{\"ETag\":\"UploadPart時のetag\",\"PartNumber\":1},{\"ETag\":\"UploadPartCopy時のetag\",\"PartNumber\":2}]}'",
+  "operation": "aws s3api complete-multipart-upload --no-cli-pager --bucket mybucket1 --key data-101.txt --upload-id #upload1-id --multipart-upload '{\"Parts\":[{\"ETag\":\"#part1-etag\",\"PartNumber\":1},{\"ETag\":\"#part2-etag\",\"PartNumber\":2}]}'",
   "status": 0,
   "outcome1": {
-    "Location": "http://localhost:8000/bucket/multipart.txt",
-    "mybucket1": "mybucket1",
-    "Key": "multipart.txt",
-    "ETag": "\"4fed5feb2a80bd29e41b3cebab6d37e0-2\""
+    "Bucket": "mybucket1",
+    "Key": "data-101.txt",
+    "ETag": "#|etag|"
   },
   "outcome2": null
 },
-
 {
-  "ID": 15,
-  "step": "Get attributes of 'data-001.txt'.",
+  "ID": 7,
+  "step": "Get attributes of 'data-101.txt'.",
   "name": "GetObjectAttributes",
   "kind": null,
   "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
-  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket mybucket1 --key data-001.txt --object-attributes \"ETag\" \"Checksum\" \"ObjectParts\" \"StorageClass\" \"ObjectSize\"",
+  "operation": "aws s3api get-object-attributes --no-cli-pager --bucket mybucket1 --key data-101.txt --object-attributes \"ETag\" \"Checksum\" \"ObjectParts\" \"StorageClass\" \"ObjectSize\"",
   "status": 0,
   "outcome1": {
     "LastModified": "#|datetime|",
     "ETag": "#|etag|",
     "Checksum": {
-      "ChecksumCRC64NVME": "#|csum|",
-      "ChecksumType": "FULL_OBJECT"
+      "ChecksumCRC64NVME": "#|csum|"
     },
     "ObjectParts": {
       "TotalPartsCount": 1,
-      "PartNumberMarker": 0,
       "NextPartNumberMarker": 1,
       "MaxParts": 10000,
       "IsTruncated": false,
@@ -176,33 +168,33 @@
   },
   "outcome2": null
 },
-
 {
-  "ID": 23,
+  "ID": 8,
   "step": "Start a 2nd multipart upload on the same file.",
   "name": "CreateMultipartUpload",
   "kind": null,
-  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket mybucket1 --key data-002.txt",
+  "record": [{"upload2-id": ["UploadId"]}],
+  "operation": "aws s3api create-multipart-upload --no-cli-pager --bucket mybucket1 --key data-102.txt",
   "status": 0,
   "outcome1": {
     "Bucket": "mybucket1",
-    "Key": "data-002.txt",
-    "UploadId": "1"
-},
+    "Key": "data-102.txt",
+    "UploadId": "#_"
+  },
   "outcome2": null
 },
 {
-  "ID": 24,
+  "ID": 9,
   "step": "Abort the 2nd multipart upload.",
   "name": "AbortMultipartUpload",
   "kind": null,
-  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket mybucket1 --key multipart.txt --upload-id 2",
+  "operation": "aws s3api abort-multipart-upload --no-cli-pager --bucket mybucket1 --key multipart.txt --upload-id #upload2-id",
   "status": 0,
   "outcome1": {},
   "outcome2": null
 },
 {
-  "ID": 24.5,
+  "ID": 10,
   "step": "Check aborted multipart uploads.",
   "name": "ListMultipartUploads",
   "kind": null,
@@ -211,22 +203,63 @@
   "outcome1": {
     "Uploads": [
       {
-        "UploadId": "NTRiOWMyMTUtMWRjZS00YTY1LWIzMTktNjdiYjk0YTY1YWVjLmI3YjZkZDllLWU4Y2YtNGFlMS1iNTAxLTk3MzlhNDAzYzQyMngxNzU1NjQ4MTk0NDc0NjY3MTMw",
-        "Key": "multipart.txt",
-        "Initiated": "2025-08-20T00:03:14.479000+00:00",
+        "UploadId": "#+",
+        "Key": "data-201.txt",
+        "Initiated": "#|datetime|",
         "StorageClass": "",
         "Owner": {
-          "DisplayName": "",
-          "ID": ""
+          "ID": "#_",
+          "DisplayName": "#_"
         },
         "Initiator": {
-          "ID": "",
-          "DisplayName": ""
+          "ID": "#_",
+          "DisplayName": "#_"
         }
       }
     ],
     "RequestCharged": null,
     "Prefix": ""
+  },
+  "outcome2": null
+},
+{
+  "ID": 901,
+  "step": "Delete two files, 'data-001.txt' and 'data-101.txt'",
+  "name": "DeleteObjects",
+  "kind": null,
+  "operation": "aws s3api delete-objects --no-cli-pager --bucket mybucket1 --delete '{\"Objects\":[{\"Key\":\"data-001.txt\"},{\"Key\":\"data-101.txt\"}],\"Quiet\":false}'",
+  "status": 0,
+  "outcome1": {
+    "Deleted": [
+      {
+        "Key": "data-[01]01.txt"
+      }
+    ]
+  },
+  "outcome2": null
+},
+{
+  "ID": 902,
+  "step": "Delete bucket 'mybucket1'.",
+  "pre": "Files = {}",
+  "name": "DeleteBucket",
+  "kind": null,
+  "operation": "aws s3api delete-bucket --no-cli-pager --bucket mybucket1",
+  "status": 0,
+  "outcome1": {},
+  "outcome2": null
+},
+{
+  "ID": 903,
+  "step": "Check 'mybucket1' is deleted.",
+  "name": "DeleteBucket",
+  "kind": null,
+  "operation": "aws s3api list-buckets --no-cli-pager",
+  "status": 0,
+  "outcome1": {
+    "Buckets": [],
+    "Owner": null,
+    "Prefix": null
   },
   "outcome2": null
 }

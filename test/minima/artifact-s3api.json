@@ -20,7 +20,7 @@
 },
 {
   "ID": 2,
-  "step": "Check 'mybucket1' existance.",
+  "step": "Check 'mybucket1' existence.",
   "name": "HeadBucket",
   "kind": null,
   "operation": "aws s3api head-bucket --no-cli-pager --bucket mybucket1",
