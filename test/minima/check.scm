@@ -283,7 +283,7 @@
 	(((key . path))
 	 (let ((var (string-append "#" (symbol->string key)))
 	       (val (fetch-json-slot entity path 0)))
-	   (format #t "Recording key=~s value=~s~%" var val)
+	   (format #t "recording key=~s value=~s~%" var val)
 	   (record-values (extend-alist var val env) entity records (+ i 1))))
 	(else
 	 (format #t "BAD record slot: record=~s~%" records)
@@ -366,5 +366,5 @@
 	  #t))))
 
 (define tests (cdr (assoc 'test
-			  (with-input-from-file "./artifact-multipart.json"
+			  (with-input-from-file "./artifact-argument.json"
 			    json-read))))
