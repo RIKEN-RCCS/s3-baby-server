@@ -28,10 +28,10 @@ func main() {
 		"Print help.")
 	var print_version = fs.Bool("version", false,
 		"Print version.")
-	var auth_key = fs.String("auth-key", "",
-		"Credential, a pair of key and secret separated by a comma")
+	var flag_cred = fs.String("cred", "",
+		"Credential, a pair of key and secret separated by a comma.")
 	var log_file = fs.String("log-file", "",
-		"Log output file")
+		"Log file.")
 
 	var args = os.Args
 	if len(args) <= 2 {
@@ -70,6 +70,21 @@ func main() {
 		os.Exit(0)
 	}
 
+	if fs.NArg() != 0 {
+		fmt.Fprintf(os.Stdout, "Unrecognized options exit.\n")
+		fs.Usage()
+		os.Exit(2)
+	}
+
+	var cred = *flag_cred
+	if len(cred) == 0 {
+		cred = os.Getenv("S3BBS_CRED")
+	}
+	if len(cred) == 0 {
+		fmt.Fprintf(os.Stderr, "Credential not specified, use --cred.\n")
+		os.Exit(2)
+	}
+
 	/*cmd.Execute()*/
-	server.Start(path, url, *log_file, *auth_key)
+	server.Start(path, url, *log_file, cred)
 }
