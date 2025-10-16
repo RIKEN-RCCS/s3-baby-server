@@ -2,10 +2,14 @@
 
 ;; Ad-hoc server stub generator.  This generates dispatcher code for
 ;; S3 requests.  It reads "s3.json" in Smithy-2.0 and generates a
-;; skeleton for dispatcher code.  Smithy's code generators (for
-;; Golang, etc.) are likely not yet ready for general use.
+;; skeleton for dispatcher code.  I don't know about Smithy's code
+;; generators for Golang.
 
 ;; This is for "guile --r7rs".  It is tested GNU Guile 3.0.10.
+
+;; Smithy syntax is described in: https://smithy.io/2.0/spec/idl.html
+;; "+"-qualified element as in {Key+} matches more than one path
+;; segment.  It is called greedy labels.
 
 ;; ENTRY STRUCTURE OF "s3.json".  Outer most structure:
 ;;
@@ -27,11 +31,12 @@
 ;;     - "uri": "/{Bucket}/{Key+}?x-id=UploadPart",
 ;;     - ...
 
-;; The sets of required parameters (of query and header) are small.
-;; For query: {"uploadId", "partNumber"} and for header:
+;; The sets of possibly required parameters (of query and header) are
+;; small.  For query: {"uploadId", "partNumber"} and for header:
 ;; {"x-amz-copy-source", "x-amz-object-attributes"}.  Note Actions on
 ;; ObjectTagging have uri pattern: "/{Bucket}/{Key+}?tagging", and
-;; "tagging" does not appear in the query set.
+;; "tagging" does not appear in the query set.  Similarily,
+;; "DeleteObjects" has uri pattern: "/{Bucket}?delete" but
 
 (import
  (ice-9 exceptions)
@@ -167,33 +172,44 @@
 ;; Note the "traits" slot of a structure-member indicates the location
 ;; of a request parameter.  It also indicates required-ness.
 ;;
-;; - Example: "smithy.api#required": {}
+;; - "smithy.api#httpLabel": {}
+;;   - indicates a slot is in URL path.
+;; - "smithy.api#httpQuery": "uploadId"
+;;   - indicates a slot is in URL query.
+;; - "smithy.api#httpHeader": "x-amz-request-payer"
+;;   - indicates a slot is in header.
+;; - "smithy.api#httpPrefixHeaders": "x-amz-meta-"
+;;   - indicates a slot is in header.
+;; - "smithy.api#httpPayload": {}
+;;   - indicates a slot is in body, like in DeleteObjects.
+;; - "smithy.api#required": {}
 ;;   - indicates it is a required parameter.
-;; - Example: "smithy.api#httpLabel": {}
-;;   - indicates the slot is in URL path.
-;; - Example: "smithy.api#httpQuery": "uploadId"
-;;   - indicates the slot is in URL query.
-;; - Example: "smithy.api#httpHeader": "x-amz-request-payer"
-;;   - indicates the slot is in header.
 
 (define (member-properties m)
   ;; Admits an element of a "member" slot, and returns a list of
-  ;; (required path/query/header name) of a request parameters.
-  (cond ((assoc 'traits (cdr m))
+  ;; (required path/query/header/body name) of a request parameters.
+  (cond ((assoc-option 'traits (cdr m))
 	 => (lambda (r)
 	      (let ((required
-		     (cond ((assoc '#{smithy.api#required}# (cdr r))
+		     (cond ((assoc '#{smithy.api#required}# r)
 			    #t)
 			   (else #f))))
-		(cond ((assoc '#{smithy.api#httpLabel}# (cdr r))
-		       => (lambda (p)
+		(cond ((assoc-option '#{smithy.api#httpLabel}# r)
+		       => (lambda (_)
 			    (list required 'path (symbol->string (car m)))))
-		      ((assoc '#{smithy.api#httpQuery}# (cdr r))
-		       => (lambda (p)
-			    (list required 'query (cdr p))))
-		      ((assoc '#{smithy.api#httpHeader}# (cdr r))
-		       => (lambda (p)
-			    (list required 'header (cdr p))))
+		      ((assoc-option '#{smithy.api#httpQuery}# r)
+		       => (lambda (v)
+			    (list required 'query v)))
+		      ((assoc-option '#{smithy.api#httpHeader}# r)
+		       => (lambda (v)
+			    (list required 'header v)))
+		      ((assoc-option '#{smithy.api#httpPrefixHeaders}# r)
+		       => (lambda (v)
+			    (list required 'header v)))
+		      ((assoc-option '#{smithy.api#httpPayload}# r)
+		       => (lambda (_)
+			    (let ((n (assoc-option '#{smithy.api#xmlName}# r)))
+			      (list required 'body n))))
 		      (else #f)))))
 	(else #f)))
 
@@ -201,8 +217,9 @@
   ;; Returns a list of (action-name request-response-names
   ;; action-properties parameter-properties).
   (format #t "looking at action=~a~%" action-name)
-  (let* ((key (string-append "com.amazonaws.s3#" action-name))
-	 (action-structure (assoc-option (string->symbol key) s3api))
+  (let* (;;(key (string-append "com.amazonaws.s3#" action-name))
+	 ;;(assoc-option (string->symbol key) s3api))
+	 (action-structure (find-action-structure action-name))
 	 (properties1 (action-properties action-structure))
 	 (names (find-request-and-response-name action-structure))
 	 (request (car names))
@@ -213,6 +230,7 @@
     (list action-name names properties1 properties2)))
 
 ;; (describe-action "AbortMultipartUpload")
+;; (describe-action "DeleteObjects")
 ;; (describe-action "UploadPartCopy")
 
 (define (collect-actions)
@@ -249,12 +267,12 @@
     (if (null? tuples)
 	(list query-acc header-acc)
 	(call-with-values (lambda () (apply values (car tuples)))
-	  (lambda (required path-query-header name)
-	    (format #t "required=~s path-query-header=~s name=~s)~%"
-		    required path-query-header name)
+	  (lambda (required locus name)
+	    (format #t "required=~s locus=~s name=~s)~%"
+		    required locus name)
 	    (if (not required)
 		(loop (cdr tuples) query-acc header-acc)
-		(case path-query-header
+		(case locus
 		  ((path)
 		   (loop (cdr tuples) query-acc header-acc))
 		  ((query)
@@ -265,7 +283,9 @@
 		   (loop (cdr tuples)
 			 query-acc
 			 (append header-acc (list name))))
+		  ((body)
+		   (loop (cdr tuples) query-acc header-acc))
 		  (else
-		   (format #t "BAD properties=~s~%" properties)))))))))
+		   (format #t "BAD properties=~s~%" (car tuples))))))))))
 
 (collect-requied-parameters collected-actions)
