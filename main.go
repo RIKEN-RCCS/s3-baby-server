@@ -9,10 +9,21 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 	"s3-baby-server/internal/server"
 )
 
 var Version = "v1.2.1"
+
+type Configuration struct {
+	access_logging            bool
+	anonymize_ower            bool
+	verify_fs_write           bool
+	pending_upload_expiration time.Duration
+	server_control            string
+}
+
+var S3bbs_config = Configuration{}
 
 func main() {
 	var fs = flag.NewFlagSet("", flag.ExitOnError)

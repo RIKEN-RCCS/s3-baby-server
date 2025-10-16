@@ -1,6 +1,11 @@
-;; check.scm
+;; check.scm (2025-10-16)
 
-;; This is for "guile --r7rs", 3.0.9 and later.
+;; Check runner.  It runs test cases in json.  It is "expect",
+;; expecting command outputs in json.
+
+;; This is for "guile --r7rs", 3.0.9 and later.  It uses "spawn" which
+;; is introduced in guile-3.0.9.  We use Guile just because the base
+;; language is stable for years.
 
 ;; MEMO: AWS CLI s3 command has "--quiet" option but it is too quiet.
 ;; And, "--only-show-errors", too.
@@ -85,8 +90,7 @@
 (define (run-system command)
   ;; Runs a command in a subprocess.  It returns three-values of
   ;; status and strings of stdout and stderr.  It assumes a command
-  ;; finishes shortly, (it does not timeout).  (Note "spawn" is
-  ;; introduced in guile-3.0.9).
+  ;; finishes shortly, (it does not timeout).
   (let* ((shell "/bin/ksh"))
     (call-with-port (tmpfile)
       (lambda (outp)
