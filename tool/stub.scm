@@ -8,8 +8,9 @@
 ;; This is for "guile --r7rs".  It is tested GNU Guile 3.0.10.
 
 ;; Smithy syntax is described in: https://smithy.io/2.0/spec/idl.html
-;; "+"-qualified element as in {Key+} matches more than one path
-;; segment.  It is called greedy labels.
+;; "+"-qualified element as in {Key+} matches one or more path
+;; segments (never empty).  It is called greedy labels in
+;; 14.1.2.4. Greedy labels.
 
 ;; ENTRY STRUCTURE OF "s3.json".  Outer most structure:
 ;;
@@ -32,11 +33,18 @@
 ;;     - ...
 
 ;; The sets of possibly required parameters (of query and header) are
-;; small.  For query: {"uploadId", "partNumber"} and for header:
-;; {"x-amz-copy-source", "x-amz-object-attributes"}.  Note Actions on
-;; ObjectTagging have uri pattern: "/{Bucket}/{Key+}?tagging", and
-;; "tagging" does not appear in the query set.  Similarily,
-;; "DeleteObjects" has uri pattern: "/{Bucket}?delete" but
+;; small.  The set {"uploadId", "partNumber"} for query.  The set
+;; {"x-amz-copy-source", "x-amz-object-attributes"} for header.  Some
+;; required query parameters are defined in a uri pattern:
+;; {"attributes", "delete", "list-type=2", "tagging", "uploads"}.  For
+;; example, "/{Bucket}/{Key+}?tagging" on "ObjectTagging", and
+;; "/{Bucket}?delete" on "DeleteObjects".  "list-type=2" is for
+;; ListObjectsV2.
+;;
+;; Some actions have its action name in query:
+;; "x-id=AbortMultipartUpload" "x-id=CopyObject" "x-id=DeleteObject"
+;; "x-id=GetObject" "x-id=ListBuckets" "x-id=ListParts"
+;; "x-id=PutObject" "x-id=UploadPart" "x-id=UploadPartCopy"
 
 (import
  (ice-9 exceptions)
@@ -146,7 +154,7 @@
 ;; of a request.  It is under "smithy.api#http", and has the
 ;; properties of "method", "uri", "code".
 
-(define (action-properties action-structure)
+(define (get-action-properties action-structure)
   ;; Extracts the method of an action.  It return a list of method,
   ;; uri-path-pattern, and code.
   (cond ((assoc-option '#{smithy.api#http}#
@@ -157,14 +165,14 @@
 		    (assoc-option 'code method))))
 	(else #f)))
 
-(define (request-member-properties request-structure)
+(define (get-request-properties request-structure)
   (let ((members (cdr (assoc 'members request-structure))))
     (let loop ((members members)
 	       (acc '()))
       (if (null? members)
 	  acc
 	  (let* ((e (car members))
-		 (prop (member-properties e)))
+		 (prop (get-member-properties e)))
 	    (if (eqv? prop #f)
 		(loop (cdr members) acc)
 		(loop (cdr members) (append acc (cons prop '())))))))))
@@ -185,7 +193,7 @@
 ;; - "smithy.api#required": {}
 ;;   - indicates it is a required parameter.
 
-(define (member-properties m)
+(define (get-member-properties m)
   ;; Admits an element of a "member" slot, and returns a list of
   ;; (required path/query/header/body name) of a request parameters.
   (cond ((assoc-option 'traits (cdr m))
@@ -209,24 +217,25 @@
 		      ((assoc-option '#{smithy.api#httpPayload}# r)
 		       => (lambda (_)
 			    (let ((n (assoc-option '#{smithy.api#xmlName}# r)))
+			      ;; (* body with #f is content payload. *)
 			      (list required 'body n))))
 		      (else #f)))))
 	(else #f)))
 
 (define (describe-action action-name)
   ;; Returns a list of (action-name request-response-names
-  ;; action-properties parameter-properties).
+  ;; action-properties request-properties).
   (format #t "looking at action=~a~%" action-name)
   (let* (;;(key (string-append "com.amazonaws.s3#" action-name))
 	 ;;(assoc-option (string->symbol key) s3api))
 	 (action-structure (find-action-structure action-name))
-	 (properties1 (action-properties action-structure))
+	 (properties1 (get-action-properties action-structure))
 	 (names (find-request-and-response-name action-structure))
 	 (request (car names))
 	 (response (cadr names))
 	 (slot (string-append "com.amazonaws.s3#" request))
 	 (request-structure (assoc-option (string->symbol slot) s3api))
-	 (properties2 (request-member-properties request-structure)))
+	 (properties2 (get-request-properties request-structure)))
     (list action-name names properties1 properties2)))
 
 ;; (describe-action "AbortMultipartUpload")
@@ -244,7 +253,7 @@
 
 (define collected-actions (collect-actions))
 
-(define (collect-requied-parameters actions)
+(define (collect-all-required-parameters actions)
   (let loop ((tuples actions)
 	     (query-acc '())
 	     (header-acc '()))
@@ -252,23 +261,36 @@
 	(list query-acc header-acc)
 	(call-with-values (lambda () (apply values (car tuples)))
 	  (lambda (action-name request-response-names
-			       action-properties parameter-properties)
-	    (format #t "collect-requied-parameters on ~s~%" action-name)
-	    (let ((pair (required-parameters parameter-properties)))
-	      (loop (cdr tuples)
-		    (append query-acc (car pair))
-		    (append header-acc (cadr pair)))))))))
+			       action-properties request-properties)
+	    (format #t "collect-all-required-parameters on ~s~%" action-name)
+	    (let ((query-in-uri (get-query-in-uri action-properties)))
+	      (let ((pair (collect-required-parameters request-properties)))
+		(loop (cdr tuples)
+		      (append query-acc query-in-uri (car pair))
+		      (append header-acc (cadr pair))))))))))
 
-(define (required-parameters parameter-properties)
-  (let loop ((tuples parameter-properties)
+(define (get-query-in-uri action-properties)
+  ;; Returns an optional query key, one in a list or '().  Query
+  ;; patterns are such as: "/{Bucket}/{Key+}?uploads",
+  ;; "/{Bucket}/{Key+}?tagging", "/{Bucket}?delete".
+  (call-with-values (lambda () (apply values action-properties))
+    (lambda (method uri code)
+      (let ((pat (string-append (regexp-quote "?"))))
+        (cond ((string-match pat uri)
+	       => (lambda (m)
+		    (list (substring uri (+ (car (vector-ref m 1)) 1)))))
+	      (else '()))))))
+
+(define (collect-required-parameters request-properties)
+  (let loop ((tuples request-properties)
 	     (query-acc '())
 	     (header-acc '()))
-    (format #t "tuple=~s~%" tuples)
+    ;; (format #t "tuple=~s~%" tuples)
     (if (null? tuples)
 	(list query-acc header-acc)
 	(call-with-values (lambda () (apply values (car tuples)))
 	  (lambda (required locus name)
-	    (format #t "required=~s locus=~s name=~s)~%"
+	    (format #t "required=~s locus=~s name=~s~%"
 		    required locus name)
 	    (if (not required)
 		(loop (cdr tuples) query-acc header-acc)
@@ -288,4 +310,4 @@
 		  (else
 		   (format #t "BAD properties=~s~%" (car tuples))))))))))
 
-(collect-requied-parameters collected-actions)
+(collect-all-required-parameters collected-actions)
