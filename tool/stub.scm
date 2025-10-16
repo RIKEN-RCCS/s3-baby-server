@@ -1,9 +1,9 @@
 ;; stub.scm (2025-10-16)
 
-;; Server stub generator.  This generates ad-hoc dispatcher code of S3
-;; requests.  It reads "s3.json" in Smithy-2.0 and generates a
+;; Ad-hoc server stub generator.  This generates dispatcher code for
+;; S3 requests.  It reads "s3.json" in Smithy-2.0 and generates a
 ;; skeleton for dispatcher code.  Smithy's code generators (for
-;; Golang, etc.) are likely yet not ready for general use.
+;; Golang, etc.) are likely not yet ready for general use.
 
 ;; This is for "guile --r7rs".  It is tested GNU Guile 3.0.10.
 
@@ -26,6 +26,12 @@
 ;;     - "method": "PUT",
 ;;     - "uri": "/{Bucket}/{Key+}?x-id=UploadPart",
 ;;     - ...
+
+;; The sets of required parameters (of query and header) are small.
+;; For query: {"uploadId", "partNumber"} and for header:
+;; {"x-amz-copy-source", "x-amz-object-attributes"}.  Note Actions on
+;; ObjectTagging have uri pattern: "/{Bucket}/{Key+}?tagging", and
+;; "tagging" does not appear in the query set.
 
 (import
  (ice-9 exceptions)
@@ -57,7 +63,6 @@
 (load "../test/minima/srfi-180-body.scm")
 
 (define s3idl (with-input-from-file "./s3.json" json-read))
-
 (define s3api (cdr (assoc 'shapes s3idl)))
 
 ;; List of implemented actions.  The full list of S3 actions are
@@ -65,29 +70,29 @@
 ;; "s3.json".
 
 (define actions '(
-		  AbortMultipartUpload
-		  CompleteMultipartUpload
-		  CopyObject
-		  CreateBucket
-		  CreateMultipartUpload
-		  DeleteBucket
-		  DeleteObject
-		  DeleteObjects
-		  DeleteObjectTagging
-		  GetObject
-		  GetObjectAttributes
-		  GetObjectTagging
-		  HeadBucket
-		  HeadObject
-		  ListBuckets
-		  ListMultipartUploads
-		  ListObjects
-		  ListObjectsV2
-		  ListParts
-		  PutObject
-		  PutObjectTagging
-		  UploadPart
-		  UploadPartCopy))
+		  "AbortMultipartUpload"
+		  "CompleteMultipartUpload"
+		  "CopyObject"
+		  "CreateBucket"
+		  "CreateMultipartUpload"
+		  "DeleteBucket"
+		  "DeleteObject"
+		  "DeleteObjects"
+		  "DeleteObjectTagging"
+		  "GetObject"
+		  "GetObjectAttributes"
+		  "GetObjectTagging"
+		  "HeadBucket"
+		  "HeadObject"
+		  "ListBuckets"
+		  "ListMultipartUploads"
+		  "ListObjects"
+		  "ListObjectsV2"
+		  "ListParts"
+		  "PutObject"
+		  "PutObjectTagging"
+		  "UploadPart"
+		  "UploadPartCopy"))
 
 (define (assoc-option k alist)
   ;; Assoc but returns the cdr part or #f, also accepts #f as an
@@ -98,21 +103,38 @@
 	     => (lambda (p) (cdr p)))
 	    (else #f))))
 
-(define (find-request-and-response action-structure)
+(define (find-action-structure action-name)
+  (let ((key (string-append "com.amazonaws.s3#" action-name)))
+    (assoc-option (string->symbol key) s3api)))
+
+(define (find-request-and-response-name action-structure)
   ;; Returns a pair of input structure names of request and response,
   ;; like "XXXXRequest" and "XXXXOutput".  Note slot names look like:
   ;; "com.amazonaws.s3#XXXXRequest" and "com.amazonaws.s3#XXXXOutput".
-  (let ((r (cdr (assoc 'target (cdr (assoc 'input action-structure)))))
-	(q (cdr (assoc 'target (cdr (assoc 'output action-structure)))))
+  (let ((r1 (cdr (assoc 'target (cdr (assoc 'input action-structure)))))
+	(q1 (cdr (assoc 'target (cdr (assoc 'output action-structure)))))
 	(prefix "com.amazonaws.s3#"))
-    (assert (string=? (substring r 0 (string-length prefix)) prefix))
-    (assert (string=? (substring q 0 (string-length prefix)) prefix))
-    (list (substring r (string-length prefix))
-	  (substring q (string-length prefix)))))
+    (assert (not (string=? "smithy.api#Unit" r1)))
+    (let ((r2 (cond (#t
+		     (assert (string=? (substring r1 0 (string-length prefix))
+				       prefix))
+		     (substring r1 (string-length prefix)))))
+	  (q2 (cond ((string=? "smithy.api#Unit" q1)
+		     "Unit")
+		    (else
+		     (assert (string=? (substring q1 0 (string-length prefix))
+				       prefix))
+		     (substring q1 (string-length prefix))))))
+      (list r2 q2))))
 
 (define (find-request-structure action-structure)
-  (let* ((names (find-request-and-response action-structure))
+  (let* ((names (find-request-and-response-name action-structure))
 	 (slot (string-append "com.amazonaws.s3#" (car names))))
+    (cdr (assoc (string->symbol slot) s3api))))
+
+(define (find-response-structure action-structure)
+  (let* ((names (find-request-and-response-name action-structure))
+	 (slot (string-append "com.amazonaws.s3#" (cadr names))))
     (cdr (assoc (string->symbol slot) s3api))))
 
 ;; Note the "traits" slot of an action-structure indicates the method
@@ -131,14 +153,16 @@
 	(else #f)))
 
 (define (request-member-properties request-structure)
-  (let ((m (cdr (assoc 'members request-structure))))
-    (let loop ((m m)
-	       (slots '()))
-      (if (null? m)
-	  slots
-	  (let* ((e (car m))
+  (let ((members (cdr (assoc 'members request-structure))))
+    (let loop ((members members)
+	       (acc '()))
+      (if (null? members)
+	  acc
+	  (let* ((e (car members))
 		 (prop (member-properties e)))
-	    (loop (cdr m) (append slots (cons prop '()))))))))
+	    (if (eqv? prop #f)
+		(loop (cdr members) acc)
+		(loop (cdr members) (append acc (cons prop '())))))))))
 
 ;; Note the "traits" slot of a structure-member indicates the location
 ;; of a request parameter.  It also indicates required-ness.
@@ -174,10 +198,13 @@
 	(else #f)))
 
 (define (describe-action action-name)
+  ;; Returns a list of (action-name request-response-names
+  ;; action-properties parameter-properties).
+  (format #t "looking at action=~a~%" action-name)
   (let* ((key (string-append "com.amazonaws.s3#" action-name))
 	 (action-structure (assoc-option (string->symbol key) s3api))
 	 (properties1 (action-properties action-structure))
-	 (names (find-request-and-response action-structure))
+	 (names (find-request-and-response-name action-structure))
 	 (request (car names))
 	 (response (cadr names))
 	 (slot (string-append "com.amazonaws.s3#" request))
@@ -185,8 +212,60 @@
 	 (properties2 (request-member-properties request-structure)))
     (list action-name names properties1 properties2)))
 
-(define AbortMultipartUpload (cdr (assoc '#{com.amazonaws.s3#AbortMultipartUpload}# s3api)))
+;; (describe-action "AbortMultipartUpload")
+;; (describe-action "UploadPartCopy")
 
-(describe-action "AbortMultipartUpload")
-'(action-properties AbortMultipartUpload)
-'(structure-members AbortMultipartUploadRequest)
+(define (collect-actions)
+  (let loop ((names actions)
+	     (acc '()))
+    (if (null? names)
+	acc
+	(let ((a (describe-action (car names))))
+	  (loop (cdr names)
+		(append acc (list a)))))))
+
+(define collected-actions (collect-actions))
+
+(define (collect-requied-parameters actions)
+  (let loop ((tuples actions)
+	     (query-acc '())
+	     (header-acc '()))
+    (if (null? tuples)
+	(list query-acc header-acc)
+	(call-with-values (lambda () (apply values (car tuples)))
+	  (lambda (action-name request-response-names
+			       action-properties parameter-properties)
+	    (format #t "collect-requied-parameters on ~s~%" action-name)
+	    (let ((pair (required-parameters parameter-properties)))
+	      (loop (cdr tuples)
+		    (append query-acc (car pair))
+		    (append header-acc (cadr pair)))))))))
+
+(define (required-parameters parameter-properties)
+  (let loop ((tuples parameter-properties)
+	     (query-acc '())
+	     (header-acc '()))
+    (format #t "tuple=~s~%" tuples)
+    (if (null? tuples)
+	(list query-acc header-acc)
+	(call-with-values (lambda () (apply values (car tuples)))
+	  (lambda (required path-query-header name)
+	    (format #t "required=~s path-query-header=~s name=~s)~%"
+		    required path-query-header name)
+	    (if (not required)
+		(loop (cdr tuples) query-acc header-acc)
+		(case path-query-header
+		  ((path)
+		   (loop (cdr tuples) query-acc header-acc))
+		  ((query)
+		   (loop (cdr tuples)
+			 (append query-acc (list name))
+			 header-acc))
+		  ((header)
+		   (loop (cdr tuples)
+			 query-acc
+			 (append header-acc (list name))))
+		  (else
+		   (format #t "BAD properties=~s~%" properties)))))))))
+
+(collect-requied-parameters collected-actions)
