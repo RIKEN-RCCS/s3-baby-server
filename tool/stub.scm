@@ -10,7 +10,7 @@
 ;; Smithy syntax is described in: https://smithy.io/2.0/spec/idl.html
 ;; "+"-qualified element as in {Key+} matches one or more path
 ;; segments (never empty).  It is called greedy labels in
-;; 14.1.2.4. Greedy labels.
+;; "14.1.2.4. Greedy labels".
 
 ;; ENTRY STRUCTURE OF "s3.json".  Outer most structure:
 ;;
@@ -46,6 +46,8 @@
 ;; "x-id=GetObject" "x-id=ListBuckets" "x-id=ListParts"
 ;; "x-id=PutObject" "x-id=UploadPart" "x-id=UploadPartCopy"
 
+;; Golang http server: https://pkg.go.dev/net/http#ServeMux
+
 (import
  (ice-9 exceptions)
  (ice-9 binary-ports)
@@ -75,37 +77,39 @@
 
 (load "../test/minima/srfi-180-body.scm")
 
-(define s3idl (with-input-from-file "./s3.json" json-read))
-(define s3api (cdr (assoc 'shapes s3idl)))
+(write "Reading ./s3.json...")
+(define s3-idl (with-input-from-file "./s3.json" json-read))
+(define s3-api (cdr (assoc 'shapes s3-idl)))
 
 ;; List of implemented actions.  The full list of S3 actions are
 ;; listed in "shapes" ."com.amazonaws.s3#AmazonS3" ."operations" in
 ;; "s3.json".
 
-(define actions '(
-		  "AbortMultipartUpload"
-		  "CompleteMultipartUpload"
-		  "CopyObject"
-		  "CreateBucket"
-		  "CreateMultipartUpload"
-		  "DeleteBucket"
-		  "DeleteObject"
-		  "DeleteObjects"
-		  "DeleteObjectTagging"
-		  "GetObject"
-		  "GetObjectAttributes"
-		  "GetObjectTagging"
-		  "HeadBucket"
-		  "HeadObject"
-		  "ListBuckets"
-		  "ListMultipartUploads"
-		  "ListObjects"
-		  "ListObjectsV2"
-		  "ListParts"
-		  "PutObject"
-		  "PutObjectTagging"
-		  "UploadPart"
-		  "UploadPartCopy"))
+(define list-of-action-names
+  '(
+    "AbortMultipartUpload"
+    "CompleteMultipartUpload"
+    "CopyObject"
+    "CreateBucket"
+    "CreateMultipartUpload"
+    "DeleteBucket"
+    "DeleteObject"
+    "DeleteObjects"
+    "DeleteObjectTagging"
+    "GetObject"
+    "GetObjectAttributes"
+    "GetObjectTagging"
+    "HeadBucket"
+    "HeadObject"
+    "ListBuckets"
+    "ListMultipartUploads"
+    "ListObjects"
+    "ListObjectsV2"
+    "ListParts"
+    "PutObject"
+    "PutObjectTagging"
+    "UploadPart"
+    "UploadPartCopy"))
 
 (define (assoc-option k alist)
   ;; Assoc but returns the cdr part or #f, also accepts #f as an
@@ -116,9 +120,57 @@
 	     => (lambda (p) (cdr p)))
 	    (else #f))))
 
+(define (lset-uniq eqvfn x)
+   ;; This is delete-duplicates.
+   (apply lset-adjoin eqvfn '() x))
+
+(define (foldl f init list)
+  ;; foldl : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
+  ;; (f a4 (f a3 (f a2 (f a1 init))))
+  (match list
+    (() init)
+    ((fst . rst) (foldl f (f fst init) rst))))
+
+(define (foldr f init list)
+  ;; foldr : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
+  ;; (f a1 (f a2 (f a3 (f a4 init))))
+  (match list
+    (() init)
+    ((fst . rst) (f fst (foldr f init rst)))))
+
+(define (substitute-string s key val)
+  ;; Replaces a key string with a val string in a string s.  A key is
+  ;; regexp.  It replaces all occurrences of a key.
+  (let* ((key1 (regexp-quote key)))
+    (cond ((string-match key1 s)
+	   => (lambda (m)
+		(let* ((range (vector-ref m 1))
+		       (prefix (substring s 0 (car range)))
+		       (suffix (substring s (cdr range) (string-length s))))
+		 (string-append
+		  prefix
+		  val
+		  (substitute-string suffix key val)))))
+	  (else s))))
+
+(define (intervene-separator v separator)
+  ;; Makes '(1 2 3) to '(1 sep 2 sep 3).
+  (if (null? v)
+      '()
+      (let ((marker (cons 1 1)))
+	(foldl (lambda (a b)
+		 (if (eq? b marker)
+		     (list a)
+		     (append b (list separator)(list a))))
+	       marker v))))
+
+(define (append-strings v separator)
+  ;; Appends strings with an intervening separator.
+  (apply string-append (intervene-separator v separator)))
+
 (define (find-action-structure action-name)
   (let ((key (string-append "com.amazonaws.s3#" action-name)))
-    (assoc-option (string->symbol key) s3api)))
+    (assoc-option (string->symbol key) s3-api)))
 
 (define (find-request-and-response-name action-structure)
   ;; Returns a pair of input structure names of request and response,
@@ -129,26 +181,24 @@
 	(prefix "com.amazonaws.s3#"))
     (assert (not (string=? "smithy.api#Unit" r1)))
     (let ((r2 (cond (#t
-		     (assert (string=? (substring r1 0 (string-length prefix))
-				       prefix))
+		     (assert (string-prefix? prefix r1))
 		     (substring r1 (string-length prefix)))))
 	  (q2 (cond ((string=? "smithy.api#Unit" q1)
 		     "Unit")
 		    (else
-		     (assert (string=? (substring q1 0 (string-length prefix))
-				       prefix))
+		     (assert (string-prefix? prefix q1))
 		     (substring q1 (string-length prefix))))))
       (list r2 q2))))
 
 (define (find-request-structure action-structure)
   (let* ((names (find-request-and-response-name action-structure))
 	 (slot (string-append "com.amazonaws.s3#" (car names))))
-    (cdr (assoc (string->symbol slot) s3api))))
+    (cdr (assoc (string->symbol slot) s3-api))))
 
 (define (find-response-structure action-structure)
   (let* ((names (find-request-and-response-name action-structure))
 	 (slot (string-append "com.amazonaws.s3#" (cadr names))))
-    (cdr (assoc (string->symbol slot) s3api))))
+    (cdr (assoc (string->symbol slot) s3-api))))
 
 ;; Note the "traits" slot of an action-structure indicates the method
 ;; of a request.  It is under "smithy.api#http", and has the
@@ -165,20 +215,8 @@
 		    (assoc-option 'code method))))
 	(else #f)))
 
-(define (get-request-properties request-structure)
-  (let ((members (cdr (assoc 'members request-structure))))
-    (let loop ((members members)
-	       (acc '()))
-      (if (null? members)
-	  acc
-	  (let* ((e (car members))
-		 (prop (get-member-properties e)))
-	    (if (eqv? prop #f)
-		(loop (cdr members) acc)
-		(loop (cdr members) (append acc (cons prop '())))))))))
-
 ;; Note the "traits" slot of a structure-member indicates the location
-;; of a request parameter.  It also indicates required-ness.
+;; of a request parameter.  It also indicates its required-ness.
 ;;
 ;; - "smithy.api#httpLabel": {}
 ;;   - indicates a slot is in URL path.
@@ -189,9 +227,24 @@
 ;; - "smithy.api#httpPrefixHeaders": "x-amz-meta-"
 ;;   - indicates a slot is in header.
 ;; - "smithy.api#httpPayload": {}
-;;   - indicates a slot is in body, like in DeleteObjects.
+;;   - indicates a slot is in body.
 ;; - "smithy.api#required": {}
 ;;   - indicates it is a required parameter.
+
+(define (get-request-properties request-structure)
+  ;; Extracts parameters of a request (e.g., of "PutObjectRequest").  The
+  ;; locus where a parameter is passed is indicated in the traits
+  ;; slot.  Locus is one of path, query, header, or body.
+  (let ((members (cdr (assoc 'members request-structure))))
+    (let loop ((members members)
+	       (acc '()))
+      (if (null? members)
+	  acc
+	  (let* ((e (car members))
+		 (prop (get-member-properties e)))
+	    (if (eqv? prop #f)
+		(loop (cdr members) acc)
+		(loop (cdr members) (append acc (cons prop '())))))))))
 
 (define (get-member-properties m)
   ;; Admits an element of a "member" slot, and returns a list of
@@ -227,14 +280,14 @@
   ;; action-properties request-properties).
   (format #t "looking at action=~a~%" action-name)
   (let* (;;(key (string-append "com.amazonaws.s3#" action-name))
-	 ;;(assoc-option (string->symbol key) s3api))
+	 ;;(assoc-option (string->symbol key) s3-api))
 	 (action-structure (find-action-structure action-name))
 	 (properties1 (get-action-properties action-structure))
 	 (names (find-request-and-response-name action-structure))
 	 (request (car names))
 	 (response (cadr names))
 	 (slot (string-append "com.amazonaws.s3#" request))
-	 (request-structure (assoc-option (string->symbol slot) s3api))
+	 (request-structure (assoc-option (string->symbol slot) s3-api))
 	 (properties2 (get-request-properties request-structure)))
     (list action-name names properties1 properties2)))
 
@@ -243,7 +296,7 @@
 ;; (describe-action "UploadPartCopy")
 
 (define (collect-actions)
-  (let loop ((names actions)
+  (let loop ((names list-of-action-names)
 	     (acc '()))
     (if (null? names)
 	acc
@@ -253,25 +306,26 @@
 
 (define collected-actions (collect-actions))
 
-(define (collect-all-required-parameters actions)
-  (let loop ((tuples actions)
+(define (collect-all-required-parameters all-actions)
+  (let loop ((actions all-actions)
 	     (query-acc '())
 	     (header-acc '()))
-    (if (null? tuples)
-	(list query-acc header-acc)
-	(call-with-values (lambda () (apply values (car tuples)))
+    (if (null? actions)
+	(list (delete-duplicates query-acc string=?)
+	      (delete-duplicates header-acc string=?))
+	(call-with-values (lambda () (apply values (car actions)))
 	  (lambda (action-name request-response-names
 			       action-properties request-properties)
 	    (format #t "collect-all-required-parameters on ~s~%" action-name)
 	    (let ((query-in-uri (get-query-in-uri action-properties)))
 	      (let ((pair (collect-required-parameters request-properties)))
-		(loop (cdr tuples)
+		(loop (cdr actions)
 		      (append query-acc query-in-uri (car pair))
 		      (append header-acc (cadr pair))))))))))
 
 (define (get-query-in-uri action-properties)
-  ;; Returns an optional query key, one in a list or '().  Query
-  ;; patterns are such as: "/{Bucket}/{Key+}?uploads",
+  ;; Returns an optional query key, '(query) or '().  Query patterns
+  ;; are such as: "/{Bucket}/{Key+}?uploads",
   ;; "/{Bucket}/{Key+}?tagging", "/{Bucket}?delete".
   (call-with-values (lambda () (apply values action-properties))
     (lambda (method uri code)
@@ -282,32 +336,188 @@
 	      (else '()))))))
 
 (define (collect-required-parameters request-properties)
-  (let loop ((tuples request-properties)
+  (let loop ((props request-properties)
 	     (query-acc '())
 	     (header-acc '()))
-    ;; (format #t "tuple=~s~%" tuples)
-    (if (null? tuples)
+    ;; (format #t "tuple=~s~%" props)
+    (if (null? props)
 	(list query-acc header-acc)
-	(call-with-values (lambda () (apply values (car tuples)))
+	(call-with-values (lambda () (apply values (car props)))
 	  (lambda (required locus name)
-	    (format #t "required=~s locus=~s name=~s~%"
-		    required locus name)
+	    (format #t "required=~s locus=~s name=~s~%" required locus name)
 	    (if (not required)
-		(loop (cdr tuples) query-acc header-acc)
+		(loop (cdr props) query-acc header-acc)
 		(case locus
 		  ((path)
-		   (loop (cdr tuples) query-acc header-acc))
+		   (loop (cdr props) query-acc header-acc))
 		  ((query)
-		   (loop (cdr tuples)
+		   (loop (cdr props)
 			 (append query-acc (list name))
 			 header-acc))
 		  ((header)
-		   (loop (cdr tuples)
+		   (loop (cdr props)
 			 query-acc
 			 (append header-acc (list name))))
 		  ((body)
-		   (loop (cdr tuples) query-acc header-acc))
+		   (loop (cdr props) query-acc header-acc))
 		  (else
-		   (format #t "BAD properties=~s~%" (car tuples))))))))))
+		   (format #t "BAD properties=~s~%" (car props))))))))))
 
-(collect-all-required-parameters collected-actions)
+(define parameter-pair (collect-all-required-parameters collected-actions))
+(define required-queries (delete "x-id=" (car parameter-pair) string-prefix?))
+(define required-headers (cadr parameter-pair))
+
+;; There are only a few occurring url patterns: {"/", "/{Bucket}",
+;; "/{Bucket}/{Key+}"}.
+
+(define (check-uri-prefix? prefix uri)
+    (cond ((string-prefix? prefix uri)
+	   (let ((n1 (string-length prefix))
+		 (n2 (string-length uri)))
+	     (assert (or (= n1 n2)
+			 (and (> n2 n1)
+			      (eqv? (string-ref uri n1) #\?))))
+	     #t))
+	  (else #f)))
+
+(define (get-uri-method-path action-properties)
+  ;; Returns a url method and pattern pair.  It replaces "/{Bucket}" to
+  ;; "/{bucket}", "/{Bucket}/{Key+}" to "/{bucket}/{key...}", See the
+  ;; "ServeMux" description for url patterns of Golang's httpd:
+  ;; https://pkg.go.dev/net/http#ServeMux
+  (call-with-values (lambda () (apply values action-properties))
+    (lambda (method uri code)
+      (cond ((check-uri-prefix? "/{Bucket}/{Key+}" uri)
+	     (list method "/{bucket}/{key...}"))
+	    ((check-uri-prefix? "/{Bucket}" uri)
+	     (list method "/{bucket}"))
+	    ((check-uri-prefix? "/" uri)
+	     (list method "/"))
+	    (else
+	     (format #t "BAD unknown url pattern found: ~s." uri)
+	     #f)))))
+
+(define (make-ServeMux-pattern action)
+  '())
+
+(define (make-request-pattern action)
+  ;; Makes a dispatch entry, and returns a list of (name method-path
+  ;; query header signature).
+  (match-let* (((name signature action-properties request-properties) action)
+	       (method-path (get-uri-method-path action-properties))
+	       (query-in-uri (get-query-in-uri action-properties)))
+    (let loop ((props request-properties)
+	       (query-acc query-in-uri)
+	       (header-acc '()))
+      (if (null? props)
+	  (list name method-path query-acc header-acc signature)
+	  (match-let (((required locus name) (car props)))
+	    (format #t "required=~s locus=~s name=~s~%" required locus name)
+	    (if (not required)
+		(loop (cdr props) query-acc header-acc)
+		(case locus
+		  ((path)
+		   (loop (cdr props) query-acc header-acc))
+		  ((query)
+		   (loop (cdr props)
+			 (append query-acc (list name))
+			 header-acc))
+		  ((header)
+		   (loop (cdr props)
+			 query-acc
+			 (append header-acc (list name))))
+		  ((body)
+		   (loop (cdr props) query-acc header-acc))
+		  (else
+		   (format #t "BAD properties=~s~%" (car props))))))))))
+
+(define (make-pattern action-name)
+  (cond ((assoc action-name collected-actions)
+	 => (lambda (action)
+	      (make-request-pattern action)))
+	(else #f)))
+
+;; (make-pattern "AbortMultipartUpload")
+;; (make-pattern "DeleteObjects")
+;; (make-pattern "UploadPartCopy")
+
+(define (collect-request-patterns all-actions)
+  (let loop ((actions all-actions)
+	     (acc '()))
+    (if (null? actions)
+	acc
+	(let ((pattern (make-request-pattern (car actions))))
+	  (loop (cdr actions) (append acc (list pattern)))))))
+
+;; (define collected-patterns (collect-request-patterns collected-actions)
+
+(define (merge-request-patterns all-actions)
+  ;; Merges request patterns by combining ones with the same
+  ;; method-path pair.
+  (let loop ((patterns (collect-request-patterns all-actions))
+	     (alist '()))
+    (if (null? patterns)
+	alist
+	(match-let* ((pat (car patterns))
+		     ((name method-path query header signature) pat))
+	  (cond ((assoc method-path alist)
+		 => (lambda (pair)
+		      (loop (cdr patterns)
+			    (alist-cons method-path (cons pat (cdr pair))
+					(alist-delete method-path alist)))))
+		(else
+		 (loop (cdr patterns)
+		       (alist-cons method-path (cons pat '())
+				   alist))))))))
+
+(define merged-requests (merge-request-patterns collected-actions))
+
+(define (make-handler-prologue method path)
+  (format #f
+	  "sx.HandleFunc(\"~a ~a\", ~a {"
+	  method path "func(w http.ResponseWriter, r *http.Request)"))
+
+(define (make-handler-epilogue)
+  "else {http.NotFound(w, r) return}})")
+
+(define (make-check-root-conditional)
+  "if r.URL.Path != \"/\" {http.NotFound(w, r) return}")
+
+(define (make-handler-choice q body)
+  (format #f "else if ~a {~a}" q body))
+
+(define (make-variable-name s)
+  (string-map (lambda (c) (if (eqv? c #\-) #\_ c))
+	      (string-downcase
+	       (substitute-string s "=" "=="))))
+
+(define (make-conditionals queries-headers)
+  ;;(format #t "make-conditionals ~s~%" queries-headers)
+  (if (null? queries-headers)
+      "true"
+      (let ((v (map make-variable-name queries-headers)))
+	(string-append "(" (append-strings v " && ") ")"))))
+
+(define (make-choice-clause handler)
+  (match-let* (((name _ queries headers signature) handler)
+	       (q (make-conditionals (append queries headers)))
+	       (body (string-append "fn_" name "(w, r)")))
+    (make-handler-choice q body)))
+
+(define (diplay-request-patterns merged-requests)
+  (let loop1 ((handlersets merged-requests))
+    (if (null? handlersets)
+	#t
+	(match-let ((((method path) . handlers) (car handlersets)))
+	  (format #t "~a~%" (make-handler-prologue method path))
+	  (when (string=? path "/")
+	    (format #t "~a~%" (make-check-root-conditional)))
+	  (format #t "if false {}~%" (make-handler-prologue method path))
+	  (let loop2 ((handlers handlers))
+	    (if (null? handlers)
+		#t
+		(begin
+		  (format #t "~a~%" (make-choice-clause (car handlers)))
+		  (loop2 (cdr handlers)))))
+	  (format #t "~a~%" (make-handler-epilogue))
+	  (loop1 (cdr handlersets))))))
