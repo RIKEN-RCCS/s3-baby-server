@@ -340,11 +340,11 @@
 
 (define (collect-all-required-parameters collected-actions)
   (let loop ((actions collected-actions)
-	     (query-acc '())
-	     (header-acc '()))
+	     (queries-acc '())
+	     (headers-acc '()))
     (if (null? actions)
-	(list (delete-duplicates query-acc string=?)
-	      (delete-duplicates header-acc string=?))
+	(list (delete-duplicates queries-acc string=?)
+	      (delete-duplicates headers-acc string=?))
 	(call-with-values (lambda () (apply values (car actions)))
 	  (lambda (action-name request-response-names
 			       action-properties request-properties)
@@ -352,34 +352,34 @@
 	    (let ((query-in-uri (get-query-in-uri #t action-properties)))
 	      (let ((pair (collect-required-parameters request-properties)))
 		(loop (cdr actions)
-		      (append query-acc query-in-uri (car pair))
-		      (append header-acc (cadr pair))))))))))
+		      (append queries-acc query-in-uri (car pair))
+		      (append headers-acc (cadr pair))))))))))
 
 (define (collect-required-parameters request-properties)
   (let loop ((props request-properties)
-	     (query-acc '())
-	     (header-acc '()))
+	     (queries-acc '())
+	     (headers-acc '()))
     ;; (format #t "tuple=~s~%" props)
     (if (null? props)
-	(list query-acc header-acc)
+	(list queries-acc headers-acc)
 	(call-with-values (lambda () (apply values (car props)))
 	  (lambda (required locus name)
 	    (format #t "required=~s locus=~s name=~s~%" required locus name)
 	    (if (not required)
-		(loop (cdr props) query-acc header-acc)
+		(loop (cdr props) queries-acc headers-acc)
 		(case locus
 		  ((path)
-		   (loop (cdr props) query-acc header-acc))
+		   (loop (cdr props) queries-acc headers-acc))
 		  ((query)
 		   (loop (cdr props)
-			 (append query-acc (list name))
-			 header-acc))
+			 (append queries-acc (list name))
+			 headers-acc))
 		  ((header)
 		   (loop (cdr props)
-			 query-acc
-			 (append header-acc (list name))))
+			 queries-acc
+			 (append headers-acc (list name))))
 		  ((body)
-		   (loop (cdr props) query-acc header-acc))
+		   (loop (cdr props) queries-acc headers-acc))
 		  (else
 		   (format #t "BAD properties=~s~%" (car props))))))))))
 
@@ -469,10 +469,14 @@
 ;; (define collected-dispatches (collect-request-dispatches collected-actions)
 
 ;;;
-;;; STUB PRINTERS
+;;; STUB (DISPATCHER) PRINTER
 ;;;
 
-;; See (diplay-handler-patterns merged-dispatches).
+;; See (diplay-dispatcher merged-dispatches).
+
+;; About Golang net/http server.  Headers can be accessed in
+;; Request.Header which is type Header (a map).  Queries can be
+;; accessed in Request.URL.Query() which is type Values (a map).
 
 (define (merge-request-dispatches collected-actions)
   ;; Merges request dispatch entries by combining ones with the same
@@ -494,7 +498,7 @@
 		       (alist-cons method-path (cons dispatch '())
 				   alist))))))))
 
-(define (dispatch-more-specific? a b)
+(define (dispatch-ordered? a b)
   (match-let (((_ _ queries-a headers-a _) a)
 	      ((_ _ queries-b headers-b _) b))
     (> (+ (length queries-a) (length headers-a))
@@ -518,14 +522,15 @@
 
 (define (sort-dispatches merged-dispatches)
   ;; Sorts the entries by their specific-ness, i.e., by the length of
-  ;; queries and headers.  It also sorts the alist by methods ordering
-  ;; in HEAD, GET, PUT, POST, DELETE.
+  ;; queries and headers.  In addition, but not necessary, it also
+  ;; sorts the alist by methods ordering in HEAD, GET, PUT, POST,
+  ;; DELETE.
   (let loop1 ((alist merged-dispatches)
 	      (dispatches-acc '()))
     (if (null? alist)
 	(sort dispatches-acc method-path-ordered?)
 	(match-let (((method-path . dispatches) (car alist)))
-	  (let ((dispatches1 (sort dispatches dispatch-more-specific?)))
+	  (let ((dispatches1 (sort dispatches dispatch-ordered?)))
 	    (loop1 (cdr alist)
 		   (alist-cons method-path dispatches1 dispatches-acc)))))))
 
@@ -546,10 +551,32 @@
 (define (make-handler-choice q body)
   (format #f "else if ~a {~a}" q body))
 
+(define (make-fetch-prologue)
+  (values "var q = r.URL.Query()"
+	  "var h = r.Header"))
+
 (define (make-variable-name s)
-  (string-map (lambda (c) (if (eqv? c #\-) #\_ c))
-	      (string-downcase
-	       (substitute-string s "=" "=="))))
+  (string-map (lambda (c) (if (or (eqv? c #\-) (eqv? c #\=)) #\_ c))
+	      (string-downcase s)))
+
+(define (make-fetch-conditional source s)
+  (assert (or (string=? source "q") (string=? source "h")))
+  (cond ((string-contains s "=")
+	 => (lambda (i)
+	      (let* ((key (substring s 0 i))
+		     (var (make-variable-name s))
+		     (val (substring s (+ i 1))))
+		(format #f "var ~a = (~a.Get(~s) != ~s)" var source key val))))
+	(else
+	 (let* ((key s)
+		(var (make-variable-name key)))
+	   (format #f "var ~a = (~a.Get(~s) != \"\")" var source key)))))
+
+(define (make-fetch-query v)
+  (make-fetch-conditional "q" v))
+
+(define (make-fetch-header v)
+  (make-fetch-conditional "h" v))
 
 (define (make-conditionals queries-headers)
   ;;(format #t "make-conditionals ~s~%" queries-headers)
@@ -564,26 +591,54 @@
 	       (body (string-append "h_" name "(w, r)")))
     (make-handler-choice q body)))
 
-(define (diplay-handler-patterns merged-dispatches)
+(define (list-queries-headers dispatches)
+  (let loop ((dispatches dispatches)
+	     (queries-acc '())
+	     (headers-acc '()))
+    (if (null? dispatches)
+	(values (sort (delete-duplicates queries-acc string=?) string<)
+		(sort (delete-duplicates headers-acc string=?) string<))
+	(match-let* ((dispatch (car dispatches))
+		     ((name _ queries headers signature) dispatch))
+	  (loop (cdr dispatches)
+		(append queries-acc queries)
+		(append headers-acc headers))))))
+
+(define (diplay-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
   (format #t "{~%")
-  (let loop1 ((handlersets merged-dispatches))
-    (if (null? handlersets)
+  (let loop1 ((dispatch-alist list-of-dispatches))
+    (if (null? dispatch-alist)
 	(values)
-	(match-let ((((method path) . handlers) (car handlersets)))
+	(match-let ((((method path) . dispatches) (car dispatch-alist)))
 	  (format #t "~a~%" (make-handler-prologue method path))
 	  (when (string=? path "/")
 	    (format #t "~a~%" (make-check-root-conditional)))
-	  (format #t "if false {}~%" (make-handler-prologue method path))
-	  (let loop2 ((handlers handlers))
-	    (if (null? handlers)
+	  (let-values (((fetch-q fetch-h) (make-fetch-prologue)))
+	    (format #t "~a~%" fetch-q)
+	    (format #t "~a~%" fetch-h))
+	  (let-values (((queries headers) (list-queries-headers dispatches)))
+	    (let loop2 ((queries queries))
+	      (if (null? queries)
+		  (values)
+		  (begin
+		    (format #t "~a~%" (make-fetch-query (car queries)))
+		    (loop2 (cdr queries)))))
+	    (let loop3 ((headers headers))
+	      (if (null? headers)
+		  (values)
+		  (begin
+		    (format #t "~a~%" (make-fetch-header (car headers)))
+		    (loop3 (cdr headers))))))
+	  (format #t "if false {}~%")
+	  (let loop4 ((dispatches dispatches))
+	    (if (null? dispatches)
 		(values)
 		(begin
-		  (format #t "~a~%" (make-choice-clause (car handlers)))
-		  (loop2 (cdr handlers)))))
+		  (format #t "~a~%" (make-choice-clause (car dispatches)))
+		  (loop4 (cdr dispatches)))))
 	  (format #t "~a~%" (make-handler-epilogue))
-	  (loop1 (cdr handlersets)))))
+	  (loop1 (cdr dispatch-alist)))))
   (format #t "}~%"))
 
-;; (diplay-handler-patterns merged-dispatches)
-;; (diplay-handler-patterns list-of-dispatches)
+;; (diplay-dispatcher list-of-dispatches)
