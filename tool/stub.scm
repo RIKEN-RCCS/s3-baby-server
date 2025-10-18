@@ -322,6 +322,22 @@
 
 ;; See (collect-request-dispatches collected-actions).
 
+(define (get-query-in-uri ban-x-id action-properties)
+  ;; Finds an optional query key and returns it as a list: '(query) or
+  ;; '().  It excludes "x-id"-key if ban-x-id is #t.  Query keys look
+  ;; like: "/{Bucket}/{Key+}?uploads", "/{Bucket}/{Key+}?tagging",
+  ;; "/{Bucket}?delete".
+  (call-with-values (lambda () (apply values action-properties))
+    (lambda (method uri code)
+      (let ((pat (regexp-quote "?")))
+        (cond ((string-match pat uri)
+	       => (lambda (m)
+		    (let ((name (substring uri (+ (car (vector-ref m 1)) 1))))
+		      (if (and ban-x-id (string-prefix? "x-id=" name))
+			  '()
+			  (list name)))))
+	      (else '()))))))
+
 (define (collect-all-required-parameters collected-actions)
   (let loop ((actions collected-actions)
 	     (query-acc '())
@@ -333,23 +349,11 @@
 	  (lambda (action-name request-response-names
 			       action-properties request-properties)
 	    (format #t "collect-all-required-parameters on ~s~%" action-name)
-	    (let ((query-in-uri (get-query-in-uri action-properties)))
+	    (let ((query-in-uri (get-query-in-uri #t action-properties)))
 	      (let ((pair (collect-required-parameters request-properties)))
 		(loop (cdr actions)
 		      (append query-acc query-in-uri (car pair))
 		      (append header-acc (cadr pair))))))))))
-
-(define (get-query-in-uri action-properties)
-  ;; Returns an optional query key, '(query) or '().  Query patterns
-  ;; are such as: "/{Bucket}/{Key+}?uploads",
-  ;; "/{Bucket}/{Key+}?tagging", "/{Bucket}?delete".
-  (call-with-values (lambda () (apply values action-properties))
-    (lambda (method uri code)
-      (let ((pat (string-append (regexp-quote "?"))))
-        (cond ((string-match pat uri)
-	       => (lambda (m)
-		    (list (substring uri (+ (car (vector-ref m 1)) 1)))))
-	      (else '()))))))
 
 (define (collect-required-parameters request-properties)
   (let loop ((props request-properties)
@@ -418,29 +422,29 @@
   ;; queries headers signature).
   (match-let* (((name signature action-properties request-properties) action)
 	       (method-path (get-uri-method-path action-properties))
-	       (query-in-uri (get-query-in-uri action-properties)))
+	       (query-in-uri (get-query-in-uri #t action-properties)))
     (let loop ((props request-properties)
-	       (query-acc query-in-uri)
-	       (header-acc '()))
+	       (queries-acc query-in-uri)
+	       (headers-acc '()))
       (if (null? props)
-	  (list name method-path query-acc header-acc signature)
+	  (list name method-path queries-acc headers-acc signature)
 	  (match-let (((required locus name) (car props)))
-	    (format #t "required=~s locus=~s name=~s~%" required locus name)
+	    (format #t ";; required=~s locus=~s name=~s~%" required locus name)
 	    (if (not required)
-		(loop (cdr props) query-acc header-acc)
+		(loop (cdr props) queries-acc headers-acc)
 		(case locus
 		  ((path)
-		   (loop (cdr props) query-acc header-acc))
+		   (loop (cdr props) queries-acc headers-acc))
 		  ((query)
 		   (loop (cdr props)
-			 (append query-acc (list name))
-			 header-acc))
+			 (append queries-acc (list name))
+			 headers-acc))
 		  ((header)
 		   (loop (cdr props)
-			 query-acc
-			 (append header-acc (list name))))
+			 queries-acc
+			 (append headers-acc (list name))))
 		  ((body)
-		   (loop (cdr props) query-acc header-acc))
+		   (loop (cdr props) queries-acc headers-acc))
 		  (else
 		   (format #t "BAD properties=~s~%" (car props))))))))))
 
@@ -490,7 +494,43 @@
 		       (alist-cons method-path (cons dispatch '())
 				   alist))))))))
 
+(define (dispatch-more-specific? a b)
+  (match-let (((_ _ queries-a headers-a _) a)
+	      ((_ _ queries-b headers-b _) b))
+    (> (+ (length queries-a) (length headers-a))
+       (+ (length queries-b) (length headers-b)))))
+
+(define method-ordering '("HEAD" "GET" "PUT" "POST" "DELETE"))
+
+(define (method-path-ordered? alist-entry-a alist-entry-b)
+    (match-let (((method-a path-a) (car alist-entry-a))
+		((method-b path-b) (car alist-entry-b)))
+      (let ((index-a (list-index (lambda (x) (string=? method-a x))
+				 method-ordering))
+	    (index-b (list-index (lambda (x) (string=? method-b x))
+				 method-ordering))
+	    (length-a (string-length path-a))
+	    (length-b (string-length path-b)))
+	(cond ((= index-a index-b)
+	       (> length-a length-b))
+	      (else
+	       (< index-a index-b))))))
+
+(define (sort-dispatches merged-dispatches)
+  ;; Sorts the entries by their specific-ness, i.e., by the length of
+  ;; queries and headers.  It also sorts the alist by methods ordering
+  ;; in HEAD, GET, PUT, POST, DELETE.
+  (let loop1 ((alist merged-dispatches)
+	      (dispatches-acc '()))
+    (if (null? alist)
+	(sort dispatches-acc method-path-ordered?)
+	(match-let (((method-path . dispatches) (car alist)))
+	  (let ((dispatches1 (sort dispatches dispatch-more-specific?)))
+	    (loop1 (cdr alist)
+		   (alist-cons method-path dispatches1 dispatches-acc)))))))
+
 (define merged-dispatches (merge-request-dispatches collected-actions))
+(define list-of-dispatches (sort-dispatches merged-dispatches))
 
 (define (make-handler-prologue method path)
   (format #f
@@ -521,11 +561,12 @@
 (define (make-choice-clause handler)
   (match-let* (((name _ queries headers signature) handler)
 	       (q (make-conditionals (append queries headers)))
-	       (body (string-append "fn_" name "(w, r)")))
+	       (body (string-append "h_" name "(w, r)")))
     (make-handler-choice q body)))
 
 (define (diplay-handler-patterns merged-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
+  (format #t "{~%")
   (let loop1 ((handlersets merged-dispatches))
     (if (null? handlersets)
 	(values)
@@ -541,4 +582,8 @@
 		  (format #t "~a~%" (make-choice-clause (car handlers)))
 		  (loop2 (cdr handlers)))))
 	  (format #t "~a~%" (make-handler-epilogue))
-	  (loop1 (cdr handlersets))))))
+	  (loop1 (cdr handlersets)))))
+  (format #t "}~%"))
+
+;; (diplay-handler-patterns merged-dispatches)
+;; (diplay-handler-patterns list-of-dispatches)
