@@ -327,16 +327,17 @@
   ;; '().  It excludes "x-id"-key if ban-x-id is #t.  Query keys look
   ;; like: "/{Bucket}/{Key+}?uploads", "/{Bucket}/{Key+}?tagging",
   ;; "/{Bucket}?delete".
-  (call-with-values (lambda () (apply values action-properties))
-    (lambda (method uri code)
-      (let ((pat (regexp-quote "?")))
-        (cond ((string-match pat uri)
-	       => (lambda (m)
-		    (let ((name (substring uri (+ (car (vector-ref m 1)) 1))))
-		      (if (and ban-x-id (string-prefix? "x-id=" name))
-			  '()
-			  (list name)))))
-	      (else '()))))))
+  (match-let (((method uri code) action-properties))
+    ;;-(call-with-values (lambda () (apply values action-properties))
+    ;;-  (lambda (method uri code)
+    (let ((pat (regexp-quote "?")))
+      (cond ((string-match pat uri)
+	     => (lambda (m)
+		  (let ((name (substring uri (+ (car (vector-ref m 1)) 1))))
+		    (if (and ban-x-id (string-prefix? "x-id=" name))
+			'()
+			(list name)))))
+	    (else '())))))
 
 (define (collect-all-required-parameters collected-actions)
   (let loop ((actions collected-actions)
@@ -345,15 +346,18 @@
     (if (null? actions)
 	(list (delete-duplicates queries-acc string=?)
 	      (delete-duplicates headers-acc string=?))
-	(call-with-values (lambda () (apply values (car actions)))
-	  (lambda (action-name request-response-names
-			       action-properties request-properties)
-	    (format #t "collect-all-required-parameters on ~s~%" action-name)
-	    (let ((query-in-uri (get-query-in-uri #t action-properties)))
-	      (let ((pair (collect-required-parameters request-properties)))
-		(loop (cdr actions)
-		      (append queries-acc query-in-uri (car pair))
-		      (append headers-acc (cadr pair))))))))))
+	(match-let (((action-name request-response-names
+				  action-properties request-properties)
+		     (car actions)))
+	  ;;-(call-with-values (lambda () (apply values (car actions)))
+	  ;;-  (lambda (action-name request-response-names
+	  ;;-		       action-properties request-properties)
+	  (format #t "collect-all-required-parameters on ~s~%" action-name)
+	  (let ((query-in-uri (get-query-in-uri #t action-properties)))
+	    (let ((pair (collect-required-parameters request-properties)))
+	      (loop (cdr actions)
+		    (append queries-acc query-in-uri (car pair))
+		    (append headers-acc (cadr pair)))))))))
 
 (define (collect-required-parameters request-properties)
   (let loop ((props request-properties)
@@ -362,26 +366,27 @@
     ;; (format #t "tuple=~s~%" props)
     (if (null? props)
 	(list queries-acc headers-acc)
-	(call-with-values (lambda () (apply values (car props)))
-	  (lambda (required locus name)
-	    (format #t "required=~s locus=~s name=~s~%" required locus name)
-	    (if (not required)
-		(loop (cdr props) queries-acc headers-acc)
-		(case locus
-		  ((path)
-		   (loop (cdr props) queries-acc headers-acc))
-		  ((query)
-		   (loop (cdr props)
-			 (append queries-acc (list name))
-			 headers-acc))
-		  ((header)
-		   (loop (cdr props)
-			 queries-acc
-			 (append headers-acc (list name))))
-		  ((body)
-		   (loop (cdr props) queries-acc headers-acc))
-		  (else
-		   (format #t "BAD properties=~s~%" (car props))))))))))
+	(match-let (((required locus name) (car props)))
+	  ;;- (call-with-values (lambda () (apply values (car props)))
+	  ;;-   (lambda (required locus name)
+	  (format #t "required=~s locus=~s name=~s~%" required locus name)
+	  (if (not required)
+	      (loop (cdr props) queries-acc headers-acc)
+	      (case locus
+		((path)
+		 (loop (cdr props) queries-acc headers-acc))
+		((query)
+		 (loop (cdr props)
+		       (append queries-acc (list name))
+		       headers-acc))
+		((header)
+		 (loop (cdr props)
+		       queries-acc
+		       (append headers-acc (list name))))
+		((body)
+		 (loop (cdr props) queries-acc headers-acc))
+		(else
+		 (format #t "BAD properties=~s~%" (car props)))))))))
 
 (define parameter-pair (collect-all-required-parameters collected-actions))
 (define required-queries (delete "x-id=" (car parameter-pair) string-prefix?))
@@ -405,17 +410,18 @@
   ;; "/{bucket}", "/{Bucket}/{Key+}" to "/{bucket}/{key...}", See the
   ;; "ServeMux" description for url patterns of Golang's httpd:
   ;; https://pkg.go.dev/net/http#ServeMux
-  (call-with-values (lambda () (apply values action-properties))
-    (lambda (method uri code)
-      (cond ((check-uri-prefix? "/{Bucket}/{Key+}" uri)
-	     (list method "/{bucket}/{key...}"))
-	    ((check-uri-prefix? "/{Bucket}" uri)
-	     (list method "/{bucket}"))
-	    ((check-uri-prefix? "/" uri)
-	     (list method "/"))
-	    (else
-	     (format #t "BAD unknown url pattern found: ~s." uri)
-	     #f)))))
+  (match-let (((method uri code) action-properties))
+    ;;-(call-with-values (lambda () (apply values action-properties))
+    ;;-  (lambda (method uri code)
+    (cond ((check-uri-prefix? "/{Bucket}/{Key+}" uri)
+	   (list method "/{bucket}/{key...}"))
+	  ((check-uri-prefix? "/{Bucket}" uri)
+	   (list method "/{bucket}"))
+	  ((check-uri-prefix? "/" uri)
+	   (list method "/"))
+	  (else
+	   (format #t "BAD unknown url pattern found: ~s." uri)
+	   #f))))
 
 (define (make-request-dispatch action)
   ;; Makes a dispatch entry, and returns a list of (name method-path
