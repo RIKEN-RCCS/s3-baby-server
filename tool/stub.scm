@@ -115,6 +115,13 @@
 	     => (lambda (p) (cdr p)))
 	    (else #f))))
 
+(define (assoc-with-default default k alist)
+  ;; Assoc but returns the cdr part or default.
+  (if (eqv? alist #f)
+      default
+      (cond ((assoc k alist) => (lambda (pair) (cdr pair)))
+	    (else default))))
+
 (define (lset-uniq eqvfn x)
    ;; This is delete-duplicates.
    (apply lset-adjoin eqvfn '() x))
@@ -229,7 +236,7 @@
 		    (assoc-option 'code method))))
 	(else #f)))
 
-;; Note the "traits" slot of a structure-member indicates the location
+;; Note the "traits" slot of a structure-slot indicates the location
 ;; of a request parameter.  It also indicates its required-ness.
 ;;
 ;; - "smithy.api#httpLabel": {}
@@ -245,49 +252,49 @@
 ;; - "smithy.api#required": {}
 ;;   - indicates it is a required parameter.
 
-(define (get-request-properties request-structure)
-  ;; Extracts parameters of a request (e.g., of "PutObjectRequest").  The
-  ;; locus where a parameter is passed is indicated in the traits
-  ;; slot.  Locus is one of path, query, header, or body.
+(define (get-request-slot-properties request-structure)
+  ;; Extracts parameters of a request structure of
+  ;; "com.amazonaws.s3#XXXXRequest".  It returns a list of four-lists
+  ;; (required locus name slot).  A locus indicates where a parameter
+  ;; is passed, and it is one of 'path, 'query, 'header, or 'body.  If
+  ;; locus=body and name=#f, it means the value is a whole payload.  A
+  ;; slot is a slot name of a request strucuture.
   (let ((members (cdr (assoc 'members request-structure))))
     (let loop ((members members)
 	       (acc '()))
       (if (null? members)
 	  acc
 	  (let* ((e (car members))
-		 (prop (get-member-properties e)))
+		 (prop (get-slot-properties e)))
 	    (if (eqv? prop #f)
 		(loop (cdr members) acc)
 		(loop (cdr members) (append acc (cons prop '())))))))))
 
-(define (get-member-properties m)
-  ;; Admits an element of a "member" slot, and returns a list of
-  ;; (required path/query/header/body name) of a request parameters.
-  (cond ((assoc-option 'traits (cdr m))
-	 => (lambda (r)
-	      (let ((required
-		     (cond ((assoc '#{smithy.api#required}# r)
-			    #t)
-			   (else #f))))
-		(cond ((assoc-option '#{smithy.api#httpLabel}# r)
-		       => (lambda (_)
-			    (list required 'path (symbol->string (car m)))))
-		      ((assoc-option '#{smithy.api#httpQuery}# r)
-		       => (lambda (v)
-			    (list required 'query v)))
-		      ((assoc-option '#{smithy.api#httpHeader}# r)
-		       => (lambda (v)
-			    (list required 'header v)))
-		      ((assoc-option '#{smithy.api#httpPrefixHeaders}# r)
-		       => (lambda (v)
-			    (list required 'header v)))
-		      ((assoc-option '#{smithy.api#httpPayload}# r)
-		       => (lambda (_)
-			    (let ((n (assoc-option '#{smithy.api#xmlName}# r)))
-			      ;; (* body with #f is content payload. *)
-			      (list required 'body n))))
-		      (else #f)))))
-	(else #f)))
+(define (get-slot-properties m)
+  ;; Admits an element of a "members" slot, and returns a list of
+  ;; (required locus name slot) of request parameters.
+  (let* ((slot (symbol->string (car m)))
+	(traits (assoc-with-default '() 'traits (cdr m)))
+	(required (cond ((assoc '#{smithy.api#required}# traits) #t)
+			(else #f))))
+    (cond ((assoc-option '#{smithy.api#httpLabel}# traits)
+	   => (lambda (_)
+		(list required 'path slot slot)))
+	  ((assoc-option '#{smithy.api#httpQuery}# traits)
+	   => (lambda (v)
+		(list required 'query v slot)))
+	  ((assoc-option '#{smithy.api#httpHeader}# traits)
+	   => (lambda (v)
+		(list required 'header v slot)))
+	  ((assoc-option '#{smithy.api#httpPrefixHeaders}# traits)
+	   => (lambda (v)
+		(list required 'header v slot)))
+	  ((assoc-option '#{smithy.api#httpPayload}# traits)
+	   => (lambda (_)
+		(let ((n (assoc-option '#{smithy.api#xmlName}# traits)))
+		  ;; (* body with #f is content payload. *)
+		  (list required 'body n slot))))
+	  (else #f))))
 
 (define (describe-action action-name)
   ;; Returns a list of (action-name request-response-names
@@ -302,7 +309,7 @@
 	 (response (cadr names))
 	 (slot (string-append "com.amazonaws.s3#" request))
 	 (request-structure (assoc-option (string->symbol slot) s3-api))
-	 (properties2 (get-request-properties request-structure)))
+	 (properties2 (get-request-slot-properties request-structure)))
     (list action-name names properties1 properties2)))
 
 (define (collect-actions)
@@ -366,10 +373,11 @@
     ;; (format #t "tuple=~s~%" props)
     (if (null? props)
 	(list queries-acc headers-acc)
-	(match-let (((required locus name) (car props)))
+	(match-let (((required locus name slot) (car props)))
 	  ;;- (call-with-values (lambda () (apply values (car props)))
-	  ;;-   (lambda (required locus name)
-	  (format #t "required=~s locus=~s name=~s~%" required locus name)
+	  ;;-   (lambda (required locus name slot)
+	  (format #t "required=~s locus=~s name=~s slot=~s~%"
+		  required locus name slot)
 	  (if (not required)
 	      (loop (cdr props) queries-acc headers-acc)
 	      (case locus
@@ -434,8 +442,9 @@
 	       (headers-acc '()))
       (if (null? props)
 	  (list name method-path queries-acc headers-acc signature)
-	  (match-let (((required locus name) (car props)))
-	    (format #t ";; required=~s locus=~s name=~s~%" required locus name)
+	  (match-let (((required locus name slot) (car props)))
+	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
+		    required locus name slot)
 	    (if (not required)
 		(loop (cdr props) queries-acc headers-acc)
 		(case locus
@@ -475,10 +484,10 @@
 ;; (define collected-dispatches (collect-request-dispatches collected-actions)
 
 ;;;
-;;; STUB (DISPATCHER) PRINTER
+;;; DISPATCHER STUB PRINTER
 ;;;
 
-;; See (diplay-dispatcher merged-dispatches).
+;; RUN (display-dispatcher merged-dispatches).
 
 ;; About Golang net/http server.  Headers can be accessed in
 ;; Request.Header which is type Header (a map).  Queries can be
@@ -543,18 +552,18 @@
 (define merged-dispatches (merge-request-dispatches collected-actions))
 (define list-of-dispatches (sort-dispatches merged-dispatches))
 
-(define (make-handler-prologue method path)
+(define (make-registering-prologue method path)
   (format #f
 	  "sx.HandleFunc(\"~a ~a\", ~a {"
 	  method path "func(w http.ResponseWriter, r *http.Request)"))
 
-(define (make-handler-epilogue)
+(define (make-registering-epilogue)
   "else {http.NotFound(w, r) return}})")
 
 (define (make-check-root-conditional)
   "if r.URL.Path != \"/\" {http.NotFound(w, r) return}")
 
-(define (make-handler-choice q body)
+(define (make-dispatch-choice q body)
   (format #f "else if ~a {~a}" q body))
 
 (define (make-fetch-prologue)
@@ -565,7 +574,7 @@
   (string-map (lambda (c) (if (or (eqv? c #\-) (eqv? c #\=)) #\_ c))
 	      (string-downcase s)))
 
-(define (make-fetch-conditional source s)
+(define (make-fetch-condition source s)
   (assert (or (string=? source "q") (string=? source "h")))
   (cond ((string-contains s "=")
 	 => (lambda (i)
@@ -578,12 +587,6 @@
 		(var (make-variable-name key)))
 	   (format #f "var ~a = (~a.Get(~s) != \"\")" var source key)))))
 
-(define (make-fetch-query v)
-  (make-fetch-conditional "q" v))
-
-(define (make-fetch-header v)
-  (make-fetch-conditional "h" v))
-
 (define (make-conditionals queries-headers)
   ;;(format #t "make-conditionals ~s~%" queries-headers)
   (if (null? queries-headers)
@@ -591,11 +594,11 @@
       (let ((v (map make-variable-name queries-headers)))
 	(string-append "(" (append-strings v " && ") ")"))))
 
-(define (make-choice-clause handler)
-  (match-let* (((name _ queries headers signature) handler)
+(define (make-choice-clause dispatch)
+  (match-let* (((name _ queries headers signature) dispatch)
 	       (q (make-conditionals (append queries headers)))
 	       (body (string-append "h_" name "(w, r)")))
-    (make-handler-choice q body)))
+    (make-dispatch-choice q body)))
 
 (define (list-queries-headers dispatches)
   (let loop ((dispatches dispatches)
@@ -610,14 +613,14 @@
 		(append queries-acc queries)
 		(append headers-acc headers))))))
 
-(define (diplay-dispatcher list-of-dispatches)
+(define (display-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
   (format #t "{~%")
   (let loop1 ((dispatch-alist list-of-dispatches))
     (if (null? dispatch-alist)
 	(values)
 	(match-let ((((method path) . dispatches) (car dispatch-alist)))
-	  (format #t "~a~%" (make-handler-prologue method path))
+	  (format #t "~a~%" (make-registering-prologue method path))
 	  (when (string=? path "/")
 	    (format #t "~a~%" (make-check-root-conditional)))
 	  (let-values (((fetch-q fetch-h) (make-fetch-prologue)))
@@ -628,13 +631,13 @@
 	      (if (null? queries)
 		  (values)
 		  (begin
-		    (format #t "~a~%" (make-fetch-query (car queries)))
+		    (format #t "~a~%" (make-fetch-condition "q" (car queries)))
 		    (loop2 (cdr queries)))))
 	    (let loop3 ((headers headers))
 	      (if (null? headers)
 		  (values)
 		  (begin
-		    (format #t "~a~%" (make-fetch-header (car headers)))
+		    (format #t "~a~%" (make-fetch-condition "h" (car headers)))
 		    (loop3 (cdr headers))))))
 	  (format #t "if false {}~%")
 	  (let loop4 ((dispatches dispatches))
@@ -643,8 +646,65 @@
 		(begin
 		  (format #t "~a~%" (make-choice-clause (car dispatches)))
 		  (loop4 (cdr dispatches)))))
-	  (format #t "~a~%" (make-handler-epilogue))
+	  (format #t "~a~%" (make-registering-epilogue))
 	  (loop1 (cdr dispatch-alist)))))
   (format #t "}~%"))
 
-;; (diplay-dispatcher list-of-dispatches)
+;; (display-dispatcher list-of-dispatches)
+
+;;;
+;;; HANDLER STUB PRINTER
+;;;
+
+;; RUN (display-handlers merged-dispatches).
+
+(define (make-handler-prologue dispatch)
+  (match-let* (((name _ queries headers signature) dispatch))
+    (format #f "func h_~a(w http.ResponseWriter, r *http.Request) {"
+	    name)))
+
+(define (make-handler-epilogue dispatch)
+  "}")
+
+(define (fix-input-structure-name request)
+  (string-replace-substring request "Request" "Input"))
+
+(define (make-input-output-prologue dispatch)
+  (match-let* (((name _ queries headers signature) dispatch)
+	       ((request output) signature)
+	       (input (fix-input-structure-name request)))
+    (format #f "var i = s3.~a{" input)))
+
+(define (make-input-epilogue dispatch)
+  "}")
+
+'(define (make-input-structure request-name)
+  ;; Makes assignments to structure "com.amazonaws.s3#XXXXRequest".
+  ;; Note the structure name in the SDK is "s3#XXXXInput".  Each slot
+  ;; property is a list of (required locus name slot).
+  (let* ((input-name (fix-input-structure-name request-name))
+	 (key (string-append "com.amazonaws.s3#" request-name))
+	 (request-structure (assoc-option (string->symbol key) s3-api))
+	 (props (get-request-slot-properties request-structure)))
+    (let loop ((props props)
+	       (acc '()))
+      (if (null? props)
+	  acc
+	  (match-let (((required locus name slot) (car props)))
+	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
+		    required locus name slot)
+	    (case locus
+	      ((path)
+	       (loop (cdr props) acc))
+	      ((query)
+	       (let ((assigner
+		      (format #f "o.~a = q.Get(~s)%"
+			      (make-registering-prologue method path))))))
+	      ((header)
+	       (loop (cdr props)
+		     queries-acc
+		     (append headers-acc (list name))))
+	      ((body)
+	       (loop (cdr props) queries-acc headers-acc))
+	      (else
+	       (format #t "BAD properties=~s~%" (car props)))))))))
