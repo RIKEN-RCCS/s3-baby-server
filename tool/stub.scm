@@ -1,9 +1,8 @@
 ;; stub.scm (2025-10-16)
 
-;; Ad-hoc server stub generator.  This generates dispatcher code for
-;; S3 requests.  It reads "s3.json" in Smithy-2.0 and generates a
-;; skeleton for dispatcher code.  I don't know about Smithy's code
-;; generators for Golang.
+;; Ad-hoc server stub generator.  IT DOES NOT GENERATE WORKING CODE.
+;; This generates dispatcher code for S3 requests.  It reads "s3.json"
+;; in Smithy-2.0 and generates a skeleton for dispatcher code.
 
 ;; This is for "guile --r7rs".  It is tested GNU Guile 3.0.10.
 
@@ -77,13 +76,9 @@
 
 (load "../test/minima/srfi-180-body.scm")
 
-(write "Reading ./s3.json...")
-(define s3-idl (with-input-from-file "./s3.json" json-read))
-(define s3-api (cdr (assoc 'shapes s3-idl)))
-
-;; List of implemented actions.  The full list of S3 actions are
-;; listed in "shapes" ."com.amazonaws.s3#AmazonS3" ."operations" in
-;; "s3.json".
+;; List of implemented actions of s3-baby-server.  The full list of S3
+;; actions are listed in "shapes" / "com.amazonaws.s3#AmazonS3" /
+;; "operations" in "s3.json".
 
 (define list-of-action-names
   '(
@@ -167,6 +162,25 @@
 (define (append-strings v separator)
   ;; Appends strings with an intervening separator.
   (apply string-append (intervene-separator v separator)))
+
+;;;
+;;; LOADING S3.JSON
+;;;
+
+(display "Reading ./s3.json...\n")
+(define s3-idl (with-input-from-file "./s3.json" json-read))
+(define s3-api (cdr (assoc 'shapes s3-idl)))
+(display "Reading ./s3.json... done\n")
+
+;;;
+;;; IDL SLOT ACCESSORS
+;;;
+
+;; See (collect-actions).  Or try:
+;;
+;; (describe-action "AbortMultipartUpload")
+;; (describe-action "DeleteObjects")
+;; (describe-action "UploadPartCopy")
 
 (define (find-action-structure action-name)
   (let ((key (string-append "com.amazonaws.s3#" action-name)))
@@ -291,10 +305,6 @@
 	 (properties2 (get-request-properties request-structure)))
     (list action-name names properties1 properties2)))
 
-;; (describe-action "AbortMultipartUpload")
-;; (describe-action "DeleteObjects")
-;; (describe-action "UploadPartCopy")
-
 (define (collect-actions)
   (let loop ((names list-of-action-names)
 	     (acc '()))
@@ -306,8 +316,14 @@
 
 (define collected-actions (collect-actions))
 
-(define (collect-all-required-parameters all-actions)
-  (let loop ((actions all-actions)
+;;;
+;;; PARAMETER INQUERIES
+;;;
+
+;; See (collect-request-dispatches collected-actions).
+
+(define (collect-all-required-parameters collected-actions)
+  (let loop ((actions collected-actions)
 	     (query-acc '())
 	     (header-acc '()))
     (if (null? actions)
@@ -397,12 +413,9 @@
 	     (format #t "BAD unknown url pattern found: ~s." uri)
 	     #f)))))
 
-(define (make-ServeMux-pattern action)
-  '())
-
-(define (make-request-pattern action)
+(define (make-request-dispatch action)
   ;; Makes a dispatch entry, and returns a list of (name method-path
-  ;; query header signature).
+  ;; queries headers signature).
   (match-let* (((name signature action-properties request-properties) action)
 	       (method-path (get-uri-method-path action-properties))
 	       (query-in-uri (get-query-in-uri action-properties)))
@@ -431,46 +444,53 @@
 		  (else
 		   (format #t "BAD properties=~s~%" (car props))))))))))
 
-(define (make-pattern action-name)
+(define (make-dispatch-entry action-name)
   (cond ((assoc action-name collected-actions)
 	 => (lambda (action)
-	      (make-request-pattern action)))
+	      (make-request-dispatch action)))
 	(else #f)))
 
-;; (make-pattern "AbortMultipartUpload")
-;; (make-pattern "DeleteObjects")
-;; (make-pattern "UploadPartCopy")
+;; (make-dispatch-entry "AbortMultipartUpload")
+;; (make-dispatch-entry "DeleteObjects")
+;; (make-dispatch-entry "UploadPartCopy")
 
-(define (collect-request-patterns all-actions)
-  (let loop ((actions all-actions)
+(define (collect-request-dispatches collected-actions)
+  (let loop ((actions collected-actions)
 	     (acc '()))
     (if (null? actions)
 	acc
-	(let ((pattern (make-request-pattern (car actions))))
+	(let ((pattern (make-request-dispatch (car actions))))
 	  (loop (cdr actions) (append acc (list pattern)))))))
 
-;; (define collected-patterns (collect-request-patterns collected-actions)
+;; (define collected-dispatches (collect-request-dispatches collected-actions)
 
-(define (merge-request-patterns all-actions)
-  ;; Merges request patterns by combining ones with the same
-  ;; method-path pair.
-  (let loop ((patterns (collect-request-patterns all-actions))
+;;;
+;;; STUB PRINTERS
+;;;
+
+;; See (diplay-handler-patterns merged-dispatches).
+
+(define (merge-request-dispatches collected-actions)
+  ;; Merges request dispatch entries by combining ones with the same
+  ;; method-path pair.  It returns an alist with a method-path key and
+  ;; a list of dispatches sharing the same key.
+  (let loop ((entries (collect-request-dispatches collected-actions))
 	     (alist '()))
-    (if (null? patterns)
+    (if (null? entries)
 	alist
-	(match-let* ((pat (car patterns))
-		     ((name method-path query header signature) pat))
+	(match-let* ((dispatch (car entries))
+		     ((name method-path queries headers signature) dispatch))
 	  (cond ((assoc method-path alist)
 		 => (lambda (pair)
-		      (loop (cdr patterns)
-			    (alist-cons method-path (cons pat (cdr pair))
+		      (loop (cdr entries)
+			    (alist-cons method-path (cons dispatch (cdr pair))
 					(alist-delete method-path alist)))))
 		(else
-		 (loop (cdr patterns)
-		       (alist-cons method-path (cons pat '())
+		 (loop (cdr entries)
+		       (alist-cons method-path (cons dispatch '())
 				   alist))))))))
 
-(define merged-requests (merge-request-patterns collected-actions))
+(define merged-dispatches (merge-request-dispatches collected-actions))
 
 (define (make-handler-prologue method path)
   (format #f
@@ -504,10 +524,11 @@
 	       (body (string-append "fn_" name "(w, r)")))
     (make-handler-choice q body)))
 
-(define (diplay-request-patterns merged-requests)
-  (let loop1 ((handlersets merged-requests))
+(define (diplay-handler-patterns merged-dispatches)
+  ;; Prints pseudo code for "ServeMux" handler patterns.
+  (let loop1 ((handlersets merged-dispatches))
     (if (null? handlersets)
-	#t
+	(values)
 	(match-let ((((method path) . handlers) (car handlersets)))
 	  (format #t "~a~%" (make-handler-prologue method path))
 	  (when (string=? path "/")
@@ -515,7 +536,7 @@
 	  (format #t "if false {}~%" (make-handler-prologue method path))
 	  (let loop2 ((handlers handlers))
 	    (if (null? handlers)
-		#t
+		(values)
 		(begin
 		  (format #t "~a~%" (make-choice-clause (car handlers)))
 		  (loop2 (cdr handlers)))))
