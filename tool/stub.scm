@@ -45,6 +45,10 @@
 ;; "x-id=GetObject" "x-id=ListBuckets" "x-id=ListParts"
 ;; "x-id=PutObject" "x-id=UploadPart" "x-id=UploadPartCopy"
 
+;; Note on AWS SDK.  Input parameter "XXXXRequest" in API (and Smithy)
+;; has a name "XXXXInput" in SDK.  "Request" is a wrapper of "Input"
+;; used for invoking an actual remote call.
+
 ;; Golang http server: https://pkg.go.dev/net/http#ServeMux
 
 (import
@@ -55,6 +59,7 @@
  (ice-9 popen)
  (ice-9 format)
  (ice-9 match)
+ (ice-9 string-fun) ;; string-replace-substring
  ;;(scheme base)
  (only (scheme base) define-record-type textual-port? write-string)
  (only (scheme base) vector-map vector-for-each vector->list)
@@ -252,7 +257,7 @@
 ;; - "smithy.api#required": {}
 ;;   - indicates it is a required parameter.
 
-(define (get-request-slot-properties request-structure)
+(define (itemize-request-slot-properties request-structure)
   ;; Extracts parameters of a request structure of
   ;; "com.amazonaws.s3#XXXXRequest".  It returns a list of four-lists
   ;; (required locus name slot).  A locus indicates where a parameter
@@ -309,7 +314,7 @@
 	 (response (cadr names))
 	 (slot (string-append "com.amazonaws.s3#" request))
 	 (request-structure (assoc-option (string->symbol slot) s3-api))
-	 (properties2 (get-request-slot-properties request-structure)))
+	 (properties2 (itemize-request-slot-properties request-structure)))
     (list action-name names properties1 properties2)))
 
 (define (collect-actions)
@@ -478,10 +483,10 @@
 	     (acc '()))
     (if (null? actions)
 	acc
-	(let ((pattern (make-request-dispatch (car actions))))
-	  (loop (cdr actions) (append acc (list pattern)))))))
+	(let ((dispatch (make-request-dispatch (car actions))))
+	  (loop (cdr actions) (append acc (list dispatch)))))))
 
-;; (define collected-dispatches (collect-request-dispatches collected-actions)
+(define collected-dispatches (collect-request-dispatches collected-actions))
 
 ;;;
 ;;; DISPATCHER STUB PRINTER
@@ -658,34 +663,35 @@
 
 ;; RUN (display-handlers merged-dispatches).
 
-(define (make-handler-prologue dispatch)
-  (match-let* (((name _ queries headers signature) dispatch))
-    (format #f "func h_~a(w http.ResponseWriter, r *http.Request) {"
-	    name)))
-
-(define (make-handler-epilogue dispatch)
-  "}")
-
-(define (fix-input-structure-name request)
+(define (adjust-input-structure-name request)
   (string-replace-substring request "Request" "Input"))
 
-(define (make-input-output-prologue dispatch)
-  (match-let* (((name _ queries headers signature) dispatch)
-	       ((request output) signature)
-	       (input (fix-input-structure-name request)))
-    (format #f "var i = s3.~a{" input)))
+(define (make-handler-prologue name)
+  (list
+   (format #f "func h_~a(w http.ResponseWriter, r *http.Request) {"
+	   name)))
 
-(define (make-input-epilogue dispatch)
-  "}")
+(define (make-handler-epilogue name)
+  (list "}"))
 
-'(define (make-input-structure request-name)
-  ;; Makes assignments to structure "com.amazonaws.s3#XXXXRequest".
-  ;; Note the structure name in the SDK is "s3#XXXXInput".  Each slot
+(define (make-input-output-prologue request-name)
+  (match-let* ((input (adjust-input-structure-name request-name)))
+    (list "{"
+	  "var q = r.URL.Query()"
+	  "var h = r.Header"
+	  (format #f "var i = s3.~a{}" input))))
+
+(define (make-input-epilogue request-name)
+  (list))
+
+(define (make-input-assignments request-name)
+  ;; Makes assignments to structure "s3.XXXXInput" in AWS SDK.  The
+  ;; structure name is "XXXXRequest" in the API and Smithy.  Each slot
   ;; property is a list of (required locus name slot).
-  (let* ((input-name (fix-input-structure-name request-name))
+  (let* ((input-name (adjust-input-structure-name request-name))
 	 (key (string-append "com.amazonaws.s3#" request-name))
 	 (request-structure (assoc-option (string->symbol key) s3-api))
-	 (props (get-request-slot-properties request-structure)))
+	 (props (itemize-request-slot-properties request-structure)))
     (let loop ((props props)
 	       (acc '()))
       (if (null? props)
@@ -697,14 +703,42 @@
 	      ((path)
 	       (loop (cdr props) acc))
 	      ((query)
-	       (let ((assigner
-		      (format #f "o.~a = q.Get(~s)%"
-			      (make-registering-prologue method path))))))
+	       (let ((setter (format #f "i.~a = q.Get(~s)" slot name)))
+		 (loop (cdr props) (append acc (list setter)))))
 	      ((header)
-	       (loop (cdr props)
-		     queries-acc
-		     (append headers-acc (list name))))
+	       (let ((setter (format #f "i.~a = h.Get(~s)" slot name)))
+		 (loop (cdr props) (append acc (list setter)))))
 	      ((body)
-	       (loop (cdr props) queries-acc headers-acc))
+	       (let ((setter
+		      (list
+		       (format #f "{")
+		       (format #f "var x s3.~a" name)
+		       (format #f "var bs, err1 = io.ReadAll(r.Body)")
+		       (format #f "var err2 = xml.Unmarshal(bs, &x)")
+		       (format #f "if err2 != nil {return invalid_request()}")
+		       (format #f "i.~a = x" slot)
+		       (format #f "}"))))
+		 (loop (cdr props) (append acc setter))))
 	      (else
 	       (format #t "BAD properties=~s~%" (car props)))))))))
+
+(define (make-handler-call name)
+  (list
+   (format #f "var o = s3bbs.~a(i)" name)
+   (format #f "s3bbs.reply_response(o)")))
+
+;; (make-input-assignments "PutObjectTaggingRequest")
+
+(define (display-handler-call dispatch)
+  (match-let* (((name _ queries headers signature) dispatch)
+	       ((request-name response-name) signature))
+    (let* ((s1 (make-handler-prologue name))
+	   (s2 (make-input-output-prologue request-name))
+	   (s3 (make-input-assignments request-name))
+	   (s4 (make-input-epilogue request-name))
+	   (s5 (make-handler-call name))
+	   (s6 (make-handler-epilogue name))
+	   (ss (append s1 s2 s3 s4 s5 s6)))
+      (format #t "~a~%" (apply string-append (intervene-separator ss "\n"))))))
+
+;; (display-handler-call (car collected-dispatches))
