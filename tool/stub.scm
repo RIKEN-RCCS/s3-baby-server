@@ -1,8 +1,9 @@
 ;; stub.scm (2025-10-16)
 
-;; Ad-hoc server stub generator.  IT DOES NOT GENERATE WORKING CODE.
-;; This generates dispatcher code for S3 requests.  It reads "s3.json"
-;; in Smithy-2.0 and generates a skeleton for dispatcher code.
+;; Ad-hoc server stub generator.  IT NEVER EVER GENERATES WORKING
+;; CODE.  This generates dispatcher code for S3 requests.  It reads
+;; "s3.json" in Smithy-2.0 and generates a skeleton for dispatcher
+;; code.
 
 ;; This is for "guile --r7rs".  It is tested GNU Guile 3.0.10.
 
@@ -334,9 +335,9 @@
 
 ;; See (collect-request-dispatches collected-actions).
 
-(define (get-query-in-uri ban-x-id action-properties)
+(define (get-query-in-uri drop-x-id action-properties)
   ;; Finds an optional query key and returns it as a list: '(query) or
-  ;; '().  It excludes "x-id"-key if ban-x-id is #t.  Query keys look
+  ;; '().  It excludes "x-id"-key if drop-x-id is #t.  Query keys look
   ;; like: "/{Bucket}/{Key+}?uploads", "/{Bucket}/{Key+}?tagging",
   ;; "/{Bucket}?delete".
   (match-let (((method uri code) action-properties))
@@ -346,32 +347,12 @@
       (cond ((string-match pat uri)
 	     => (lambda (m)
 		  (let ((name (substring uri (+ (car (vector-ref m 1)) 1))))
-		    (if (and ban-x-id (string-prefix? "x-id=" name))
+		    (if (and drop-x-id (string-prefix? "x-id=" name))
 			'()
 			(list name)))))
 	    (else '())))))
 
-(define (collect-all-required-parameters collected-actions)
-  (let loop ((actions collected-actions)
-	     (queries-acc '())
-	     (headers-acc '()))
-    (if (null? actions)
-	(list (delete-duplicates queries-acc string=?)
-	      (delete-duplicates headers-acc string=?))
-	(match-let (((action-name request-response-names
-				  action-properties request-properties)
-		     (car actions)))
-	  ;;-(call-with-values (lambda () (apply values (car actions)))
-	  ;;-  (lambda (action-name request-response-names
-	  ;;-		       action-properties request-properties)
-	  (format #t "collect-all-required-parameters on ~s~%" action-name)
-	  (let ((query-in-uri (get-query-in-uri #t action-properties)))
-	    (let ((pair (collect-required-parameters request-properties)))
-	      (loop (cdr actions)
-		    (append queries-acc query-in-uri (car pair))
-		    (append headers-acc (cadr pair)))))))))
-
-(define (collect-required-parameters request-properties)
+(define (collect-required-parameters~ request-properties)
   (let loop ((props request-properties)
 	     (queries-acc '())
 	     (headers-acc '()))
@@ -401,9 +382,29 @@
 		(else
 		 (format #t "BAD properties=~s~%" (car props)))))))))
 
-(define parameter-pair (collect-all-required-parameters collected-actions))
-(define required-queries (delete "x-id=" (car parameter-pair) string-prefix?))
-(define required-headers (cadr parameter-pair))
+(define (collect-all-required-parameters~ collected-actions)
+  (let loop ((actions collected-actions)
+	     (queries-acc '())
+	     (headers-acc '()))
+    (if (null? actions)
+	(list (delete-duplicates queries-acc string=?)
+	      (delete-duplicates headers-acc string=?))
+	(match-let (((action-name request-response-names
+				  action-properties request-properties)
+		     (car actions)))
+	  ;;-(call-with-values (lambda () (apply values (car actions)))
+	  ;;-  (lambda (action-name request-response-names
+	  ;;-		       action-properties request-properties)
+	  (format #t "collect-all-required-parameters on ~s~%" action-name)
+	  (let ((query-in-uri (get-query-in-uri #t action-properties)))
+	    (let ((pair (collect-required-parameters~ request-properties)))
+	      (loop (cdr actions)
+		    (append queries-acc query-in-uri (car pair))
+		    (append headers-acc (cadr pair)))))))))
+
+(define parameter-pair~ (collect-all-required-parameters~ collected-actions))
+(define required-queries~ (delete "x-id=" (car parameter-pair~) string-prefix?))
+(define required-headers~ (cadr parameter-pair~))
 
 ;; There are only a few occurring url patterns: {"/", "/{Bucket}",
 ;; "/{Bucket}/{Key+}"}.
@@ -492,7 +493,7 @@
 ;;; DISPATCHER STUB PRINTER
 ;;;
 
-;; RUN (display-dispatcher merged-dispatches).
+;; RUN (display-dispatcher list-of-dispatches).
 
 ;; About Golang net/http server.  Headers can be accessed in
 ;; Request.Header which is type Header (a map).  Queries can be
@@ -502,7 +503,8 @@
   ;; Merges request dispatch entries by combining ones with the same
   ;; method-path pair.  It returns an alist with a method-path key and
   ;; a list of dispatches sharing the same key.
-  (let loop ((entries (collect-request-dispatches collected-actions))
+  (let loop ((entries collected-dispatches)
+	     ;;(entries (collect-request-dispatches collected-actions))
 	     (alist '()))
     (if (null? entries)
 	alist
@@ -661,14 +663,14 @@
 ;;; HANDLER STUB PRINTER
 ;;;
 
-;; RUN (display-handlers merged-dispatches).
+;; RUN (display-handler-call (car collected-dispatches)).
 
 (define (adjust-input-structure-name request)
   (string-replace-substring request "Request" "Input"))
 
 (define (make-handler-prologue name)
   (list
-   (format #f "func h_~a(w http.ResponseWriter, r *http.Request) {"
+   (format #f "func h_~a(bbs *service.S3Service2, w http.ResponseWriter, r *http.Request) {"
 	   name)))
 
 (define (make-handler-epilogue name)
@@ -676,16 +678,16 @@
 
 (define (make-input-output-prologue request-name)
   (match-let* ((input (adjust-input-structure-name request-name)))
-    (list "{"
-	  "var q = r.URL.Query()"
-	  "var h = r.Header"
+    (list "var qi = r.URL.Query()"
+	  "var hi = r.Header"
+	  "var ho = w.Header"
 	  (format #f "var i = s3.~a{}" input))))
 
-(define (make-input-epilogue request-name)
+(define (make-input-epilogue~ request-name)
   (list))
 
 (define (make-input-assignments request-name)
-  ;; Makes assignments to structure "s3.XXXXInput" in AWS SDK.  The
+  ;; Makes assignments to structure "s3.XXXXInput" of AWS SDK.  The
   ;; structure name is "XXXXRequest" in the API and Smithy.  Each slot
   ;; property is a list of (required locus name slot).
   (let* ((input-name (adjust-input-structure-name request-name))
@@ -703,10 +705,10 @@
 	      ((path)
 	       (loop (cdr props) acc))
 	      ((query)
-	       (let ((setter (format #f "i.~a = q.Get(~s)" slot name)))
+	       (let ((setter (format #f "i.~a = qi.Get(~s)" slot name)))
 		 (loop (cdr props) (append acc (list setter)))))
 	      ((header)
-	       (let ((setter (format #f "i.~a = h.Get(~s)" slot name)))
+	       (let ((setter (format #f "i.~a = hi.Get(~s)" slot name)))
 		 (loop (cdr props) (append acc (list setter)))))
 	      ((body)
 	       (let ((setter
@@ -722,10 +724,51 @@
 	      (else
 	       (format #t "BAD properties=~s~%" (car props)))))))))
 
+(define (make-output-extraction response-name)
+  ;; Makes extraction from structure "s3.XXXXOutput" of AWS SDK.  Each
+  ;; slot property is a list of (required locus name slot).
+  (let* ((input-name (adjust-input-structure-name response-name))
+	 (key (string-append "com.amazonaws.s3#" response-name))
+	 (response-structure (assoc-option (string->symbol key) s3-api))
+	 (props (itemize-request-slot-properties response-structure)))
+    (let loop ((props props)
+	       (acc '()))
+      (if (null? props)
+	  acc
+	  (match-let (((required locus name slot) (car props)))
+	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
+		    required locus name slot)
+	    (case locus
+	      ((path)
+	       (loop (cdr props) acc))
+	      ((query)
+	       (begin
+		 (format #t "BAD query in response: ~s~%" name)
+		 (values)))
+	      ((header)
+	       (let ((setter (format #f "ho.Add(~s, o.~a)" name slot)))
+		 (loop (cdr props) (append acc (list setter)))))
+	      ((body)
+	       (begin
+		 (format #t "BAD query in response: ~s~%" name)
+		 (values)))
+	      (else
+	       (format #t "BAD properties=~s~%" (car props)))))))))
+
+;; (make-output-extraction "ListPartsOutput")
+
+(define (make-output-body-extraction)
+  (list
+   "ho.Set(\"Content-Type\", \"application/xml\")"
+   "var co, err5 = xml.MarshalIndent(o, \" \", \"  \")"
+   "if err5 != nil {bbs.logger.Error(\"\", \"error\", err5)}"
+   "w.WriteHeader(status)"
+   "var _, err6 = w.Write(co)"
+   "if err6 != nil {bbs.Logger.Error(\"\", \"error\", err6)}"))
+
 (define (make-handler-call name)
   (list
-   (format #f "var o = s3bbs.~a(i)" name)
-   (format #f "s3bbs.reply_response(o)")))
+   (format #f "var o = bbs.~a(i)" name)))
 
 ;; (make-input-assignments "PutObjectTaggingRequest")
 
@@ -735,10 +778,11 @@
     (let* ((s1 (make-handler-prologue name))
 	   (s2 (make-input-output-prologue request-name))
 	   (s3 (make-input-assignments request-name))
-	   (s4 (make-input-epilogue request-name))
 	   (s5 (make-handler-call name))
-	   (s6 (make-handler-epilogue name))
-	   (ss (append s1 s2 s3 s4 s5 s6)))
+	   (s6 (make-output-extraction response-name))
+	   (s7 (make-output-body-extraction))
+	   (s8 (make-handler-epilogue name))
+	   (ss (append s1 s2 s3 s5 s6 s7 s8)))
       (format #t "~a~%" (apply string-append (intervene-separator ss "\n"))))))
 
-;; (display-handler-call (car collected-dispatches))
+;; (display-handler-call (assoc "ListParts" collected-dispatches))
