@@ -5,18 +5,18 @@
 ;; "s3.json" in Smithy-2.0 and generates a skeleton for dispatcher
 ;; code.
 
-;; This is for "guile --r7rs".  It is tested GNU Guile 3.0.10.
+;; This is for "guile --r7rs" and tested with GNU Guile-3.0.10.
 
 ;; Smithy syntax is described in: https://smithy.io/2.0/spec/idl.html
 ;; "+"-qualified element as in {Key+} matches one or more path
 ;; segments (never empty).  It is called greedy labels in
 ;; "14.1.2.4. Greedy labels".
 
-;; ENTRY STRUCTURE OF "s3.json".  Outer most structure:
+;; ENTRY STRUCTURE OF "s3.json".  The outermost structure is:
 ;;
 ;; - {"metadata": {...}, "shapes": {...most of the contents...}}
 ;;
-;; Entries of "shapes" part:
+;; Entries of "shapes" part is:
 ;;
 ;; - "com.amazonaws.s3#Bucket": {"type": "structure", ...}
 ;; - "com.amazonaws.s3#UploadPart": {"type": "operation", ...}
@@ -32,13 +32,14 @@
 ;;     - "uri": "/{Bucket}/{Key+}?x-id=UploadPart",
 ;;     - ...
 
-;; The sets of possibly required parameters (of query and header) are
-;; small.  The set {"uploadId", "partNumber"} for query.  The set
-;; {"x-amz-copy-source", "x-amz-object-attributes"} for header.  Some
-;; required query parameters are defined in a uri pattern:
-;; {"attributes", "delete", "list-type=2", "tagging", "uploads"}.  For
-;; example, "/{Bucket}/{Key+}?tagging" on "ObjectTagging", and
-;; "/{Bucket}?delete" on "DeleteObjects".  "list-type=2" is for
+;; The set of potentially required parameters (in query and header) is
+;; small.  The set {"uploadId", "partNumber"} is for query.  The set
+;; {"attributes", "delete", "list-type=2", "tagging", "uploads"} is
+;; also query parameters but defined in a uri pattern.  The set
+;; {"x-amz-copy-source", "x-amz-object-attributes"} is for header.
+;; For example, query parameters are defined in
+;; "/{Bucket}/{Key+}?tagging" (for "ObjectTagging"), and
+;; "/{Bucket}?delete" (for "DeleteObjects").  "list-type=2" is for
 ;; ListObjectsV2.
 ;;
 ;; Some actions have its action name in query:
@@ -113,12 +114,11 @@
     "UploadPartCopy"))
 
 (define (assoc-option k alist)
-  ;; Assoc but returns the cdr part or #f, also accepts #f as an
-  ;; alist.
+  ;; Assoc but returns the cdr part of it or #f.  It #f as an alist.
   (if (eqv? alist #f)
       #f
       (cond ((assoc k alist)
-	     => (lambda (p) (cdr p)))
+	     => (lambda (pair) (cdr pair)))
 	    (else #f))))
 
 (define (assoc-with-default default k alist)
@@ -199,41 +199,47 @@
   (let ((key (string-append "com.amazonaws.s3#" action-name)))
     (assoc-option (string->symbol key) s3-api)))
 
-(define (find-request-and-response-name action-structure)
-  ;; Returns a pair of input structure names of request and response,
-  ;; like "XXXXRequest" and "XXXXOutput".  Note slot names look like:
+(define (drop-prefix prefix name)
+  ;; Drops the prefix part from the name string.  It assumes the name
+  ;; begins with a prefix.
+  (assert (string-prefix? prefix name))
+  (substring name (string-length prefix)))
+
+(define (find-exchange-signature action-structure)
+  ;; Returns a request/response name pair ("XXXXRequest"
+  ;; "XXXXOutput").  It returns "Unit" for output, when no output is
+  ;; expected.  Note the full structure names look like:
   ;; "com.amazonaws.s3#XXXXRequest" and "com.amazonaws.s3#XXXXOutput".
-  (let ((r1 (cdr (assoc 'target (cdr (assoc 'input action-structure)))))
-	(q1 (cdr (assoc 'target (cdr (assoc 'output action-structure)))))
+  (let ((r1 (assoc-option 'target (assoc-option 'input action-structure)))
+	(q1 (assoc-option 'target (assoc-option 'output action-structure)))
 	(prefix "com.amazonaws.s3#"))
+    (assert (and (string=? r1) (string=? q1)))
     (assert (not (string=? "smithy.api#Unit" r1)))
-    (let ((r2 (cond (#t
-		     (assert (string-prefix? prefix r1))
-		     (substring r1 (string-length prefix)))))
+    (let ((r2 (drop-prefix prefix r1))
 	  (q2 (cond ((string=? "smithy.api#Unit" q1)
 		     "Unit")
 		    (else
-		     (assert (string-prefix? prefix q1))
-		     (substring q1 (string-length prefix))))))
+		     (drop-prefix prefix q1)))))
       (list r2 q2))))
 
-(define (find-request-structure action-structure)
-  (let* ((names (find-request-and-response-name action-structure))
-	 (slot (string-append "com.amazonaws.s3#" (car names))))
-    (cdr (assoc (string->symbol slot) s3-api))))
+(define (find-request-structure~ action-structure)
+  (let* ((signature (find-exchange-signature action-structure))
+	 (slot-name (string-append "com.amazonaws.s3#" (car signature))))
+    (cdr (assoc (string->symbol slot-name) s3-api))))
 
 (define (find-response-structure action-structure)
-  (let* ((names (find-request-and-response-name action-structure))
-	 (slot (string-append "com.amazonaws.s3#" (cadr names))))
-    (cdr (assoc (string->symbol slot) s3-api))))
+  (let* ((signature (find-exchange-signature action-structure))
+	 (slot-name (string-append "com.amazonaws.s3#" (cadr signature))))
+    (cdr (assoc (string->symbol slot-name) s3-api))))
 
 ;; Note the "traits" slot of an action-structure indicates the method
 ;; of a request.  It is under "smithy.api#http", and has the
 ;; properties of "method", "uri", "code".
 
-(define (get-action-properties action-structure)
-  ;; Extracts the method of an action.  It return a list of method,
-  ;; uri-path-pattern, and code.
+(define (itemize-action-properties action-structure)
+  ;; Extracts the method of an action.  It return a three-tuple of
+  ;; (method uri-path-pattern code).  Method is a http method name,
+  ;; and code is an http status code 200.
   (cond ((assoc-option '#{smithy.api#http}#
 		       (assoc-option 'traits action-structure))
 	 => (lambda (method)
@@ -258,34 +264,20 @@
 ;; - "smithy.api#required": {}
 ;;   - indicates it is a required parameter.
 
-(define (itemize-request-slot-properties request-structure)
-  ;; Extracts parameters of a request structure of
-  ;; "com.amazonaws.s3#XXXXRequest".  It returns a list of four-lists
-  ;; (required locus name slot).  A locus indicates where a parameter
-  ;; is passed, and it is one of 'path, 'query, 'header, or 'body.  If
-  ;; locus=body and name=#f, it means the value is a whole payload.  A
-  ;; slot is a slot name of a request strucuture.
-  (let ((members (cdr (assoc 'members request-structure))))
-    (let loop ((members members)
-	       (acc '()))
-      (if (null? members)
-	  acc
-	  (let* ((e (car members))
-		 (prop (get-slot-properties e)))
-	    (if (eqv? prop #f)
-		(loop (cdr members) acc)
-		(loop (cdr members) (append acc (cons prop '())))))))))
-
 (define (get-slot-properties m)
   ;; Admits an element of a "members" slot, and returns a list of
-  ;; (required locus name slot) of request parameters.
+  ;; four-tuples (required locus name slot) of request parameters.  A
+  ;; name is in an xml tag, a slot is a structure slot name.
   (let* ((slot (symbol->string (car m)))
 	(traits (assoc-with-default '() 'traits (cdr m)))
 	(required (cond ((assoc '#{smithy.api#required}# traits) #t)
-			(else #f))))
+			(else #f)))
+	(name (cond ((assoc '#{smithy.api#xmlName}# traits)
+		     => (lambda (pair) (cdr pair)))
+		    (else slot))))
     (cond ((assoc-option '#{smithy.api#httpLabel}# traits)
 	   => (lambda (_)
-		(list required 'path slot slot)))
+		(list required 'path name slot)))
 	  ((assoc-option '#{smithy.api#httpQuery}# traits)
 	   => (lambda (v)
 		(list required 'query v slot)))
@@ -298,25 +290,59 @@
 	  ((assoc-option '#{smithy.api#httpPayload}# traits)
 	   => (lambda (_)
 		(let ((n (assoc-option '#{smithy.api#xmlName}# traits)))
-		  ;; (* body with #f is content payload. *)
-		  (list required 'body n slot))))
-	  (else #f))))
+		  ;; (* BODY WITH NAME=#F IS CONTENT PAYLOAD. *)
+		  (list required 'body name slot))))
+	  ((assoc-option '#{smithy.api#xmlFlattened}# traits)
+	   => (lambda (_)
+		;; (* IGNORE FLATTENED *)
+		(list required 'body name slot)))
+	  (else
+	   ;; (* EMPTY TRAITS IS AN XML ELEMENT. *)
+	   (list required 'body name slot)))))
+
+(define (itemize-slot-properties exchange-structure)
+  ;; Extracts parameters of a request/response structure of
+  ;; "com.amazonaws.s3#XXXXRequest" and "com.amazonaws.s3#XXXXOutput".
+  ;; It returns a list of four-tuples (required locus name slot).  A
+  ;; locus indicates where a parameter is passed, and it is one of
+  ;; 'path, 'query, 'header, or 'body.  If locus=body and name=#f, it
+  ;; means the value is a whole payload.  A slot is a slot name of a
+  ;; request strucuture.
+  (let ((members (cdr (assoc 'members exchange-structure))))
+    (let loop ((members members)
+	       (acc '()))
+      (if (null? members)
+	  acc
+	  (let* ((e (car members))
+		 (prop (get-slot-properties e)))
+	    (if (eqv? prop #f)
+		(loop (cdr members) acc)
+		(loop (cdr members) (append acc (cons prop '())))))))))
+
+(define (find-slot-properties exchange-structure-name)
+  (let* ((prefix "com.amazonaws.s3#")
+	 (slot-name (string-append prefix exchange-structure-name))
+	 (exchange-structure (assoc-option (string->symbol slot-name) s3-api)))
+    (itemize-slot-properties exchange-structure)))
+
+;; (find-slot-properties "ListPartsOutput")
 
 (define (describe-action action-name)
-  ;; Returns a list of (action-name request-response-names
-  ;; action-properties request-properties).
+  ;; Returns a list of (action-name signature action-properties
+  ;; request-properties).  A signature is a pair of request/response
+  ;; names.
   (format #t "looking at action=~a~%" action-name)
   (let* (;;(key (string-append "com.amazonaws.s3#" action-name))
 	 ;;(assoc-option (string->symbol key) s3-api))
 	 (action-structure (find-action-structure action-name))
-	 (properties1 (get-action-properties action-structure))
-	 (names (find-request-and-response-name action-structure))
-	 (request (car names))
-	 (response (cadr names))
-	 (slot (string-append "com.amazonaws.s3#" request))
-	 (request-structure (assoc-option (string->symbol slot) s3-api))
-	 (properties2 (itemize-request-slot-properties request-structure)))
-    (list action-name names properties1 properties2)))
+	 (properties1 (itemize-action-properties action-structure))
+	 (signature (find-exchange-signature action-structure))
+	 (request (car signature))
+	 (response (cadr signature))
+	 (slot-name (string-append "com.amazonaws.s3#" request))
+	 (request-structure (assoc-option (string->symbol slot-name) s3-api))
+	 (properties2 (itemize-slot-properties request-structure)))
+    (list action-name signature properties1 properties2)))
 
 (define (collect-actions)
   (let loop ((names list-of-action-names)
@@ -660,13 +686,75 @@
 ;; (display-dispatcher list-of-dispatches)
 
 ;;;
+;;; RESPONSE MARSHALER PRINTER
+;;;
+
+(define (adjust-input-structure-name request)
+  (string-replace-substring request "Request" "Input"))
+
+(define (adjust-output-structure-name request)
+  (string-replace-substring request "Output" "Response"))
+
+(define (make-output-marshaler response-name)
+  ;; Makes extraction from structure "s3.XXXXOutput" of AWS SDK.  Each
+  ;; slot property is a list of (required locus name slot).
+  (let* ((input-name (adjust-input-structure-name response-name))
+	 (key (string-append "com.amazonaws.s3#" response-name))
+	 (response-structure (assoc-option (string->symbol key) s3-api))
+	 (props (itemize-slot-properties response-structure)))
+    (let loop ((props props)
+	       (acc '()))
+      (if (null? props)
+	  acc
+	  (match-let (((required locus name slot) (car props)))
+	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
+		    required locus name slot)
+	    (case locus
+	      ((path)
+	       (loop (cdr props) acc))
+	      ((query)
+	       (begin
+		 (format #t "BAD query in response: ~s~%" name)
+		 (values)))
+	      ((header)
+	       (let ((setter (format #f "ho.Add(~s, o.~a)" name slot)))
+		 (loop (cdr props) (append acc (list setter)))))
+	      ((body)
+	       (begin
+		 (format #t "BAD query in response: ~s~%" name)
+		 (values)))
+	      (else
+	       (format #t "BAD properties=~s~%" (car props)))))))))
+
+'(define (make-repsonse-marshaler output-name response-name)
+  (list
+   (format #f "type ~a struct {s3.~a}" response-name output-name)
+   (format #f "func (r ~a) MarshalXML(e *xml.Encoder, start xml.StartElement) error {"
+	   response-name)
+   (format #f "var err1 = e.EncodeToken(start)")
+   (format #f "if err1 != nil {}")
+
+   e.EncodeElement(r.Bucket, s("Bucket"))
+   e.EncodeElement(r.Key, s("Key"))
+   e.EncodeElement(r.PartNumberMarker, s("PartNumberMarker"))
+   e.EncodeElement(r.MaxParts, s("MaxParts"))
+   e.EncodeElement(r.NextPartNumberMarker, s("NextPartNumberMarker"))
+   e.EncodeElement(r.Parts, s("Part"))
+   (format #f "var err9 = e.EncodeToken(start.End())")
+   (format #f "if err9 != nil {}")
+   (format #f "return nil}")))
+
+'(define (display-repsonse-marshaler dispatch)
+  (match-let* (((name _ queries headers signature) dispatch)
+	       ((request-name response-name) signature)
+	       (input-name (adjust-input-structure-name request-name))
+	       (output-name (adjust-output-structure-name response-name)))))
+
+;;;
 ;;; HANDLER STUB PRINTER
 ;;;
 
 ;; RUN (display-handler-call (car collected-dispatches)).
-
-(define (adjust-input-structure-name request)
-  (string-replace-substring request "Request" "Input"))
 
 (define (make-handler-prologue name)
   (list
@@ -693,7 +781,7 @@
   (let* ((input-name (adjust-input-structure-name request-name))
 	 (key (string-append "com.amazonaws.s3#" request-name))
 	 (request-structure (assoc-option (string->symbol key) s3-api))
-	 (props (itemize-request-slot-properties request-structure)))
+	 (props (itemize-slot-properties request-structure)))
     (let loop ((props props)
 	       (acc '()))
       (if (null? props)
@@ -730,7 +818,7 @@
   (let* ((input-name (adjust-input-structure-name response-name))
 	 (key (string-append "com.amazonaws.s3#" response-name))
 	 (response-structure (assoc-option (string->symbol key) s3-api))
-	 (props (itemize-request-slot-properties response-structure)))
+	 (props (itemize-slot-properties response-structure)))
     (let loop ((props props)
 	       (acc '()))
       (if (null? props)
@@ -750,8 +838,8 @@
 		 (loop (cdr props) (append acc (list setter)))))
 	      ((body)
 	       (begin
-		 (format #t "BAD query in response: ~s~%" name)
-		 (values)))
+		 (format #t "Skip body in response: ~s~%" name)
+		 (loop (cdr props) acc)))
 	      (else
 	       (format #t "BAD properties=~s~%" (car props)))))))))
 

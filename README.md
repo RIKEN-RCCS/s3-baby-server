@@ -2,7 +2,7 @@
 
 ## Running a server
 
-./s3-baby-server serve ~/pool-s3bbs --addr 127.0.0.1:9000 --auth-key s3baby,s3baby
+./s3-baby-server serve http://127.0.0.1:9000 ~/pool-s3bbs --cred s3baby,s3baby
 
 ## NEED FIX
 
