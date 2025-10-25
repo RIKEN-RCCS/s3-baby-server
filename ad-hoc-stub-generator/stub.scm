@@ -163,7 +163,7 @@
 		  (substitute-string suffix key val)))))
 	  (else s))))
 
-(define (intervene-separator v separator)
+(define (intervene-separator separator v)
   ;; Makes '(1 2 3) to '(1 sep 2 sep 3).
   (if (null? v)
       '()
@@ -176,7 +176,7 @@
 
 (define (append-strings v separator)
   ;; Appends strings with an intervening separator.
-  (apply string-append (intervene-separator v separator)))
+  (apply string-append (intervene-separator separator v)))
 
 ;;;
 ;;; LOADING S3.JSON
@@ -243,8 +243,8 @@
 ;; of a request.  It is under "smithy.api#http", and has the
 ;; properties of "method", "uri", "code".
 
-(define (itemize-action-properties action-structure)
-  ;; Extracts the method of an action.  It return a three-tuple of
+(define (itemize-action-property action-structure)
+  ;; Extracts the method of an action.  It return a three-tuple
   ;; (method uri-path-pattern code).  Method is a http method name,
   ;; and code is an http status code 200.
   (cond ((assoc-option '#{smithy.api#http}#
@@ -329,13 +329,13 @@
   (string-replace-substring response "Response" "Output"))
 
 (define (describe-action action-name)
-  ;; Returns a list of (action-name signature action-properties
+  ;; Returns a list of (action-name signature action-property
   ;; request-properties response-properties).  A signature is a pair
   ;; of request/response names.  It renames the response name from
   ;; "XXXXOutput" to "XXXResponse".
-  (when tr? (format #t ";; looking at action=~a~%" action-name))
+  (when tr? (format #t ";; describe-action ~a~%" action-name))
   (let* ((action-structure (find-action-structure action-name))
-	 (properties1 (itemize-action-properties action-structure))
+	 (properties1 (itemize-action-property action-structure))
 	 (signature (find-exchange-signature action-structure))
 	 (request-name (car signature))
 	 (response-name (cadr signature))
@@ -357,13 +357,13 @@
 ;;
 ;; See (collect-request-dispatches collected-actions)
 
-(define (get-query-in-uri drop-x-id action-properties)
+(define (get-query-in-uri drop-x-id action-property)
   ;; Finds an optional query key and returns it as a list: (query) or
   ;; '().  It excludes "x-id"-key if drop-x-id is #t.  Query keys look
   ;; like: "/{Bucket}/{Key+}?uploads", "/{Bucket}/{Key+}?tagging",
   ;; "/{Bucket}?delete".
-  (match-let (((method uri code) action-properties))
-    ;;-(call-with-values (lambda () (apply values action-properties))
+  (match-let (((method uri code) action-property))
+    ;;-(call-with-values (lambda () (apply values action-property))
     ;;-  (lambda (method uri code)
     (let ((pat (regexp-quote "?")))
       (cond ((string-match pat uri)
@@ -387,13 +387,13 @@
 	     #t))
 	  (else #f)))
 
-(define (get-uri-method-path action-properties)
+(define (get-uri-method-path action-property)
   ;; Returns a url method and pattern pair.  It replaces "/{Bucket}" to
   ;; "/{bucket}", "/{Bucket}/{Key+}" to "/{bucket}/{key...}", See the
   ;; "ServeMux" description for url patterns of Golang's httpd:
   ;; https://pkg.go.dev/net/http#ServeMux
-  (match-let (((method uri code) action-properties))
-    ;;-(call-with-values (lambda () (apply values action-properties))
+  (match-let (((method uri code) action-property))
+    ;;-(call-with-values (lambda () (apply values action-property))
     ;;-  (lambda (method uri code)
     (cond ((check-uri-prefix? "/{Bucket}/{Key+}" uri)
 	   (list method "/{bucket}/{key...}"))
@@ -408,17 +408,18 @@
 (define (make-request-dispatch action)
   ;; Makes a dispatch entry, and returns a list of (name method-path
   ;; queries headers signature).
-  (match-let* (((name signature action-properties request-properties _) action)
-	       (method-path (get-uri-method-path action-properties))
-	       (query-in-uri (get-query-in-uri #t action-properties)))
+  (match-let* (((name signature action-property request-properties _) action)
+	       (method-path (get-uri-method-path action-property))
+	       (query-in-uri (get-query-in-uri #t action-property)))
+    (when tr? (format #t ";; make-request-dispatch ~s~%" name))
     (let loop ((props request-properties)
 	       (queries-acc query-in-uri)
 	       (headers-acc '()))
       (if (null? props)
 	  (list name method-path queries-acc headers-acc signature)
 	  (match-let (((slot name locus required) (car props)))
-	    (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
-			      slot name locus required))
+	    ;; (when tr? (format #t ";; slot=~s name=~s locus=~s required=~s~%"
+	    ;; slot name locus required))
 	    (if (not required)
 		(loop (cdr props) queries-acc headers-acc)
 		(case locus
@@ -533,24 +534,6 @@
 (define merged-dispatches (merge-request-dispatches collected-actions))
 (define list-of-dispatches (sort-dispatches merged-dispatches))
 
-(define (make-registering-prologue method path)
-  (format #f
-	  "sx.HandleFunc(\"~a ~a\", ~a {"
-	  method path "func(w http.ResponseWriter, r *http.Request)"))
-
-(define (make-registering-epilogue)
-  "else {http.NotFound(w, r) return}})")
-
-(define (make-check-root-conditional)
-  "if r.URL.Path != \"/\" {http.NotFound(w, r) return}")
-
-(define (make-dispatch-choice q body)
-  (format #f "else if ~a {~a}" q body))
-
-(define (make-fetch-prologue)
-  (values "var q = r.URL.Query()"
-	  "var h = r.Header"))
-
 (define (make-variable-name s)
   (string-map (lambda (c) (if (or (eqv? c #\-) (eqv? c #\=)) #\_ c))
 	      (string-downcase s)))
@@ -578,10 +561,12 @@
 (define (make-choice-clause dispatch)
   (match-let* (((name _ queries headers signature) dispatch)
 	       (q (make-conditionals (append queries headers)))
-	       (body (string-append "h_" name "(w, r)")))
-    (make-dispatch-choice q body)))
+	       (body (string-append "h_" name "(bbs, w, r)")))
+    (format #f "if ~a {~a}" q body)))
 
 (define (list-queries-headers dispatches)
+  ;; Gathers queries and headers from dispatches.  The result is used
+  ;; to access queries/headers in the dispacher code.
   (let loop ((dispatches dispatches)
 	     (queries-acc '())
 	     (headers-acc '()))
@@ -598,73 +583,83 @@
   ;; Generate a dispatcher for one pattern.  It returns a list of line
   ;; strings.
   (match-let ((((method path) . dispatches) dispatch-entry))
-    (append
-     (list (format #f "~a" (make-registering-prologue method path)))
-     (if (string=? path "/")
-	 (list (format #f "~a" (make-check-root-conditional)))
-	 '())
-     (let-values (((fetch-q fetch-h) (make-fetch-prologue)))
+    (let-values (((queries headers) (list-queries-headers dispatches)))
+      (append
+       ;; Handler registering code:
        (list
-	(format #f "~a" fetch-q)
-	(format #f "~a" fetch-h)))
-     (let-values (((queries headers) (list-queries-headers dispatches)))
-       (append
-	(map (lambda (q)
-	       (format #f "~a" (make-fetch-condition "q" q)))
-	     queries)
-	(map (lambda (h)
-	       (format #f "~a" (make-fetch-condition "h" h)))
-	     headers)))
-     (list
-      (format #f "if false {}"))
-     (map (lambda (d)
-	    (format #f "~a" (make-choice-clause d)))
-	  dispatches)
-     (list
-      (format #f "~a" (make-registering-epilogue))))))
+	(string-append
+	 (format #f "sx.HandleFunc(\"~a ~a\"," method path)
+	 " func(w http.ResponseWriter, r *http.Request) {"))
+       ;; Check code for root-condition:
+       (if (string=? path "/")
+	   (list
+	    "if r.URL.Path != \"/\" {http.NotFound(w, r); return}")
+	   '())
+       ;; Fetch code of queries:
+       (if (null? queries)
+	   '()
+	   (append
+	    (list "var q = r.URL.Query()")
+	    (map (lambda (q) (make-fetch-condition "q" q))
+		 queries)))
+       ;; Fetch code of headers:
+       (if (null? headers)
+	   '()
+	   (append
+	    (list "var h = r.Header")
+	    (map (lambda (h) (make-fetch-condition "h" h))
+		 headers)))
+       ;; Condition checks (in a single line):
+       (list
+	(apply string-append
+	       (intervene-separator
+		" "
+		(append
+		 (intervene-separator
+		  "else"
+		  (map make-choice-clause dispatches))
+		 (list
+		  "else {http.NotFound(w, r); return}})")))))))))
 
 (define (generate-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
   (append
-   (list (format #f "// dispather.go (2025-10-25)")
-	 (format #f "package server")
-	 (format #f "import (")
-	 (format #f "\"context\"")
-	 (format #f "\"net/http\"")
-	 (format #f ")")
-	 (format #f "func register_dispatcher(~a, ~a, sx *http.Server) error {"
-		 "ctx context.Context" "bbs *service.S3Service2"))
+   (list "// dispather.go (2025-10-25)"
+	 "package server"
+	 "import ("
+	 ;; "\"context\""
+	 "\"net/http\""
+	 ")"
+	 ;; ***DUMMY***
+	 "type BB_server struct {}"
+	 (string-append
+	  "func register_dispatcher"
+	  "(bbs *BB_server, sx *http.ServeMux)"
+	  " error {"))
    (apply
     append
     (map generate-dispatcher-entry list-of-dispatches))
    (list (format #f "}"))))
 
-(define (display-dispatcher list-of-dispatches)
+(define (write-dispatcher port list-of-dispatches)
   (let ((ss (generate-dispatcher list-of-dispatches)))
-    (format #t "~a" (append-strings ss "\n"))))
+    (format port "~a" (append-strings ss "\n"))))
 
-;; (display-dispatcher list-of-dispatches)
+(define (display-dispatcher)
+  (write-dispatcher #t list-of-dispatches))
+
+(define (dump-dispatcher file)
+  (call-with-output-file file
+    (lambda (port)
+      (write-dispatcher port list-of-dispatches))))
+
+;; (dump-dispatcher "dispacher.go")
 
 ;;;
 ;;; HANDLER PRINTER
 ;;;
 
 ;; RUN (display-handler-call (assoc "ListParts" collected-dispatches))
-
-(define (make-handler-prologue name)
-  (list
-   (format #f "func h_~a(~a, ~a, w http.ResponseWriter, r *http.Request) ~a {"
-	   name "ctx context.Context" "bbs *service.S3Service2" "error")))
-
-(define (make-handler-epilogue name)
-  (list "}"))
-
-(define (make-input-output-prologue request-name)
-  (match-let* ((input (adjust-input-structure-name request-name)))
-    (list "var qi = r.URL.Query()"
-	  "var hi = r.Header"
-	  "var ho = w.Header"
-	  (format #f "var i = s3.~a{}" input))))
 
 (define (locus-ordered? property-a property-b)
   (match-let (((slot-a name-a locus-a required-a) property-a)
@@ -676,7 +671,7 @@
 	  (else
 	   #t))))
 
-(define (move-payload-assignment-to-tail request-properties)
+(define (cast-payload-property-rear request-properties)
   ;; Makes a payload assignment appear at the end for readability, by
   ;; sorting request-properties.
   (sort request-properties locus-ordered?))
@@ -699,13 +694,13 @@
        (list (format #f "i.~a = hi.Get(~s)" slot name)))
       ((PAYLOAD)
        (list
-	(format #f "{")
-	(format #f "var x s3.~a" name)
-	(format #f "var bs, err1 = io.ReadAll(r.Body)")
-	(format #f "var err2 = xml.Unmarshal(bs, &x)")
-	(format #f "if err2 != nil {return invalid_request()}")
-	(format #f "i.~a = x" slot)
-	(format #f "}")))
+	"{"
+	"var x s3.~a" name
+	"var bs, err1 = io.ReadAll(r.Body)"
+	"var err2 = xml.Unmarshal(bs, &x)"
+	"if err2 != nil {return invalid_request()}"
+	"i.~a = x" slot
+	"}"))
       ((ELEMENT)
        (format #t "BAD properties=~s~%" request-property)
        (values))
@@ -713,80 +708,82 @@
        (format #t "BAD properties=~s~%" request-property)
        (values)))))
 
-(define (make-input-assignments request-properties)
-  (let* ((properties (move-payload-assignment-to-tail request-properties))
-	 (s1 (map make-input-assignment properties)))
-    (apply append s1)))
+(define (make-output-extraction response-property)
+  ;; Makes extraction code from structure "s3.XXXXOutput" of AWS SDK.
+  ;; Each property is a list of (slot name locus required).
+  (match-let (((slot name locus required) response-property))
+    ;; (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
+    ;; slot name locus required))
+    (case locus
+      ((PATH)
+       '())
+      ((QUERY)
+       (begin
+	 (format #t "BAD query in response: ~s~%" name)
+	 (values)))
+      ((HEADER)
+       (list (format #f "ho.Add(~s, q.~a)" name slot)))
+      ((PAYLOAD)
+       (begin
+	 (format #t "BAD payload in response: ~s~%" name)
+	 (values)))
+      ((ELEMENT)
+       (begin
+	 ;; (when tr? (format #t ";; Skip element in response: ~s~%" name))
+	 '()))
+      (else
+       (format #t "BAD properties=~s~%" (car props))
+       (values)))))
 
-(define (make-invoking-handler name)
-  (list
-   (format #f "var o, err3 = bbs.~a(ctx, &i)" name)
-   "if err3 != nil {bbs.logger.Error(\"\", \"error\", err3)"))
-
-(define (make-output-extraction response-properties)
-  ;; Makes extraction from structure "s3.XXXXOutput" of AWS SDK.  Each
-  ;; slot property is a list of (slot name locus required).
-  (let* (;;(input-name (adjust-input-structure-name response-name))
-	 ;;(key (string-append "com.amazonaws.s3#" response-name))
-	 ;;(response-structure (assoc-option (string->symbol key) s3-api))
-	 ;;(props (itemize-slot-properties response-structure))
-	 )
-    (let loop ((props response-properties)
-	       (acc '()))
-      (if (null? props)
-	  acc
-	  (match-let (((slot name locus required) (car props)))
-	    (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
-			      slot name locus required))
-	    (case locus
-	      ((PATH)
-	       (loop (cdr props) acc))
-	      ((QUERY)
-	       (begin
-		 (format #t "BAD query in response: ~s~%" name)
-		 (values)))
-	      ((HEADER)
-	       (let ((setter (format #f "ho.Add(~s, o.~a)" name slot)))
-		 (loop (cdr props) (append acc (list setter)))))
-	      ((PAYLOAD)
-	       (begin
-		 (format #t "BAD payload in response: ~s~%" name)
-		 (values)))
-	      ((ELEMENT)
-	       (begin
-		 (format #t "Skip element in response: ~s~%" name)
-		 (loop (cdr props) acc)))
-	      (else
-	       (format #t "BAD properties=~s~%" (car props))
-	       (values))))))))
-
-(define (make-output-payload-extraction)
+(define (make-output-payload-extraction code)
   (list
    "ho.Set(\"Content-Type\", \"application/xml\")"
-   "var co, err5 = xml.MarshalIndent(o, \" \", \"  \")"
-   "if err5 != nil {bbs.logger.Error(\"\", \"error\", err5)}"
+   "var co, err5 = xml.MarshalIndent(q, \" \", \"  \")"
+   "if err5 != nil {log.Fatal(err5); return err5}"
+   (format #f "int status = ~a" code)
    "w.WriteHeader(status)"
    "var _, err6 = w.Write(co)"
-   "if err6 != nil {bbs.Logger.Error(\"\", \"error\", err6)}"))
-
-;; (make-input-assignments "PutObjectTaggingRequest")
+   "if err6 != nil {log.Fatal(err6); return err6}"))
 
 (define (make-handler-call action)
-  (match-let* (((name signature _ request-properties _) action)
-	       ((request-name response-name) signature))
-    (when tr? (format #t ";; make-repsonse-marshaler ~s~%" name))
-    (let* ((s1 (make-handler-prologue name))
-	   (s2 (make-input-output-prologue request-name))
-	   (s3 (make-input-assignments request-properties))
-	   (s5 (make-invoking-handler name))
-	   ;;(s6 (make-output-extraction response-name))
-	   ;;(s7 (make-output-payload-extraction))
-	   (s8 (make-handler-epilogue name)))
-      (append s1 s2 s3 s5 s8))))
+  (match-let*
+      (((name signature action-property request-properties response-properties)
+	action)
+       ((request-name response-name) signature)
+       (input-name (adjust-input-structure-name request-name))
+       (output-name (adjust-output-structure-name response-name))
+       (properties (cast-payload-property-rear request-properties))
+       ((_ _ code) action-property))
+    (when tr? (format #t ";; make-handler-call ~s~%" name))
+    (append
+     (list
+      ;; Start of function declaration:
+      (string-append (format #f "func h_~a" name)
+		     "(bbs *BB_server,"
+		     " w http.ResponseWriter, r *http.Request) error {")
+      "var qi = r.URL.Query()"
+      "var hi = r.Header"
+      "var ho = w.Header")
+     ;; Input accessors:
+     (list
+      (format #f "var i = s3.~a{}" input-name))
+     (apply append (map make-input-assignment properties))
+     ;; Hander invocation:
+     (list
+      "var ctx = r.Context()"
+      (format #f "var o, err3 = bbs.~a(ctx, &i)" name)
+      "if err3 != nil {log.Fatal(err3); return err3")
+     ;; Output accessors:
+     (list
+      (format #f "var q = q_~a{s3.~a: o}" response-name output-name))
+     (apply append (map make-output-extraction response-properties))
+     (make-output-payload-extraction code)
+     ;; Function end:
+     (list "}"))))
 
 (define (display-handler-call action)
   (let ((ss (make-handler-call action)))
-    (format #t "~a~%" (apply string-append (intervene-separator ss "\n")))))
+    (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 ;; (display-handler-call (assoc "ListParts" collected-actions))
 
@@ -867,7 +864,7 @@
 (define (display-repsonse-marshaler1 action-name)
   (let* ((action (assoc action-name collected-actions))
 	 (ss (make-repsonse-marshaler action))
-	 (lines (apply string-append (intervene-separator ss "\n"))))
+	 (lines (apply string-append (intervene-separator "\n" ss))))
     (format #t "~a~%" lines)
     (values)))
 
@@ -875,8 +872,8 @@
   (let ((s1 (make-response-marshaler-preamble))
 	(s2 (apply append (map make-repsonse-marshaler collected-actions))))
     (format #t "~a~%~a~%"
-	    (apply string-append (intervene-separator s1 "\n"))
-	    (apply string-append (intervene-separator s2 "\n")))))
+	    (apply string-append (intervene-separator "\n" s1))
+	    (apply string-append (intervene-separator "\n" s2)))))
 
 ;; (make-repsonse-marshaler (assoc "CopyObject" collected-actions))
 ;; (display-repsonse-marshaler)
