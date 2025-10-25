@@ -856,52 +856,82 @@
        (format #t "BAD property in response: ~s~%" property)
        '()))))
 
-(define (make-repsonse-marshaler action)
-  ;; Returns lines of response marshaler for "XXXXResponse" of an
-  ;; argument action.
+(define (make-marshaler-definition action)
+  ;; Returns lines of a response marshaler for "XXXXResponse".
   (match-let*
       (((name (request-name response-name) _ _ response-properties) action)
        (output-name (adjust-output-structure-name response-name))
        (output-in-payload (check-output-in-payload response-properties))
        (encoders (delete '() (map make-slot-marshaler response-properties)))
        (nothing-in-payload (= (length encoders) 0)))
-    (when tr? (format #t ";; make-repsonse-marshaler ~s~%" name))
+    (when tr? (format #t ";; make-marshaler-definition ~s~%" name))
     (assert (or (not output-in-payload) (= (length encoders) 1)))
-    (append
-     (list
-      (format #f "type ~a s3.~a" response-name output-name)
-      (format #f "func (r ~a) MarshalXML~a error {"
-	      response-name "(e *xml.Encoder, start xml.StartElement)"))
-     (if nothing-in-payload
-	 '()
-	 (append
-	  (if output-in-payload
-	      '()
-	      (list
-	       (format #f "var err1 = e.EncodeToken(start)")
-	       (format #f "if err1 != nil {return err1}")))
-	  (apply append encoders)
-	  (if output-in-payload
-	      '()
-	      (list
-	       (format #f "var err9 = e.EncodeToken(start.End())")
-	       (format #f "if err9 != nil {return err9}")))))
-     (list
-      (format #f "return nil}")))))
+    (if (string=? output-name "Unit")
+	'()
+	(append
+	 (list
+	  (format #f "type q_~a s3.~a" response-name output-name)
+	  (format #f "func (r q_~a) MarshalXML~a error {"
+		  response-name "(e *xml.Encoder, start xml.StartElement)"))
+	 (if nothing-in-payload
+	     '()
+	     (append
+	      (if output-in-payload
+		  '()
+		  (list
+		   (format #f "var err1 = e.EncodeToken(start)")
+		   (format #f "if err1 != nil {return err1}")))
+	      (apply append encoders)
+	      (if output-in-payload
+		  '()
+		  (list
+		   (format #f "var err9 = e.EncodeToken(start.End())")
+		   (format #f "if err9 != nil {return err9}")))))
+	 (list
+	  (format #f "return nil}"))))))
 
-(define (display-repsonse-marshaler1 action-name)
+(define (display-repsonse-marshaler1~ action-name)
   (let* ((action (assoc action-name collected-actions))
-	 (ss (make-repsonse-marshaler action))
+	 (ss (make-marshaler-definition action))
 	 (lines (apply string-append (intervene-separator "\n" ss))))
     (format #t "~a~%" lines)
     (values)))
 
-(define (display-repsonse-marshaler)
+(define (display-repsonse-marshaler~)
   (let ((s1 (make-response-marshaler-preamble))
-	(s2 (apply append (map make-repsonse-marshaler collected-actions))))
+	(s2 (apply append (map make-marshaler-definition collected-actions))))
     (format #t "~a~%~a~%"
 	    (apply string-append (intervene-separator "\n" s1))
 	    (apply string-append (intervene-separator "\n" s2)))))
 
-;; (make-repsonse-marshaler (assoc "CopyObject" collected-actions))
+(define (make-marshaler-file collected-actions)
+  (append
+   (list "// marshalers.go (2025-10-25)"
+	 "package server"
+	 "import ("
+	 ;; "\"context\""
+	 "\"encoding/xml\""
+	 "\"net/http\""
+	 "\"log\""
+	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	 ")")
+   (apply append
+	  (map make-marshaler-definition collected-actions))))
+
+(define (write-marshalers port collected-actions)
+  (let ((ss (make-marshaler-file collected-actions)))
+    (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
+
+(define (display-marshalers)
+  (write-marshalers #t collected-actions))
+
+(define (dump-marshalers file)
+  (call-with-output-file file
+    (lambda (port)
+      (write-marshalers port collected-actions))))
+
+;; (make-marshaler-definition (assoc "CopyObject" collected-actions))
 ;; (display-repsonse-marshaler)
+
+;; (display-marshaler-function (assoc "ListParts" collected-actions))
+;; (dump-marshalers "marshalers.go")
