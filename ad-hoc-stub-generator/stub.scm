@@ -273,9 +273,9 @@
 
 (define (make-slot-properties member)
   ;; Admits an element of "members" list and returns a list of
-  ;; four-tuples (required locus name slot) of a request/response
-  ;; structure.  A name is in an xml tag, and a slot is a structure
-  ;; slot name.
+  ;; four-tuples (slot name locus required) of a request/response
+  ;; structure.  A slot is a name in a structure, and a name is in an
+  ;; xml tag.
   (let* ((slot (symbol->string (car member)))
 	 (traits (assoc-with-default '() 'traits (cdr member)))
 	 (required (cond ((assoc '#{smithy.api#required}# traits) #t)
@@ -288,32 +288,32 @@
 		     (else slot))))
     (cond ((assoc-option '#{smithy.api#httpLabel}# traits)
 	   => (lambda (_)
-		(list required 'path name slot)))
+		(list slot name 'PATH required)))
 	  ((assoc-option '#{smithy.api#httpQuery}# traits)
 	   => (lambda (v)
-		(list required 'query v slot)))
+		(list slot v 'QUERY required)))
 	  ((assoc-option '#{smithy.api#httpHeader}# traits)
 	   => (lambda (v)
-		(list required 'header v slot)))
+		(list slot v 'HEADER required)))
 	  ((assoc-option '#{smithy.api#httpPrefixHeaders}# traits)
 	   => (lambda (v)
-		(list required 'header v slot)))
+		(list slot v 'HEADER required)))
 	  ((assoc-option '#{smithy.api#httpPayload}# traits)
 	   => (lambda (_)
 		;; (* DATA IS CONTENT PAYLOAD. *)
-		(list required 'payload name slot)))
+		(list slot name 'PAYLOAD required)))
 	  (else
 	   ;; Empty traits means a response element.
-	   (list required 'element name slot)))))
+	   (list slot name 'ELEMENT required)))))
 
 (define (itemize-slot-properties exchange-structure-name)
   ;; Extracts properties of a request/response structure of
   ;; "com.amazonaws.s3#XXXXRequest" and "com.amazonaws.s3#XXXXOutput".
-  ;; It returns a list of four-tuples (required locus name slot), or
-  ;; returns an empty list of "Unit".  A locus indicates where a
-  ;; parameter is passed, and it is one of 'path, 'query, 'header,
-  ;; 'payload, or 'element.  locus=payload means the value is a whole
-  ;; payload.  A slot is a slot name of a request/response strucuture.
+  ;; It returns a list of four-tuples (slot name locus required), or
+  ;; returns an empty list of "Unit".  A slot is a name in a
+  ;; request/response strucuture.  A locus indicates where a parameter
+  ;; is passed, and it is one of 'PATH, 'QUERY, 'HEADER, 'PAYLOAD, or
+  ;; 'ELEMENT.  locus=PAYLOAD means the value is a whole payload.
   (let* ((prefix "com.amazonaws.s3#")
 	 (slot-name (string-append prefix exchange-structure-name))
 	 (exchange-structure (assoc-option (string->symbol slot-name) s3-api))
@@ -355,7 +355,7 @@
 ;; See (collect-request-dispatches collected-actions).
 
 (define (get-query-in-uri drop-x-id action-properties)
-  ;; Finds an optional query key and returns it as a list: '(query) or
+  ;; Finds an optional query key and returns it as a list: (query) or
   ;; '().  It excludes "x-id"-key if drop-x-id is #t.  Query keys look
   ;; like: "/{Bucket}/{Key+}?uploads", "/{Bucket}/{Key+}?tagging",
   ;; "/{Bucket}?delete".
@@ -413,25 +413,25 @@
 	       (headers-acc '()))
       (if (null? props)
 	  (list name method-path queries-acc headers-acc signature)
-	  (match-let (((required locus name slot) (car props)))
-	    (when tr? (format #t ";; required=~s locus=~s name=~s slot=~s~%"
-			      required locus name slot))
+	  (match-let (((slot name locus required) (car props)))
+	    (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
+			      slot name locus required))
 	    (if (not required)
 		(loop (cdr props) queries-acc headers-acc)
 		(case locus
-		  ((path)
+		  ((PATH)
 		   (loop (cdr props) queries-acc headers-acc))
-		  ((query)
+		  ((QUERY)
 		   (loop (cdr props)
 			 (append queries-acc (list name))
 			 headers-acc))
-		  ((header)
+		  ((HEADER)
 		   (loop (cdr props)
 			 queries-acc
 			 (append headers-acc (list name))))
-		  ((payload)
+		  ((PAYLOAD)
 		   (loop (cdr props) queries-acc headers-acc))
-		  ((element)
+		  ((ELEMENT)
 		   (loop (cdr props) queries-acc headers-acc))
 		  (else
 		   (format #t "BAD properties=~s~%" (car props))))))))))
@@ -652,37 +652,37 @@
 	  (format #f "var i = s3.~a{}" input))))
 
 (define (locus-ordered? property-a property-b)
-  (match-let (((required-a locus-a name-a slot-a) property-a)
-	      ((required-b locus-b name-b slot-b) property-b))
-    (cond ((eqv? locus-a 'payload)
+  (match-let (((slot-a name-a locus-a required-a) property-a)
+	      ((slot-b name-b locus-b required-b) property-b))
+    (cond ((eqv? locus-a 'PAYLOAD)
 	   #f)
-	  ((eqv? locus-b 'payload)
+	  ((eqv? locus-b 'PAYLOAD)
 	   #t)
 	  (else
 	   #t))))
 
 (define (move-payload-assignment-to-tail request-properties)
-  ;; Makes a payload assignment appear at the end, by sorting
-  ;; request-properties.
+  ;; Makes a payload assignment appear at the end for readability, by
+  ;; sorting request-properties.
   (sort request-properties locus-ordered?))
 
 (define (make-input-assignment request-property)
   ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
-  ;; Slot property is a list of (required locus name slot).  Note the
+  ;; Slot property is a list of (slot name locus required).  Note the
   ;; structure name of a request is "XXXXRequest" in the API and
   ;; Smithy.
-  (match-let (((required locus name slot) request-property))
+  (match-let (((slot name locus required) request-property))
     ;; (when tr? (format #t ";; required=~s locus=~s name=~s slot=~s~%"
     ;; required locus name slot))
     (case locus
-      ((path)
+      ((PATH)
        ;; Ignore path parameters.
        '())
-      ((query)
+      ((QUERY)
        (list (format #f "i.~a = qi.Get(~s)" slot name)))
-      ((header)
+      ((HEADER)
        (list (format #f "i.~a = hi.Get(~s)" slot name)))
-      ((payload)
+      ((PAYLOAD)
        (list
 	(format #f "{")
 	(format #f "var x s3.~a" name)
@@ -691,7 +691,7 @@
 	(format #f "if err2 != nil {return invalid_request()}")
 	(format #f "i.~a = x" slot)
 	(format #f "}")))
-      ((element)
+      ((ELEMENT)
        (format #t "BAD properties=~s~%" request-property)
        (values))
       (else
@@ -710,7 +710,7 @@
 
 (define (make-output-extraction response-properties)
   ;; Makes extraction from structure "s3.XXXXOutput" of AWS SDK.  Each
-  ;; slot property is a list of (required locus name slot).
+  ;; slot property is a list of (slot name locus required).
   (let* (;;(input-name (adjust-input-structure-name response-name))
 	 ;;(key (string-append "com.amazonaws.s3#" response-name))
 	 ;;(response-structure (assoc-option (string->symbol key) s3-api))
@@ -720,32 +720,30 @@
 	       (acc '()))
       (if (null? props)
 	  acc
-	  (match-let (((required locus name slot) (car props)))
-	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
-		    required locus name slot)
+	  (match-let (((slot name locus required) (car props)))
+	    (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
+			      slot name locus required))
 	    (case locus
-	      ((path)
+	      ((PATH)
 	       (loop (cdr props) acc))
-	      ((query)
+	      ((QUERY)
 	       (begin
 		 (format #t "BAD query in response: ~s~%" name)
 		 (values)))
-	      ((header)
+	      ((HEADER)
 	       (let ((setter (format #f "ho.Add(~s, o.~a)" name slot)))
 		 (loop (cdr props) (append acc (list setter)))))
-	      ((payload)
+	      ((PAYLOAD)
 	       (begin
 		 (format #t "BAD payload in response: ~s~%" name)
 		 (values)))
-	      ((element)
+	      ((ELEMENT)
 	       (begin
 		 (format #t "Skip element in response: ~s~%" name)
 		 (loop (cdr props) acc)))
 	      (else
 	       (format #t "BAD properties=~s~%" (car props))
 	       (values))))))))
-
-;; (make-output-extraction "ListPartsOutput")
 
 (define (make-output-payload-extraction)
   (list
@@ -772,7 +770,7 @@
 	   (ss (append s1 s2 s3 s5 s8)))
       (format #t "~a~%" (apply string-append (intervene-separator ss "\n"))))))
 
-;; (display-handler-call (assoc "ListParts" collected-dispatches))
+;; (display-handler-call (assoc "ListParts" collected-actions))
 
 ;;;
 ;;; RESPONSE MARSHALER PRINTER
@@ -790,24 +788,24 @@
   ;; has "CopyPartResult"
   (let ((check-output-in-payload1
 	 (lambda (property)
-	   (match-let (((required locus name slot) property))
-	     (eqv? locus 'payload)))))
+	   (match-let (((slot name locus required) property))
+	     (eqv? locus 'PAYLOAD)))))
     (any check-output-in-payload1 response-properties)))
 
 (define (make-slot-marshaler property)
   ;; Returns a list of marshaler lines of an response element.
-  (match-let (((required locus name slot) property))
+  (match-let (((slot name locus required) property))
     (case locus
-      ((path query)
+      ((PATH QUERY)
        (format #t "BAD property in response: ~s~%" property)
        '())
-      ((payload)
+      ((PAYLOAD)
        (list
 	(format #f "{var err2 = e.EncodeElement(r.~a, s(\"~a\"))" slot name)
 	(format #f "if err2 != nil {return err2}}")))
-      ((header)
+      ((HEADER)
        '())
-      ((element)
+      ((ELEMENT)
        (list
 	(format #f "{var err2 = e.EncodeElement(r.~a, s(\"~a\"))" slot name)
 	(format #f "if err2 != nil {return err2}}")))
