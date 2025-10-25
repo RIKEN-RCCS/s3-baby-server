@@ -352,7 +352,10 @@
 ;;; PARAMETER INQUERIES
 ;;;
 
-;; See (collect-request-dispatches collected-actions).
+;; This part makes a list of dispatcher entries, which is later used
+;; to print dispatcher code.
+;;
+;; See (collect-request-dispatches collected-actions)
 
 (define (get-query-in-uri drop-x-id action-properties)
   ;; Finds an optional query key and returns it as a list: (query) or
@@ -463,12 +466,12 @@
 ;; This part prints a dispatch routine for requests collected by
 ;; collect-request-dispatches.  Collected requests are grouped by
 ;; mathod-path pairs.
+;;
+;; RUN (display-dispatcher list-of-dispatches)
 
 ;; MEMO about Golang net/http server.  Headers can be accessed in
 ;; Request.Header which is type Header (a map).  Queries can be
 ;; accessed in Request.URL.Query() which is type Values (a map).
-
-;; RUN (display-dispatcher list-of-dispatches).
 
 (define (merge-request-dispatches collected-actions)
   ;; Merges request dispatch entries by combining ones with the same
@@ -591,42 +594,54 @@
 		(append queries-acc queries)
 		(append headers-acc headers))))))
 
-(define (display-dispatcher list-of-dispatches)
+(define (generate-dispatcher-entry dispatch-entry)
+  ;; Generate a dispatcher for one pattern.  It returns a list of line
+  ;; strings.
+  (match-let ((((method path) . dispatches) dispatch-entry))
+    (append
+     (list (format #f "~a" (make-registering-prologue method path)))
+     (if (string=? path "/")
+	 (list (format #f "~a" (make-check-root-conditional)))
+	 '())
+     (let-values (((fetch-q fetch-h) (make-fetch-prologue)))
+       (list
+	(format #f "~a" fetch-q)
+	(format #f "~a" fetch-h)))
+     (let-values (((queries headers) (list-queries-headers dispatches)))
+       (append
+	(map (lambda (q)
+	       (format #f "~a" (make-fetch-condition "q" q)))
+	     queries)
+	(map (lambda (h)
+	       (format #f "~a" (make-fetch-condition "h" h)))
+	     headers)))
+     (list
+      (format #f "if false {}"))
+     (map (lambda (d)
+	    (format #f "~a" (make-choice-clause d)))
+	  dispatches)
+     (list
+      (format #f "~a" (make-registering-epilogue))))))
+
+(define (generate-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
-  (format #t "{~%")
-  (let loop1 ((dispatch-alist list-of-dispatches))
-    (if (null? dispatch-alist)
-	(values)
-	(match-let ((((method path) . dispatches) (car dispatch-alist)))
-	  (format #t "~a~%" (make-registering-prologue method path))
-	  (when (string=? path "/")
-	    (format #t "~a~%" (make-check-root-conditional)))
-	  (let-values (((fetch-q fetch-h) (make-fetch-prologue)))
-	    (format #t "~a~%" fetch-q)
-	    (format #t "~a~%" fetch-h))
-	  (let-values (((queries headers) (list-queries-headers dispatches)))
-	    (let loop2 ((queries queries))
-	      (if (null? queries)
-		  (values)
-		  (begin
-		    (format #t "~a~%" (make-fetch-condition "q" (car queries)))
-		    (loop2 (cdr queries)))))
-	    (let loop3 ((headers headers))
-	      (if (null? headers)
-		  (values)
-		  (begin
-		    (format #t "~a~%" (make-fetch-condition "h" (car headers)))
-		    (loop3 (cdr headers))))))
-	  (format #t "if false {}~%")
-	  (let loop4 ((dispatches dispatches))
-	    (if (null? dispatches)
-		(values)
-		(begin
-		  (format #t "~a~%" (make-choice-clause (car dispatches)))
-		  (loop4 (cdr dispatches)))))
-	  (format #t "~a~%" (make-registering-epilogue))
-	  (loop1 (cdr dispatch-alist)))))
-  (format #t "}~%"))
+  (append
+   (list (format #f "// dispather.go (2025-10-25)")
+	 (format #f "package server")
+	 (format #f "import (")
+	 (format #f "\"context\"")
+	 (format #f "\"net/http\"")
+	 (format #f ")")
+	 (format #f "func register_dispatcher(~a, ~a, sx *http.Server) error {"
+		 "ctx context.Context" "bbs *service.S3Service2"))
+   (apply
+    append
+    (map generate-dispatcher-entry list-of-dispatches))
+   (list (format #f "}"))))
+
+(define (display-dispatcher list-of-dispatches)
+  (let ((ss (generate-dispatcher list-of-dispatches)))
+    (format #t "~a" (append-strings ss "\n"))))
 
 ;; (display-dispatcher list-of-dispatches)
 
@@ -703,7 +718,7 @@
 	 (s1 (map make-input-assignment properties)))
     (apply append s1)))
 
-(define (make-handler-call name)
+(define (make-invoking-handler name)
   (list
    (format #f "var o, err3 = bbs.~a(ctx, &i)" name)
    "if err3 != nil {bbs.logger.Error(\"\", \"error\", err3)"))
@@ -756,19 +771,22 @@
 
 ;; (make-input-assignments "PutObjectTaggingRequest")
 
-(define (display-handler-call action)
+(define (make-handler-call action)
   (match-let* (((name signature _ request-properties _) action)
 	       ((request-name response-name) signature))
     (when tr? (format #t ";; make-repsonse-marshaler ~s~%" name))
     (let* ((s1 (make-handler-prologue name))
 	   (s2 (make-input-output-prologue request-name))
 	   (s3 (make-input-assignments request-properties))
-	   (s5 (make-handler-call name))
+	   (s5 (make-invoking-handler name))
 	   ;;(s6 (make-output-extraction response-name))
 	   ;;(s7 (make-output-payload-extraction))
-	   (s8 (make-handler-epilogue name))
-	   (ss (append s1 s2 s3 s5 s8)))
-      (format #t "~a~%" (apply string-append (intervene-separator ss "\n"))))))
+	   (s8 (make-handler-epilogue name)))
+      (append s1 s2 s3 s5 s8))))
+
+(define (display-handler-call action)
+  (let ((ss (make-handler-call action)))
+    (format #t "~a~%" (apply string-append (intervene-separator ss "\n")))))
 
 ;; (display-handler-call (assoc "ListParts" collected-actions))
 
