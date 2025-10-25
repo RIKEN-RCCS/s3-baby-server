@@ -113,6 +113,8 @@
     "UploadPart"
     "UploadPartCopy"))
 
+(define tr? #t)
+
 (define (assoc-option k alist)
   ;; Assoc but returns the cdr part of it or #f.  It #f as an alist.
   (if (eqv? alist #f)
@@ -331,7 +333,7 @@
   ;; request-properties response-properties).  A signature is a pair
   ;; of request/response names.  It renames the response name from
   ;; "XXXXOutput" to "XXXResponse".
-  (format #t "looking at action=~a~%" action-name)
+  (when tr? (format #t ";; looking at action=~a~%" action-name)
   (let* ((action-structure (find-action-structure action-name))
 	 (properties1 (itemize-action-properties action-structure))
 	 (signature (find-exchange-signature action-structure))
@@ -412,8 +414,8 @@
       (if (null? props)
 	  (list name method-path queries-acc headers-acc signature)
 	  (match-let (((required locus name slot) (car props)))
-	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
-		    required locus name slot)
+	    (when tr? (format #t ";; required=~s locus=~s name=~s slot=~s~%"
+			      required locus name slot))
 	    (if (not required)
 		(loop (cdr props) queries-acc headers-acc)
 		(case locus
@@ -455,7 +457,7 @@
 (define collected-dispatches (collect-request-dispatches collected-actions))
 
 ;;;
-;;; DISPATCHER STUB PRINTER
+;;; DISPATCHER PRINTER
 ;;;
 
 ;; RUN (display-dispatcher list-of-dispatches).
@@ -672,13 +674,16 @@
       (((name (request-name response-name) _ _ response-properties) action)
        (output-name (adjust-output-structure-name response-name))
        (output-in-payload (check-output-in-payload response-properties))
-       (encoders (apply append (map make-slot-marshaler response-properties))))
+       (encoders (delete '() (map make-slot-marshaler response-properties)))
+       (nothing-in-payload (= (length encoders) 0)))
+    (when tr? (format #t ";; make-repsonse-marshaler ~s~%" name))
+    (assert (or (not output-in-payload) (= (length encoders) 1)))
     (append
      (list
       (format #f "type ~a s3.~a" response-name output-name)
       (format #f "func (r ~a) MarshalXML~a error {"
 	      response-name "(e *xml.Encoder, start xml.StartElement)"))
-     (if (= (length encoders) 0)
+     (if nothing-in-payload
 	 '()
 	 (append
 	  (if output-in-payload
@@ -686,7 +691,7 @@
 	      (list
 	       (format #f "var err1 = e.EncodeToken(start)")
 	       (format #f "if err1 != nil {return err1}")))
-	  encoders
+	  (apply append encoders)
 	  (if output-in-payload
 	      '()
 	      (list
@@ -709,6 +714,7 @@
 	    (apply string-append (intervene-separator s1 "\n"))
 	    (apply string-append (intervene-separator s2 "\n")))))
 
+;; (make-repsonse-marshaler (assoc "CopyObject" collected-actions))
 ;; (display-repsonse-marshaler)
 
 ;;;
