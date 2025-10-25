@@ -333,7 +333,7 @@
   ;; request-properties response-properties).  A signature is a pair
   ;; of request/response names.  It renames the response name from
   ;; "XXXXOutput" to "XXXResponse".
-  (when tr? (format #t ";; looking at action=~a~%" action-name)
+  (when tr? (format #t ";; looking at action=~a~%" action-name))
   (let* ((action-structure (find-action-structure action-name))
 	 (properties1 (itemize-action-properties action-structure))
 	 (signature (find-exchange-signature action-structure))
@@ -460,11 +460,15 @@
 ;;; DISPATCHER PRINTER
 ;;;
 
-;; RUN (display-dispatcher list-of-dispatches).
+;; This part prints a dispatch routine for requests collected by
+;; collect-request-dispatches.  Collected requests are grouped by
+;; mathod-path pairs.
 
-;; About Golang net/http server.  Headers can be accessed in
+;; MEMO about Golang net/http server.  Headers can be accessed in
 ;; Request.Header which is type Header (a map).  Queries can be
 ;; accessed in Request.URL.Query() which is type Values (a map).
+
+;; RUN (display-dispatcher list-of-dispatches).
 
 (define (merge-request-dispatches collected-actions)
   ;; Merges request dispatch entries by combining ones with the same
@@ -627,6 +631,150 @@
 ;; (display-dispatcher list-of-dispatches)
 
 ;;;
+;;; HANDLER PRINTER
+;;;
+
+;; RUN (display-handler-call (assoc "ListParts" collected-dispatches))
+
+(define (make-handler-prologue name)
+  (list
+   (format #f "func h_~a(~a, ~a, w http.ResponseWriter, r *http.Request) ~a {"
+	   name "ctx context.Context" "bbs *service.S3Service2" "error")))
+
+(define (make-handler-epilogue name)
+  (list "}"))
+
+(define (make-input-output-prologue request-name)
+  (match-let* ((input (adjust-input-structure-name request-name)))
+    (list "var qi = r.URL.Query()"
+	  "var hi = r.Header"
+	  "var ho = w.Header"
+	  (format #f "var i = s3.~a{}" input))))
+
+(define (locus-ordered? property-a property-b)
+  (match-let (((required-a locus-a name-a slot-a) property-a)
+	      ((required-b locus-b name-b slot-b) property-b))
+    (cond ((eqv? locus-a 'payload)
+	   #f)
+	  ((eqv? locus-b 'payload)
+	   #t)
+	  (else
+	   #t))))
+
+(define (move-payload-assignment-to-tail request-properties)
+  ;; Makes a payload assignment appear at the end, by sorting
+  ;; request-properties.
+  (sort request-properties locus-ordered?))
+
+(define (make-input-assignment request-property)
+  ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
+  ;; Slot property is a list of (required locus name slot).  Note the
+  ;; structure name of a request is "XXXXRequest" in the API and
+  ;; Smithy.
+  (match-let (((required locus name slot) request-property))
+    ;; (when tr? (format #t ";; required=~s locus=~s name=~s slot=~s~%"
+    ;; required locus name slot))
+    (case locus
+      ((path)
+       ;; Ignore path parameters.
+       '())
+      ((query)
+       (list (format #f "i.~a = qi.Get(~s)" slot name)))
+      ((header)
+       (list (format #f "i.~a = hi.Get(~s)" slot name)))
+      ((payload)
+       (list
+	(format #f "{")
+	(format #f "var x s3.~a" name)
+	(format #f "var bs, err1 = io.ReadAll(r.Body)")
+	(format #f "var err2 = xml.Unmarshal(bs, &x)")
+	(format #f "if err2 != nil {return invalid_request()}")
+	(format #f "i.~a = x" slot)
+	(format #f "}")))
+      ((element)
+       (format #t "BAD properties=~s~%" request-property)
+       (values))
+      (else
+       (format #t "BAD properties=~s~%" request-property)
+       (values)))))
+
+(define (make-input-assignments request-properties)
+  (let* ((properties (move-payload-assignment-to-tail request-properties))
+	 (s1 (map make-input-assignment properties)))
+    (apply append s1)))
+
+(define (make-handler-call name)
+  (list
+   (format #f "var o, err3 = bbs.~a(ctx, &i)" name)
+   "if err3 != nil {bbs.logger.Error(\"\", \"error\", err3)"))
+
+(define (make-output-extraction response-properties)
+  ;; Makes extraction from structure "s3.XXXXOutput" of AWS SDK.  Each
+  ;; slot property is a list of (required locus name slot).
+  (let* (;;(input-name (adjust-input-structure-name response-name))
+	 ;;(key (string-append "com.amazonaws.s3#" response-name))
+	 ;;(response-structure (assoc-option (string->symbol key) s3-api))
+	 ;;(props (itemize-slot-properties response-structure))
+	 )
+    (let loop ((props response-properties)
+	       (acc '()))
+      (if (null? props)
+	  acc
+	  (match-let (((required locus name slot) (car props)))
+	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
+		    required locus name slot)
+	    (case locus
+	      ((path)
+	       (loop (cdr props) acc))
+	      ((query)
+	       (begin
+		 (format #t "BAD query in response: ~s~%" name)
+		 (values)))
+	      ((header)
+	       (let ((setter (format #f "ho.Add(~s, o.~a)" name slot)))
+		 (loop (cdr props) (append acc (list setter)))))
+	      ((payload)
+	       (begin
+		 (format #t "BAD payload in response: ~s~%" name)
+		 (values)))
+	      ((element)
+	       (begin
+		 (format #t "Skip element in response: ~s~%" name)
+		 (loop (cdr props) acc)))
+	      (else
+	       (format #t "BAD properties=~s~%" (car props))
+	       (values))))))))
+
+;; (make-output-extraction "ListPartsOutput")
+
+(define (make-output-payload-extraction)
+  (list
+   "ho.Set(\"Content-Type\", \"application/xml\")"
+   "var co, err5 = xml.MarshalIndent(o, \" \", \"  \")"
+   "if err5 != nil {bbs.logger.Error(\"\", \"error\", err5)}"
+   "w.WriteHeader(status)"
+   "var _, err6 = w.Write(co)"
+   "if err6 != nil {bbs.Logger.Error(\"\", \"error\", err6)}"))
+
+;; (make-input-assignments "PutObjectTaggingRequest")
+
+(define (display-handler-call action)
+  (match-let* (((name signature _ request-properties _) action)
+	       ((request-name response-name) signature))
+    (when tr? (format #t ";; make-repsonse-marshaler ~s~%" name))
+    (let* ((s1 (make-handler-prologue name))
+	   (s2 (make-input-output-prologue request-name))
+	   (s3 (make-input-assignments request-properties))
+	   (s5 (make-handler-call name))
+	   ;;(s6 (make-output-extraction response-name))
+	   ;;(s7 (make-output-payload-extraction))
+	   (s8 (make-handler-epilogue name))
+	   (ss (append s1 s2 s3 s5 s8)))
+      (format #t "~a~%" (apply string-append (intervene-separator ss "\n"))))))
+
+;; (display-handler-call (assoc "ListParts" collected-dispatches))
+
+;;;
 ;;; RESPONSE MARSHALER PRINTER
 ;;;
 
@@ -716,139 +864,3 @@
 
 ;; (make-repsonse-marshaler (assoc "CopyObject" collected-actions))
 ;; (display-repsonse-marshaler)
-
-;;;
-;;; HANDLER STUB PRINTER
-;;;
-
-;; RUN (display-handler-call (assoc "ListParts" collected-dispatches)).
-
-(define (make-handler-prologue name)
-  (list
-   (format #f "func h_~a(bbs *service.S3Service2, w http.ResponseWriter, r *http.Request) {"
-	   name)))
-
-(define (make-handler-epilogue name)
-  (list "}"))
-
-(define (make-input-output-prologue request-name)
-  (match-let* ((input (adjust-input-structure-name request-name)))
-    (list "var qi = r.URL.Query()"
-	  "var hi = r.Header"
-	  "var ho = w.Header"
-	  (format #f "var i = s3.~a{}" input))))
-
-(define (make-input-epilogue~ request-name)
-  (list))
-
-(define (make-input-assignments request-properties)
-  ;; Makes assignments to structure "s3.XXXXInput" of AWS SDK.  The
-  ;; structure name is "XXXXRequest" in the API and Smithy.  Each slot
-  ;; property is a list of (required locus name slot).
-  (let* (;;(input-name (adjust-input-structure-name request-name))
-	 ;;(key (string-append "com.amazonaws.s3#" request-name))
-	 ;;(request-structure (assoc-option (string->symbol key) s3-api))
-	 ;;(props (itemize-slot-properties request-structure))
-	 )
-    (let loop ((props request-properties)
-	       (acc '()))
-      (if (null? props)
-	  acc
-	  (match-let (((required locus name slot) (car props)))
-	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
-		    required locus name slot)
-	    (case locus
-	      ((path)
-	       (loop (cdr props) acc))
-	      ((query)
-	       (let ((setter (format #f "i.~a = qi.Get(~s)" slot name)))
-		 (loop (cdr props) (append acc (list setter)))))
-	      ((header)
-	       (let ((setter (format #f "i.~a = hi.Get(~s)" slot name)))
-		 (loop (cdr props) (append acc (list setter)))))
-	      ((payload)
-	       (let ((setter
-		      (list
-		       (format #f "{")
-		       (format #f "var x s3.~a" name)
-		       (format #f "var bs, err1 = io.ReadAll(r.Body)")
-		       (format #f "var err2 = xml.Unmarshal(bs, &x)")
-		       (format #f "if err2 != nil {return invalid_request()}")
-		       (format #f "i.~a = x" slot)
-		       (format #f "}"))))
-		 (loop (cdr props) (append acc setter))))
-	      ((element)
-	       (format #t "BAD properties=~s~%" (car props))
-	       (values))
-	      (else
-	       (format #t "BAD properties=~s~%" (car props))
-	       (values))))))))
-
-(define (make-output-extraction response-properties)
-  ;; Makes extraction from structure "s3.XXXXOutput" of AWS SDK.  Each
-  ;; slot property is a list of (required locus name slot).
-  (let* (;;(input-name (adjust-input-structure-name response-name))
-	 ;;(key (string-append "com.amazonaws.s3#" response-name))
-	 ;;(response-structure (assoc-option (string->symbol key) s3-api))
-	 ;;(props (itemize-slot-properties response-structure))
-	 )
-    (let loop ((props response-properties)
-	       (acc '()))
-      (if (null? props)
-	  acc
-	  (match-let (((required locus name slot) (car props)))
-	    (format #t ";; required=~s locus=~s name=~s slot=~s~%"
-		    required locus name slot)
-	    (case locus
-	      ((path)
-	       (loop (cdr props) acc))
-	      ((query)
-	       (begin
-		 (format #t "BAD query in response: ~s~%" name)
-		 (values)))
-	      ((header)
-	       (let ((setter (format #f "ho.Add(~s, o.~a)" name slot)))
-		 (loop (cdr props) (append acc (list setter)))))
-	      ((payload)
-	       (begin
-		 (format #t "BAD payload in response: ~s~%" name)
-		 (values)))
-	      ((element)
-	       (begin
-		 (format #t "Skip element in response: ~s~%" name)
-		 (loop (cdr props) acc)))
-	      (else
-	       (format #t "BAD properties=~s~%" (car props))
-	       (values))))))))
-
-;; (make-output-extraction "ListPartsOutput")
-
-(define (make-output-payload-extraction)
-  (list
-   "ho.Set(\"Content-Type\", \"application/xml\")"
-   "var co, err5 = xml.MarshalIndent(o, \" \", \"  \")"
-   "if err5 != nil {bbs.logger.Error(\"\", \"error\", err5)}"
-   "w.WriteHeader(status)"
-   "var _, err6 = w.Write(co)"
-   "if err6 != nil {bbs.Logger.Error(\"\", \"error\", err6)}"))
-
-(define (make-handler-call name)
-  (list
-   (format #f "var o = bbs.~a(i)" name)))
-
-;; (make-input-assignments "PutObjectTaggingRequest")
-
-(define (display-handler-call dispatch)
-  (match-let* (((name _ queries headers signature) dispatch)
-	       ((request-name response-name) signature))
-    (let* ((s1 (make-handler-prologue name))
-	   (s2 (make-input-output-prologue request-name))
-	   (s3 (make-input-assignments request-name))
-	   (s5 (make-handler-call name))
-	   (s6 (make-output-extraction response-name))
-	   (s7 (make-output-payload-extraction))
-	   (s8 (make-handler-epilogue name))
-	   (ss (append s1 s2 s3 s5 s6 s7 s8)))
-      (format #t "~a~%" (apply string-append (intervene-separator ss "\n"))))))
-
-;; (display-handler-call (assoc "ListParts" collected-dispatches))
