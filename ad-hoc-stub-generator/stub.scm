@@ -639,7 +639,7 @@
    (apply
     append
     (map generate-dispatcher-entry list-of-dispatches))
-   (list (format #f "}"))))
+   (list (format #f "return nil}"))))
 
 (define (write-dispatcher port list-of-dispatches)
   (let ((ss (generate-dispatcher list-of-dispatches)))
@@ -659,7 +659,8 @@
 ;;; HANDLER PRINTER
 ;;;
 
-;; RUN (display-handler-call (assoc "ListParts" collected-dispatches))
+;; This part prints handler functions, which are used in the
+;; dispatcher.
 
 (define (locus-ordered? property-a property-b)
   (match-let (((slot-a name-a locus-a required-a) property-a)
@@ -695,11 +696,11 @@
       ((PAYLOAD)
        (list
 	"{"
-	"var x s3.~a" name
+	(format #f "var x s3.~a" name)
 	"var bs, err1 = io.ReadAll(r.Body)"
 	"var err2 = xml.Unmarshal(bs, &x)"
 	"if err2 != nil {return invalid_request()}"
-	"i.~a = x" slot
+	(format #f "i.~a = x" slot)
 	"}"))
       ((ELEMENT)
        (format #t "BAD properties=~s~%" request-property)
@@ -725,8 +726,8 @@
        (list (format #f "ho.Add(~s, q.~a)" name slot)))
       ((PAYLOAD)
        (begin
-	 (format #t "BAD payload in response: ~s~%" name)
-	 (values)))
+	 (when tr? (format #t ";; Payload in response: ~s~%" name))
+	 '()))
       ((ELEMENT)
        (begin
 	 ;; (when tr? (format #t ";; Skip element in response: ~s~%" name))
@@ -740,12 +741,12 @@
    "ho.Set(\"Content-Type\", \"application/xml\")"
    "var co, err5 = xml.MarshalIndent(q, \" \", \"  \")"
    "if err5 != nil {log.Fatal(err5); return err5}"
-   (format #f "int status = ~a" code)
+   (format #f "var status int = ~a" code)
    "w.WriteHeader(status)"
    "var _, err6 = w.Write(co)"
    "if err6 != nil {log.Fatal(err6); return err6}"))
 
-(define (make-handler-call action)
+(define (make-handler-definition action)
   (match-let*
       (((name signature action-property request-properties response-properties)
 	action)
@@ -754,7 +755,7 @@
        (output-name (adjust-output-structure-name response-name))
        (properties (cast-payload-property-rear request-properties))
        ((_ _ code) action-property))
-    (when tr? (format #t ";; make-handler-call ~s~%" name))
+    (when tr? (format #t ";; make-handler-definition ~s~%" name))
     (append
      (list
       ;; Start of function declaration:
@@ -772,20 +773,47 @@
      (list
       "var ctx = r.Context()"
       (format #f "var o, err3 = bbs.~a(ctx, &i)" name)
-      "if err3 != nil {log.Fatal(err3); return err3")
+      "if err3 != nil {log.Fatal(err3); return err3}")
      ;; Output accessors:
      (list
       (format #f "var q = q_~a{s3.~a: o}" response-name output-name))
      (apply append (map make-output-extraction response-properties))
      (make-output-payload-extraction code)
      ;; Function end:
-     (list "}"))))
+     (list "return nil}"))))
 
-(define (display-handler-call action)
-  (let ((ss (make-handler-call action)))
+(define (display-handler-function action)
+  (let ((ss (make-handler-definition action)))
     (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
-;; (display-handler-call (assoc "ListParts" collected-actions))
+(define (make-handler-file collected-actions)
+  (append
+   (list "// handlers.go (2025-10-25)"
+	 "package server"
+	 "import ("
+	 ;; "\"context\""
+	 "\"encoding/xml\""
+	 "\"net/http\""
+	 "\"log\""
+	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	 ")")
+   (apply append
+	  (map make-handler-definition collected-actions))))
+
+(define (write-handlers port collected-actions)
+  (let ((ss (make-handler-file collected-actions)))
+    (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
+
+(define (display-handlers)
+  (write-handlers #t collected-actions))
+
+(define (dump-handlers file)
+  (call-with-output-file file
+    (lambda (port)
+      (write-handlers port collected-actions))))
+
+;; (display-handler-function (assoc "ListParts" collected-actions))
+;; (dump-handlers "handlers.go")
 
 ;;;
 ;;; RESPONSE MARSHALER PRINTER
