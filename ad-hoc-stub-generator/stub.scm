@@ -178,6 +178,12 @@
   ;; Appends strings with an intervening separator.
   (apply string-append (intervene-separator separator v)))
 
+(define (drop-prefix prefix name)
+  ;; Drops the prefix part from the name string.  It assumes the name
+  ;; begins with a prefix.
+  (assert (string-prefix? prefix name))
+  (substring name (string-length prefix)))
+
 ;;;
 ;;; LOADING S3.JSON
 ;;;
@@ -186,6 +192,108 @@
 (define s3-idl (with-input-from-file "./s3.json" json-read))
 (define s3-api (cdr (assoc 'shapes s3-idl)))
 (display "Reading ./s3.json... done\n")
+
+;;;
+;;; LISTING TYPES
+;;;
+
+;; This part makes alist of types.  Types in headers and queries are
+;; handled, but types in payload are ignored.  Type string is stored
+;; as a pointer in AWS-SDK.
+
+;; Types in S3: {"blob", "boolean", "enum"*, "integer", "list"*,
+;; "long", "map"*, ("operation"), ("service"), "string", "structure"*,
+;; "timestamp", "union"*}.
+;;
+;; Types stared (*) are composite.  There are many: structure (n=335),
+;; union (n=3), emulation (n=70), map (n=1).  Types parenthesised
+;; (operation and service) are metadata.
+
+(define list-of-primitive-types
+  '("blob" "boolean" "integer" "long" "operation" "service" "string"
+    "timestamp"))
+
+(define (primitive-type? type-definition)
+  (cond ((member type-definition list-of-primitive-types)
+	 #t)
+	(else
+	 ;; (format #t "non primitive-type ~s~%" type-definition)
+	 #f)))
+
+(define (assoc-target-slot default property)
+  ;; Returns a type name used in AWS-SDK.  It accepts #f for property
+  ;; alist.
+  (cond ((assoc-option 'target property)
+	 => (lambda (target)
+	      (cond ((string=? "smithy.api#Unit" target)
+		     "Unit")
+		    (else
+		     (drop-prefix "com.amazonaws.s3#" target)))))
+	(else default)))
+
+(define (make-type-slot-properties member)
+  (match-let (((slot-symbol . property) member))
+    (let* ((slot (symbol->string slot-symbol))
+	   (type (assoc-target-slot slot property))
+	   (traits (assoc-with-default '() 'traits property))
+	   (name
+	    (cond ((assoc '#{smithy.api#xmlName}# traits)
+		   => (lambda (pair) (cdr pair)))
+		  (else slot))))
+      (list slot name type))))
+
+(define (make-type-slots name type-kind members)
+  ;; Makes a definition body of a type, a list of three-tuple
+  ;; (type-kind (slot name type)...).  A type-kind is a key, such as
+  ;; "structure".  A slot is a slot name (as a key), a name is an
+  ;; xml-tag (keyed by "smithy.api#xmlName"), and a type is a
+  ;; type-name in AWS-SDK (keyed by "target").
+  (cons type-kind (map make-type-slot-properties members)))
+
+(define (make-type-definition shape-element)
+  ;; It returns a structure definition, consisting of an alist of a
+  ;; key and its type.  ENUM-type, STRUCTURE-type and UNION-type are a
+  ;; structure.  ENUM-type has elements whose types are "Unit".
+  ;; LIST-type has a single 'member slot.  MAP-type has two 'key and
+  ;; 'value slot.
+  (match-let (((id . property) shape-element))
+    (cond
+     ((assoc 'type property)
+      => (lambda (pair)
+	   (let* ((type (cdr pair))
+		  (id-string (symbol->string id))
+		  (name (drop-prefix "com.amazonaws.s3#" id-string)))
+	     (cond
+	      ((primitive-type? type)
+	       (cons name type))
+	      ((or (string=? type "enum")
+		   (string=? type "structure")
+		   (string=? type "union"))
+	       (let ((members (assoc 'members property)))
+		 (assert (not (eqv? members #f)))
+		 (cons name (make-type-slots name type (cdr members)))))
+	      ((string=? type "list")
+	       (let ((member1 (assoc 'member property)))
+		 (assert (not (eqv? member1 #f)))
+		 (cons name (make-type-slots name type (list member1)))))
+	      ((string=? type "map")
+	       (let* ((key (assoc-option 'key property))
+		      (value (assoc-option 'value property))
+		      (members (list (cons 'key key) (cons 'value value))))
+		 (assert (and (not (eqv? key #f)) (not (eqv? value #f))))
+		 (cons name (make-type-slots name type members))))
+	      (else
+	       (format #t "BAD type definition: ~s" shape-element)
+	       (values))))))
+     (else
+      #f))))
+
+(define (make-type-definitions shape-elements)
+  (delete #f (map make-type-definition shape-elements)))
+
+;; (make-type-definitions (assoc '#{com.amazonaws.s3#AbortIncompleteMultipartUpload}# s3-api))
+
+(define list-of-types (make-type-definitions s3-api))
 
 ;;;
 ;;; IDL SLOT ACCESSORS
@@ -201,15 +309,10 @@
   (let ((key (string-append "com.amazonaws.s3#" action-name)))
     (assoc-option (string->symbol key) s3-api)))
 
-(define (drop-prefix prefix name)
-  ;; Drops the prefix part from the name string.  It assumes the name
-  ;; begins with a prefix.
-  (assert (string-prefix? prefix name))
-  (substring name (string-length prefix)))
-
 (define (rename-output-structure-name output)
   (string-replace-substring output "Output" "Response"))
 
+#|
 (define (find-exchange-signature action-structure)
   ;; Returns a request/response name pair ("XXXXRequest"
   ;; "XXXXResponse").  It renames the result type "XXXXOutput" to
@@ -228,6 +331,21 @@
 		     (drop-prefix prefix q1)))))
       (let ((q3 (string-replace-substring q2 "Output" "Response")))
 	(list r2 q3)))))
+|#
+
+(define (find-exchange-signature action-structure)
+  ;; Returns a request/response name pair ("XXXXRequest"
+  ;; "XXXXResponse").  It renames the result type "XXXXOutput" to
+  ;; "XXXResponse".  It may return "Unit" for response.  Note the full
+  ;; structure names look like: "com.amazonaws.s3#XXXXRequest" and
+  ;; "com.amazonaws.s3#XXXXOutput".
+  (let ((r1 (assoc-target-slot #f (assoc-option 'input action-structure)))
+	(q1 (assoc-target-slot #f (assoc-option 'output action-structure)))
+	(prefix "com.amazonaws.s3#"))
+    (assert (and (string? r1) (string? q1)))
+    (assert (not (string=? "Unit" r1)))
+    (let ((q2 (string-replace-substring q1 "Output" "Response")))
+      (list r1 q2))))
 
 (define (find-request-structure~ action-structure)
   (let* ((signature (find-exchange-signature action-structure))
@@ -275,7 +393,7 @@
   ;; Admits an element of "members" list and returns a list of
   ;; four-tuples (slot name locus required) of a request/response
   ;; structure.  A slot is a name in a structure, and a name is in an
-  ;; xml tag.
+  ;; xml-tag.
   (let* ((slot (symbol->string (car member)))
 	 (traits (assoc-with-default '() 'traits (cdr member)))
 	 (required (cond ((assoc '#{smithy.api#required}# traits) #t)
@@ -349,23 +467,6 @@
 (define list-of-actions (map describe-action list-of-action-names))
 
 ;;;
-;;; LISTING TYPES
-;;;
-
-;; This part makes alist of types.  Types in headers and queries are
-;; handled, but types in payload are ignored.  Type string is stored
-;; as a pointer in AWS-SDK.
-
-;; Types in S3: {blob, boolean, enum*, integer, list*, long, map*,
-;; (operation), (service), string, structure*, timestamp, union*}.
-;;
-;; Types stared (*) are composite.  There are many: structure (n=335),
-;; union (n=3), emulation (n=70), map (n=1).  Types parenthesised
-;; (operation and service) are metadata.
-
-;;(define list-of-types (map describe-action list-of-actions))
-
-;;;
 ;;; PARAMETER INQUERIES
 ;;;
 
@@ -417,7 +518,7 @@
 	  ((check-uri-prefix? "/" uri)
 	   (list method "/"))
 	  (else
-	   (format #t "BAD unknown url pattern found: ~s." uri)
+	   (format #t "BAD unknown url pattern found: ~s" uri)
 	   #f))))
 
 (define (make-request-dispatch action)
@@ -675,8 +776,6 @@
     (lambda (port)
       (write-dispatcher port list-of-dispatches))))
 
-;; (dump-dispatcher "dispacher.go")
-
 ;;;
 ;;; HANDLER PRINTER
 ;;;
@@ -716,13 +815,14 @@
       ((HEADER)
        (list (format #f "i.~a = hi.Get(~s)" slot name)))
       ((PAYLOAD)
+       ;; Payload has types like s3.CompletedMultipartUpload.
        (list
 	"{"
 	(format #f "var x s3.~a" name)
 	"var bs, err1 = io.ReadAll(r.Body)"
 	"var err2 = xml.Unmarshal(bs, &x)"
-	"if err2 != nil {return invalid_request()}"
-	(format #f "i.~a = x" slot)
+	"if err2 != nil {log.Fatal(err2); return err2}"
+	(format #f "i.~a = &x" slot)
 	"}"))
       ((ELEMENT)
        (format #t "BAD properties=~s~%" request-property)
@@ -785,8 +885,10 @@
 		     "(bbs *BB_server,"
 		     " w http.ResponseWriter, r *http.Request) error {")
       "var qi = r.URL.Query()"
-      "var hi = r.Header"
-      "var ho = w.Header")
+      ;;"var hi = r.Header"
+      ;;"var ho = w.Header")
+      "var hi = r.Header()"
+      "var ho = w.Header()")
      ;; Input accessors:
      (list
       (format #f "var i = s3.~a{}" input-name))
@@ -819,6 +921,7 @@
 	 "\"net/http\""
 	 "\"log\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	 ")")
    (apply append
 	  (map make-handler-definition list-of-actions))))
@@ -836,7 +939,6 @@
       (write-handlers port list-of-actions))))
 
 ;; (display-handler-function (assoc "ListParts" list-of-actions))
-;; (dump-handlers "handlers.go")
 
 ;;;
 ;;; RESPONSE MARSHALER PRINTER
@@ -955,9 +1057,7 @@
 
 ;; (make-marshaler-definition (assoc "CopyObject" list-of-actions))
 ;; (display-repsonse-marshaler)
-
 ;; (display-marshaler-function (assoc "ListParts" list-of-actions))
-;; (dump-marshalers "marshalers.go")
 
 ;;;
 ;;; SERVER TEMPLATE PRINTER
@@ -1005,4 +1105,7 @@
     (lambda (port)
       (write-api-template-file port list-of-actions))))
 
+;; (dump-dispatcher "dispacher.go")
+;; (dump-handlers "handlers.go")
+;; (dump-marshalers "marshalers.go")
 ;; (dump-template "api-template.go")
