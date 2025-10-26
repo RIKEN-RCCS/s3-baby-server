@@ -191,7 +191,7 @@
 ;;; IDL SLOT ACCESSORS
 ;;;
 
-;; See collected-actions.  Or try:
+;; See list-of-actions.  Or try:
 ;;
 ;; (describe-action "AbortMultipartUpload")
 ;; (describe-action "DeleteObjects")
@@ -346,7 +346,24 @@
 
 ;; (itemize-slot-properties "ListPartsOutput")
 
-(define collected-actions (map describe-action list-of-action-names))
+(define list-of-actions (map describe-action list-of-action-names))
+
+;;;
+;;; LISTING TYPES
+;;;
+
+;; This part makes alist of types.  Types in headers and queries are
+;; handled, but types in payload are ignored.  Type string is stored
+;; as a pointer in AWS-SDK.
+
+;; Types in S3: {blob, boolean, enum*, integer, list*, long, map*,
+;; (operation), (service), string, structure*, timestamp, union*}.
+;;
+;; Types stared (*) are composite.  There are many: structure (n=335),
+;; union (n=3), emulation (n=70), map (n=1).  Types parenthesised
+;; (operation and service) are metadata.
+
+;;(define list-of-types (map describe-action list-of-actions))
 
 ;;;
 ;;; PARAMETER INQUERIES
@@ -354,8 +371,6 @@
 
 ;; This part makes a list of dispatcher entries, which is later used
 ;; to print dispatcher code.
-;;
-;; See (collect-request-dispatches collected-actions)
 
 (define (get-query-in-uri drop-x-id action-property)
   ;; Finds an optional query key and returns it as a list: (query) or
@@ -441,7 +456,7 @@
 		   (format #t "BAD properties=~s~%" (car props))))))))))
 
 (define (make-dispatch-entry action-name)
-  (cond ((assoc action-name collected-actions)
+  (cond ((assoc action-name list-of-actions)
 	 => (lambda (action)
 	      (make-request-dispatch action)))
 	(else #f)))
@@ -450,36 +465,29 @@
 ;; (make-dispatch-entry "DeleteObjects")
 ;; (make-dispatch-entry "UploadPartCopy")
 
-(define (collect-request-dispatches collected-actions)
-  (let loop ((actions collected-actions)
+(define (collect-request-dispatches list-of-actions)
+  (let loop ((actions list-of-actions)
 	     (acc '()))
     (if (null? actions)
 	acc
 	(let ((dispatch (make-request-dispatch (car actions))))
 	  (loop (cdr actions) (append acc (list dispatch)))))))
 
-(define collected-dispatches (collect-request-dispatches collected-actions))
+(define collected-dispatches (collect-request-dispatches list-of-actions))
 
 ;;;
-;;; DISPATCHER PRINTER
+;;; DISPATCHER SORTER
 ;;;
 
-;; This part prints a dispatch routine for requests collected by
-;; collect-request-dispatches.  Collected requests are grouped by
-;; mathod-path pairs.
-;;
-;; RUN (display-dispatcher list-of-dispatches)
+;; This part merges dispatches by a key method-path.  It prepares for
+;; registering to an http-server-mux.
 
-;; MEMO about Golang net/http server.  Headers can be accessed in
-;; Request.Header which is type Header (a map).  Queries can be
-;; accessed in Request.URL.Query() which is type Values (a map).
-
-(define (merge-request-dispatches collected-actions)
+(define (merge-request-dispatches list-of-actions)
   ;; Merges request dispatch entries by combining ones with the same
   ;; method-path pair.  It returns an alist with a method-path key and
   ;; a list of dispatches sharing the same key.
   (let loop ((entries collected-dispatches)
-	     ;;(entries (collect-request-dispatches collected-actions))
+	     ;;(entries (collect-request-dispatches list-of-actions))
 	     (alist '()))
     (if (null? entries)
 	alist
@@ -531,8 +539,22 @@
 	    (loop1 (cdr alist)
 		   (alist-cons method-path dispatches1 dispatches-acc)))))))
 
-(define merged-dispatches (merge-request-dispatches collected-actions))
+(define merged-dispatches (merge-request-dispatches list-of-actions))
 (define list-of-dispatches (sort-dispatches merged-dispatches))
+
+;;;
+;;; DISPATCHER PRINTER
+;;;
+
+;; This part prints a dispatch routine for requests collected by
+;; collect-request-dispatches.  Collected requests are grouped by
+;; mathod-path pairs.
+;;
+;; RUN (display-dispatcher list-of-dispatches)
+
+;; MEMO about Golang net/http server.  Headers can be accessed in
+;; Request.Header which is type Header (a map).  Queries can be
+;; accessed in Request.URL.Query() which is type Values (a map).
 
 (define (make-variable-name s)
   (string-map (lambda (c) (if (or (eqv? c #\-) (eqv? c #\=)) #\_ c))
@@ -624,7 +646,7 @@
 (define (generate-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
   (append
-   (list "// dispather.go (2025-10-25)"
+   (list "// dispather.go (2025-10-01)"
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
@@ -776,7 +798,8 @@
       "if err3 != nil {log.Fatal(err3); return err3}")
      ;; Output accessors:
      (list
-      (format #f "var q = q_~a{s3.~a: o}" response-name output-name))
+      ;;(format #f "var q = q_~a{~a: o}" response-name output-name)
+      (format #f "var q = q_~a(*o)" response-name))
      (apply append (map make-output-extraction response-properties))
      (make-output-payload-extraction code)
      ;; Function end:
@@ -786,9 +809,9 @@
   (let ((ss (make-handler-definition action)))
     (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
-(define (make-handler-file collected-actions)
+(define (make-handler-file list-of-actions)
   (append
-   (list "// handlers.go (2025-10-25)"
+   (list "// handlers.go (2025-10-01)"
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
@@ -798,21 +821,21 @@
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 ")")
    (apply append
-	  (map make-handler-definition collected-actions))))
+	  (map make-handler-definition list-of-actions))))
 
-(define (write-handlers port collected-actions)
-  (let ((ss (make-handler-file collected-actions)))
+(define (write-handlers port list-of-actions)
+  (let ((ss (make-handler-file list-of-actions)))
     (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 (define (display-handlers)
-  (write-handlers #t collected-actions))
+  (write-handlers #t list-of-actions))
 
 (define (dump-handlers file)
   (call-with-output-file file
     (lambda (port)
-      (write-handlers port collected-actions))))
+      (write-handlers port list-of-actions))))
 
-;; (display-handler-function (assoc "ListParts" collected-actions))
+;; (display-handler-function (assoc "ListParts" list-of-actions))
 ;; (dump-handlers "handlers.go")
 
 ;;;
@@ -891,7 +914,7 @@
 	  (format #f "return nil}"))))))
 
 (define (display-repsonse-marshaler1~ action-name)
-  (let* ((action (assoc action-name collected-actions))
+  (let* ((action (assoc action-name list-of-actions))
 	 (ss (make-marshaler-definition action))
 	 (lines (apply string-append (intervene-separator "\n" ss))))
     (format #t "~a~%" lines)
@@ -899,14 +922,14 @@
 
 (define (display-repsonse-marshaler~)
   (let ((s1 (make-response-marshaler-preamble))
-	(s2 (apply append (map make-marshaler-definition collected-actions))))
+	(s2 (apply append (map make-marshaler-definition list-of-actions))))
     (format #t "~a~%~a~%"
 	    (apply string-append (intervene-separator "\n" s1))
 	    (apply string-append (intervene-separator "\n" s2)))))
 
-(define (make-marshaler-file collected-actions)
+(define (make-marshaler-file list-of-actions)
   (append
-   (list "// marshalers.go (2025-10-25)"
+   (list "// marshalers.go (2025-10-01)"
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
@@ -916,22 +939,70 @@
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 ")")
    (apply append
-	  (map make-marshaler-definition collected-actions))))
+	  (map make-marshaler-definition list-of-actions))))
 
-(define (write-marshalers port collected-actions)
-  (let ((ss (make-marshaler-file collected-actions)))
+(define (write-marshalers port list-of-actions)
+  (let ((ss (make-marshaler-file list-of-actions)))
     (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 (define (display-marshalers)
-  (write-marshalers #t collected-actions))
+  (write-marshalers #t list-of-actions))
 
 (define (dump-marshalers file)
   (call-with-output-file file
     (lambda (port)
-      (write-marshalers port collected-actions))))
+      (write-marshalers port list-of-actions))))
 
-;; (make-marshaler-definition (assoc "CopyObject" collected-actions))
+;; (make-marshaler-definition (assoc "CopyObject" list-of-actions))
 ;; (display-repsonse-marshaler)
 
-;; (display-marshaler-function (assoc "ListParts" collected-actions))
+;; (display-marshaler-function (assoc "ListParts" list-of-actions))
 ;; (dump-marshalers "marshalers.go")
+
+;;;
+;;; SERVER TEMPLATE PRINTER
+;;;
+
+(define (make-api-template action)
+  (match-let* (((name signature action-property _ _) action)
+	       ((request-name response-name) signature)
+	       (input-name (adjust-input-structure-name request-name))
+	       (output-name (adjust-output-structure-name response-name)))
+    (when tr? (format #t ";; make-api-template ~s~%" name))
+    (let ((api-output-name
+	   (if (string=? output-name "Unit")
+	       (format #f "~aOutput" name)
+	       output-name)))
+      (list
+       (string-append
+	(format #f "func (bbs *BB_server) ~a" name)
+	(format #f "(ctx context.Context, params *s3.~a," input-name)
+	(format #f " optFns ...func(*s3.Options))")
+	(format #f " (*s3.~a, error) {" api-output-name))
+       (format #f "var o = s3.~a{}" api-output-name)
+       "return &o, nil}"))))
+
+(define (make-api-template-file list-of-actions)
+  (append
+   (list "// template.go (2025-10-01)"
+	 "package server"
+	 "import ("
+	 "\"context\""
+	 "\"encoding/xml\""
+	 "\"net/http\""
+	 "\"log\""
+	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	 ")")
+   (apply append
+	  (map make-api-template list-of-actions))))
+
+(define (write-api-template-file port list-of-actions)
+  (let ((ss (make-api-template-file list-of-actions)))
+    (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
+
+(define (dump-template file)
+  (call-with-output-file file
+    (lambda (port)
+      (write-api-template-file port list-of-actions))))
+
+;; (dump-template "api-template.go")
