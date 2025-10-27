@@ -205,9 +205,27 @@
 ;; "long", "map"*, ("operation"), ("service"), "string", "structure"*,
 ;; "timestamp", "union"*}.
 ;;
-;; Types stared (*) are composite.  There are many: structure (n=335),
-;; union (n=3), emulation (n=70), map (n=1).  Types parenthesised
-;; (operation and service) are metadata.
+;; Types stared (*) are composite.  There are many defined types: 335
+;; structures, 3 unions, 70 emulations, and one map.  Types
+;; parenthesised above (operation and service) are metadata.
+
+;; Note the "Unit"-type is not listed in the list-of-types.
+
+;; Note the "traits" slot of a structure-slot indicates the location
+;; of a request parameter.  It also indicates its required-ness.
+;;
+;; - "smithy.api#httpLabel": {}
+;;   - indicates a slot is in URL path.
+;; - "smithy.api#httpQuery": "uploadId"
+;;   - indicates a slot is in URL query.
+;; - "smithy.api#httpHeader": "x-amz-request-payer"
+;;   - indicates a slot is in header.
+;; - "smithy.api#httpPrefixHeaders": "x-amz-meta-"
+;;   - indicates a slot is in header.
+;; - "smithy.api#httpPayload": {}
+;;   - indicates a slot is in payload body.
+;; - "smithy.api#required": {}
+;;   - indicates it is a required parameter.
 
 (define list-of-primitive-types
   '("blob" "boolean" "integer" "long" "operation" "service" "string"
@@ -220,9 +238,9 @@
 	 ;; (format #t "non primitive-type ~s~%" type-definition)
 	 #f)))
 
-(define (assoc-target-slot default property)
-  ;; Returns a type name used in AWS-SDK.  It accepts #f for property
-  ;; alist.
+(define (assoc-type-of-slot default property)
+  ;; Returns a type of the slot which is specified by "target".  It
+  ;; accepts #f for property alist.
   (cond ((assoc-option 'target property)
 	 => (lambda (target)
 	      (cond ((string=? "smithy.api#Unit" target)
@@ -231,10 +249,10 @@
 		     (drop-prefix "com.amazonaws.s3#" target)))))
 	(else default)))
 
-(define (make-type-slot-properties member)
+(define (make-type-slot-property~ member)
   (match-let (((slot-symbol . property) member))
     (let* ((slot (symbol->string slot-symbol))
-	   (type (assoc-target-slot slot property))
+	   (type (assoc-type-of-slot slot property))
 	   (traits (assoc-with-default '() 'traits property))
 	   (name
 	    (cond ((assoc '#{smithy.api#xmlName}# traits)
@@ -242,20 +260,61 @@
 		  (else slot))))
       (list slot name type))))
 
+(define (make-slot-property member)
+  ;; Admits an element of "members" and returns a five-tuple (slot
+  ;; name type locus required), describing a structure slot.  A slot
+  ;; is a name in a structure (specified by key part), and a name is
+  ;; an xml-tag (specified by "smithy.api#xmlName").  A type is a type
+  ;; name (specified by "target").  A locus and a required are only
+  ;; meaningful in request/response structures.  A locus indicates
+  ;; where a parameter is passed, and it is one of 'PATH, 'QUERY,
+  ;; 'HEADER, 'PAYLOAD, or 'ELEMENT.  locus=PAYLOAD means the value is
+  ;; a whole payload.
+  (match-let (((slot-symbol . property) member))
+    (let* ((slot (symbol->string slot-symbol))
+	   (traits (assoc-with-default '() 'traits property))
+	   (name
+	    (cond ((assoc '#{smithy.api#xmlName}# traits)
+		   => (lambda (pair) (cdr pair)))
+		  (else slot)))
+	   (type (assoc-type-of-slot slot property))
+	   (required
+	    (cond ((assoc '#{smithy.api#required}# traits) #t)
+		  (else #f)))
+	   ;; (* FLATTENED IS NOT USED. *)
+	   (flattened
+	    (cond ((assoc '#{smithy.api#xmlFlattened}# traits) #t)
+		  (else #f))))
+      (cond ((assoc-option '#{smithy.api#httpLabel}# traits)
+	     => (lambda (_)
+		  (list slot name type 'PATH required)))
+	    ((assoc-option '#{smithy.api#httpQuery}# traits)
+	     => (lambda (v)
+		  (list slot v type 'QUERY required)))
+	    ((assoc-option '#{smithy.api#httpHeader}# traits)
+	     => (lambda (v)
+		  (list slot v type 'HEADER required)))
+	    ((assoc-option '#{smithy.api#httpPrefixHeaders}# traits)
+	     => (lambda (v)
+		  (list slot v type 'HEADER required)))
+	    ((assoc-option '#{smithy.api#httpPayload}# traits)
+	     => (lambda (_)
+		  ;; (* DATA IS CONTENT PAYLOAD. *)
+		  (list slot name type 'PAYLOAD required)))
+	    (else
+	     ;; Empty traits means a response element.
+	     (list slot name type 'ELEMENT required))))))
+
 (define (make-type-slots name type-kind members)
-  ;; Makes a definition body of a type, a list of three-tuple
-  ;; (type-kind (slot name type)...).  A type-kind is a key, such as
-  ;; "structure".  A slot is a slot name (as a key), a name is an
-  ;; xml-tag (keyed by "smithy.api#xmlName"), and a type is a
-  ;; type-name in AWS-SDK (keyed by "target").
-  (cons type-kind (map make-type-slot-properties members)))
+  (cons type-kind (map make-slot-property members)))
 
 (define (make-type-definition shape-element)
-  ;; It returns a structure definition, consisting of an alist of a
-  ;; key and its type.  ENUM-type, STRUCTURE-type and UNION-type are a
-  ;; structure.  ENUM-type has elements whose types are "Unit".
-  ;; LIST-type has a single 'member slot.  MAP-type has two 'key and
-  ;; 'value slot.
+  ;; It returns a definition, consisting of a list (name type-kind
+  ;; . slot-properties).  A slot-properties describes structure slots,
+  ;; when a type-kind is "enum", "structure", or "union".  An
+  ;; enum-type has elements whose types are "Unit", a list-type has a
+  ;; single 'member slot, and a map-type has two 'key and 'value
+  ;; slots.
   (match-let (((id . property) shape-element))
     (cond
      ((assoc 'type property)
@@ -265,7 +324,7 @@
 		  (name (drop-prefix "com.amazonaws.s3#" id-string)))
 	     (cond
 	      ((primitive-type? type)
-	       (cons name type))
+	       (list name type))
 	      ((or (string=? type "enum")
 		   (string=? type "structure")
 		   (string=? type "union"))
@@ -288,10 +347,24 @@
      (else
       #f))))
 
-(define (make-type-definitions shape-elements)
-  (delete #f (map make-type-definition shape-elements)))
+(define (check-type-needs-marshaler definition)
+  ;; Warns when a structure has a xml-tag specification that differs
+  ;; from a name in a structure.  They need custom marshalers.  It
+  ;; ignores top-level slots of a request/response structure, because
+  ;; they are handled in generated marshalers.
+  (match-let (((type-name type-kind . slot-properties) definition))
+    (for-each (lambda (property)
+		(match-let (((slot name type locus required) property))
+		  (when (and (not (string=? slot name)) (eqv? locus #f))
+		    (format #t "SLOT TAG NAME DIFFER: ~s~%" property))))
+      slot-properties)))
 
-;; (make-type-definitions (assoc '#{com.amazonaws.s3#AbortIncompleteMultipartUpload}# s3-api))
+(define (make-type-definitions shape-elements)
+  (let ((definitions (delete #f (map make-type-definition shape-elements))))
+    (for-each check-type-needs-marshaler definitions)
+    definitions))
+
+;; (make-type-definition (assoc '#{com.amazonaws.s3#AbortIncompleteMultipartUpload}# s3-api))
 
 (define list-of-types (make-type-definitions s3-api))
 
@@ -339,23 +412,27 @@
   ;; "XXXResponse".  It may return "Unit" for response.  Note the full
   ;; structure names look like: "com.amazonaws.s3#XXXXRequest" and
   ;; "com.amazonaws.s3#XXXXOutput".
-  (let ((r1 (assoc-target-slot #f (assoc-option 'input action-structure)))
-	(q1 (assoc-target-slot #f (assoc-option 'output action-structure)))
+  (let ((r1 (assoc-type-of-slot #f (assoc-option 'input action-structure)))
+	(q1 (assoc-type-of-slot #f (assoc-option 'output action-structure)))
 	(prefix "com.amazonaws.s3#"))
     (assert (and (string? r1) (string? q1)))
     (assert (not (string=? "Unit" r1)))
     (let ((q2 (string-replace-substring q1 "Output" "Response")))
       (list r1 q2))))
 
+#|
 (define (find-request-structure~ action-structure)
   (let* ((signature (find-exchange-signature action-structure))
 	 (slot-name (string-append "com.amazonaws.s3#" (car signature))))
     (cdr (assoc (string->symbol slot-name) s3-api))))
+|#
 
+#|
 (define (find-response-structure~ action-structure)
   (let* ((signature (find-exchange-signature action-structure))
 	 (slot-name (string-append "com.amazonaws.s3#" (cadr signature))))
     (cdr (assoc (string->symbol slot-name) s3-api))))
+|#
 
 ;; Note the "traits" slot of an action-structure indicates the method
 ;; of a request.  It is under "smithy.api#http", and has the
@@ -373,62 +450,12 @@
 		    (assoc-option 'code method))))
 	(else #f)))
 
-;; Note the "traits" slot of a structure-slot indicates the location
-;; of a request parameter.  It also indicates its required-ness.
-;;
-;; - "smithy.api#httpLabel": {}
-;;   - indicates a slot is in URL path.
-;; - "smithy.api#httpQuery": "uploadId"
-;;   - indicates a slot is in URL query.
-;; - "smithy.api#httpHeader": "x-amz-request-payer"
-;;   - indicates a slot is in header.
-;; - "smithy.api#httpPrefixHeaders": "x-amz-meta-"
-;;   - indicates a slot is in header.
-;; - "smithy.api#httpPayload": {}
-;;   - indicates a slot is in payload body.
-;; - "smithy.api#required": {}
-;;   - indicates it is a required parameter.
-
-(define (make-slot-properties member)
-  ;; Admits an element of "members" list and returns a list of
-  ;; four-tuples (slot name locus required) of a request/response
-  ;; structure.  A slot is a name in a structure, and a name is in an
-  ;; xml-tag.
-  (let* ((slot (symbol->string (car member)))
-	 (traits (assoc-with-default '() 'traits (cdr member)))
-	 (required (cond ((assoc '#{smithy.api#required}# traits) #t)
-			 (else #f)))
-	 (flatten (cond ((assoc '#{smithy.api#xmlFlattened}# traits) #t)
-			(else #f)))
-	 ;; (* IGNORE FLATTENED *)
-	 (name (cond ((assoc '#{smithy.api#xmlName}# traits)
-		      => (lambda (pair) (cdr pair)))
-		     (else slot))))
-    (cond ((assoc-option '#{smithy.api#httpLabel}# traits)
-	   => (lambda (_)
-		(list slot name 'PATH required)))
-	  ((assoc-option '#{smithy.api#httpQuery}# traits)
-	   => (lambda (v)
-		(list slot v 'QUERY required)))
-	  ((assoc-option '#{smithy.api#httpHeader}# traits)
-	   => (lambda (v)
-		(list slot v 'HEADER required)))
-	  ((assoc-option '#{smithy.api#httpPrefixHeaders}# traits)
-	   => (lambda (v)
-		(list slot v 'HEADER required)))
-	  ((assoc-option '#{smithy.api#httpPayload}# traits)
-	   => (lambda (_)
-		;; (* DATA IS CONTENT PAYLOAD. *)
-		(list slot name 'PAYLOAD required)))
-	  (else
-	   ;; Empty traits means a response element.
-	   (list slot name 'ELEMENT required)))))
-
-(define (itemize-slot-properties exchange-structure-name)
+#|
+(define (itemize-slot-properties~ exchange-structure-name)
   ;; Extracts properties of a request/response structure of
   ;; "com.amazonaws.s3#XXXXRequest" and "com.amazonaws.s3#XXXXOutput".
-  ;; It returns a list of four-tuples (slot name locus required), or
-  ;; returns an empty list of "Unit".  A slot is a name in a
+  ;; It returns a list of five-tuples (slot name type locus required), or
+  ;; returns an empty list for "Unit".  A slot is a name in a
   ;; request/response strucuture.  A locus indicates where a parameter
   ;; is passed, and it is one of 'PATH, 'QUERY, 'HEADER, 'PAYLOAD, or
   ;; 'ELEMENT.  locus=PAYLOAD means the value is a whole payload.
@@ -438,7 +465,20 @@
 	 (members (assoc-option 'members exchange-structure)))
     (if (eqv? #f members)
 	'()
-	(delete #f (map make-slot-properties members)))))
+	(delete #f (map make-slot-property members)))))
+|#
+
+(define (itemize-slot-properties exchange-structure-name)
+  ;; Returns a properties of a request/response structure
+  ;; ("XXXXRequest" or "XXXXOutput").  It returns a list of
+  ;; five-tuples (slot name type locus required), or an empty list for
+  ;; "Unit".
+  (cond ((assoc exchange-structure-name list-of-types)
+	 => (lambda (definition)
+	      (match-let (((type-name type-kind . slot-properties) definition))
+		slot-properties)))
+	(else
+	 '())))
 
 (define (adjust-input-structure-name request)
   (string-replace-substring request "Request" "Input"))
@@ -533,7 +573,7 @@
 	       (headers-acc '()))
       (if (null? props)
 	  (list name method-path queries-acc headers-acc signature)
-	  (match-let (((slot name locus required) (car props)))
+	  (match-let (((slot name type locus required) (car props)))
 	    ;; (when tr? (format #t ";; slot=~s name=~s locus=~s required=~s~%"
 	    ;; slot name locus required))
 	    (if (not required)
@@ -784,8 +824,8 @@
 ;; dispatcher.
 
 (define (locus-ordered? property-a property-b)
-  (match-let (((slot-a name-a locus-a required-a) property-a)
-	      ((slot-b name-b locus-b required-b) property-b))
+  (match-let (((slot-a name-a type-a locus-a required-a) property-a)
+	      ((slot-b name-b type-b locus-b required-b) property-b))
     (cond ((eqv? locus-a 'PAYLOAD)
 	   #f)
 	  ((eqv? locus-b 'PAYLOAD)
@@ -800,10 +840,10 @@
 
 (define (make-input-assignment request-property)
   ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
-  ;; Slot property is a list of (slot name locus required).  Note the
-  ;; structure name of a request is "XXXXRequest" in the API and
-  ;; Smithy.
-  (match-let (((slot name locus required) request-property))
+  ;; Slot property is a list of five-tuples (slot name type locus
+  ;; required).  Note the structure name of a request is "XXXXRequest"
+  ;; in the API and Smithy.
+  (match-let (((slot name type locus required) request-property))
     ;; (when tr? (format #t ";; required=~s locus=~s name=~s slot=~s~%"
     ;; required locus name slot))
     (case locus
@@ -833,8 +873,9 @@
 
 (define (make-output-extraction response-property)
   ;; Makes extraction code from structure "s3.XXXXOutput" of AWS SDK.
-  ;; Each property is a list of (slot name locus required).
-  (match-let (((slot name locus required) response-property))
+  ;; Each property is a list of five-tuples (slot name type locus
+  ;; required).
+  (match-let (((slot name type locus required) response-property))
     ;; (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
     ;; slot name locus required))
     (case locus
@@ -956,13 +997,13 @@
   ;; has "CopyPartResult"
   (let ((check-output-in-payload1
 	 (lambda (property)
-	   (match-let (((slot name locus required) property))
+	   (match-let (((slot name type locus required) property))
 	     (eqv? locus 'PAYLOAD)))))
     (any check-output-in-payload1 response-properties)))
 
 (define (make-slot-marshaler property)
   ;; Returns a list of marshaler lines of an response element.
-  (match-let (((slot name locus required) property))
+  (match-let (((slot name type locus required) property))
     (case locus
       ((PATH QUERY)
        (format #t "BAD property in response: ~s~%" property)
