@@ -184,6 +184,19 @@
   (assert (string-prefix? prefix name))
   (substring name (string-length prefix)))
 
+(define (capitalize-string s)
+  ;; Capitalizes the beginning and downcase the rest.
+  (if (= (string-length s) 0)
+      s
+      (string-append (string (char-upcase (string-ref s 0)))
+		     (string-downcase (substring s 1)))))
+
+(define (camelcase-string s)
+  ;; Makes a string in camelcase, like "baby_iron" or "BABY_IRON" to
+  ;; "BabyIron".
+  (let ((tokens (string-split s #\_)))
+    (apply string-append (map capitalize-string tokens))))
+
 ;;;
 ;;; LOADING S3.JSON
 ;;;
@@ -269,12 +282,14 @@
   ;; meaningful in request/response structures.  A locus indicates
   ;; where a parameter is passed, and it is one of 'PATH, 'QUERY,
   ;; 'HEADER, 'PAYLOAD, or 'ELEMENT.  locus=PAYLOAD means the value is
-  ;; a whole payload.
+  ;; a whole payload.  A name is an enumerator for enumeration types.
   (match-let (((slot-symbol . property) member))
     (let* ((slot (symbol->string slot-symbol))
 	   (traits (assoc-with-default '() 'traits property))
 	   (name
 	    (cond ((assoc '#{smithy.api#xmlName}# traits)
+		   => (lambda (pair) (cdr pair)))
+		  ((assoc '#{smithy.api#enumValue}# traits)
 		   => (lambda (pair) (cdr pair)))
 		  (else slot)))
 	   (type (assoc-type-of-slot slot property))
@@ -841,46 +856,102 @@
   ;; sorting request-properties.
   (sort request-properties locus-ordered?))
 
-(define (make-coercing-assignment type-name lhs rhs)
-  ;; Returns a coercer (a string) from string to a given type.  It
-  ;; returns #f when coercing is not needed.
-  (cond
-   ((assoc type-name list-of-types)
-    => (lambda (definition)
-	 (match-let (((type-name type-kind . _) definition))
-	   (cond
-	    ((primitive-type? type-kind)
-	     (cond
-	      ((string=? type-kind "blob")
-	       (values))
-	      ((string=? type-kind "boolean")
-	       (list
-		(format #f "~a = ~a" lhs rhs)))
-	      ((string=? type-kind "integer")
-	       (list
-		(format #f "~a = ~a" lhs rhs)))
-	      ((string=? type-kind "long")
-	       (list
-		(format #f "~a = ~a" lhs rhs)))
-	      ((string=? type-kind "operation")
-	       (values))
-	      ((string=? type-kind "service")
-	       (values))
-	      ((string=? type-kind "string")
-	       (list
-		(format #f "~a = string_pointer(~a)" lhs rhs)))
-	      ((string=? type-kind "timestamp")
-	       (list
-		(format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
-		"if err2 != nil {log.Fatal(err2); return err2}"
-		(format #f "~a = &x}" lhs)))
-	      (else
-	       (values))))
-	    (else
-	     (list
-	      (format #f "~a = ~a" lhs rhs)))))))
-   (else
-    (values))))
+(define (make-sdk-enumerator type-name enumerator-string)
+  ;; Makes an enumerator of an enum of AWS-SDK.
+  (format #f "types.~a~a" type-name (camelcase-string enumerator-string)))
+
+(define (make-coercing-intern type-name assigner rhs)
+  ;; Makes a coercion of a string to a given type.  The value is
+  ;; assigned to a temporary lhs.  It assumes a type-name is defined.
+  (match-let* ((definition (assoc type-name list-of-types))
+	       ((type-name type-kind . slot-properties) definition))
+    (cond
+     ;; Primitive-types:
+     ((string=? type-kind "blob")
+      (values))
+     ((string=? type-kind "boolean")
+      (list
+       (assigner (format #f "~a" rhs))))
+     ((string=? type-kind "integer")
+      (list
+       (format #f "{var x, err2 = strconv.Atoi(~a)" rhs)
+       "if err2 != nil {log.Fatal(err2); return err2}"
+       (string-append (assigner "&x") "}")))
+     ((string=? type-kind "long")
+      (list
+       (format #f "{var x, err2 = strconv.ParseInt(~a, 10, 64)" rhs)
+       "if err2 != nil {log.Fatal(err2); return err2}"
+       (string-append (assigner "&x") "}")))
+     ((string=? type-kind "operation")
+      (values))
+     ((string=? type-kind "service")
+      (values))
+     ((string=? type-kind "string")
+      (list
+       (assigner (format #f "string_pointer(~a)" rhs))))
+     ((string=? type-kind "timestamp")
+      (list
+       (format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
+       "if err2 != nil {log.Fatal(err2); return err2}"
+       (string-append (assigner "&x") "}")))
+     ;; Enumeration-types:
+     ((string=? type-kind "enum")
+      ;; A slot property of an enumeration-type is (slot name
+      ;; "Unit" ...), and a name is an enumerator string.
+      (append
+       (list (format #f "{var x types.~a" type-name)
+	     (format #f "switch ~a {" rhs))
+       (map (lambda (property)
+	      (match-let (((slot name _ . _) property))
+		(let ((enumerator (make-sdk-enumerator type-name name)))
+		  (format #f "case ~s: x = ~a" name enumerator))))
+	    slot-properties)
+       (list
+	"default: var err2 = errors.New(\"interning an enum\")"
+	"log.Fatal(err2); return err2}"
+	(string-append (assigner "x") "}"))))
+     ;; Others:
+     (else
+      (list
+       (assigner (format #f "~a" rhs)))))))
+
+(define (make-coercing-extern type-name assigner rhs)
+  ;; Makes a coercion of a given type to a string.  It is in the
+  ;; opposite direction of make-extern-coercing.  It errs when a
+  ;; type-name is not defined.
+  (match-let* ((definition (assoc type-name list-of-types))
+	       ((type-name type-kind . slot-properties) definition))
+    (cond
+     ;; Primitive-types:
+     ((string=? type-kind "blob")
+      (values))
+     ((string=? type-kind "boolean")
+      (list
+       (assigner (format #f "strconv.FormatBool(~a)" rhs))))
+     ((string=? type-kind "integer")
+      (list
+       (assigner (format #f "strconv.FormatUint(~a, 10)" rhs))))
+     ((string=? type-kind "long")
+      (list
+       (assigner (format #f "strconv.FormatUint(~a, 10)" rhs))))
+     ((string=? type-kind "operation")
+      (values))
+     ((string=? type-kind "service")
+      (values))
+     ((string=? type-kind "string")
+      (list
+       (assigner (format #f "string(*~a)" rhs))))
+     ((string=? type-kind "timestamp")
+      (list
+       (assigner (format #f "~a.String()" rhs))))
+     ;; Enumeration-types:
+     ((string=? type-kind "enum")
+      (list
+       (assigner (format #f "string(~a)" rhs))))
+     ;; Others:
+     (else
+      (list
+        (assigner (format #f "~a" rhs)))))))
 
 (define (make-input-assignment request-property)
   ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
@@ -895,21 +966,24 @@
        ;; Ignore path parameters.
        '())
       ((QUERY)
-       (list (format #f "i.~a = qi.Get(~s)" slot name)))
+       ;; (list (format #f "i.~a = qi.Get(~s)" slot name))
+       (let ((assigner (lambda (rhs)
+			 (format #f "i.~a = ~a" slot rhs))))
+	 (make-coercing-intern type assigner (format #f "qi.Get(~s)" name))))
       ((HEADER)
-       ;;(list (format #f "i.~a = hi.Get(~s)" slot name))
-       (make-coercing-assignment
-	type (format #f "i.~a" slot) (format #f "hi.Get(~s)" name)))
+       ;; (list (format #f "i.~a = hi.Get(~s)" slot name))
+       (let ((assigner (lambda (rhs)
+			 (format #f "i.~a = ~a" slot rhs))))
+	 (make-coercing-intern type assigner (format #f "hi.Get(~s)" name))))
       ((PAYLOAD)
-       ;; Payload has types like s3.CompletedMultipartUpload.
+       ;; Payload has types like types.CompletedMultipartUpload.
        (list
-	"{"
-	(format #f "var x s3.~a" name)
+	(format #f "{var x types.~a" type)
 	"var bs, err1 = io.ReadAll(r.Body)"
+	"if err1 != nil {log.Fatal(err1); return err1}"
 	"var err2 = xml.Unmarshal(bs, &x)"
 	"if err2 != nil {log.Fatal(err2); return err2}"
-	(format #f "i.~a = &x" slot)
-	"}"))
+	(format #f "i.~a = &x}" slot)))
       ((ELEMENT)
        (format #t "BAD properties=~s~%" request-property)
        (values))
@@ -932,7 +1006,10 @@
 	 (format #t "BAD query in response: ~s~%" name)
 	 (values)))
       ((HEADER)
-       (list (format #f "ho.Add(~s, q.~a)" name slot)))
+       ;;(list (format #f "ho.Add(~s, s.~a)" name slot))
+       (let ((assigner (lambda (rhs)
+			 (format #f "ho.Add(~s, ~a)" name rhs))))
+	 (make-coercing-extern type assigner (format #f "s.~a" slot))))
       ((PAYLOAD)
        (begin
 	 (when tr? (format #t ";; Payload in response: ~s~%" name))
@@ -942,13 +1019,13 @@
 	 ;; (when tr? (format #t ";; Skip element in response: ~s~%" name))
 	 '()))
       (else
-       (format #t "BAD properties=~s~%" (car props))
+       (format #t "BAD properties=~s~%" response-property)
        (values)))))
 
 (define (make-output-payload-extraction code)
   (list
    "ho.Set(\"Content-Type\", \"application/xml\")"
-   "var co, err5 = xml.MarshalIndent(q, \" \", \"  \")"
+   "var co, err5 = xml.MarshalIndent(s, \" \", \"  \")"
    "if err5 != nil {log.Fatal(err5); return err5}"
    (format #f "var status int = ~a" code)
    "w.WriteHeader(status)"
@@ -1006,8 +1083,11 @@
 	 "import ("
 	 ;; "\"context\""
 	 "\"encoding/xml\""
-	 "\"net/http\""
+	 "\"errors\""
+	 "\"io\""
 	 "\"log\""
+	 "\"net/http\""
+	 "\"strconv\""
 	 "\"time\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
