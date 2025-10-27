@@ -115,6 +115,8 @@
 
 (define tr? #t)
 
+(define apply-append concatenate)
+
 (define (assoc-option k alist)
   ;; Assoc but returns the cdr part of it or #f.  It #f as an alist.
   (if (eqv? alist #f)
@@ -174,9 +176,13 @@
 		     (append b (list separator)(list a))))
 	       marker v))))
 
+#|
 (define (append-strings v separator)
   ;; Appends strings with an intervening separator.
   (apply string-append (intervene-separator separator v)))
+|#
+
+(define append-strings string-join)
 
 (define (drop-prefix prefix name)
   ;; Drops the prefix part from the name string.  It assumes the name
@@ -184,17 +190,29 @@
   (assert (string-prefix? prefix name))
   (substring name (string-length prefix)))
 
+(define (string-split-n strings chars)
+  ;; Repeats string-split by characters on strings.
+  (if (null? chars)
+      strings
+      (string-split-n
+       (apply append (map (lambda (s) (string-split s (car chars))) strings))
+       (cdr chars))))
+
 (define (capitalize-string s)
-  ;; Capitalizes the beginning and downcase the rest.
-  (if (= (string-length s) 0)
-      s
+  ;; Capitalizes the string, when the string is all lowercase or
+  ;; uppercase.  That is, it keeps camelcase.  It accepts zero-length
+  ;; strings.
+  (if (and (not (string-null? s))
+	   (or (string=? (string-upcase s) s)
+	       (string=? (string-downcase s) s)))
       (string-append (string (char-upcase (string-ref s 0)))
-		     (string-downcase (substring s 1)))))
+		     (string-downcase (substring s 1)))
+      s))
 
 (define (camelcase-string s)
-  ;; Makes a string in camelcase, like "baby_iron" or "BABY_IRON" to
-  ;; "BabyIron".
-  (let ((tokens (string-split s #\_)))
+  ;; Makes a string in camelcase, as "BabyIron", "baby_iron", and
+  ;; "BABY_IRON" to "BabyIron".
+  (let ((tokens (string-split-n (list s) '(#\_ #\- #\:))))
     (apply string-append (map capitalize-string tokens))))
 
 ;;;
@@ -861,8 +879,8 @@
   (format #f "types.~a~a" type-name (camelcase-string enumerator-string)))
 
 (define (make-coercing-intern type-name assigner rhs)
-  ;; Makes a coercion of a string to a given type.  The value is
-  ;; assigned to a temporary lhs.  It assumes a type-name is defined.
+  ;; Makes a coercion of a string to a given type.  Calling an
+  ;; assigner makes an assignment.  It assumes a type-name is defined.
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
     (cond
@@ -871,7 +889,9 @@
       (values))
      ((string=? type-kind "boolean")
       (list
-       (assigner (format #f "~a" rhs))))
+       (format #f "{var x, err2 = strconv.ParseBool(~a)" rhs)
+       "if err2 != nil {log.Fatal(err2); return err2}"
+       (string-append (assigner "&x") "}")))
      ((string=? type-kind "integer")
       (list
        (format #f "{var x, err2 = strconv.Atoi(~a)" rhs)
@@ -927,7 +947,7 @@
       (values))
      ((string=? type-kind "boolean")
       (list
-       (assigner (format #f "strconv.FormatBool(~a)" rhs))))
+       (assigner (format #f "strconv.FormatBool(*~a)" rhs))))
      ((string=? type-kind "integer")
       (list
        (assigner (format #f "strconv.FormatUint(~a, 10)" rhs))))
@@ -1049,10 +1069,9 @@
 		     "(bbs *BB_server,"
 		     " w http.ResponseWriter, r *http.Request) error {")
       "var qi = r.URL.Query()"
-      ;;"var hi = r.Header"
-      ;;"var ho = w.Header")
       "var hi = r.Header"
-      "var ho = w.Header()")
+      "var ho = w.Header()"
+      "var _, _, _ = qi, hi, ho")
      ;; Input accessors:
      (list
       (format #f "var i = s3.~a{}" input-name))
