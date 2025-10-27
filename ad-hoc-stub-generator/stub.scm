@@ -729,7 +729,7 @@
 
 (define (list-queries-headers dispatches)
   ;; Gathers queries and headers from dispatches.  The result is used
-  ;; to access queries/headers in the dispacher code.
+  ;; to access queries/headers in the dispatcher code.
   (let loop ((dispatches dispatches)
 	     (queries-acc '())
 	     (headers-acc '()))
@@ -787,7 +787,10 @@
 (define (generate-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
   (append
-   (list "// dispather.go (2025-10-01)"
+   (list "// dispatcher.go (2025-10-01)"
+	 "// Dispatcher for net/http.ServeMux.  It switches handlers"
+	 "// with regard to method-path patterns and required"
+	 "// parameters in request API."
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
@@ -955,6 +958,7 @@
 (define (make-handler-file list-of-actions)
   (append
    (list "// handlers.go (2025-10-01)"
+	 "// Handler functions (h_XXXX) called from the dispatcher."
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
@@ -1073,6 +1077,10 @@
 (define (make-marshaler-file list-of-actions)
   (append
    (list "// marshalers.go (2025-10-01)"
+	 "// Marshalers of response structures.  The response output"
+	 "// structures need custom marshalers, because they have some"
+	 "// slots that need to be renamed and also have an"
+	 "// extra slot that should be skipped."
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
@@ -1126,6 +1134,8 @@
 (define (make-api-template-file list-of-actions)
   (append
    (list "// template.go (2025-10-01)"
+	 "// Handler templates. They should be replaced by actual"
+	 "// implementations."
 	 "package server"
 	 "import ("
 	 "\"context\""
@@ -1146,7 +1156,7 @@
     (lambda (port)
       (write-api-template-file port list-of-actions))))
 
-;; (dump-dispatcher "dispacher.go")
+;; (dump-dispatcher "dispatcher.go")
 ;; (dump-handlers "handlers.go")
 ;; (dump-marshalers "marshalers.go")
 ;; (dump-template "api-template.go")
