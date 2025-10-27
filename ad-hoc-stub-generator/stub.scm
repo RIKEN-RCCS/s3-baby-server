@@ -231,11 +231,11 @@
   '("blob" "boolean" "integer" "long" "operation" "service" "string"
     "timestamp"))
 
-(define (primitive-type? type-definition)
-  (cond ((member type-definition list-of-primitive-types)
+(define (primitive-type? type-kind)
+  (cond ((member type-kind list-of-primitive-types)
 	 #t)
 	(else
-	 ;; (format #t "non primitive-type ~s~%" type-definition)
+	 ;; (format #t "non primitive-type ~s~%" type-kind)
 	 #f)))
 
 (define (assoc-type-of-slot default property)
@@ -841,6 +841,47 @@
   ;; sorting request-properties.
   (sort request-properties locus-ordered?))
 
+(define (make-coercing-assignment type-name lhs rhs)
+  ;; Returns a coercer (a string) from string to a given type.  It
+  ;; returns #f when coercing is not needed.
+  (cond
+   ((assoc type-name list-of-types)
+    => (lambda (definition)
+	 (match-let (((type-name type-kind . _) definition))
+	   (cond
+	    ((primitive-type? type-kind)
+	     (cond
+	      ((string=? type-kind "blob")
+	       (values))
+	      ((string=? type-kind "boolean")
+	       (list
+		(format #f "~a = ~a" lhs rhs)))
+	      ((string=? type-kind "integer")
+	       (list
+		(format #f "~a = ~a" lhs rhs)))
+	      ((string=? type-kind "long")
+	       (list
+		(format #f "~a = ~a" lhs rhs)))
+	      ((string=? type-kind "operation")
+	       (values))
+	      ((string=? type-kind "service")
+	       (values))
+	      ((string=? type-kind "string")
+	       (list
+		(format #f "~a = string_pointer(~a)" lhs rhs)))
+	      ((string=? type-kind "timestamp")
+	       (list
+		(format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
+		"if err2 != nil {log.Fatal(err2); return err2}"
+		(format #f "~a = &x}" lhs)))
+	      (else
+	       (values))))
+	    (else
+	     (list
+	      (format #f "~a = ~a" lhs rhs)))))))
+   (else
+    (values))))
+
 (define (make-input-assignment request-property)
   ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
   ;; Slot property is a list of five-tuples (slot name type locus
@@ -856,7 +897,9 @@
       ((QUERY)
        (list (format #f "i.~a = qi.Get(~s)" slot name)))
       ((HEADER)
-       (list (format #f "i.~a = hi.Get(~s)" slot name)))
+       ;;(list (format #f "i.~a = hi.Get(~s)" slot name))
+       (make-coercing-assignment
+	type (format #f "i.~a" slot) (format #f "hi.Get(~s)" name)))
       ((PAYLOAD)
        ;; Payload has types like s3.CompletedMultipartUpload.
        (list
@@ -931,7 +974,7 @@
       "var qi = r.URL.Query()"
       ;;"var hi = r.Header"
       ;;"var ho = w.Header")
-      "var hi = r.Header()"
+      "var hi = r.Header"
       "var ho = w.Header()")
      ;; Input accessors:
      (list
@@ -944,8 +987,8 @@
       "if err3 != nil {log.Fatal(err3); return err3}")
      ;; Output accessors:
      (list
-      ;;(format #f "var q = q_~a{~a: o}" response-name output-name)
-      (format #f "var q = q_~a(*o)" response-name))
+      ;;(format #f "var s = s_~a{~a: o}" response-name output-name)
+      (format #f "var s = s_~a(*o)" response-name))
      (apply append (map make-output-extraction response-properties))
      (make-output-payload-extraction code)
      ;; Function end:
@@ -965,6 +1008,7 @@
 	 "\"encoding/xml\""
 	 "\"net/http\""
 	 "\"log\""
+	 "\"time\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	 ")")
@@ -989,11 +1033,13 @@
 ;;; RESPONSE MARSHALER PRINTER
 ;;;
 
-(define (make-response-marshaler-preamble)
+#|
+(define (make-response-marshaler-preamble~)
   (list
    (format #f "func p[T any](v T) *T {return &v}")
-   (format #f "func s(k string) xml.StartElement {~a}"
+   (format #f "func start_element(k string) xml.StartElement {~a}"
 	   "return xml.StartElement{Name: xml.Name{Local: k}")))
+|#
 
 (define (check-output-in-payload response-properties)
   ;; Checks if response is in a payload.  "CopyObject" has
@@ -1014,13 +1060,13 @@
        '())
       ((PAYLOAD)
        (list
-	(format #f "{var err2 = e.EncodeElement(r.~a, s(\"~a\"))" slot name)
+	(format #f "{var err2 = e.EncodeElement(s.~a, start_element(\"~a\"))" slot name)
 	(format #f "if err2 != nil {return err2}}")))
       ((HEADER)
        '())
       ((ELEMENT)
        (list
-	(format #f "{var err2 = e.EncodeElement(r.~a, s(\"~a\"))" slot name)
+	(format #f "{var err2 = e.EncodeElement(s.~a, start_element(\"~a\"))" slot name)
 	(format #f "if err2 != nil {return err2}}")))
       (else
        (format #t "BAD property in response: ~s~%" property)
@@ -1040,8 +1086,8 @@
 	'()
 	(append
 	 (list
-	  (format #f "type q_~a s3.~a" response-name output-name)
-	  (format #f "func (r q_~a) MarshalXML~a error {"
+	  (format #f "type s_~a s3.~a" response-name output-name)
+	  (format #f "func (s s_~a) MarshalXML~a error {"
 		  response-name "(e *xml.Encoder, start xml.StartElement)"))
 	 (if nothing-in-payload
 	     '()
@@ -1068,7 +1114,7 @@
     (values)))
 
 (define (display-repsonse-marshaler~)
-  (let ((s1 (make-response-marshaler-preamble))
+  (let ((s1 (make-response-marshaler-preamble~))
 	(s2 (apply append (map make-marshaler-definition list-of-actions))))
     (format #t "~a~%~a~%"
 	    (apply string-append (intervene-separator "\n" s1))
@@ -1077,9 +1123,9 @@
 (define (make-marshaler-file list-of-actions)
   (append
    (list "// marshalers.go (2025-10-01)"
-	 "// Marshalers of response structures.  The response output"
-	 "// structures need custom marshalers, because they have some"
-	 "// slots that need to be renamed and also have an"
+	 "// Marshalers of response structures.  The response"
+	 "// structures need custom marshalers, because they have"
+	 "// some slots that need to be renamed and also have an"
 	 "// extra slot that should be skipped."
 	 "package server"
 	 "import ("
@@ -1088,7 +1134,11 @@
 	 "\"net/http\""
 	 "\"log\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
-	 ")")
+	 ")"
+	 "func string_pointer[T any](v T) *T {return &v}"
+	 "func start_element(k string) xml.StartElement {"
+	 "return xml.StartElement{Name: xml.Name{Local: k}}"
+	 "}")
    (apply append
 	  (map make-marshaler-definition list-of-actions))))
 
