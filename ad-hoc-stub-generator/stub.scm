@@ -116,6 +116,7 @@
 (define tr? #t)
 
 (define apply-append concatenate)
+(define append-strings string-join)
 
 (define (assoc-option k alist)
   ;; Assoc but returns the cdr part of it or #f.  It #f as an alist.
@@ -181,8 +182,6 @@
   ;; Appends strings with an intervening separator.
   (apply string-append (intervene-separator separator v)))
 |#
-
-(define append-strings string-join)
 
 (define (drop-prefix prefix name)
   ;; Drops the prefix part from the name string.  It assumes the name
@@ -894,9 +893,10 @@
        (string-append (assigner "&x") "}")))
      ((string=? type-kind "integer")
       (list
-       (format #f "{var x, err2 = strconv.Atoi(~a)" rhs)
+       (format #f "{var x1, err2 = strconv.ParseInt(~a, 10, 32)" rhs)
        "if err2 != nil {log.Fatal(err2); return err2}"
-       (string-append (assigner "&x") "}")))
+       "var x2 = int32(x1)"
+       (string-append (assigner "&x2") "}")))
      ((string=? type-kind "long")
       (list
        (format #f "{var x, err2 = strconv.ParseInt(~a, 10, 64)" rhs)
@@ -940,7 +940,7 @@
   ;; opposite direction of make-extern-coercing.  It errs when a
   ;; type-name is not defined.
   (match-let* ((definition (assoc type-name list-of-types))
-	       ((type-name type-kind . slot-properties) definition))
+	       ((_ type-kind . slot-properties) definition))
     (cond
      ;; Primitive-types:
      ((string=? type-kind "blob")
@@ -950,10 +950,10 @@
        (assigner (format #f "strconv.FormatBool(*~a)" rhs))))
      ((string=? type-kind "integer")
       (list
-       (assigner (format #f "strconv.FormatUint(~a, 10)" rhs))))
+       (assigner (format #f "strconv.FormatInt(int64(*~a), 10)" rhs))))
      ((string=? type-kind "long")
       (list
-       (assigner (format #f "strconv.FormatUint(~a, 10)" rhs))))
+       (assigner (format #f "strconv.FormatInt(*~a, 10)" rhs))))
      ((string=? type-kind "operation")
       (values))
      ((string=? type-kind "service")
@@ -996,14 +996,22 @@
 			 (format #f "i.~a = ~a" slot rhs))))
 	 (make-coercing-intern type assigner (format #f "hi.Get(~s)" name))))
       ((PAYLOAD)
-       ;; Payload has types like types.CompletedMultipartUpload.
-       (list
-	(format #f "{var x types.~a" type)
-	"var bs, err1 = io.ReadAll(r.Body)"
-	"if err1 != nil {log.Fatal(err1); return err1}"
-	"var err2 = xml.Unmarshal(bs, &x)"
-	"if err2 != nil {log.Fatal(err2); return err2}"
-	(format #f "i.~a = &x}" slot)))
+       (match-let* ((definition (assoc name list-of-types))
+		    ((type-name type-kind . slot-properties) definition))
+	 (cond
+	  ((string=? type-kind "blob")
+	   ;; Ignore blob.
+	   '())
+	  (else
+	   ;; Payload types are: {CompletedMultipartUpload,
+	   ;; CreateBucketConfiguration, Delete, Tagging}.
+	   (list
+	    (format #f "{var x types.~a" type)
+	    "var bs, err1 = io.ReadAll(r.Body)"
+	    "if err1 != nil {log.Fatal(err1); return err1}"
+	    "var err2 = xml.Unmarshal(bs, &x)"
+	    "if err2 != nil {log.Fatal(err2); return err2}"
+	    (format #f "i.~a = &x}" slot))))))
       ((ELEMENT)
        (format #t "BAD properties=~s~%" request-property)
        (values))
@@ -1042,17 +1050,25 @@
        (format #t "BAD properties=~s~%" response-property)
        (values)))))
 
-(define (make-output-payload-extraction code)
+(define (make-output-payload-extraction just-status code)
+  (append
+   (list
+    "ho.Set(\"Content-Type\", \"application/xml\")")
+   (if (not just-status)
+       (list
+	"var co, err5 = xml.MarshalIndent(s, \" \", \"  \")"
+	"if err5 != nil {log.Fatal(err5); return err5}")
+       '())
   (list
-   "ho.Set(\"Content-Type\", \"application/xml\")"
-   "var co, err5 = xml.MarshalIndent(s, \" \", \"  \")"
-   "if err5 != nil {log.Fatal(err5); return err5}"
    (format #f "var status int = ~a" code)
-   "w.WriteHeader(status)"
-   "var _, err6 = w.Write(co)"
-   "if err6 != nil {log.Fatal(err6); return err6}"))
+   "w.WriteHeader(status)")
+  (if (not just-status)
+      (list
+       "var _, err6 = w.Write(co)"
+       "if err6 != nil {log.Fatal(err6); return err6}")
+      '())))
 
-(define (make-handler-definition action)
+(define (make-handler-function action)
   (match-let*
       (((name signature action-property request-properties response-properties)
 	action)
@@ -1061,7 +1077,7 @@
        (output-name (adjust-output-structure-name response-name))
        (properties (cast-payload-property-rear request-properties))
        ((_ _ code) action-property))
-    (when tr? (format #t ";; make-handler-definition ~s~%" name))
+    (when tr? (format #t ";; make-handler-function ~s~%" name))
     (append
      (list
       ;; Start of function declaration:
@@ -1071,6 +1087,7 @@
       "var qi = r.URL.Query()"
       "var hi = r.Header"
       "var ho = w.Header()"
+      "// Mark variables used to avoid unused errors:"
       "var _, _, _ = qi, hi, ho")
      ;; Input accessors:
      (list
@@ -1079,25 +1096,30 @@
      ;; Hander invocation:
      (list
       "var ctx = r.Context()"
-      (format #f "var o, err3 = bbs.~a(ctx, &i)" name)
+      (if (string=? output-name "Unit")
+	  (format #f "var _, err3 = bbs.~a(ctx, &i)" name)
+	  (format #f "var o, err3 = bbs.~a(ctx, &i)" name))
       "if err3 != nil {log.Fatal(err3); return err3}")
      ;; Output accessors:
-     (list
-      ;;(format #f "var s = s_~a{~a: o}" response-name output-name)
-      (format #f "var s = s_~a(*o)" response-name))
-     (apply append (map make-output-extraction response-properties))
-     (make-output-payload-extraction code)
+     (if (string=? output-name "Unit")
+	 (make-output-payload-extraction #t code)
+	 (append
+	  (list
+	   (format #f "var s = s_~a(*o)" response-name))
+	  (apply append (map make-output-extraction response-properties))
+	  (make-output-payload-extraction #f code)))
      ;; Function end:
      (list "return nil}"))))
 
 (define (display-handler-function action)
-  (let ((ss (make-handler-definition action)))
+  (let ((ss (make-handler-function action)))
     (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 (define (make-handler-file list-of-actions)
   (append
    (list "// handlers.go (2025-10-01)"
-	 "// Handler functions (h_XXXX) called from the dispatcher."
+	 "// API-STUB.  Handler functions (h_XXXX) called from the"
+	 "// dispatcher."
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
@@ -1112,7 +1134,7 @@
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	 ")")
    (apply append
-	  (map make-handler-definition list-of-actions))))
+	  (map make-handler-function list-of-actions))))
 
 (define (write-handlers port list-of-actions)
   (let ((ss (make-handler-file list-of-actions)))
@@ -1171,7 +1193,7 @@
        (format #t "BAD property in response: ~s~%" property)
        '()))))
 
-(define (make-marshaler-definition action)
+(define (make-marshaler-function action)
   ;; Returns lines of a response marshaler for "XXXXResponse".
   (match-let*
       (((name (request-name response-name) _ _ response-properties) action)
@@ -1179,7 +1201,7 @@
        (output-in-payload (check-output-in-payload response-properties))
        (encoders (delete '() (map make-slot-marshaler response-properties)))
        (nothing-in-payload (= (length encoders) 0)))
-    (when tr? (format #t ";; make-marshaler-definition ~s~%" name))
+    (when tr? (format #t ";; make-marshaler-function ~s~%" name))
     (assert (or (not output-in-payload) (= (length encoders) 1)))
     (if (string=? output-name "Unit")
 	'()
@@ -1207,14 +1229,14 @@
 
 (define (display-repsonse-marshaler1~ action-name)
   (let* ((action (assoc action-name list-of-actions))
-	 (ss (make-marshaler-definition action))
+	 (ss (make-marshaler-function action))
 	 (lines (apply string-append (intervene-separator "\n" ss))))
     (format #t "~a~%" lines)
     (values)))
 
 (define (display-repsonse-marshaler~)
   (let ((s1 (make-response-marshaler-preamble~))
-	(s2 (apply append (map make-marshaler-definition list-of-actions))))
+	(s2 (apply append (map make-marshaler-function list-of-actions))))
     (format #t "~a~%~a~%"
 	    (apply string-append (intervene-separator "\n" s1))
 	    (apply string-append (intervene-separator "\n" s2)))))
@@ -1222,7 +1244,7 @@
 (define (make-marshaler-file list-of-actions)
   (append
    (list "// marshalers.go (2025-10-01)"
-	 "// Marshalers of response structures.  The response"
+	 "// API-STUB.  Marshalers of response structures.  The response"
 	 "// structures need custom marshalers, because they have"
 	 "// some slots that need to be renamed and also have an"
 	 "// extra slot that should be skipped."
@@ -1230,8 +1252,6 @@
 	 "import ("
 	 ;; "\"context\""
 	 "\"encoding/xml\""
-	 "\"net/http\""
-	 "\"log\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 ")"
 	 "func string_pointer[T any](v T) *T {return &v}"
@@ -1239,7 +1259,7 @@
 	 "return xml.StartElement{Name: xml.Name{Local: k}}"
 	 "}")
    (apply append
-	  (map make-marshaler-definition list-of-actions))))
+	  (map make-marshaler-function list-of-actions))))
 
 (define (write-marshalers port list-of-actions)
   (let ((ss (make-marshaler-file list-of-actions)))
@@ -1253,7 +1273,7 @@
     (lambda (port)
       (write-marshalers port list-of-actions))))
 
-;; (make-marshaler-definition (assoc "CopyObject" list-of-actions))
+;; (make-marshaler-function (assoc "CopyObject" list-of-actions))
 ;; (display-repsonse-marshaler)
 ;; (display-marshaler-function (assoc "ListParts" list-of-actions))
 
@@ -1283,14 +1303,11 @@
 (define (make-api-template-file list-of-actions)
   (append
    (list "// template.go (2025-10-01)"
-	 "// Handler templates. They should be replaced by actual"
-	 "// implementations."
+	 "// API-STUB.  Handler templates. They should be replaced by"
+	 "// actual implementations."
 	 "package server"
 	 "import ("
 	 "\"context\""
-	 "\"encoding/xml\""
-	 "\"net/http\""
-	 "\"log\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 ")")
    (apply append
