@@ -117,6 +117,7 @@
 
 (define apply-append concatenate)
 (define append-strings string-join)
+;; substitute-string is done by string-replace-substring
 
 (define (assoc-option k alist)
   ;; Assoc but returns the cdr part of it or #f.  It #f as an alist.
@@ -151,6 +152,7 @@
     (() init)
     ((fst . rst) (f fst (foldr f init rst)))))
 
+#|
 (define (substitute-string s key val)
   ;; Replaces a key string with a val string in a string s.  A key is
   ;; regexp.  It replaces all occurrences of a key.
@@ -165,6 +167,7 @@
 		  val
 		  (substitute-string suffix key val)))))
 	  (else s))))
+|#
 
 (define (intervene-separator separator v)
   ;; Makes '(1 2 3) to '(1 sep 2 sep 3).
@@ -227,19 +230,18 @@
 ;;; LISTING TYPES
 ;;;
 
-;; This part makes alist of types.  Types in headers and queries are
-;; handled, but types in payload are ignored.  Type string is stored
-;; as a pointer in AWS-SDK.
+;; This part makes a list of type-defintions, LIST-OF-TYPES.  A
+;; type-defintion is (type-name type-kind . slot-property...), where a
+;; slot-property describes members of composite-types.  Each
+;; slot-property is a five-tuple: (slot name type locus required).
 
 ;; Types in S3: {"blob", "boolean", "enum"*, "integer", "list"*,
 ;; "long", "map"*, ("operation"), ("service"), "string", "structure"*,
-;; "timestamp", "union"*}.
+;; "timestamp", "union"*, "Unit"}.
 ;;
 ;; Types stared (*) are composite.  There are many defined types: 335
 ;; structures, 3 unions, 70 emulations, and one map.  Types
-;; parenthesised above (operation and service) are metadata.
-
-;; Note the "Unit"-type is not listed in the list-of-types.
+;; parenthesised above (operation and service) are meta-information.
 
 ;; Note the "traits" slot of a structure-slot indicates the location
 ;; of a request parameter.  It also indicates its required-ness.
@@ -256,6 +258,10 @@
 ;;   - indicates a slot is in payload body.
 ;; - "smithy.api#required": {}
 ;;   - indicates it is a required parameter.
+
+;; Note the "Unit"-type is not listed in the list-of-types.
+
+;; Note string types are stored as a pointer in AWS-SDK.
 
 (define list-of-primitive-types
   '("blob" "boolean" "integer" "long" "operation" "service" "string"
@@ -405,14 +411,12 @@
 (define list-of-types (make-type-definitions s3-api))
 
 ;;;
-;;; LIST OF ACTIONS
+;;; SUMMARY OF ACTIONS
 ;;;
 
-;; See list-of-actions.  Or try:
-;;
-;; (describe-action "AbortMultipartUpload")
-;; (describe-action "DeleteObjects")
-;; (describe-action "UploadPartCopy")
+;; This part makes a catalog of actions in LIST-OF-ACTIONS.  Its
+;; entry is a summary of an action: (action-name signature
+;; action-property request-properties response-properties).
 
 (define (find-action-structure action-name)
   (let ((key (string-append "com.amazonaws.s3#" action-name)))
@@ -522,12 +526,12 @@
 (define (adjust-output-structure-name response)
   (string-replace-substring response "Response" "Output"))
 
-(define (describe-action action-name)
+(define (summarize-action action-name)
   ;; Returns a list of (action-name signature action-property
   ;; request-properties response-properties).  A signature is a pair
   ;; of request/response names.  It renames the response name from
   ;; "XXXXOutput" to "XXXResponse".
-  (when tr? (format #t ";; describe-action ~a~%" action-name))
+  (when tr? (format #t ";; summarize-action ~a~%" action-name))
   (let* ((action-structure (find-action-structure action-name))
 	 (properties1 (itemize-action-property action-structure))
 	 (signature (find-exchange-signature action-structure))
@@ -539,25 +543,29 @@
     (list action-name signature properties1 properties2 properties3)))
 
 ;; (itemize-slot-properties "ListPartsOutput")
+;; (summarize-action "AbortMultipartUpload")
+;; (summarize-action "DeleteObjects")
+;; (summarize-action "UploadPartCopy")
 
-(define list-of-actions (map describe-action list-of-action-names))
+(define list-of-actions (map summarize-action list-of-action-names))
 
 ;;;
 ;;; TYPES APPEARING IN REQUESTS
 ;;;
 
+;; This part makes a list of type-names that appear in requests in
+;; LIST-OF-TYPES-IN-REQUESTS.
+
 (define (list-types-in-requests list-of-actions)
   (delete-duplicates
    (apply-append
-    (map
-     (lambda (action)
-       (match-let* (((name signature _ request-properties _) action))
-	 (map
-	  (lambda (property)
-	    (match-let* (((slot name type locus required) property))
-	      type))
-	  request-properties)))
-     list-of-actions))))
+    (map (lambda (action)
+	   (match-let* (((name signature _ request-properties _) action))
+	     (map (lambda (property)
+		    (match-let* (((slot name type locus required) property))
+		      type))
+		  request-properties)))
+	 list-of-actions))))
 
 (define list-of-types-in-requests (list-types-in-requests list-of-actions))
 
@@ -565,8 +573,9 @@
 ;;; PARAMETER INQUERIES
 ;;;
 
-;; This part makes a list of dispatcher entries, which is later used
-;; to print dispatcher code.
+;; This part makes a list of dispatch entries in COLLECTED-DISPATCHES.
+;; A dispatch is a request condition that selects an action.
+;; Dispatches are collected to make dispatcher code.
 
 (define (get-query-in-uri drop-x-id action-property)
   ;; Finds an optional query key and returns it as a list: (query) or
@@ -774,7 +783,7 @@
   (if (null? queries-headers)
       "true"
       (let ((v (map make-variable-name queries-headers)))
-	(string-append "(" (append-strings v " && ") ")"))))
+	(string-append "(" (string-join v " && ") ")"))))
 
 (define (make-choice-clause dispatch)
   (match-let* (((name _ queries headers signature) dispatch)
@@ -862,17 +871,17 @@
     (map generate-dispatcher-entry list-of-dispatches))
    (list (format #f "return nil}"))))
 
-(define (write-dispatcher port list-of-dispatches)
+(define (write-dispatcher port)
   (let ((ss (generate-dispatcher list-of-dispatches)))
-    (format port "~a" (append-strings ss "\n"))))
+    (format port "~a" (string-join ss "\n"))))
 
 (define (display-dispatcher)
-  (write-dispatcher #t list-of-dispatches))
+  (write-dispatcher #t))
 
 (define (dump-dispatcher file)
   (call-with-output-file file
     (lambda (port)
-      (write-dispatcher port list-of-dispatches))))
+      (write-dispatcher port))))
 
 ;;;
 ;;; HANDLER PRINTER
@@ -958,7 +967,7 @@
       (values))
      ((string=? type-kind "string")
       (list
-       (assigner (format #f "string_pointer(~a)" rhs))))
+       (assigner (format #f "thing_pointer(~a)" rhs))))
      ((string=? type-kind "timestamp")
       (list
        (format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
@@ -1037,6 +1046,16 @@
       (format #t "BAD type-kind ~s~%" type-kind)
       (values)))))
 
+(define (resolve-type type-name)
+  ;; Returns a type representation.  Primitive types resolve to a type
+  ;; name in Golang.  Composite types resolve to itself that should be
+  ;; defined types.
+  (match-let* ((definition (assoc type-name list-of-types))
+	       ((_ type-kind . slot-properties) definition))
+    (if (primitive-type? type-kind)
+	type-kind
+	(format #f "types.~a" type-name))))
+
 (define (make-input-assignment request-property)
   ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
   ;; Slot property is a list of five-tuples (slot name type locus
@@ -1061,31 +1080,37 @@
        ;; (list (format #f "i.~a = hi.Get(~s)" slot name))
        (cond
 	((string=? type-kind "map")
+	 (format #t "AHO MAP ~s slot-properties=~s~%" name slot-properties)
 	 ;; Map's slot-properties is: (("key" "key" type2 . _)
 	 ;; ("value" "value" type3 . _))
+	 ;; ASSUME ONLY STRING MAPS.
 	 (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
-	   (let ((assigner (lambda (rhs)
-			     (format #f "ee[k] = ~a" rhs))))
+	   (let* ((key-type (resolve-type type2))
+		  (value-type (resolve-type type3))
+		  (map-type (format #f "map[~a]~a" key-type value-type))
+		  (assigner (lambda (rhs)
+			      (format #f "bin[key] = ~a" rhs))))
 	     (append
 	      (list (format #f "{var rhs = hi.Get(~s)" name)
-		    (format #f "var ee = make(map[types.~a]types.~a)" type2 type3)
-		    (format #f "maps.All(rhs)(func (k1, v1 string) bool {"))
-	      (make-coercing-import type3 assigner "v")
-	      (list (format #f "return true})")
-		    (format #f "i.~a = ee}" slot))))))
+		    (format #f "var bin = make(~a)" map-type)
+		    (format #f "maps.All(rhs)(func (key, val string) bool {"))
+	      ;;(make-coercing-import type3 assigner "val")
+	      (list "bin[key] = val}"
+		    (format #f "i.~a = bin}" slot))))))
 	((string=? type-kind "list")
 	 ;; List's slot-properties is (("member" "member" type2 . _))
 	 (format #t "AHO slot-properties=~s" slot-properties)
 	 (match-let (((_ _ type2 . _) (car slot-properties)))
-	   (let ((assigner (lambda (rhs)
-			     (format #f "vec[i] = ~a" rhs))))
+	   (let* ((list-type (resolve-type type2))
+		  (assigner (lambda (rhs)
+			      (format #f "bin[i] = ~a" rhs))))
 	     (append
 	      (list (format #f "{var rhs = hi.Values(~s)" name)
-		    (format #f "var vec = make(types.~a, len(rhs), len(rhs))" type2)
+		    (format #f "var bin = make([]~a, len(rhs), len(rhs))"
+			    list-type)
 		    (format #f "for i, v := range slices.All(rhs) {"))
 	      (make-coercing-import type2 assigner "v")
-	      (list "}"
-		    (format #f "i.~a = v}" slot))))))
+	      (list "}" (format #f "i.~a = bin}" slot))))))
 	(else
 	 (let ((rhs (format #f "hi.Get(~s)" name))
 	       (assigner (lambda (rhs)
@@ -1358,17 +1383,17 @@
 (define (make-marshaler-file list-of-actions)
   (append
    (list "// marshalers.go (2025-10-01)"
-	 "// API-STUB.  Marshalers of response structures.  The response"
+	 "// API-STUB.  Marshalers of response structures.  Response"
 	 "// structures need custom marshalers, because they have"
 	 "// some slots that need to be renamed and also have an"
-	 "// extra slot that should be skipped."
+	 "// extra slot that should be suppressed."
 	 "package server"
 	 "import ("
 	 ;; "\"context\""
 	 "\"encoding/xml\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 ")"
-	 "func string_pointer[T any](v T) *T {return &v}"
+	 "func thing_pointer[T any](v T) *T {return &v}"
 	 "func start_element(k string) xml.StartElement {"
 	 "return xml.StartElement{Name: xml.Name{Local: k}}"
 	 "}")
