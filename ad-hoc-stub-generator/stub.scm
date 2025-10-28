@@ -355,6 +355,10 @@
 		  (id-string (symbol->string id))
 		  (name (drop-prefix "com.amazonaws.s3#" id-string)))
 	     (cond
+	      ((or (string=? type "operation")
+		   (string=? type "service"))
+	       ;; Drop "operation" and "service".
+	       #f)
 	      ((primitive-type? type)
 	       (list name type))
 	      ((or (string=? type "enum")
@@ -401,7 +405,7 @@
 (define list-of-types (make-type-definitions s3-api))
 
 ;;;
-;;; IDL SLOT ACCESSORS
+;;; LIST OF ACTIONS
 ;;;
 
 ;; See list-of-actions.  Or try:
@@ -537,6 +541,25 @@
 ;; (itemize-slot-properties "ListPartsOutput")
 
 (define list-of-actions (map describe-action list-of-action-names))
+
+;;;
+;;; TYPES APPEARING IN REQUESTS
+;;;
+
+(define (list-types-in-requests list-of-actions)
+  (delete-duplicates
+   (apply-append
+    (map
+     (lambda (action)
+       (match-let* (((name signature _ request-properties _) action))
+	 (map
+	  (lambda (property)
+	    (match-let* (((slot name type locus required) property))
+	      type))
+	  request-properties)))
+     list-of-actions))))
+
+(define list-of-types-in-requests (list-types-in-requests list-of-actions))
 
 ;;;
 ;;; PARAMETER INQUERIES
@@ -877,9 +900,36 @@
   ;; Makes an enumerator of an enum of AWS-SDK.
   (format #f "types.~a~a" type-name (camelcase-string enumerator-string)))
 
-(define (make-coercing-intern type-name assigner rhs)
+(define (make-enumerator-importer-function type slot-properties)
+  ;; A slot property of an enumeration-type is (slot name "Unit" ...),
+  ;; and a name is an enumerator string representation.
+  (append
+   (list (format #f "func import_~a(s string) (types.~a, error) {" type type)
+	 (format #f "switch s {"))
+   (map (lambda (property)
+	  (match-let (((slot name _ . _) property))
+	    (let ((enumerator (make-sdk-enumerator type name)))
+	      (format #f "case ~s: return ~a, nil" name enumerator))))
+	slot-properties)
+   (list "default: var err1 = errors.New(\"interning an enum\")"
+	 "log.Fatal(err1); return nil, err1}}")))
+
+(define (make-enumerator-importers list-of-types-in-requests)
+  ;; Makes importer functions for enumerators.  Functions are named
+  ;; with an enumeration name prefixed by "import_".
+  (apply-append
+   (map (lambda (type)
+	  (match-let* ((definition (assoc type list-of-types))
+		       ((type-name type-kind . slot-properties) definition))
+	    (if (string=? type-kind "enum")
+		(make-enumerator-importer-function type slot-properties)
+		'())))
+	list-of-types-in-requests)))
+
+(define (make-coercing-import type-name assigner rhs)
   ;; Makes a coercion of a string to a given type.  Calling an
   ;; assigner makes an assignment.  It assumes a type-name is defined.
+  ;;-(format #t "make-coercing-import ~s ~s~%" type-name (assoc type-name list-of-types))
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
     (cond
@@ -914,31 +964,34 @@
        (format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
        "if err2 != nil {log.Fatal(err2); return err2}"
        (string-append (assigner "&x") "}")))
-     ;; Enumeration-types:
+     ;; Composite-types:
      ((string=? type-kind "enum")
-      ;; A slot property of an enumeration-type is (slot name
-      ;; "Unit" ...), and a name is an enumerator string.
-      (append
-       (list (format #f "{var x types.~a" type-name)
-	     (format #f "switch ~a {" rhs))
-       (map (lambda (property)
-	      (match-let (((slot name _ . _) property))
-		(let ((enumerator (make-sdk-enumerator type-name name)))
-		  (format #f "case ~s: x = ~a" name enumerator))))
-	    slot-properties)
-       (list
-	"default: var err2 = errors.New(\"interning an enum\")"
-	"log.Fatal(err2); return err2}"
-	(string-append (assigner "x") "}"))))
+      (list
+       (format #f "{var x, err2 = import_~a(~a)" type-name rhs)
+       "if err2 != nil {log.Fatal(err2); return err2}"
+       (string-append (assigner "x") "}")))
+     ((string=? type-kind "list")
+      (list
+       (assigner (format #f "~a" rhs))))
+     ((string=? type-kind "map")
+      ;; Map is handled by a caller.
+      '())
+     ((string=? type-kind "structure")
+      (list
+       (assigner (format #f "~a" rhs))))
+     ((string=? type-kind "union")
+      (list
+       (assigner (format #f "~a" rhs))))
      ;; Others:
      (else
-      (list
-       (assigner (format #f "~a" rhs)))))))
+      (format #t "BAD type-kind ~s~%" type-kind)
+      (values)))))
 
-(define (make-coercing-extern type-name assigner rhs)
+(define (make-coercing-export type-name assigner rhs)
   ;; Makes a coercion of a given type to a string.  It is in the
   ;; opposite direction of make-extern-coercing.  It errs when a
   ;; type-name is not defined.
+  ;;-(format #t "make-coercing-export ~s ~s~%" type-name (assoc type-name list-of-types))
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((_ type-kind . slot-properties) definition))
     (cond
@@ -964,21 +1017,34 @@
      ((string=? type-kind "timestamp")
       (list
        (assigner (format #f "~a.String()" rhs))))
-     ;; Enumeration-types:
+     ;; Composite-types:
      ((string=? type-kind "enum")
       (list
        (assigner (format #f "string(~a)" rhs))))
-     ;; Others:
-     (else
+     ((string=? type-kind "list")
       (list
-        (assigner (format #f "~a" rhs)))))))
+       (assigner (format #f "~a" rhs))))
+     ((string=? type-kind "map")
+      ;; Map is handled by a caller.
+      '())
+     ((string=? type-kind "structure")
+      (list
+       (assigner (format #f "~a" rhs))))
+     ((string=? type-kind "union")
+      (list
+       (assigner (format #f "~a" rhs))))
+     (else
+      (format #t "BAD type-kind ~s~%" type-kind)
+      (values)))))
 
 (define (make-input-assignment request-property)
   ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
   ;; Slot property is a list of five-tuples (slot name type locus
   ;; required).  Note the structure name of a request is "XXXXRequest"
   ;; in the API and Smithy.
-  (match-let (((slot name type locus required) request-property))
+  (match-let* (((slot name type locus required) request-property)
+	       (definition (assoc type list-of-types))
+	       ((type-name type-kind . slot-properties) definition))
     ;; (when tr? (format #t ";; required=~s locus=~s name=~s slot=~s~%"
     ;; required locus name slot))
     (case locus
@@ -987,31 +1053,59 @@
        '())
       ((QUERY)
        ;; (list (format #f "i.~a = qi.Get(~s)" slot name))
-       (let ((assigner (lambda (rhs)
+       (let ((rhs (format #f "qi.Get(~s)" name))
+	     (assigner (lambda (rhs)
 			 (format #f "i.~a = ~a" slot rhs))))
-	 (make-coercing-intern type assigner (format #f "qi.Get(~s)" name))))
+	 (make-coercing-import type assigner rhs)))
       ((HEADER)
        ;; (list (format #f "i.~a = hi.Get(~s)" slot name))
-       (let ((assigner (lambda (rhs)
-			 (format #f "i.~a = ~a" slot rhs))))
-	 (make-coercing-intern type assigner (format #f "hi.Get(~s)" name))))
+       (cond
+	((string=? type-kind "map")
+	 ;; Map's slot-properties is: (("key" "key" type2 . _)
+	 ;; ("value" "value" type3 . _))
+	 (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
+	   (let ((assigner (lambda (rhs)
+			     (format #f "ee[k] = ~a" rhs))))
+	     (append
+	      (list (format #f "{var rhs = hi.Get(~s)" name)
+		    (format #f "var ee = make(map[types.~a]types.~a)" type2 type3)
+		    (format #f "maps.All(rhs)(func (k1, v1 string) bool {"))
+	      (make-coercing-import type3 assigner "v")
+	      (list (format #f "return true})")
+		    (format #f "i.~a = ee}" slot))))))
+	((string=? type-kind "list")
+	 ;; List's slot-properties is (("member" "member" type2 . _))
+	 (format #t "AHO slot-properties=~s" slot-properties)
+	 (match-let (((_ _ type2 . _) (car slot-properties)))
+	   (let ((assigner (lambda (rhs)
+			     (format #f "vec[i] = ~a" rhs))))
+	     (append
+	      (list (format #f "{var rhs = hi.Values(~s)" name)
+		    (format #f "var vec = make(types.~a, len(rhs), len(rhs))" type2)
+		    (format #f "for i, v := range slices.All(rhs) {"))
+	      (make-coercing-import type2 assigner "v")
+	      (list "}"
+		    (format #f "i.~a = v}" slot))))))
+	(else
+	 (let ((rhs (format #f "hi.Get(~s)" name))
+	       (assigner (lambda (rhs)
+			   (format #f "i.~a = ~a" slot rhs))))
+	   (make-coercing-import type assigner rhs)))))
       ((PAYLOAD)
-       (match-let* ((definition (assoc name list-of-types))
-		    ((type-name type-kind . slot-properties) definition))
-	 (cond
-	  ((string=? type-kind "blob")
-	   ;; Ignore blob.
-	   '())
-	  (else
-	   ;; Payload types are: {CompletedMultipartUpload,
-	   ;; CreateBucketConfiguration, Delete, Tagging}.
-	   (list
-	    (format #f "{var x types.~a" type)
-	    "var bs, err1 = io.ReadAll(r.Body)"
-	    "if err1 != nil {log.Fatal(err1); return err1}"
-	    "var err2 = xml.Unmarshal(bs, &x)"
-	    "if err2 != nil {log.Fatal(err2); return err2}"
-	    (format #f "i.~a = &x}" slot))))))
+       (cond
+	((string=? type-kind "blob")
+	 ;; Ignore blob.
+	 '())
+	(else
+	 ;; Payload types are: {CompletedMultipartUpload,
+	 ;; CreateBucketConfiguration, Delete, Tagging}.
+	 (list
+	  (format #f "{var x types.~a" type)
+	  "var bs, err1 = io.ReadAll(r.Body)"
+	  "if err1 != nil {log.Fatal(err1); return err1}"
+	  "var err2 = xml.Unmarshal(bs, &x)"
+	  "if err2 != nil {log.Fatal(err2); return err2}"
+	  (format #f "i.~a = &x}" slot)))))
       ((ELEMENT)
        (format #t "BAD properties=~s~%" request-property)
        (values))
@@ -1023,7 +1117,9 @@
   ;; Makes extraction code from structure "s3.XXXXOutput" of AWS SDK.
   ;; Each property is a list of five-tuples (slot name type locus
   ;; required).
-  (match-let (((slot name type locus required) response-property))
+  (match-let* (((slot name type locus required) response-property)
+	       (definition (assoc type list-of-types))
+	       ((type-name type-kind . slot-properties) definition))
     ;; (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
     ;; slot name locus required))
     (case locus
@@ -1035,9 +1131,22 @@
 	 (values)))
       ((HEADER)
        ;;(list (format #f "ho.Add(~s, s.~a)" name slot))
-       (let ((assigner (lambda (rhs)
-			 (format #f "ho.Add(~s, ~a)" name rhs))))
-	 (make-coercing-extern type assigner (format #f "s.~a" slot))))
+       (cond
+	((string=? type-kind "map")
+	 (let ((rhs (format #f "s.~a" slot))
+	       (assigner (lambda (rhs)
+			   (format #f "ho.Add(~s, ~a)" name rhs))))
+	   (make-coercing-export type assigner rhs)))
+	((string=? type-kind "list")
+	 (let ((rhs (format #f "s.~a" slot))
+	       (assigner (lambda (rhs)
+			   (format #f "ho.Add(~s, ~a)" name rhs))))
+	   (make-coercing-export type assigner rhs)))
+	(else
+	 (let ((rhs (format #f "s.~a" slot))
+	       (assigner (lambda (rhs)
+			   (format #f "ho.Add(~s, ~a)" name rhs))))
+	   (make-coercing-export type assigner rhs)))))
       ((PAYLOAD)
        (begin
 	 (when tr? (format #t ";; Payload in response: ~s~%" name))
@@ -1136,17 +1245,22 @@
    (apply append
 	  (map make-handler-function list-of-actions))))
 
-(define (write-handlers port list-of-actions)
+(define (write-handlers port)
   (let ((ss (make-handler-file list-of-actions)))
     (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 (define (display-handlers)
   (write-handlers #t list-of-actions))
 
+(define (write-enumerator-importers port)
+  (let ((ss (make-enumerator-importers list-of-types-in-requests)))
+    (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
+
 (define (dump-handlers file)
   (call-with-output-file file
     (lambda (port)
-      (write-handlers port list-of-actions))))
+      (write-handlers port)
+      (write-enumerator-importers port))))
 
 ;; (display-handler-function (assoc "ListParts" list-of-actions))
 
