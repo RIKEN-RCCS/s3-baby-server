@@ -54,6 +54,10 @@
 ;; ASSUPTION: It assumes enumeration types are string types.  Null
 ;; value for enumeration types is "".
 
+;; NOTE: Camelcase conversion makes enumeration "ETag" of
+;; "ObjectAttributes" is converted to "ObjectAttributesEtag" in
+;; AWS-SDK.
+
 ;; Golang http server: https://pkg.go.dev/net/http#ServeMux
 
 (import
@@ -203,22 +207,42 @@
        (apply append (map (lambda (s) (string-split s (car chars))) strings))
        (cdr chars))))
 
+(define (camelcase-edges s start indices)
+  ;; (First call this with (camelcase-edges string 0 '())).
+  (cond ((string-match "[a-z][A-Z]" s start)
+	 => (lambda (m)
+	      (let ((position (+ 1 (car (vector-ref m 1)))))
+		(camelcase-edges
+		 s position (append  indices (list position))))))
+	(else
+	 indices)))
+
+(define (camelcase-split s)
+  ;; Splits a string at the edges of camelcase.  "camelCASe" to "caml"
+  ;; and "CASe".
+  (let ((indices (camelcase-edges s 0 '())))
+    (map (lambda (b e)
+	   (substring s b e))
+	 (append '(0) indices)
+	 (append indices (list (string-length s))))))
+
 (define (capitalize-string s)
-  ;; Capitalizes the string, when the string is all lowercase or
-  ;; uppercase.  That is, it keeps camelcase.  It accepts zero-length
-  ;; strings.
-  (if (and (not (string-null? s))
-	   (or (string=? (string-upcase s) s)
-	       (string=? (string-downcase s) s)))
+  ;; Capitalizes the string.  It accepts zero-length strings.
+  (if (string-null? s)
+      s
       (string-append (string (char-upcase (string-ref s 0)))
-		     (string-downcase (substring s 1)))
-      s))
+		     (string-downcase (substring s 1)))))
 
 (define (camelcase-string s)
   ;; Makes a string in camelcase, as "BabyIron", "baby_iron", and
-  ;; "BABY_IRON" to "BabyIron".
-  (let ((tokens (string-split-n (list s) '(#\_ #\- #\:))))
-    (apply string-append (map capitalize-string tokens))))
+  ;; "BABY_IRON" to "BabyIron".  PARTICULAR CASES:
+  ;;
+  ;; ObjectAttributes + ETag => ObjectAttributesEtag
+  ;; ChecksumAlgorithm + CRC32C => ChecksumAlgorithmCrc32c
+  ;; ChecksumAlgorithm + CRC64NVM => ChecksumAlgorithmCrc64nvme
+  (let* ((tokens1 (string-split-n (list s) '(#\_ #\- #\:)))
+	 (tokens2 (apply-append (map camelcase-split tokens1))))
+    (apply string-append (map capitalize-string tokens2))))
 
 ;;;
 ;;; LOADING "s3.json"
