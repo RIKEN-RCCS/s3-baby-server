@@ -963,11 +963,10 @@
 	 "import ("
 	 ;; "\"context\""
 	 "\"net/http\""
-	 "\"s3-baby-server/internal/service\""
 	 ")"
 	 (string-append
 	  "func register_dispatcher"
-	  "(bbs *service.BB_server, sx *http.ServeMux)"
+	  "(bbs *BB_server, sx *http.ServeMux)"
 	  " error {"))
    (apply
     append
@@ -976,7 +975,7 @@
 
 (define (write-dispatcher port)
   (let ((ss (generate-dispatcher list-of-dispatches)))
-    (format port "~a" (string-join ss "\n"))))
+    (format port "~a~%" (string-join ss "\n"))))
 
 (define (display-dispatcher)
   (write-dispatcher #t))
@@ -1338,7 +1337,7 @@
      (list
       ;; Start of function declaration:
       (string-append (format #f "func h_~a" name)
-		     "(bbs *service.BB_server,"
+		     "(bbs *BB_server,"
 		     " w http.ResponseWriter, r *http.Request) error {")
       "var qi = r.URL.Query()"
       "var hi = r.Header"
@@ -1583,7 +1582,7 @@
    (list "// api-template.go (2025-10-01)"
 	 "// API-STUB.  Handler templates. They should be replaced by"
 	 "// actual implementations."
-	 "package service"
+	 "package server"
 	 "import ("
 	 "\"context\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
