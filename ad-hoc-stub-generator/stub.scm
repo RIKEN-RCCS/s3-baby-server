@@ -12,7 +12,7 @@
 ;; segments (never empty).  It is called greedy labels in
 ;; "14.1.2.4. Greedy labels".
 
-;; ENTRY STRUCTURE OF "s3.json".  The outermost structure is:
+;; "s3.json" STRUCTURE.  The outermost structure is:
 ;;
 ;; - {"metadata": {...}, "shapes": {...most of the contents...}}
 ;;
@@ -218,7 +218,7 @@
     (apply string-append (map capitalize-string tokens))))
 
 ;;;
-;;; LOADING S3.JSON
+;;; LOADING "s3.json"
 ;;;
 
 (display "Reading ./s3.json...\n")
@@ -303,9 +303,10 @@
   ;; an xml-tag (specified by "smithy.api#xmlName").  A type is a type
   ;; name (specified by "target").  A locus and a required are only
   ;; meaningful in request/response structures.  A locus indicates
-  ;; where a parameter is passed, and it is one of 'PATH, 'QUERY,
-  ;; 'HEADER, 'PAYLOAD, or 'ELEMENT.  locus=PAYLOAD means the value is
-  ;; a whole payload.  A name is an enumerator for enumeration types.
+  ;; where a parameter is passed, and it is one of {PATH, QUERY,
+  ;; HEADER, HEADER-PREFIX, PAYLOAD, ELEMENT}.  locus=PAYLOAD means
+  ;; the value is a whole payload.  A name is an enumerator for
+  ;; enumeration types.
   (match-let (((slot-symbol . property) member))
     (let* ((slot (symbol->string slot-symbol))
 	   (traits (assoc-with-default '() 'traits property))
@@ -334,7 +335,7 @@
 		  (list slot v type 'HEADER required)))
 	    ((assoc-option '#{smithy.api#httpPrefixHeaders}# traits)
 	     => (lambda (v)
-		  (list slot v type 'HEADER required)))
+		  (list slot v type 'HEADER-PREFIX required)))
 	    ((assoc-option '#{smithy.api#httpPayload}# traits)
 	     => (lambda (_)
 		  ;; (* DATA IS CONTENT PAYLOAD. *)
@@ -343,48 +344,48 @@
 	     ;; Empty traits means a response element.
 	     (list slot name type 'ELEMENT required))))))
 
-(define (make-type-slots name type-kind members)
-  (cons type-kind (map make-slot-property members)))
+(define (make-composite-type name type-kind members)
+  (cons name (cons type-kind (map make-slot-property members))))
 
 (define (make-type-definition shape-element)
-  ;; It returns a definition, consisting of a list (name type-kind
-  ;; . slot-properties).  A slot-properties describes structure slots,
-  ;; when a type-kind is "enum", "structure", or "union".  An
-  ;; enum-type has elements whose types are "Unit", a list-type has a
-  ;; single 'member slot, and a map-type has two 'key and 'value
-  ;; slots.
+  ;; It returns a type definition, consisting of a list (type-name
+  ;; type-kind . slot-properties).  A slot-properties describes
+  ;; structure slots, when a type-kind is "enum", "list", "structure",
+  ;; or "union".  Elements of an enumeration-type have type "Unit", a
+  ;; list-type has a single "member" slot, and a map-type has two
+  ;; "key" and "value" slots.
   (match-let (((id . property) shape-element))
     (cond
      ((assoc 'type property)
       => (lambda (pair)
-	   (let* ((type (cdr pair))
+	   (let* ((type-kind (cdr pair))
 		  (id-string (symbol->string id))
 		  (name (drop-prefix "com.amazonaws.s3#" id-string)))
 	     (cond
-	      ((or (string=? type "operation")
-		   (string=? type "service"))
+	      ((or (string=? type-kind "operation")
+		   (string=? type-kind "service"))
 	       ;; Drop "operation" and "service".
 	       #f)
-	      ((primitive-type? type)
-	       (list name type))
-	      ((or (string=? type "enum")
-		   (string=? type "structure")
-		   (string=? type "union"))
+	      ((primitive-type? type-kind)
+	       (list name type-kind))
+	      ((or (string=? type-kind "enum")
+		   (string=? type-kind "structure")
+		   (string=? type-kind "union"))
 	       (let ((members (assoc 'members property)))
 		 (assert (not (eqv? members #f)))
-		 (cons name (make-type-slots name type (cdr members)))))
-	      ((string=? type "list")
+		 (make-composite-type name type-kind (cdr members))))
+	      ((string=? type-kind "list")
 	       (let ((member1 (assoc 'member property)))
 		 (assert (not (eqv? member1 #f)))
-		 (cons name (make-type-slots name type (list member1)))))
-	      ((string=? type "map")
+		 (make-composite-type name type-kind (list member1))))
+	      ((string=? type-kind "map")
 	       (let* ((key (assoc-option 'key property))
 		      (value (assoc-option 'value property))
 		      (members (list (cons 'key key) (cons 'value value))))
 		 (assert (and (not (eqv? key #f)) (not (eqv? value #f))))
-		 (cons name (make-type-slots name type members))))
+		 (make-composite-type name type-kind members)))
 	      (else
-	       (format #t "BAD type definition: ~s" shape-element)
+	       (format #t "BAD type-kind definition: ~s" shape-element)
 	       (values))))))
      (else
       #f))))
@@ -401,14 +402,14 @@
 		    (format #t "SLOT TAG NAME DIFFER: ~s~%" property))))
       slot-properties)))
 
-(define (make-type-definitions shape-elements)
+(define (make-type-definition-list shape-elements)
   (let ((definitions (delete #f (map make-type-definition shape-elements))))
     (for-each check-type-needs-marshaler definitions)
     definitions))
 
 ;; (make-type-definition (assoc '#{com.amazonaws.s3#AbortIncompleteMultipartUpload}# s3-api))
 
-(define list-of-types (make-type-definitions s3-api))
+(define list-of-types (make-type-definition-list s3-api))
 
 ;;;
 ;;; SUMMARY OF ACTIONS
@@ -497,8 +498,9 @@
   ;; It returns a list of five-tuples (slot name type locus required), or
   ;; returns an empty list for "Unit".  A slot is a name in a
   ;; request/response strucuture.  A locus indicates where a parameter
-  ;; is passed, and it is one of 'PATH, 'QUERY, 'HEADER, 'PAYLOAD, or
-  ;; 'ELEMENT.  locus=PAYLOAD means the value is a whole payload.
+  ;; is passed, and it is one of {PATH, QUERY, HEADER,
+  ;; HEADER-PREFIX, PAYLOAD, ELEMENT}.  locus=PAYLOAD means the
+  ;; value is a whole payload.
   (let* ((prefix "com.amazonaws.s3#")
 	 (slot-name (string-append prefix exchange-structure-name))
 	 (exchange-structure (assoc-option (string->symbol slot-name) s3-api))
@@ -550,13 +552,68 @@
 (define list-of-actions (map summarize-action list-of-action-names))
 
 ;;;
-;;; TYPES APPEARING IN REQUESTS
+;;; TYPES APPEARING IN REQUESTS AND ERROR TYPES
 ;;;
 
 ;; This part makes a list of type-names that appear in requests in
 ;; LIST-OF-TYPES-IN-REQUESTS.
 
-(define (list-types-in-requests list-of-actions)
+(define (collect-types-in-slots slot-properties acc)
+  (if (null? slot-properties)
+      acc
+      (match-let (((slot name type . _) (car slot-properties)))
+	(collect-types-in-slots
+	 (cdr slot-properties)
+	 (collect-types-in-type type acc)))))
+
+(define (collect-types-in-type type acc)
+  ;; Collect types embedded in a type.  It appends new types to acc.
+  (cond
+   ((string=? "Unit" type)
+    acc)
+   ((member type acc)
+    acc)
+   (else
+    (let ((acc+ (cons type acc)))
+      (match-let* ((definition (assoc type list-of-types))
+		   (_ (format #t "collect-types-in-type ~s ~s~%" type definition))
+		   ((type-name type-kind . slot-properties) definition))
+	(cond ((primitive-type? type-kind)
+	       acc+)
+	      ;; Composite-types:
+	      ((or (string=? type-kind "enum")
+		   (string=? type-kind "list")
+		   (string=? type-kind "map")
+		   (string=? type-kind "structure")
+		   (string=? type-kind "union"))
+	       (collect-types-in-slots slot-properties acc+))
+	      (else
+	       (format #t "BAD type-kind ~s~%" type-kind)
+	       (values))))))))
+
+(define (collect-types-in-requests request-properties acc)
+  (if (null? request-properties)
+      acc
+      (collect-types-in-requests
+       (cdr request-properties)
+       (match-let* (((slot name type . _) (car request-properties)))
+	 (collect-types-in-type type acc)))))
+
+(define (list-types-in-requests-loop actions acc)
+  (if (null? actions)
+      acc
+      (match-let* (((name signature _ request-properties _) (car actions)))
+	(list-types-in-requests-loop
+	 (cdr actions)
+	 (collect-types-in-requests request-properties acc)))))
+
+(define (list-types-in-requests)
+  (sort
+   (delete-duplicates
+    (list-types-in-requests-loop list-of-actions '()))
+   string<?))
+
+(define (list-error-types)
   (delete-duplicates
    (apply-append
     (map (lambda (action)
@@ -565,9 +622,9 @@
 		    (match-let* (((slot name type locus required) property))
 		      type))
 		  request-properties)))
-	 list-of-actions))))
+	 list-of-types))))
 
-(define list-of-types-in-requests (list-types-in-requests list-of-actions))
+(define list-of-types-in-requests (list-types-in-requests))
 
 ;;;
 ;;; PARAMETER INQUERIES
@@ -653,12 +710,16 @@
 		   (loop (cdr props)
 			 queries-acc
 			 (append headers-acc (list name))))
+		  ((HEADER-PREFIX)
+		   (format #t "BAD httpPrefixHeaders marked required~%")
+		   (values))
 		  ((PAYLOAD)
 		   (loop (cdr props) queries-acc headers-acc))
 		  ((ELEMENT)
 		   (loop (cdr props) queries-acc headers-acc))
 		  (else
-		   (format #t "BAD properties=~s~%" (car props))))))))))
+		   (format #t "BAD properties=~s~%" (car props))
+		   (values)))))))))
 
 (define (make-dispatch-entry action-name)
   (cond ((assoc action-name list-of-actions)
@@ -938,7 +999,7 @@
 (define (make-coercing-import type-name assigner rhs)
   ;; Makes a coercion of a string to a given type.  Calling an
   ;; assigner makes an assignment.  It assumes a type-name is defined.
-  ;;-(format #t "make-coercing-import ~s ~s~%" type-name (assoc type-name list-of-types))
+  (when tr? (format #t ";; . make-coercing-import ~s~%" type-name))
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
     (cond
@@ -1050,6 +1111,8 @@
   ;; Returns a type representation.  Primitive types resolve to a type
   ;; name in Golang.  Composite types resolve to itself that should be
   ;; defined types.
+  (format #t ";; . resolve-type ~s ~s~%" type-name
+	  (assoc type-name list-of-types))
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((_ type-kind . slot-properties) definition))
     (if (primitive-type? type-kind)
@@ -1061,11 +1124,11 @@
   ;; Slot property is a list of five-tuples (slot name type locus
   ;; required).  Note the structure name of a request is "XXXXRequest"
   ;; in the API and Smithy.
+  (when tr? (format #t ";; . make-input-assignment1 ~s~%" (list-ref request-property 2)))
   (match-let* (((slot name type locus required) request-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
-    ;; (when tr? (format #t ";; required=~s locus=~s name=~s slot=~s~%"
-    ;; required locus name slot))
+    (when tr? (format #t ";; . make-input-assignment2 ~s~%" definition))
     (case locus
       ((PATH)
        ;; Ignore path parameters.
@@ -1081,41 +1144,59 @@
        (cond
 	((string=? type-kind "map")
 	 (format #t "AHO MAP ~s slot-properties=~s~%" name slot-properties)
-	 ;; Map's slot-properties is: (("key" "key" type2 . _)
-	 ;; ("value" "value" type3 . _))
-	 ;; ASSUME ONLY STRING MAPS.
+	 ;; IT ASSUMES ONLY STRING MAPS.
 	 (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
 	   (let* ((key-type (resolve-type type2))
 		  (value-type (resolve-type type3))
+		  (_ (assert (string=? key-type "string")))
+		  (_ (assert (string=? value-type "string")))
 		  (map-type (format #f "map[~a]~a" key-type value-type))
 		  (assigner (lambda (rhs)
 			      (format #f "bin[key] = ~a" rhs))))
-	     (append
-	      (list (format #f "{var rhs = hi.Get(~s)" name)
-		    (format #f "var bin = make(~a)" map-type)
-		    (format #f "maps.All(rhs)(func (key, val string) bool {"))
-	      ;;(make-coercing-import type3 assigner "val")
-	      (list "bin[key] = val}"
-		    (format #f "i.~a = bin}" slot))))))
+	     (list (format #f "{var rhs = hi.Get(~s)" name)
+		   (format #f "var bin ~a" map-type)
+		   (format #f "maps.All(rhs)(func (k, v string) bool {")
+		   ;;(make-coercing-import type3 assigner "val")
+		   (format #f "bin[k] = v}")
+		   (format #f "i.~a = bin}" slot)))))
 	((string=? type-kind "list")
 	 ;; List's slot-properties is (("member" "member" type2 . _))
-	 (format #t "AHO slot-properties=~s" slot-properties)
+	 (format #t "AHO LIST slot-properties=~s~%" slot-properties)
 	 (match-let (((_ _ type2 . _) (car slot-properties)))
-	   (let* ((list-type (resolve-type type2))
+	   (let* ((element-type (resolve-type type2))
 		  (assigner (lambda (rhs)
-			      (format #f "bin[i] = ~a" rhs))))
+			      (format #f "append(bin, ~a)" rhs))))
 	     (append
 	      (list (format #f "{var rhs = hi.Values(~s)" name)
-		    (format #f "var bin = make([]~a, len(rhs), len(rhs))"
-			    list-type)
-		    (format #f "for i, v := range slices.All(rhs) {"))
+		    (format #f "var bin []~a" element-type)
+		    (format #f "for _, v := range slices.All(rhs) {"))
 	      (make-coercing-import type2 assigner "v")
-	      (list "}" (format #f "i.~a = bin}" slot))))))
+	      (list ;;(format #f "append(bin, v)}")
+	       (format #f "}")
+	       (format #f "i.~a = bin}" slot))))
+	   ))
 	(else
 	 (let ((rhs (format #f "hi.Get(~s)" name))
 	       (assigner (lambda (rhs)
 			   (format #f "i.~a = ~a" slot rhs))))
 	   (make-coercing-import type assigner rhs)))))
+      ((HEADER-PREFIX)
+       ;; IT ASSUMES ONLY STRING MAPS.
+       (assert (string=? type-kind "map"))
+       (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
+	 (let* ((key-type (resolve-type type2))
+		(value-type (resolve-type type3))
+		(_ (assert (string=? key-type "string")))
+		(_ (assert (string=? value-type "string")))
+		(map-type (format #f "map[~a]~a" key-type value-type))
+		(assigner (lambda (rhs)
+			    (format #f "bin[key] = ~a" rhs))))
+	   (list (format #f "{var prefix = http.CanonicalHeaderKey(~s)" name)
+		 (format #f "var bin ~a" map-type)
+		 ;; (format #f "var bin map[string]string")
+		 (format #f "for k, v := range hi {")
+		 (format #f "if strings.HasPrefix(k, prefix) {bin[k] = v[0]}}")
+		 (format #f "i.~a = bin}" slot)))))
       ((PAYLOAD)
        (cond
 	((string=? type-kind "blob")
@@ -1145,8 +1226,7 @@
   (match-let* (((slot name type locus required) response-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
-    ;; (when tr? (format #t ";; (slot=~s name=~s locus=~s required=~s)~%"
-    ;; slot name locus required))
+    (when tr? (format #t ";; . make-output-extraction ~s~%" slot))
     (case locus
       ((PATH)
        '())
@@ -1154,7 +1234,7 @@
        (begin
 	 (format #t "BAD query in response: ~s~%" name)
 	 (values)))
-      ((HEADER)
+      ((HEADER HEADER-PREFIX)
        ;;(list (format #f "ho.Add(~s, s.~a)" name slot))
        (cond
 	((string=? type-kind "map")
@@ -1249,6 +1329,15 @@
   (let ((ss (make-handler-function action)))
     (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
+(define (make-auxiliary-functions)
+  (list "func gather_headers(h http.Header, prefix string) map[string]string {"
+	"var p = http.CanonicalHeaderKey(prefix)"
+	"var m map[string]string"
+	"for k, v := range h {"
+	"if strings.HasPrefix(k, p) {"
+	"m[k] = v[0]}}"
+	"return m}"))
+
 (define (make-handler-file list-of-actions)
   (append
    (list "// handlers.go (2025-10-01)"
@@ -1262,6 +1351,8 @@
 	 "\"io\""
 	 "\"log\""
 	 "\"net/http\""
+	 "\"slices\""
+	 "\"strings\""
 	 "\"strconv\""
 	 "\"time\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
@@ -1281,11 +1372,16 @@
   (let ((ss (make-enumerator-importers list-of-types-in-requests)))
     (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
+(define (write-auxiliary-functions port)
+  (let ((ss (make-auxiliary-functions)))
+    (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
+
 (define (dump-handlers file)
   (call-with-output-file file
     (lambda (port)
       (write-handlers port)
-      (write-enumerator-importers port))))
+      (write-enumerator-importers port)
+      (write-auxiliary-functions port))))
 
 ;; (display-handler-function (assoc "ListParts" list-of-actions))
 
@@ -1322,7 +1418,7 @@
        (list
 	(format #f "{var err2 = e.EncodeElement(s.~a, start_element(\"~a\"))" slot name)
 	(format #f "if err2 != nil {return err2}}")))
-      ((HEADER)
+      ((HEADER HEADER-PREFIX)
        '())
       ((ELEMENT)
        (list
