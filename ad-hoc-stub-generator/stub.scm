@@ -204,7 +204,7 @@
   (if (null? chars)
       strings
       (string-split-n
-       (apply append (map (lambda (s) (string-split s (car chars))) strings))
+       (apply-append (map (lambda (s) (string-split s (car chars))) strings))
        (cdr chars))))
 
 (define (camelcase-edges s start indices)
@@ -963,12 +963,11 @@
 	 "import ("
 	 ;; "\"context\""
 	 "\"net/http\""
+	 "\"s3-baby-server/internal/service\""
 	 ")"
-	 ;; ***DUMMY***
-	 "type BB_server struct {}"
 	 (string-append
 	  "func register_dispatcher"
-	  "(bbs *BB_server, sx *http.ServeMux)"
+	  "(bbs *service.BB_server, sx *http.ServeMux)"
 	  " error {"))
    (apply
     append
@@ -1339,7 +1338,7 @@
      (list
       ;; Start of function declaration:
       (string-append (format #f "func h_~a" name)
-		     "(bbs *BB_server,"
+		     "(bbs *service.BB_server,"
 		     " w http.ResponseWriter, r *http.Request) error {")
       "var qi = r.URL.Query()"
       "var hi = r.Header"
@@ -1349,7 +1348,7 @@
      ;; Input accessors:
      (list
       (format #f "var i = s3.~a{}" input-name))
-     (apply append (map make-input-assignment properties))
+     (apply-append (map make-input-assignment properties))
      ;; Hander invocation:
      (list
       "var ctx = r.Context()"
@@ -1363,7 +1362,7 @@
 	 (append
 	  (list
 	   (format #f "var s = s_~a(*o)" response-name))
-	  (apply append (map make-output-extraction response-properties))
+	  (apply-append (map make-output-extraction response-properties))
 	  (make-output-payload-extraction #f code)))
      ;; Function end:
      (list "return nil}"))))
@@ -1398,11 +1397,12 @@
 	 "\"strings\""
 	 "\"strconv\""
 	 "\"time\""
+	 "\"s3-baby-server/internal/service\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	 ")")
-   (apply append
-	  (map make-handler-function list-of-actions))))
+   (apply-append
+    (map make-handler-function list-of-actions))))
 
 (define (write-handlers port)
   (let ((ss (make-handler-file list-of-actions)))
@@ -1496,7 +1496,7 @@
 		  (list
 		   (format #f "var err1 = e.EncodeToken(start)")
 		   (format #f "if err1 != nil {return err1}")))
-	      (apply append encoders)
+	      (apply-append encoders)
 	      (if output-in-payload
 		  '()
 		  (list
@@ -1514,7 +1514,7 @@
 
 (define (display-repsonse-marshaler~)
   (let ((s1 (make-response-marshaler-preamble~))
-	(s2 (apply append (map make-marshaler-function list-of-actions))))
+	(s2 (apply-append (map make-marshaler-function list-of-actions))))
     (format #t "~a~%~a~%"
 	    (apply string-append (intervene-separator "\n" s1))
 	    (apply string-append (intervene-separator "\n" s2)))))
@@ -1536,8 +1536,8 @@
 	 "func start_element(k string) xml.StartElement {"
 	 "return xml.StartElement{Name: xml.Name{Local: k}}"
 	 "}")
-   (apply append
-	  (map make-marshaler-function list-of-actions))))
+   (apply-append
+    (map make-marshaler-function list-of-actions))))
 
 (define (write-marshalers port list-of-actions)
   (let ((ss (make-marshaler-file list-of-actions)))
@@ -1580,16 +1580,18 @@
 
 (define (make-api-template-file list-of-actions)
   (append
-   (list "// template.go (2025-10-01)"
+   (list "// api-template.go (2025-10-01)"
 	 "// API-STUB.  Handler templates. They should be replaced by"
 	 "// actual implementations."
-	 "package server"
+	 "package service"
 	 "import ("
 	 "\"context\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
-	 ")")
-   (apply append
-	  (map make-api-template list-of-actions))))
+	 ")"
+	 ;; ***DUMMY***
+	 "type BB_server struct {}")
+   (apply-append
+    (map make-api-template list-of-actions))))
 
 (define (write-api-template-file port list-of-actions)
   (let ((ss (make-api-template-file list-of-actions)))
