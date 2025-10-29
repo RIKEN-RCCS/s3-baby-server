@@ -51,6 +51,9 @@
 ;; has a name "XXXXInput" in SDK.  "Request" is a wrapper of "Input"
 ;; used for invoking an actual remote call.
 
+;; ASSUPTION: It assumes enumeration types are string types.  Null
+;; value for enumeration types is "".
+
 ;; Golang http server: https://pkg.go.dev/net/http#ServeMux
 
 (import
@@ -613,15 +616,31 @@
     (list-types-in-requests-loop list-of-actions '()))
    string<?))
 
+;; LIST-ERROR-TYPES returns a list of error types defined in
+;; "s3.json".  Errors such as "BucketAlreadyExists" have "traits":
+;; {"smithy.api#error": "client", "smithy.api#httpError": 409}.
+;;
+;; The error types defined are: {"BucketAlreadyExists"
+;; "BucketAlreadyOwnedByYou" "EncryptionTypeMismatch"
+;; "IdempotencyParameterMismatch" "InvalidObjectState"
+;; "InvalidRequest" "InvalidWriteOffset" "NoSuchBucket" "NoSuchKey"
+;; "NoSuchUpload" "NotFound" "ObjectAlreadyInActiveTierError"
+;; "ObjectNotInActiveTierError" "TooManyParts"}
+
 (define (list-error-types)
   (delete-duplicates
    (apply-append
-    (map (lambda (action)
-	   (match-let* (((name signature _ request-properties _) action))
-	     (map (lambda (property)
-		    (match-let* (((slot name type locus required) property))
-		      type))
-		  request-properties)))
+    (map (lambda (definition)
+	   (match-let* (((type-name type-kind . slot-properties) definition))
+	     (let* ((slot-name (string-append "com.amazonaws.s3#" type-name))
+		    (key (string->symbol slot-name))
+		    (type-structure (assoc-option key s3-api))
+		    (traits (assoc-option 'traits type-structure))
+		    (error-site (assoc-option '#{smithy.api#error}# traits))
+		    (error-code (assoc-option '#{smithy.api#error}# traits)))
+	       (if error-site
+		   (list type-name)
+		   '()))))
 	 list-of-types))))
 
 (define list-of-types-in-requests (list-types-in-requests))
@@ -982,7 +1001,7 @@
 	      (format #f "case ~s: return ~a, nil" name enumerator))))
 	slot-properties)
    (list "default: var err1 = errors.New(\"interning an enum\")"
-	 "log.Fatal(err1); return nil, err1}}")))
+	 "log.Fatal(err1); return \"\", err1}}")))
 
 (define (make-enumerator-importers list-of-types-in-requests)
   ;; Makes importer functions for enumerators.  Functions are named
@@ -1165,13 +1184,13 @@
 	 (match-let (((_ _ type2 . _) (car slot-properties)))
 	   (let* ((element-type (resolve-type type2))
 		  (assigner (lambda (rhs)
-			      (format #f "append(bin, ~a)" rhs))))
+			      (format #f "bin = append(bin, ~a)" rhs))))
 	     (append
 	      (list (format #f "{var rhs = hi.Values(~s)" name)
 		    (format #f "var bin []~a" element-type)
 		    (format #f "for _, v := range slices.All(rhs) {"))
 	      (make-coercing-import type2 assigner "v")
-	      (list ;;(format #f "append(bin, v)}")
+	      (list ;;(format #f "bin = append(bin, v)}")
 	       (format #f "}")
 	       (format #f "i.~a = bin}" slot))))
 	   ))
