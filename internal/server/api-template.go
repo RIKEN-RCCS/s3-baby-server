@@ -4,9 +4,38 @@
 package server
 import (
 "context"
+"net/http"
+"s3-baby-server/internal/service"
 "github.com/aws/aws-sdk-go-v2/service/s3"
 )
-type BB_server struct {}
+
+type BB_server struct {
+	S3 *service.S3Service
+	AbortMultipartUploadHandler http.HandlerFunc
+	CompleteMultipartUploadHandler http.HandlerFunc
+	CopyObjectHandler http.HandlerFunc
+	CreateBucketHandler http.HandlerFunc
+	CreateMultipartUploadHandler http.HandlerFunc
+	DeleteBucketHandler http.HandlerFunc
+	DeleteObjectHandler http.HandlerFunc
+	DeleteObjectsHandler http.HandlerFunc
+	DeleteObjectTaggingHandler http.HandlerFunc
+	GetObjectAttributesHandler http.HandlerFunc
+	GetObjectHandler http.HandlerFunc
+	GetObjectTaggingHandler http.HandlerFunc
+	HeadBucketHandler http.HandlerFunc
+	HeadObjectHandler http.HandlerFunc
+	ListBucketsHandler http.HandlerFunc
+	ListMultipartUploadsHandler http.HandlerFunc
+	ListObjectsHandler http.HandlerFunc
+	ListObjectsV2Handler http.HandlerFunc
+	ListPartsHandler http.HandlerFunc
+	PutObjectHandler http.HandlerFunc
+	PutObjectTaggingHandler http.HandlerFunc
+	UploadPartCopyHandler http.HandlerFunc
+	UploadPartHandler http.HandlerFunc
+}
+
 func (bbs *BB_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
 var o = s3.AbortMultipartUploadOutput{}
 return &o, nil}
