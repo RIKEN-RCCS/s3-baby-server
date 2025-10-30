@@ -32,9 +32,9 @@ func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
 	})
 	sx.HandleFunc("GET /{bucket}/{key...}", func(w http.ResponseWriter, r *http.Request) {
 		var q = r.URL.Query()
-		var attributes = (q.Get("attributes") != "")
-		var tagging = (q.Get("tagging") != "")
-		var uploadid = (q.Get("uploadId") != "")
+		var attributes = q.Has("attributes")
+		var tagging = q.Has("tagging")
+		var uploadid = q.Has("uploadId")
 		var h = r.Header
 		var x_amz_object_attributes = (h.Get("x-amz-object-attributes") != "")
 		if attributes && x_amz_object_attributes {
@@ -60,8 +60,8 @@ func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
 	})
 	sx.HandleFunc("GET /{bucket}", func(w http.ResponseWriter, r *http.Request) {
 		var q = r.URL.Query()
-		var list_type_2 = (q.Get("list-type") != "2")
-		var uploads = (q.Get("uploads") != "")
+		var list_type_2 = (q.Get("list-type") == "2")
+		var uploads = q.Has("uploads")
 		if list_type_2 {
 			fmt.Printf("h_ListObjectsV2!\n")
 			//h_ListObjectsV2(bbs, w, r)
@@ -79,7 +79,7 @@ func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
 			return
 		}
 	})
-	sx.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+	sx.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
@@ -95,9 +95,9 @@ func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
 	})
 	sx.HandleFunc("PUT /{bucket}/{key...}", func(w http.ResponseWriter, r *http.Request) {
 		var q = r.URL.Query()
-		var partnumber = (q.Get("partNumber") != "")
-		var tagging = (q.Get("tagging") != "")
-		var uploadid = (q.Get("uploadId") != "")
+		var partnumber = q.Has("partNumber")
+		var tagging = q.Has("tagging")
+		var uploadid = q.Has("uploadId")
 		var h = r.Header
 		var x_amz_copy_source = (h.Get("x-amz-copy-source") != "")
 		if partnumber && uploadid && x_amz_copy_source {
@@ -137,8 +137,8 @@ func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
 	})
 	sx.HandleFunc("POST /{bucket}/{key...}", func(w http.ResponseWriter, r *http.Request) {
 		var q = r.URL.Query()
-		var uploadid = (q.Get("uploadId") != "")
-		var uploads = (q.Get("uploads") != "")
+		var uploadid = q.Has("uploadId")
+		var uploads = q.Has("uploads")
 		if uploads {
 			fmt.Printf("h_CreateMultipartUpload!\n")
 			//h_CreateMultipartUpload(bbs, w, r)
@@ -154,7 +154,7 @@ func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
 	})
 	sx.HandleFunc("POST /{bucket}", func(w http.ResponseWriter, r *http.Request) {
 		var q = r.URL.Query()
-		var delete = (q.Get("delete") != "")
+		var delete = q.Has("delete")
 		if delete {
 			fmt.Printf("h_DeleteObjects!\n")
 			//h_DeleteObjects(bbs, w, r)
@@ -166,8 +166,8 @@ func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
 	})
 	sx.HandleFunc("DELETE /{bucket}/{key...}", func(w http.ResponseWriter, r *http.Request) {
 		var q = r.URL.Query()
-		var tagging = (q.Get("tagging") != "")
-		var uploadid = (q.Get("uploadId") != "")
+		var tagging = q.Has("tagging")
+		var uploadid = q.Has("uploadId")
 		if tagging {
 			fmt.Printf("h_DeleteObjectTagging!\n")
 			//h_DeleteObjectTagging(bbs, w, r)

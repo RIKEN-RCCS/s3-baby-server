@@ -68,6 +68,7 @@
  (ice-9 popen)
  (ice-9 format)
  (ice-9 match)
+ (ice-9 regex)
  (ice-9 string-fun) ;; string-replace-substring
  ;;(scheme base)
  (only (scheme base) define-record-type textual-port? write-string)
@@ -870,17 +871,19 @@
 	      (string-downcase s)))
 
 (define (make-fetch-condition source s)
+  ;; Makes a condition on queries and headers.  A source is a variable
+  ;; name holding queries (q) or headers (h).
   (assert (or (string=? source "q") (string=? source "h")))
   (cond ((string-contains s "=")
 	 => (lambda (i)
 	      (let* ((key (substring s 0 i))
 		     (var (make-variable-name s))
 		     (val (substring s (+ i 1))))
-		(format #f "var ~a = (~a.Get(~s) != ~s)" var source key val))))
+		(format #f "var ~a = (~a.Get(~s) == ~s)" var source key val))))
 	(else
 	 (let* ((key s)
 		(var (make-variable-name key)))
-	   (format #f "var ~a = (~a.Get(~s) != \"\")" var source key)))))
+	   (format #f "var ~a = ~a.Has(~s)" var source key)))))
 
 (define (make-conditionals queries-headers)
   ;;(format #t "make-conditionals ~s~%" queries-headers)
@@ -911,9 +914,10 @@
 		(append headers-acc headers))))))
 
 (define (generate-dispatcher-entry dispatch-entry)
-  ;; Generate a dispatcher for one pattern.  It returns a list of line
-  ;; strings.
-  (match-let ((((method path) . dispatches) dispatch-entry))
+  ;; Generates a dispatcher for one pattern.  It returns a list of
+  ;; lines of code.  The root path "/" is fixed to ServeMux's "/{$}".
+  (match-let* ((((method path-raw) . dispatches) dispatch-entry)
+	       (path (if (string=? path-raw "/") "/{$}" path-raw)))
     (let-values (((queries headers) (list-queries-headers dispatches)))
       (append
        ;; Handler registering code:
@@ -921,7 +925,7 @@
 	(string-append
 	 (format #f "sx.HandleFunc(\"~a ~a\"," method path)
 	 " func(w http.ResponseWriter, r *http.Request) {"))
-       ;; Check code for root-condition:
+       ;; Check code for root-condition (NEVER GENERATED):
        (if (string=? path "/")
 	   (list
 	    "if r.URL.Path != \"/\" {http.NotFound(w, r); return}")

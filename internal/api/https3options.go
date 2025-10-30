@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/gorilla/mux"
+	//"github.com/gorilla/mux"
 )
 
 type HTTPS3Options struct {
@@ -51,13 +51,15 @@ func (o *HTTPS3Options) HeaderQueryCheck(param []string) bool {
 }
 
 func (o *HTTPS3Options) GetBucket() string {
-	vars := mux.Vars(o.request)
-	return vars["bucket"]
+	//vars := mux.Vars(o.request)
+	//return vars["bucket"]
+	return o.request.PathValue("bucket")
 }
 
 func (o *HTTPS3Options) GetKey() string {
-	vars := mux.Vars(o.request)
-	return vars["key"]
+	//vars := mux.Vars(o.request)
+	//return vars["key"]
+	return o.request.PathValue("key")
 }
 
 func (o *HTTPS3Options) GetPath() string {

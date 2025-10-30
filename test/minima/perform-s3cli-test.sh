@@ -6,17 +6,19 @@
 # It sets shell "-e" to stop on an error.  Start with nothing in the
 # pool.  No $BUCKET exists, in particular.  It is tested with AWS CLI
 # v2.31.13.
-
+#
 # It uses a temporary file "zzz.json" and leaves it.
 
 set -e
+
+export AWS_EC2_METADATA_DISABLED=true
 
 BUCKET=mybucket1
 KEY1=test_object.txt
 KEY2=object.txt
 KEY3=test_multipart_upload.txt
 TESTFILE=data-10m.txt
-RESULT=zzz.json
+TEMPORARY=zzz.json
 
 echo "[Init] Test starts."
 
@@ -26,17 +28,19 @@ echo "[Info] KEY1=$KEY1"
 echo "[Info] KEY2=$KEY2"
 echo "[Info] KEY3=$KEY3"
 echo "[Info] TESTFILE=$TESTFILE"
-echo "[Info] RESULT=$RESULT"
+echo "[Info] TEMPORARY=$TEMPORARY"
 echo "====================================="
 
-echo "[Info] Making a test file when not exists"
+echo "[Info] Making a test file when not exists."
 
-rm -f $RESULT
+rm -f $TEMPORARY
 
 if [ ! -e $TESTFILE ]; then
     touch $TESTFILE
     shred -n 1 -s 10M $TESTFILE
 fi
+
+set -x
 
 echo "[Test] list-buckets"
 
@@ -98,8 +102,8 @@ echo "[Test] create-multipart-upload"
 
 #UPLOAD_ID=$(aws s3api create-multipart-upload --no-cli-pager --bucket $BUCKET --key $KEY3 --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" | jq -r '.UploadId')
 
-aws s3api create-multipart-upload --no-cli-pager --bucket $BUCKET --key $KEY3 --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" | tee $RESULT
-UPLOAD_ID=$(jq -r '.UploadId' < $RESULT)
+aws s3api create-multipart-upload --no-cli-pager --bucket $BUCKET --key $KEY3 --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" | tee $TEMPORARY
+UPLOAD_ID=$(jq -r '.UploadId' < $TEMPORARY)
 
 echo "[Test] upload-part"
 
@@ -122,10 +126,10 @@ echo "[Test] complete-multipart-upload"
 #ETAG1=$(aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | jq '.Parts[0].ETag')
 #ETAG2=$(aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | jq '.Parts[1].ETag')
 
-aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | tee $RESULT
-ETAG1=$(jq '.Parts[0].ETag' < $RESULT)
-aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | tee $RESULT
-ETAG2=$(jq '.Parts[1].ETag' < $RESULT)
+aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | tee $TEMPORARY
+ETAG1=$(jq '.Parts[0].ETag' < $TEMPORARY)
+aws s3api list-parts --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID | tee $TEMPORARY
+ETAG2=$(jq '.Parts[1].ETag' < $TEMPORARY)
 
 aws s3api complete-multipart-upload --no-cli-pager --bucket $BUCKET --key $KEY3 --upload-id $UPLOAD_ID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
 
@@ -140,6 +144,8 @@ aws s3api delete-objects --no-cli-pager --bucket $BUCKET --delete "{\"Objects\":
 echo "[Test] delete-bucket"
 
 aws s3api delete-bucket --no-cli-pager --bucket $BUCKET
+
+set +x
 
 echo "====================================="
 echo "[Done] Test done successfully."
