@@ -12,10 +12,11 @@ import (
 "strings"
 "strconv"
 "time"
+"s3-baby-server/internal/service"
 "github.com/aws/aws-sdk-go-v2/service/s3"
 "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
-func h_AbortMultipartUpload(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_AbortMultipartUpload(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -43,7 +44,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_CompleteMultipartUpload(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_CompleteMultipartUpload(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -95,7 +96,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_CopyObject(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_CopyObject(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -195,7 +196,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_CreateBucket(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_CreateBucket(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -236,7 +237,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_CreateMultipartUpload(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_CreateMultipartUpload(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -321,7 +322,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_DeleteBucket(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_DeleteBucket(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -336,7 +337,7 @@ ho.Set("Content-Type", "application/xml")
 var status int = 204
 w.WriteHeader(status)
 return nil}
-func h_DeleteObject(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_DeleteObject(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -374,7 +375,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_DeleteObjects(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_DeleteObjects(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -411,7 +412,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_DeleteObjectTagging(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_DeleteObjectTagging(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -433,7 +434,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_GetObject(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_GetObject(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -520,7 +521,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_GetObjectAttributes(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_GetObjectAttributes(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -564,7 +565,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_GetObjectTagging(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_GetObjectTagging(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -589,7 +590,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_HeadBucket(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_HeadBucket(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -614,7 +615,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_HeadObject(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_HeadObject(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -702,7 +703,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_ListBuckets(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_ListBuckets(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -728,7 +729,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_ListMultipartUploads(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_ListMultipartUploads(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -763,7 +764,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_ListObjects(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_ListObjects(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -805,7 +806,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_ListObjectsV2(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_ListObjectsV2(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -851,7 +852,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_ListParts(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_ListParts(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -886,7 +887,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_PutObject(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_PutObject(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -988,7 +989,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_PutObjectTagging(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_PutObjectTagging(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1023,7 +1024,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_UploadPart(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_UploadPart(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1078,7 +1079,7 @@ w.WriteHeader(status)
 var _, err6 = w.Write(co)
 if err6 != nil {log.Fatal(err6); return err6}
 return nil}
-func h_UploadPartCopy(bbs *BB_server, w http.ResponseWriter, r *http.Request) error {
+func h_UploadPartCopy(bbs *service.BB_server, w http.ResponseWriter, r *http.Request) error {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()

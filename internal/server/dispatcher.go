@@ -7,9 +7,10 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"s3-baby-server/internal/service"
 )
 
-func register_dispatcher(bbs *BB_server, sx *http.ServeMux) error {
+func register_dispatcher(bbs *service.BB_server, sx *http.ServeMux) error {
 	sx.HandleFunc("HEAD /{bucket}/{key...}", func(w http.ResponseWriter, r *http.Request) {
 		if true {
 			fmt.Printf("h_HeadObject!\n")

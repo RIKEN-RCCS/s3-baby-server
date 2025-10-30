@@ -1,16 +1,15 @@
 // api-template.go (2025-10-01)
 // API-STUB.  Handler templates. They should be replaced by
 // actual implementations.
-package server
+package service
 import (
 "context"
 "net/http"
-"s3-baby-server/internal/service"
 "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type BB_server struct {
-	S3 *service.S3Service
+	S3 *S3Service
 	AbortMultipartUploadHandler http.HandlerFunc
 	CompleteMultipartUploadHandler http.HandlerFunc
 	CopyObjectHandler http.HandlerFunc

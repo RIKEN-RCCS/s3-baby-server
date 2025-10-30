@@ -91,6 +91,12 @@
 
 (load "../test/minima/srfi-180-body.scm")
 
+(define bb-package-path "s3-baby-server/internal")
+(define bb-dispatcher-package "server")
+(define bb-server-package "service")
+(define bb-server-name "BB_server")
+(define bb-server-type (string-append bb-server-package "." bb-server-name))
+
 ;; List of implemented actions of s3-baby-server.  The full list of S3
 ;; actions are listed in "shapes" / "com.amazonaws.s3#AmazonS3" /
 ;; "operations" in "s3.json".
@@ -963,14 +969,15 @@
 	 "// Dispatcher for net/http.ServeMux.  It switches handlers"
 	 "// with regard to method-path patterns and required"
 	 "// parameters in request API."
-	 "package server"
+	 (format #f "package ~a" bb-dispatcher-package)
 	 "import ("
 	 ;; "\"context\""
 	 "\"net/http\""
+	 (format #f "\"~a/~a\"" bb-package-path bb-server-package)
 	 ")"
 	 (string-append
 	  "func register_dispatcher"
-	  "(bbs *BB_server, sx *http.ServeMux)"
+	  (format #f "(bbs *~a, sx *http.ServeMux)" bb-server-type)
 	  " error {"))
    (apply
     append
@@ -1341,7 +1348,7 @@
      (list
       ;; Start of function declaration:
       (string-append (format #f "func h_~a" name)
-		     "(bbs *BB_server,"
+		     (format #f "(bbs *~a," bb-server-type)
 		     " w http.ResponseWriter, r *http.Request) error {")
       "var qi = r.URL.Query()"
       "var hi = r.Header"
@@ -1388,7 +1395,7 @@
    (list "// handlers.go (2025-10-01)"
 	 "// API-STUB.  Handler functions (h_XXXX) called from the"
 	 "// dispatcher."
-	 "package server"
+	 (format #f "package ~a" bb-dispatcher-package)
 	 "import ("
 	 ;; "\"context\""
 	 "\"encoding/xml\""
@@ -1400,6 +1407,7 @@
 	 "\"strings\""
 	 "\"strconv\""
 	 "\"time\""
+	 (format #f "\"~a/~a\"" bb-package-path bb-server-package)
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	 ")")
@@ -1528,7 +1536,7 @@
 	 "// structures need custom marshalers, because they have"
 	 "// some slots that need to be renamed and also have an"
 	 "// extra slot that should be suppressed."
-	 "package server"
+	 (format #f "package ~a" bb-dispatcher-package)
 	 "import ("
 	 ;; "\"context\""
 	 "\"encoding/xml\""
@@ -1573,7 +1581,7 @@
 	       output-name)))
       (list
        (string-append
-	(format #f "func (bbs *BB_server) ~a" name)
+	(format #f "func (bbs *~a) ~a" bb-server-name name)
 	(format #f "(ctx context.Context, params *s3.~a," input-name)
 	(format #f " optFns ...func(*s3.Options))")
 	(format #f " (*s3.~a, error) {" api-output-name))
@@ -1585,7 +1593,7 @@
    (list "// api-template.go (2025-10-01)"
 	 "// API-STUB.  Handler templates. They should be replaced by"
 	 "// actual implementations."
-	 "package server"
+	 (format #f "package ~a" bb-server-package)
 	 "import ("
 	 "\"context\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
