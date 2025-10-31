@@ -9,21 +9,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
+	//"time"
 	"s3-baby-server/internal/server"
 )
 
-var Version = "v1.2.1"
-
-type Configuration struct {
-	access_logging            bool
-	anonymize_ower            bool
-	verify_fs_write           bool
-	pending_upload_expiration time.Duration
-	server_control            string
-}
-
-var S3bbs_config = Configuration{}
+var BB_version = "v1.2.1"
 
 func main() {
 	var fs = flag.NewFlagSet("", flag.ExitOnError)
@@ -77,7 +67,7 @@ func main() {
 		os.Exit(2)
 	}
 	if *print_version {
-		fmt.Fprintf(os.Stdout, "s3-baby-server %s:\n", Version)
+		fmt.Fprintf(os.Stdout, "s3-baby-server %s:\n", BB_version)
 		os.Exit(0)
 	}
 

@@ -22,7 +22,7 @@
   "step": "Create a bucket named 'mybucket'.",
   "name": "MB",
   "kind": "s3 command",
-  "operation": "aws s3 mb --no-progress s3://mybucket",
+  "operation": "aws s3 mb s3://mybucket",
   "status": 0,
   "outcome1": null,
   "outcome2": ["make_bucket: mybucket"]

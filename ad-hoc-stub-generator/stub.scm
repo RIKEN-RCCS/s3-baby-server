@@ -93,9 +93,12 @@
 
 (define bb-package-path "s3-baby-server/internal")
 (define bb-dispatcher-package "server")
-(define bb-server-package "service")
+(define bb-server-package "server")
 (define bb-server-name "BB_server")
-(define bb-server-type (string-append bb-server-package "." bb-server-name))
+(define bb-server-type
+  (if (not (string=? bb-server-package bb-dispatcher-package))
+      (string-append bb-server-package "." bb-server-name)
+      bb-server-name))
 
 ;; List of implemented actions of s3-baby-server.  The full list of S3
 ;; actions are listed in "shapes" / "com.amazonaws.s3#AmazonS3" /
@@ -130,7 +133,6 @@
 (define tr? #t)
 
 (define apply-append concatenate)
-(define append-strings string-join)
 ;; substitute-string is done by string-replace-substring
 
 (define (assoc-option k alist)
@@ -319,6 +321,7 @@
 		     (drop-prefix "com.amazonaws.s3#" target)))))
 	(else default)))
 
+#|
 (define (make-type-slot-property~ member)
   (match-let (((slot-symbol . property) member))
     (let* ((slot (symbol->string slot-symbol))
@@ -329,6 +332,7 @@
 		   => (lambda (pair) (cdr pair)))
 		  (else slot))))
       (list slot name type))))
+|#
 
 (define (make-slot-property member)
   ;; Admits an element of "members" and returns a five-tuple (slot
@@ -615,7 +619,7 @@
    (else
     (let ((acc+ (cons type acc)))
       (match-let* ((definition (assoc type list-of-types))
-		   (_ (format #t "collect-types-in-type ~s ~s~%" type definition))
+		   ;;(_ (format #t "collect-types-in-type ~s ~s~%" type definition))
 		   ((type-name type-kind . slot-properties) definition))
 	(cond ((primitive-type? type-kind)
 	       acc+)
@@ -959,22 +963,25 @@
 (define (generate-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
   (append
-   (list "// dispatcher.go (2025-10-01)"
-	 "// Dispatcher for net/http.ServeMux.  It switches handlers"
-	 "// with regard to method-path patterns and required"
-	 "// parameters in request API."
-	 (format #f "package ~a" bb-dispatcher-package)
-	 "import ("
-	 ;; "\"context\""
-	 "\"net/http\""
-	 (format #f "\"~a/~a\"" bb-package-path bb-server-package)
-	 ")"
-	 (string-append
-	  "func register_dispatcher"
-	  (format #f "(bbs *~a, sx *http.ServeMux)" bb-server-type)
-	  " error {"))
-   (apply
-    append
+   (delete
+    ""
+    (list "// dispatcher.go (2025-10-01)"
+	  "// Dispatcher for net/http.ServeMux.  It switches handlers"
+	  "// with regard to method-path patterns and required"
+	  "// parameters in request API."
+	  (format #f "package ~a" bb-dispatcher-package)
+	  "import ("
+	  ;; "\"context\""
+	  "\"net/http\""
+	  (if (not (string=? bb-server-package bb-dispatcher-package))
+	      (format #f "\"~a/~a\"" bb-package-path bb-server-package)
+	      "")
+	  ")"
+	  (string-append
+	   "func register_dispatcher"
+	   (format #f "(bbs *~a, sx *http.ServeMux)" bb-server-type)
+	   " error {")))
+   (apply-append
     (map generate-dispatcher-entry list-of-dispatches))
    (list (format #f "return nil}"))))
 
@@ -1027,8 +1034,12 @@
 	    (let ((enumerator (make-sdk-enumerator type name)))
 	      (format #f "case ~s: return ~a, nil" name enumerator))))
 	slot-properties)
-   (list "default: var err1 = errors.New(\"interning an enum\")"
-	 "log.Fatal(err1); return \"\", err1}}")))
+   ;;(list "default: var err1 = errors.New(\"interning an enum\")"
+   ;; "log.Fatal(err1); return \"\", err1}}")
+   (list (string-append
+	  (format #f "default: var err1 = fmt.Errorf")
+	  (format #f "(\"interning an enum (types.~a) %#v\", s)" type))
+	 "log.Print(err1); return \"\", err1}}")))
 
 (define (make-enumerator-importers list-of-types-in-requests)
   ;; Makes importer functions for enumerators.  Functions are named
@@ -1042,66 +1053,69 @@
 		'())))
 	list-of-types-in-requests)))
 
-(define (make-coercing-import type-name assigner rhs)
+(define (make-coercing-import name type-name assigner rhs)
   ;; Makes a coercion of a string to a given type.  Calling an
   ;; assigner makes an assignment.  It assumes a type-name is defined.
-  (when tr? (format #t ";; . make-coercing-import ~s~%" type-name))
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
-    (cond
-     ;; Primitive-types:
-     ((string=? type-kind "blob")
-      (values))
-     ((string=? type-kind "boolean")
-      (list
-       (format #f "{var x, err2 = strconv.ParseBool(~a)" rhs)
-       "if err2 != nil {log.Fatal(err2); return err2}"
-       (string-append (assigner "&x") "}")))
-     ((string=? type-kind "integer")
-      (list
-       (format #f "{var x1, err2 = strconv.ParseInt(~a, 10, 32)" rhs)
-       "if err2 != nil {log.Fatal(err2); return err2}"
-       "var x2 = int32(x1)"
-       (string-append (assigner "&x2") "}")))
-     ((string=? type-kind "long")
-      (list
-       (format #f "{var x, err2 = strconv.ParseInt(~a, 10, 64)" rhs)
-       "if err2 != nil {log.Fatal(err2); return err2}"
-       (string-append (assigner "&x") "}")))
-     ((string=? type-kind "operation")
-      (values))
-     ((string=? type-kind "service")
-      (values))
-     ((string=? type-kind "string")
-      (list
-       (assigner (format #f "thing_pointer(~a)" rhs))))
-     ((string=? type-kind "timestamp")
-      (list
-       (format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
-       "if err2 != nil {log.Fatal(err2); return err2}"
-       (string-append (assigner "&x") "}")))
-     ;; Composite-types:
-     ((string=? type-kind "enum")
-      (list
-       (format #f "{var x, err2 = import_~a(~a)" type-name rhs)
-       "if err2 != nil {log.Fatal(err2); return err2}"
-       (string-append (assigner "x") "}")))
-     ((string=? type-kind "list")
-      (list
-       (assigner (format #f "~a" rhs))))
-     ((string=? type-kind "map")
-      ;; Map is handled by a caller.
-      '())
-     ((string=? type-kind "structure")
-      (list
-       (assigner (format #f "~a" rhs))))
-     ((string=? type-kind "union")
-      (list
-       (assigner (format #f "~a" rhs))))
-     ;; Others:
-     (else
-      (format #t "BAD type-kind ~s~%" type-kind)
-      (values)))))
+    (let ((error-return-clause
+	   (string-append
+	    "if err2 != nil {return fmt.Errorf"
+	    (format #f "(\"Bad parameter to ~a: %w\", err2)}" name))))
+      (cond
+       ;; Primitive-types:
+       ((string=? type-kind "blob")
+	(values))
+       ((string=? type-kind "boolean")
+	(list
+	 (format #f "{var x, err2 = strconv.ParseBool(~a)" rhs)
+	 error-return-clause
+	 (string-append (assigner "&x") "}")))
+       ((string=? type-kind "integer")
+	(list
+	 (format #f "{var x1, err2 = strconv.ParseInt(~a, 10, 32)" rhs)
+	 error-return-clause
+	 "var x2 = int32(x1)"
+	 (string-append (assigner "&x2") "}")))
+       ((string=? type-kind "long")
+	(list
+	 (format #f "{var x, err2 = strconv.ParseInt(~a, 10, 64)" rhs)
+	 error-return-clause
+	 (string-append (assigner "&x") "}")))
+       ((string=? type-kind "operation")
+	(values))
+       ((string=? type-kind "service")
+	(values))
+       ((string=? type-kind "string")
+	(list
+	 (assigner (format #f "thing_pointer(~a)" rhs))))
+       ((string=? type-kind "timestamp")
+	(list
+	 (format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
+	 error-return-clause
+	 (string-append (assigner "&x") "}")))
+       ;; Composite-types:
+       ((string=? type-kind "enum")
+	(list
+	 (format #f "{var x, err2 = import_~a(~a)" type-name rhs)
+	 error-return-clause
+	 (string-append (assigner "x") "}")))
+       ((string=? type-kind "list")
+	(list
+	 (assigner (format #f "~a" rhs))))
+       ((string=? type-kind "map")
+	;; Map is handled by a caller.
+	'())
+       ((string=? type-kind "structure")
+	(list
+	 (assigner (format #f "~a" rhs))))
+       ((string=? type-kind "union")
+	(list
+	 (assigner (format #f "~a" rhs))))
+       ;; Others:
+       (else
+	(format #t "BAD type-kind ~s~%" type-kind)
+	(values))))))
 
 (define (make-coercing-export type-name assigner rhs)
   ;; Makes a coercion of a given type to a string.  It is in the
@@ -1157,8 +1171,8 @@
   ;; Returns a type representation.  Primitive types resolve to a type
   ;; name in Golang.  Composite types resolve to itself that should be
   ;; defined types.
-  (format #t ";; . resolve-type ~s ~s~%" type-name
-	  (assoc type-name list-of-types))
+  ;;(format #t ";; . resolve-type ~s ~s~%" type-name
+  ;; (assoc type-name list-of-types))
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((_ type-kind . slot-properties) definition))
     (if (primitive-type? type-kind)
@@ -1170,11 +1184,10 @@
   ;; Slot property is a list of five-tuples (slot name type locus
   ;; required).  Note the structure name of a request is "XXXXRequest"
   ;; in the API and Smithy.
-  (when tr? (format #t ";; . make-input-assignment1 ~s~%" (list-ref request-property 2)))
+  ;;(when tr? (format #t ";; . make-input-assignment1 ~s~%" (list-ref request-property 2)))
   (match-let* (((slot name type locus required) request-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
-    (when tr? (format #t ";; . make-input-assignment2 ~s~%" definition))
     (case locus
       ((PATH)
        ;; Ignore path parameters.
@@ -1184,13 +1197,12 @@
        (let ((rhs (format #f "qi.Get(~s)" name))
 	     (assigner (lambda (rhs)
 			 (format #f "i.~a = ~a" slot rhs))))
-	 (make-coercing-import type assigner rhs)))
+	 (make-coercing-import name type assigner rhs)))
       ((HEADER)
        ;; (list (format #f "i.~a = hi.Get(~s)" slot name))
        (cond
 	((string=? type-kind "map")
-	 (format #t "AHO MAP ~s slot-properties=~s~%" name slot-properties)
-	 ;; IT ASSUMES ONLY STRING MAPS.
+	 ;; IT ASSUMES MAPS ARE ALWAYS OF STRINGS.
 	 (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
 	   (let* ((key-type (resolve-type type2))
 		  (value-type (resolve-type type3))
@@ -1202,12 +1214,11 @@
 	     (list (format #f "{var rhs = hi.Get(~s)" name)
 		   (format #f "var bin ~a" map-type)
 		   (format #f "maps.All(rhs)(func (k, v string) bool {")
-		   ;;(make-coercing-import type3 assigner "val")
+		   ;;(make-coercing-import name type3 assigner "val")
 		   (format #f "bin[k] = v}")
 		   (format #f "i.~a = bin}" slot)))))
 	((string=? type-kind "list")
 	 ;; List's slot-properties is (("member" "member" type2 . _))
-	 (format #t "AHO LIST slot-properties=~s~%" slot-properties)
 	 (match-let (((_ _ type2 . _) (car slot-properties)))
 	   (let* ((element-type (resolve-type type2))
 		  (assigner (lambda (rhs)
@@ -1216,7 +1227,7 @@
 	      (list (format #f "{var rhs = hi.Values(~s)" name)
 		    (format #f "var bin []~a" element-type)
 		    (format #f "for _, v := range slices.All(rhs) {"))
-	      (make-coercing-import type2 assigner "v")
+	      (make-coercing-import name type2 assigner "v")
 	      (list ;;(format #f "bin = append(bin, v)}")
 	       (format #f "}")
 	       (format #f "i.~a = bin}" slot))))
@@ -1225,7 +1236,7 @@
 	 (let ((rhs (format #f "hi.Get(~s)" name))
 	       (assigner (lambda (rhs)
 			   (format #f "i.~a = ~a" slot rhs))))
-	   (make-coercing-import type assigner rhs)))))
+	   (make-coercing-import name type assigner rhs)))))
       ((HEADER-PREFIX)
        ;; IT ASSUMES ONLY STRING MAPS.
        (assert (string=? type-kind "map"))
@@ -1272,7 +1283,7 @@
   (match-let* (((slot name type locus required) response-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
-    (when tr? (format #t ";; . make-output-extraction ~s~%" slot))
+    ;;(when tr? (format #t ";; . make-output-extraction ~s~%" slot))
     (case locus
       ((PATH)
        '())
@@ -1376,35 +1387,45 @@
     (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 (define (make-auxiliary-functions)
-  (list "func gather_headers(h http.Header, prefix string) map[string]string {"
+  (append
+   (if #f
+       (list
+	"// GATHER_HEADERS gathers entries of headers that match a prefix."
+	"func gather_headers(h http.Header, prefix string) map[string]string {"
 	"var p = http.CanonicalHeaderKey(prefix)"
 	"var m map[string]string"
 	"for k, v := range h {"
 	"if strings.HasPrefix(k, p) {"
 	"m[k] = v[0]}}"
-	"return m}"))
+	"return m}")
+       '())))
 
 (define (make-handler-file list-of-actions)
   (append
-   (list "// handlers.go (2025-10-01)"
-	 "// API-STUB.  Handler functions (h_XXXX) called from the"
-	 "// dispatcher."
-	 (format #f "package ~a" bb-dispatcher-package)
-	 "import ("
-	 ;; "\"context\""
-	 "\"encoding/xml\""
-	 "\"errors\""
-	 "\"io\""
-	 "\"log\""
-	 "\"net/http\""
-	 "\"slices\""
-	 "\"strings\""
-	 "\"strconv\""
-	 "\"time\""
-	 (format #f "\"~a/~a\"" bb-package-path bb-server-package)
-	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
-	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
-	 ")")
+   (delete
+    ""
+    (list "// handlers.go (2025-10-01)"
+	  "// API-STUB.  Handler functions (h_XXXX) called from the"
+	  "// dispatcher."
+	  (format #f "package ~a" bb-dispatcher-package)
+	  "import ("
+	  ;; "\"context\""
+	  "\"encoding/xml\""
+	  ;;"\"errors\""
+	  "\"fmt\""
+	  "\"io\""
+	  "\"log\""
+	  "\"net/http\""
+	  "\"slices\""
+	  "\"strconv\""
+	  "\"strings\""
+	  "\"time\""
+	  (if (not (string=? bb-server-package bb-dispatcher-package))
+	      (format #f "\"~a/~a\"" bb-package-path bb-server-package)
+	      "")
+	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	  "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
+	  ")"))
    (apply-append
     (map make-handler-function list-of-actions))))
 
@@ -1413,7 +1434,7 @@
     (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 (define (display-handlers)
-  (write-handlers #t list-of-actions))
+  (write-handlers #t))
 
 (define (write-enumerator-importers port)
   (let ((ss (make-enumerator-importers list-of-types-in-requests)))
@@ -1509,19 +1530,23 @@
 	 (list
 	  (format #f "return nil}"))))))
 
+#|
 (define (display-repsonse-marshaler1~ action-name)
   (let* ((action (assoc action-name list-of-actions))
 	 (ss (make-marshaler-function action))
 	 (lines (apply string-append (intervene-separator "\n" ss))))
     (format #t "~a~%" lines)
     (values)))
+|#
 
+#|
 (define (display-repsonse-marshaler~)
   (let ((s1 (make-response-marshaler-preamble~))
 	(s2 (apply-append (map make-marshaler-function list-of-actions))))
     (format #t "~a~%~a~%"
 	    (apply string-append (intervene-separator "\n" s1))
 	    (apply string-append (intervene-separator "\n" s2)))))
+|#
 
 (define (make-marshaler-file list-of-actions)
   (append
@@ -1584,16 +1609,20 @@
 
 (define (make-api-template-file list-of-actions)
   (append
-   (list "// api-template.go (2025-10-01)"
-	 "// API-STUB.  Handler templates. They should be replaced by"
-	 "// actual implementations."
-	 (format #f "package ~a" bb-server-package)
-	 "import ("
-	 "\"context\""
-	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
-	 ")"
-	 ;; ***DUMMY***
-	 "type BB_server struct {}")
+   (delete
+    ""
+    (list "// api-template.go (2025-10-01)"
+	  "// API-STUB.  Handler templates. They should be replaced by"
+	  "// actual implementations."
+	  (if (not (string=? bb-server-package bb-dispatcher-package))
+	      (format #f "package ~a" bb-server-package)
+	      "")
+	  "import ("
+	  "\"context\""
+	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	  ")"
+	  ;; ***DUMMY***
+	  "type BB_server struct {}"))
    (apply-append
     (map make-api-template list-of-actions))))
 
