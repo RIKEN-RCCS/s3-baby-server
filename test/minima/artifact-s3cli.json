@@ -1,11 +1,9 @@
 {
   "name": "s3cli",
   "date": "2025-09-25",
-  "NOTE": ["It should start with an empty pool directory.",
-	   "Places some dot-files to check they are not listed.",
-	   "Needs files on the client: {'data-04m.txt', data-10m.txt'}.",
-	   "Populates the './datafiles' directory on the client.",
-	   "Needs files in './datafiles': {'data-00[1234].txt'}."],
+  "NOTE": ["It should be started with an empty pool directory.",
+	   "It needs files on the client: {'data-04m.txt', data-10m.txt'},",
+	   "and files in './datafiles': {'data-00[1234].txt'}."],
   "test": [
 {
   "ID": 1,
@@ -24,7 +22,7 @@
   "step": "Create a bucket named 'mybucket'.",
   "name": "MB",
   "kind": "s3 command",
-  "operation": "aws s3 mb s3://mybucket",
+  "operation": "aws s3 mb --no-progress s3://mybucket",
   "status": 0,
   "outcome1": null,
   "outcome2": ["make_bucket: mybucket"]
@@ -34,7 +32,7 @@
   "step": "Displays a list of buckets.  There is one 'mybucket'.",
   "name": "LS",
   "kind": "s3 command",
-  "operation": "aws s3 ls",
+  "operation": "aws s3 ls --no-progress",
   "status": 0,
   "outcome1": null,
   "outcome2": ["#|date| #|time| mybucket"]
@@ -77,7 +75,7 @@
   "step": "Delete a previously copied file in 'mybucket'.",
   "name": "RM",
   "kind": null,
-  "operation": "aws s3 rm s3://mybucket/data-001.txt",
+  "operation": "aws s3 rm --no-progresss3 ://mybucket/data-001.txt",
   "status": 0,
   "outcome1": null,
   "outcome2": ["delete: s3://mybucket/data-001.txt"]
@@ -87,7 +85,7 @@
   "step": "Remove 'mybucket', while five files remains in the bucket.",
   "name": "RB",
   "kind": null,
-  "operation": "aws s3 rb --force s3://mybucket",
+  "operation": "aws s3 rb --no-progresss3 --force s3://mybucket",
   "status": 0,
   "outcome1": null,
   "outcome2": ["delete: s3://mybucket/data-...\\.txt",

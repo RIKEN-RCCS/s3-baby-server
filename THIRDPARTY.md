@@ -1,20 +1,18 @@
-# THIRD-PARTY
+# THIRD-PARTY SOFTWARE
 
-Lens3 uses the following software.  It may lack software transitively
-used.  Please inform us, if some software is missing.
+S3-baby-server uses the following software.  We are thankful for the
+tools and their transitive dependings.
 
 ## Golang Modules
 
 - github.com/aws/aws-sdk-go-v2
 - github.com/aws/smithy-go
-- github.com/eclipse/paho.golang
-- github.com/valkey-io/valkey-go
 - golang.org/x/sys
 
 ## Development Tools
 
 - Golang
-- golangci-lint
 - jq http://stedolan.github.io/jq/
 - GNU Guile
-- srfi-180 implementation
+- Scheme srfi-180 implementation
+- nmap-ncat

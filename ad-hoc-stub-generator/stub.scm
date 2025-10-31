@@ -589,8 +589,13 @@
 ;;; TYPES APPEARING IN REQUESTS AND ERROR TYPES
 ;;;
 
-;; This part makes a list of type-names that appear in requests in
-;; LIST-OF-TYPES-IN-REQUESTS.
+;; This part makes a list LIST-OF-TYPES-IN-REQUESTS of type-names that
+;; appear in requests.
+
+;; LIST-ERROR-TYPES returns a list of error types defined.  Errors
+;; have "traits": {"smithy.api#error": "client",
+;; "smithy.api#httpError": 409}, where this is an entry for
+;; "BucketAlreadyExists".
 
 (define (collect-types-in-slots slot-properties acc)
   (if (null? slot-properties)
@@ -646,17 +651,6 @@
    (delete-duplicates
     (list-types-in-requests-loop list-of-actions '()))
    string<?))
-
-;; LIST-ERROR-TYPES returns a list of error types defined in
-;; "s3.json".  Errors such as "BucketAlreadyExists" have "traits":
-;; {"smithy.api#error": "client", "smithy.api#httpError": 409}.
-;;
-;; The error types defined are: {"BucketAlreadyExists"
-;; "BucketAlreadyOwnedByYou" "EncryptionTypeMismatch"
-;; "IdempotencyParameterMismatch" "InvalidObjectState"
-;; "InvalidRequest" "InvalidWriteOffset" "NoSuchBucket" "NoSuchKey"
-;; "NoSuchUpload" "NotFound" "ObjectAlreadyInActiveTierError"
-;; "ObjectNotInActiveTierError" "TooManyParts"}
 
 (define (list-error-types)
   (delete-duplicates
