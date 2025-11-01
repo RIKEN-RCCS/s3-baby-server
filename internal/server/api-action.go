@@ -184,35 +184,3 @@ func (bbs *BB_server) UploadPartCopy(ctx context.Context, params *s3.UploadPartC
 	var o = s3.UploadPartCopyOutput{}
 	return &o, nil
 }
-
-/* Part of HandlerBase(). See HandlerBase() in api/handler_base.go. */
-
-/*
-func handler_base(bbs *BB_server) *api.HTTPS3Options {
-	var logger = bbs.Logger
-	var authKey = bbs.AuthKey
-
-	option := newHTTPS3Options(r, logger)
-	if !option.checkAuthorization(r, authKey) {
-		http.Error(w, "The Access Key Id you provided does not exist in our records", http.StatusUnauthorized)
-		return
-	}
-	if !option.CheckErrorHeader() {
-		http.Error(w, "Invalid headers are specified", http.StatusBadRequest)
-		return
-	}
-	if !option.CheckKeyPath(s3.RootPath, option.GetPath()) {
-		http.Error(w, "Check the name of the key", http.StatusBadRequest)
-		return
-	}
-	if err := handler(w, option); err != nil {
-		option.Logger.Error(err.Message, "status code", err.Status)
-		w.Header().Set("Content-Type", "application/xml")
-		w.WriteHeader(err.Status)
-		if err := xml.NewEncoder(w).Encode(err); err != nil {
-			option.Logger.Error("", "error", err)
-		}
-	}
-	return option
-}
-*/

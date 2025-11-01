@@ -4,10 +4,34 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"s3-baby-server/internal/api"
 	"s3-baby-server/internal/service"
 )
+
+type preamble_handler struct {
+	bbs *BB_server
+	sx *http.ServeMux
+}
+
+func (sv *preamble_handler) ServeHTTP(w http.ResponseWriter, r *http.Request)  {
+	//var logger = bbs.Logger
+	//var authKey = bbs.AuthKey
+
+	// option := newHTTPS3Options(r, logger)
+	// if !option.checkAuthorization(r, authKey) {
+	//if !option.CheckErrorHeader() {
+	//if !option.CheckKeyPath(s3.RootPath, option.GetPath()) {
+
+	fmt.Printf("preamble_handler does nothing.\n")
+	sv.sx.ServeHTTP(w, r)
+
+	//option.Logger.Error(err.Message, "status code", err.Status)
+	//w.Header().Set("Content-Type", "application/xml")
+	//w.WriteHeader(err.Status)
+	//if err := xml.NewEncoder(w).Encode(err); err != nil {
+}
 
 func Start(basePath, addr, logPath, authKey string) {
 	//r := mux.NewRouter()
@@ -104,7 +128,8 @@ func Start(basePath, addr, logPath, authKey string) {
 		s3.FileSystem, authKey, logger)
 
 	register_dispatcher(&bbs, sx)
-	if err := http.ListenAndServe(addr, sx); err != nil {
+	var sv = preamble_handler{&bbs, sx}
+	if err := http.ListenAndServe(addr, &sv); err != nil {
 		logger.Error("", "error", err)
 	}
 }
