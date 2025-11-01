@@ -168,23 +168,6 @@
     (() init)
     ((fst . rst) (f fst (foldr f init rst)))))
 
-#|
-(define (substitute-string s key val)
-  ;; Replaces a key string with a val string in a string s.  A key is
-  ;; regexp.  It replaces all occurrences of a key.
-  (let* ((key1 (regexp-quote key)))
-    (cond ((string-match key1 s)
-	   => (lambda (m)
-		(let* ((range (vector-ref m 1))
-		       (prefix (substring s 0 (car range)))
-		       (suffix (substring s (cdr range) (string-length s))))
-		 (string-append
-		  prefix
-		  val
-		  (substitute-string suffix key val)))))
-	  (else s))))
-|#
-
 (define (intervene-separator separator v)
   ;; Makes '(1 2 3) to '(1 sep 2 sep 3).
   (if (null? v)
@@ -195,12 +178,6 @@
 		     (list a)
 		     (append b (list separator)(list a))))
 	       marker v))))
-
-#|
-(define (append-strings v separator)
-  ;; Appends strings with an intervening separator.
-  (apply string-append (intervene-separator separator v)))
-|#
 
 (define (drop-prefix prefix name)
   ;; Drops the prefix part from the name string.  It assumes the name
@@ -244,14 +221,23 @@
 
 (define (camelcase-string s)
   ;; Makes a string in camelcase, as "BabyIron", "baby_iron", and
-  ;; "BABY_IRON" to "BabyIron".  PARTICULAR CASES:
+  ;; "BABY_IRON" to "BabyIron".
   ;;
+  ;; PARTICULAR CASES:
   ;; ObjectAttributes + ETag => ObjectAttributesEtag
   ;; ChecksumAlgorithm + CRC32C => ChecksumAlgorithmCrc32c
   ;; ChecksumAlgorithm + CRC64NVM => ChecksumAlgorithmCrc64nvme
   (let* ((tokens1 (string-split-n (list s) '(#\_ #\- #\:)))
 	 (tokens2 (apply-append (map camelcase-split tokens1))))
     (apply string-append (map capitalize-string tokens2))))
+
+(define (string-append-on-tail list s)
+  ;; Calls string-append with s on the last element of the list.
+  (foldr (lambda (a b) (if (eqv? b s)
+			   (cons (string-append a s) '())
+			   (cons a b)))
+	 s
+	 list))
 
 ;;;
 ;;; LOADING "s3.json"
@@ -320,19 +306,6 @@
 		    (else
 		     (drop-prefix "com.amazonaws.s3#" target)))))
 	(else default)))
-
-#|
-(define (make-type-slot-property~ member)
-  (match-let (((slot-symbol . property) member))
-    (let* ((slot (symbol->string slot-symbol))
-	   (type (assoc-type-of-slot slot property))
-	   (traits (assoc-with-default '() 'traits property))
-	   (name
-	    (cond ((assoc '#{smithy.api#xmlName}# traits)
-		   => (lambda (pair) (cdr pair)))
-		  (else slot))))
-      (list slot name type))))
-|#
 
 (define (make-slot-property member)
   ;; Admits an element of "members" and returns a five-tuple (slot
@@ -464,27 +437,6 @@
 (define (rename-output-structure-name output)
   (string-replace-substring output "Output" "Response"))
 
-#|
-(define (find-exchange-signature action-structure)
-  ;; Returns a request/response name pair ("XXXXRequest"
-  ;; "XXXXResponse").  It renames the result type "XXXXOutput" to
-  ;; "XXXResponse".  It may return "Unit" for response.  Note the full
-  ;; structure names look like: "com.amazonaws.s3#XXXXRequest" and
-  ;; "com.amazonaws.s3#XXXXOutput".
-  (let ((r1 (assoc-option 'target (assoc-option 'input action-structure)))
-	(q1 (assoc-option 'target (assoc-option 'output action-structure)))
-	(prefix "com.amazonaws.s3#"))
-    (assert (and (string=? r1) (string=? q1)))
-    (assert (not (string=? "smithy.api#Unit" r1)))
-    (let ((r2 (drop-prefix prefix r1))
-	  (q2 (cond ((string=? "smithy.api#Unit" q1)
-		     "Unit")
-		    (else
-		     (drop-prefix prefix q1)))))
-      (let ((q3 (string-replace-substring q2 "Output" "Response")))
-	(list r2 q3)))))
-|#
-
 (define (find-exchange-signature action-structure)
   ;; Returns a request/response name pair ("XXXXRequest"
   ;; "XXXXResponse").  It renames the result type "XXXXOutput" to
@@ -498,20 +450,6 @@
     (assert (not (string=? "Unit" r1)))
     (let ((q2 (string-replace-substring q1 "Output" "Response")))
       (list r1 q2))))
-
-#|
-(define (find-request-structure~ action-structure)
-  (let* ((signature (find-exchange-signature action-structure))
-	 (slot-name (string-append "com.amazonaws.s3#" (car signature))))
-    (cdr (assoc (string->symbol slot-name) s3-api))))
-|#
-
-#|
-(define (find-response-structure~ action-structure)
-  (let* ((signature (find-exchange-signature action-structure))
-	 (slot-name (string-append "com.amazonaws.s3#" (cadr signature))))
-    (cdr (assoc (string->symbol slot-name) s3-api))))
-|#
 
 ;; Note the "traits" slot of an action-structure indicates the method
 ;; of a request.  It is under "smithy.api#http", and has the
@@ -528,25 +466,6 @@
 		    (assoc-option 'uri method)
 		    (assoc-option 'code method))))
 	(else #f)))
-
-#|
-(define (itemize-slot-properties~ exchange-structure-name)
-  ;; Extracts properties of a request/response structure of
-  ;; "com.amazonaws.s3#XXXXRequest" and "com.amazonaws.s3#XXXXOutput".
-  ;; It returns a list of five-tuples (slot name type locus required), or
-  ;; returns an empty list for "Unit".  A slot is a name in a
-  ;; request/response strucuture.  A locus indicates where a parameter
-  ;; is passed, and it is one of {PATH, QUERY, HEADER,
-  ;; HEADER-PREFIX, PAYLOAD, ELEMENT}.  locus=PAYLOAD means the
-  ;; value is a whole payload.
-  (let* ((prefix "com.amazonaws.s3#")
-	 (slot-name (string-append prefix exchange-structure-name))
-	 (exchange-structure (assoc-option (string->symbol slot-name) s3-api))
-	 (members (assoc-option 'members exchange-structure)))
-    (if (eqv? #f members)
-	'()
-	(delete #f (map make-slot-property members)))))
-|#
 
 (define (itemize-slot-properties exchange-structure-name)
   ;; Returns a properties of a request/response structure
@@ -1061,45 +980,45 @@
     (let ((error-return-clause
 	   (string-append
 	    "if err2 != nil {return fmt.Errorf"
-	    (format #f "(\"Bad parameter to ~a: %w\", err2)}" name))))
+	    (format #f "(\"Bad parameter in ~a: %w\", err2)}" name))))
       (cond
        ;; Primitive-types:
        ((string=? type-kind "blob")
-	(values))
+	(error "make-coercing-import with blob"))
        ((string=? type-kind "boolean")
 	(list
-	 (format #f "{var x, err2 = strconv.ParseBool(~a)" rhs)
+	 (format #f "var x, err2 = strconv.ParseBool(~a)" rhs)
 	 error-return-clause
-	 (string-append (assigner "&x") "}")))
+	 (assigner "&x")))
        ((string=? type-kind "integer")
 	(list
-	 (format #f "{var x1, err2 = strconv.ParseInt(~a, 10, 32)" rhs)
+	 (format #f "var x1, err2 = strconv.ParseInt(~a, 10, 32)" rhs)
 	 error-return-clause
 	 "var x2 = int32(x1)"
-	 (string-append (assigner "&x2") "}")))
+	 (assigner "&x2")))
        ((string=? type-kind "long")
 	(list
-	 (format #f "{var x, err2 = strconv.ParseInt(~a, 10, 64)" rhs)
+	 (format #f "var x, err2 = strconv.ParseInt(~a, 10, 64)" rhs)
 	 error-return-clause
-	 (string-append (assigner "&x") "}")))
+	 (assigner "&x")))
        ((string=? type-kind "operation")
-	(values))
+	(error "make-coercing-import with operation"))
        ((string=? type-kind "service")
-	(values))
+	(error "make-coercing-import with service"))
        ((string=? type-kind "string")
 	(list
 	 (assigner (format #f "thing_pointer(~a)" rhs))))
        ((string=? type-kind "timestamp")
 	(list
-	 (format #f "{var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
+	 (format #f "var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
 	 error-return-clause
-	 (string-append (assigner "&x") "}")))
+	 (assigner "&x")))
        ;; Composite-types:
        ((string=? type-kind "enum")
 	(list
-	 (format #f "{var x, err2 = import_~a(~a)" type-name rhs)
+	 (format #f "var x, err2 = import_~a(~a)" type-name rhs)
 	 error-return-clause
-	 (string-append (assigner "x") "}")))
+	 (assigner "x")))
        ((string=? type-kind "list")
 	(list
 	 (assigner (format #f "~a" rhs))))
@@ -1115,7 +1034,7 @@
        ;; Others:
        (else
 	(format #t "BAD type-kind ~s~%" type-kind)
-	(values))))))
+	(error "make-coercing-import with unknown"))))))
 
 (define (make-coercing-export type-name assigner rhs)
   ;; Makes a coercion of a given type to a string.  It is in the
@@ -1127,7 +1046,7 @@
     (cond
      ;; Primitive-types:
      ((string=? type-kind "blob")
-      (values))
+      (error "make-coercing-export with blob"))
      ((string=? type-kind "boolean")
       (list
        (assigner (format #f "strconv.FormatBool(*~a)" rhs))))
@@ -1138,9 +1057,9 @@
       (list
        (assigner (format #f "strconv.FormatInt(*~a, 10)" rhs))))
      ((string=? type-kind "operation")
-      (values))
+      (error "make-coercing-export with operation"))
      ((string=? type-kind "service")
-      (values))
+      (error "make-coercing-export with service"))
      ((string=? type-kind "string")
       (list
        (assigner (format #f "string(*~a)" rhs))))
@@ -1165,7 +1084,7 @@
        (assigner (format #f "~a" rhs))))
      (else
       (format #t "BAD type-kind ~s~%" type-kind)
-      (values)))))
+      (error "make-coercing-export with unknown")))))
 
 (define (resolve-type type-name)
   ;; Returns a type representation.  Primitive types resolve to a type
@@ -1193,16 +1112,20 @@
        ;; Ignore path parameters.
        '())
       ((QUERY)
-       ;; (list (format #f "i.~a = qi.Get(~s)" slot name))
+       ;; (format #f "i.~a = qi.Get(~s)" slot name)
        (let ((rhs (format #f "qi.Get(~s)" name))
 	     (assigner (lambda (rhs)
 			 (format #f "i.~a = ~a" slot rhs))))
-	 (make-coercing-import name type assigner rhs)))
+	 (append
+	  (list (format #f "if qi.Has(~s) {" name))
+	  (string-append-on-tail
+	   (make-coercing-import name type assigner rhs) "}"))))
       ((HEADER)
-       ;; (list (format #f "i.~a = hi.Get(~s)" slot name))
+       ;; (format #f "i.~a = hi.Get(~s)" slot name)
        (cond
 	((string=? type-kind "map")
-	 ;; IT ASSUMES MAPS ARE ALWAYS OF STRINGS.
+	 (error "make-input-assignment with map in headers")
+	 ;; NEVER THIS CASE.
 	 (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
 	   (let* ((key-type (resolve-type type2))
 		  (value-type (resolve-type type3))
@@ -1211,12 +1134,13 @@
 		  (map-type (format #f "map[~a]~a" key-type value-type))
 		  (assigner (lambda (rhs)
 			      (format #f "bin[key] = ~a" rhs))))
-	     (list (format #f "{var rhs = hi.Get(~s)" name)
+	     (list (format #f "if len(hi.Values(~s)) != 0 {" name)
+		   (format #f "{var rhs = hi.Get(~s)" name)
 		   (format #f "var bin ~a" map-type)
 		   (format #f "maps.All(rhs)(func (k, v string) bool {")
 		   ;;(make-coercing-import name type3 assigner "val")
-		   (format #f "bin[k] = v}")
-		   (format #f "i.~a = bin}" slot)))))
+		   (format #f "bin[k] = v})")
+		   (format #f "i.~a = bin}}" slot)))))
 	((string=? type-kind "list")
 	 ;; List's slot-properties is (("member" "member" type2 . _))
 	 (match-let (((_ _ type2 . _) (car slot-properties)))
@@ -1224,21 +1148,25 @@
 		  (assigner (lambda (rhs)
 			      (format #f "bin = append(bin, ~a)" rhs))))
 	     (append
-	      (list (format #f "{var rhs = hi.Values(~s)" name)
+	      (list (format #f "if len(hi.Values(~s)) != 0 {" name)
+		    (format #f "var rhs = hi.Values(~s)" name)
 		    (format #f "var bin []~a" element-type)
 		    (format #f "for _, v := range slices.All(rhs) {"))
-	      (make-coercing-import name type2 assigner "v")
-	      (list ;;(format #f "bin = append(bin, v)}")
-	       (format #f "}")
-	       (format #f "i.~a = bin}" slot))))
-	   ))
+	      (string-append-on-tail
+	       (make-coercing-import name type2 assigner "v") "}")
+	      ;;(format #f "bin = append(bin, v)")
+	      (list
+	       (format #f "i.~a = bin}" slot))))))
 	(else
 	 (let ((rhs (format #f "hi.Get(~s)" name))
 	       (assigner (lambda (rhs)
 			   (format #f "i.~a = ~a" slot rhs))))
-	   (make-coercing-import name type assigner rhs)))))
+	   (append
+	    (list (format #f "if len(hi.Values(~s)) != 0 {" name))
+	    (string-append-on-tail
+	     (make-coercing-import name type assigner rhs) "}"))))))
       ((HEADER-PREFIX)
-       ;; IT ASSUMES ONLY STRING MAPS.
+       ;; IT ASSUMES MAPS ARE ALWAYS OF STRINGS.
        (assert (string=? type-kind "map"))
        (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
 	 (let* ((key-type (resolve-type type2))
@@ -1248,7 +1176,8 @@
 		(map-type (format #f "map[~a]~a" key-type value-type))
 		(assigner (lambda (rhs)
 			    (format #f "bin[key] = ~a" rhs))))
-	   (list (format #f "{var prefix = http.CanonicalHeaderKey(~s)" name)
+	   (list (format #f "if len(hi.Values(~s)) != 0 {" name)
+		 (format #f "var prefix = http.CanonicalHeaderKey(~s)" name)
 		 (format #f "var bin ~a" map-type)
 		 ;; (format #f "var bin map[string]string")
 		 (format #f "for k, v := range hi {")
@@ -1265,16 +1194,18 @@
 	 (list
 	  (format #f "{var x types.~a" type)
 	  "var bs, err1 = io.ReadAll(r.Body)"
-	  "if err1 != nil {log.Fatal(err1); return err1}"
+	  (string-append
+	   "if err1 != nil {return fmt.Errorf"
+	   (format #f "(\"No http body for types.~a: %w\", err1)}" type))
 	  "var err2 = xml.Unmarshal(bs, &x)"
-	  "if err2 != nil {log.Fatal(err2); return err2}"
+	  (string-append
+	   "if err2 != nil {return fmt.Errorf"
+	   (format #f "(\"Invalid http body for types.~a: %w\", err2)}" type))
 	  (format #f "i.~a = &x}" slot)))))
       ((ELEMENT)
-       (format #t "BAD properties=~s~%" request-property)
-       (values))
+       (error "make-input-assignment, bad locus ELEMENT" request-property))
       (else
-       (format #t "BAD properties=~s~%" request-property)
-       (values)))))
+       (error "make-input-assignment, bad locus ELEMENT" request-property)))))
 
 (define (make-output-extraction response-property)
   ;; Makes extraction code from structure "s3.XXXXOutput" of AWS SDK.
@@ -1457,14 +1388,6 @@
 ;;; RESPONSE MARSHALER PRINTER
 ;;;
 
-#|
-(define (make-response-marshaler-preamble~)
-  (list
-   (format #f "func p[T any](v T) *T {return &v}")
-   (format #f "func start_element(k string) xml.StartElement {~a}"
-	   "return xml.StartElement{Name: xml.Name{Local: k}")))
-|#
-
 (define (check-output-in-payload response-properties)
   ;; Checks if response is in a payload.  "CopyObject" has
   ;; "CopyObjectResult", "GetObject" has "Body", and "UploadPartCopy"
@@ -1529,24 +1452,6 @@
 		   (format #f "if err9 != nil {return err9}")))))
 	 (list
 	  (format #f "return nil}"))))))
-
-#|
-(define (display-repsonse-marshaler1~ action-name)
-  (let* ((action (assoc action-name list-of-actions))
-	 (ss (make-marshaler-function action))
-	 (lines (apply string-append (intervene-separator "\n" ss))))
-    (format #t "~a~%" lines)
-    (values)))
-|#
-
-#|
-(define (display-repsonse-marshaler~)
-  (let ((s1 (make-response-marshaler-preamble~))
-	(s2 (apply-append (map make-marshaler-function list-of-actions))))
-    (format #t "~a~%~a~%"
-	    (apply string-append (intervene-separator "\n" s1))
-	    (apply string-append (intervene-separator "\n" s2)))))
-|#
 
 (define (make-marshaler-file list-of-actions)
   (append
