@@ -34,6 +34,12 @@ if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-request-payer: %w", er
 i.RequestPayer = x}
 if qi.Has("uploadId") {
 i.UploadId = thing_pointer(qi.Get("uploadId"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.AbortMultipartUpload(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -90,6 +96,12 @@ if len(hi.Values("x-amz-checksum-crc32")) != 0 {
 i.ChecksumCRC32 = thing_pointer(hi.Get("x-amz-checksum-crc32"))}
 if qi.Has("uploadId") {
 i.UploadId = thing_pointer(qi.Get("uploadId"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 {var x types.CompletedMultipartUpload
 var bs, err1 = io.ReadAll(r.Body)
 if err1 != nil {return fmt.Errorf("No http body for types.CompletedMultipartUpload: %w", err1)}
@@ -187,6 +199,9 @@ var bin map[string]string
 for k, v := range hi {
 if strings.HasPrefix(k, prefix) {bin[k] = v[0]}}
 i.Metadata = bin}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
 if len(hi.Values("x-amz-grant-write-acp")) != 0 {
 i.GrantWriteACP = thing_pointer(hi.Get("x-amz-grant-write-acp"))}
 if len(hi.Values("x-amz-grant-read-acp")) != 0 {
@@ -227,6 +242,9 @@ if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-checksum-algorithm: %w
 i.ChecksumAlgorithm = x}
 if len(hi.Values("Cache-Control")) != 0 {
 i.CacheControl = thing_pointer(hi.Get("Cache-Control"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 if len(hi.Values("x-amz-acl")) != 0 {
 var x, err2 = import_ObjectCannedACL(hi.Get("x-amz-acl"))
 if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-acl: %w", err2)}
@@ -278,6 +296,9 @@ if len(hi.Values("x-amz-grant-read")) != 0 {
 i.GrantRead = thing_pointer(hi.Get("x-amz-grant-read"))}
 if len(hi.Values("x-amz-grant-full-control")) != 0 {
 i.GrantFullControl = thing_pointer(hi.Get("x-amz-grant-full-control"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 if len(hi.Values("x-amz-acl")) != 0 {
 var x, err2 = import_BucketCannedACL(hi.Get("x-amz-acl"))
 if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-acl: %w", err2)}
@@ -367,6 +388,9 @@ var bin map[string]string
 for k, v := range hi {
 if strings.HasPrefix(k, prefix) {bin[k] = v[0]}}
 i.Metadata = bin}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
 if len(hi.Values("x-amz-grant-write-acp")) != 0 {
 i.GrantWriteACP = thing_pointer(hi.Get("x-amz-grant-write-acp"))}
 if len(hi.Values("x-amz-grant-read-acp")) != 0 {
@@ -389,6 +413,9 @@ if len(hi.Values("Content-Disposition")) != 0 {
 i.ContentDisposition = thing_pointer(hi.Get("Content-Disposition"))}
 if len(hi.Values("Cache-Control")) != 0 {
 i.CacheControl = thing_pointer(hi.Get("Cache-Control"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 if len(hi.Values("x-amz-acl")) != 0 {
 var x, err2 = import_ObjectCannedACL(hi.Get("x-amz-acl"))
 if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-acl: %w", err2)}
@@ -425,6 +452,9 @@ var _, _, _ = qi, hi, ho
 var i = s3.DeleteBucketInput{}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var _, err3 = bbs.DeleteBucket(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -463,6 +493,12 @@ if qi.Has("versionId") {
 i.VersionId = thing_pointer(qi.Get("versionId"))}
 if len(hi.Values("x-amz-mfa")) != 0 {
 i.MFA = thing_pointer(hi.Get("x-amz-mfa"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.DeleteObject(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -501,6 +537,9 @@ if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-request-payer: %w", er
 i.RequestPayer = x}
 if len(hi.Values("x-amz-mfa")) != 0 {
 i.MFA = thing_pointer(hi.Get("x-amz-mfa"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 {var x types.Delete
 var bs, err1 = io.ReadAll(r.Body)
 if err1 != nil {return fmt.Errorf("No http body for types.Delete: %w", err1)}
@@ -531,6 +570,12 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if qi.Has("versionId") {
 i.VersionId = thing_pointer(qi.Get("versionId"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.DeleteObjectTagging(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -590,6 +635,9 @@ if qi.Has("response-cache-control") {
 i.ResponseCacheControl = thing_pointer(qi.Get("response-cache-control"))}
 if len(hi.Values("Range")) != 0 {
 i.Range = thing_pointer(hi.Get("Range"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var x, err2 = time.Parse(time.RFC3339, hi.Get("If-Unmodified-Since"))
 if err2 != nil {return fmt.Errorf("Bad parameter in If-Unmodified-Since: %w", err2)}
@@ -602,6 +650,9 @@ if err2 != nil {return fmt.Errorf("Bad parameter in If-Modified-Since: %w", err2
 i.IfModifiedSince = &x}
 if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = thing_pointer(hi.Get("If-Match"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.GetObject(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -686,6 +737,12 @@ var x2 = int32(x1)
 i.MaxParts = &x2}
 if qi.Has("versionId") {
 i.VersionId = thing_pointer(qi.Get("versionId"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.GetObjectAttributes(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -717,6 +774,12 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if qi.Has("versionId") {
 i.VersionId = thing_pointer(qi.Get("versionId"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.GetObjectTagging(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -739,6 +802,9 @@ var _, _, _ = qi, hi, ho
 var i = s3.HeadBucketInput{}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.HeadBucket(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -802,6 +868,9 @@ if qi.Has("response-cache-control") {
 i.ResponseCacheControl = thing_pointer(qi.Get("response-cache-control"))}
 if len(hi.Values("Range")) != 0 {
 i.Range = thing_pointer(hi.Get("Range"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var x, err2 = time.Parse(time.RFC3339, hi.Get("If-Unmodified-Since"))
 if err2 != nil {return fmt.Errorf("Bad parameter in If-Unmodified-Since: %w", err2)}
@@ -814,6 +883,9 @@ if err2 != nil {return fmt.Errorf("Bad parameter in If-Modified-Since: %w", err2
 i.IfModifiedSince = &x}
 if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = thing_pointer(hi.Get("If-Match"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.HeadObject(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -923,6 +995,9 @@ if err2 != nil {return fmt.Errorf("Bad parameter in encoding-type: %w", err2)}
 i.EncodingType = x}
 if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.ListMultipartUploads(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -972,6 +1047,9 @@ if err2 != nil {return fmt.Errorf("Bad parameter in encoding-type: %w", err2)}
 i.EncodingType = x}
 if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.ListObjects(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -1027,6 +1105,9 @@ if err2 != nil {return fmt.Errorf("Bad parameter in encoding-type: %w", err2)}
 i.EncodingType = x}
 if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.ListObjectsV2(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -1068,6 +1149,12 @@ var x1, err2 = strconv.ParseInt(qi.Get("max-parts"), 10, 32)
 if err2 != nil {return fmt.Errorf("Bad parameter in max-parts: %w", err2)}
 var x2 = int32(x1)
 i.MaxParts = &x2}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.ListParts(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -1144,6 +1231,9 @@ if len(hi.Values("x-amz-write-offset-bytes")) != 0 {
 var x, err2 = strconv.ParseInt(hi.Get("x-amz-write-offset-bytes"), 10, 64)
 if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-write-offset-bytes: %w", err2)}
 i.WriteOffsetBytes = &x}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
 if len(hi.Values("x-amz-grant-write-acp")) != 0 {
 i.GrantWriteACP = thing_pointer(hi.Get("x-amz-grant-write-acp"))}
 if len(hi.Values("x-amz-grant-read-acp")) != 0 {
@@ -1190,6 +1280,9 @@ if len(hi.Values("Content-Disposition")) != 0 {
 i.ContentDisposition = thing_pointer(hi.Get("Content-Disposition"))}
 if len(hi.Values("Cache-Control")) != 0 {
 i.CacheControl = thing_pointer(hi.Get("Cache-Control"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 if len(hi.Values("x-amz-acl")) != 0 {
 var x, err2 = import_ObjectCannedACL(hi.Get("x-amz-acl"))
 if err2 != nil {return fmt.Errorf("Bad parameter in x-amz-acl: %w", err2)}
@@ -1244,6 +1337,12 @@ if len(hi.Values("Content-MD5")) != 0 {
 i.ContentMD5 = thing_pointer(hi.Get("Content-MD5"))}
 if qi.Has("versionId") {
 i.VersionId = thing_pointer(qi.Get("versionId"))}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 {var x types.Tagging
 var bs, err1 = io.ReadAll(r.Body)
 if err1 != nil {return fmt.Errorf("No http body for types.Tagging: %w", err1)}
@@ -1289,6 +1388,9 @@ var x1, err2 = strconv.ParseInt(qi.Get("partNumber"), 10, 32)
 if err2 != nil {return fmt.Errorf("Bad parameter in partNumber: %w", err2)}
 var x2 = int32(x1)
 i.PartNumber = &x2}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
 if len(hi.Values("x-amz-checksum-sha256")) != 0 {
 i.ChecksumSHA256 = thing_pointer(hi.Get("x-amz-checksum-sha256"))}
 if len(hi.Values("x-amz-checksum-sha1")) != 0 {
@@ -1309,6 +1411,9 @@ if len(hi.Values("Content-Length")) != 0 {
 var x, err2 = strconv.ParseInt(hi.Get("Content-Length"), 10, 64)
 if err2 != nil {return fmt.Errorf("Bad parameter in Content-Length: %w", err2)}
 i.ContentLength = &x}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.UploadPart(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}
@@ -1367,6 +1472,9 @@ var x1, err2 = strconv.ParseInt(qi.Get("partNumber"), 10, 32)
 if err2 != nil {return fmt.Errorf("Bad parameter in partNumber: %w", err2)}
 var x2 = int32(x1)
 i.PartNumber = &x2}
+{var x = r.PathValue("Key")
+if x == "" {return fmt.Errorf("Missing path in url for: Key")}
+i.Key = &x}
 if len(hi.Values("x-amz-copy-source-range")) != 0 {
 i.CopySourceRange = thing_pointer(hi.Get("x-amz-copy-source-range"))}
 if len(hi.Values("x-amz-copy-source-if-unmodified-since")) != 0 {
@@ -1383,6 +1491,9 @@ if len(hi.Values("x-amz-copy-source-if-match")) != 0 {
 i.CopySourceIfMatch = thing_pointer(hi.Get("x-amz-copy-source-if-match"))}
 if len(hi.Values("x-amz-copy-source")) != 0 {
 i.CopySource = thing_pointer(hi.Get("x-amz-copy-source"))}
+{var x = r.PathValue("Bucket")
+if x == "" {return fmt.Errorf("Missing path in url for: Bucket")}
+i.Bucket = &x}
 var ctx = r.Context()
 var o, err3 = bbs.UploadPartCopy(ctx, &i)
 if err3 != nil {log.Fatal(err3); return err3}

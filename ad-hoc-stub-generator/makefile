@@ -3,11 +3,11 @@
 DUMPCOMMAND='(dump-dispatcher "dispatcher.go") (dump-handlers "handlers.go") (dump-marshalers "marshalers.go") (dump-template "api-template.go")'
 
 all::
-	@echo "Usage: make stubs"
+	@echo "Usage: make stub"
 	@echo "Usage: make download-s3.json"
 	@echo "Usage: make download-srfi-180"
 
-stubs::
+stub::
 	guile3.0 --r7rs -l stub.scm -c $(DUMPCOMMAND)
 
 # Download "s3.json" definition file.  It is for Smithy-2.0.  It is

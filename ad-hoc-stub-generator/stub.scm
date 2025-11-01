@@ -1109,8 +1109,12 @@
 	       ((type-name type-kind . slot-properties) definition))
     (case locus
       ((PATH)
-       ;; Ignore path parameters.
-       '())
+       ;; Path parameters are taken by r.PathValue(key)
+       (list (format #f "{var x = r.PathValue(~s)" name)
+	     (string-append
+	      (format #f "if x == \"\" {return fmt.Errorf")
+	      (format #f "(\"Missing path in url for: ~a\")}" name))
+	     (format #f "i.~a = &x}" slot)))
       ((QUERY)
        ;; (format #f "i.~a = qi.Get(~s)" slot name)
        (let ((rhs (format #f "qi.Get(~s)" name))
