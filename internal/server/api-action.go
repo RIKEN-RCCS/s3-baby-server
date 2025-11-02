@@ -89,9 +89,8 @@ func (bbs *BB_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 	if !check_bucket_naming(*bucket) {
 		return &o, &types.InvalidRequest{}
 	}
-	if params.ObjectOwnership != types.ObjectOwnershipBucketOwnerEnforced {
-		return &o, &types.InvalidRequest{}
-	}
+
+	// (Many parameters are ignored).
 
 	var path = bbs.make_path(*bucket)
 	//var _, err1 = os.Lstat(path)
@@ -103,7 +102,7 @@ func (bbs *BB_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 			// "BucketAlreadyExists"
 			return &o, &types.BucketAlreadyOwnedByYou{}
 		} else {
-			return &o, service.InternalError()
+			return &o, fmt.Errorf("os.Mkdir(%v) failed: %w", path, err2)
 		}
 	}
 

@@ -44,7 +44,8 @@ var ctx = r.Context()
 var o, err5 = bbs.AbortMultipartUpload(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_AbortMultipartUploadResponse(*o)
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -112,12 +113,18 @@ var ctx = r.Context()
 var o, err5 = bbs.CompleteMultipartUpload(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_CompleteMultipartUploadResponse(*o)
-ho.Add("x-amz-expiration", string(*s.Expiration))
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("x-amz-version-id", string(*s.VersionId))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.Expiration != nil {
+ho.Add("x-amz-expiration", string(*s.Expiration))}
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -253,16 +260,26 @@ var ctx = r.Context()
 var o, err5 = bbs.CopyObject(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_CopyObjectResponse(*o)
-ho.Add("x-amz-expiration", string(*s.Expiration))
-ho.Add("x-amz-copy-source-version-id", string(*s.CopySourceVersionId))
-ho.Add("x-amz-version-id", string(*s.VersionId))
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))
-ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-context", string(*s.SSEKMSEncryptionContext))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.Expiration != nil {
+ho.Add("x-amz-expiration", string(*s.Expiration))}
+if s.CopySourceVersionId != nil {
+ho.Add("x-amz-copy-source-version-id", string(*s.CopySourceVersionId))}
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+if s.SSECustomerAlgorithm != nil {
+ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))}
+if s.SSECustomerKeyMD5 != nil {
+ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.SSEKMSEncryptionContext != nil {
+ho.Add("x-amz-server-side-encryption-context", string(*s.SSEKMSEncryptionContext))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -313,8 +330,10 @@ var ctx = r.Context()
 var o, err5 = bbs.CreateBucket(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_CreateBucketResponse(*o)
-ho.Add("Location", string(*s.Location))
-ho.Add("x-amz-bucket-arn", string(*s.BucketArn))
+if s.Location != nil {
+ho.Add("Location", string(*s.Location))}
+if s.BucketArn != nil {
+ho.Add("x-amz-bucket-arn", string(*s.BucketArn))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -424,17 +443,28 @@ var ctx = r.Context()
 var o, err5 = bbs.CreateMultipartUpload(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_CreateMultipartUploadResponse(*o)
-ho.Add("x-amz-abort-date", s.AbortDate.String())
-ho.Add("x-amz-abort-rule-id", string(*s.AbortRuleId))
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))
-ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-context", string(*s.SSEKMSEncryptionContext))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
-ho.Add("x-amz-checksum-algorithm", string(s.ChecksumAlgorithm))
-ho.Add("x-amz-checksum-type", string(s.ChecksumType))
+if s.AbortDate != nil {
+ho.Add("x-amz-abort-date", s.AbortDate.String())}
+if s.AbortRuleId != nil {
+ho.Add("x-amz-abort-rule-id", string(*s.AbortRuleId))}
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+if s.SSECustomerAlgorithm != nil {
+ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))}
+if s.SSECustomerKeyMD5 != nil {
+ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.SSEKMSEncryptionContext != nil {
+ho.Add("x-amz-server-side-encryption-context", string(*s.SSEKMSEncryptionContext))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
+if s.ChecksumAlgorithm != "" {
+ho.Add("x-amz-checksum-algorithm", string(s.ChecksumAlgorithm))}
+if s.ChecksumType != "" {
+ho.Add("x-amz-checksum-type", string(s.ChecksumType))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -503,9 +533,12 @@ var ctx = r.Context()
 var o, err5 = bbs.DeleteObject(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_DeleteObjectResponse(*o)
-ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))
-ho.Add("x-amz-version-id", string(*s.VersionId))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.DeleteMarker != nil {
+ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -550,7 +583,8 @@ var ctx = r.Context()
 var o, err5 = bbs.DeleteObjects(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_DeleteObjectsResponse(*o)
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -580,7 +614,8 @@ var ctx = r.Context()
 var o, err5 = bbs.DeleteObjectTagging(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_DeleteObjectTaggingResponse(*o)
-ho.Add("x-amz-version-id", string(*s.VersionId))
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -657,42 +692,80 @@ var ctx = r.Context()
 var o, err5 = bbs.GetObject(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_GetObjectResponse(*o)
-ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))
-ho.Add("accept-ranges", string(*s.AcceptRanges))
-ho.Add("x-amz-expiration", string(*s.Expiration))
-ho.Add("x-amz-restore", string(*s.Restore))
-ho.Add("Last-Modified", s.LastModified.String())
-ho.Add("Content-Length", strconv.FormatInt(*s.ContentLength, 10))
-ho.Add("ETag", string(*s.ETag))
-ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))
-ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))
-ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))
-ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))
-ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))
-ho.Add("x-amz-checksum-type", string(s.ChecksumType))
-ho.Add("x-amz-missing-meta", strconv.FormatInt(int64(*s.MissingMeta), 10))
-ho.Add("x-amz-version-id", string(*s.VersionId))
-ho.Add("Cache-Control", string(*s.CacheControl))
-ho.Add("Content-Disposition", string(*s.ContentDisposition))
-ho.Add("Content-Encoding", string(*s.ContentEncoding))
-ho.Add("Content-Language", string(*s.ContentLanguage))
-ho.Add("Content-Range", string(*s.ContentRange))
-ho.Add("Content-Type", string(*s.ContentType))
-ho.Add("Expires", s.Expires.String())
-ho.Add("x-amz-website-redirect-location", string(*s.WebsiteRedirectLocation))
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))
-ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-storage-class", string(s.StorageClass))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
-ho.Add("x-amz-replication-status", string(s.ReplicationStatus))
-ho.Add("x-amz-mp-parts-count", strconv.FormatInt(int64(*s.PartsCount), 10))
-ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*s.TagCount), 10))
-ho.Add("x-amz-object-lock-mode", string(s.ObjectLockMode))
-ho.Add("x-amz-object-lock-retain-until-date", s.ObjectLockRetainUntilDate.String())
-ho.Add("x-amz-object-lock-legal-hold", string(s.ObjectLockLegalHoldStatus))
+if s.DeleteMarker != nil {
+ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
+if s.AcceptRanges != nil {
+ho.Add("accept-ranges", string(*s.AcceptRanges))}
+if s.Expiration != nil {
+ho.Add("x-amz-expiration", string(*s.Expiration))}
+if s.Restore != nil {
+ho.Add("x-amz-restore", string(*s.Restore))}
+if s.LastModified != nil {
+ho.Add("Last-Modified", s.LastModified.String())}
+if s.ContentLength != nil {
+ho.Add("Content-Length", strconv.FormatInt(*s.ContentLength, 10))}
+if s.ETag != nil {
+ho.Add("ETag", string(*s.ETag))}
+if s.ChecksumCRC32 != nil {
+ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))}
+if s.ChecksumCRC32C != nil {
+ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))}
+if s.ChecksumCRC64NVME != nil {
+ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))}
+if s.ChecksumSHA1 != nil {
+ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))}
+if s.ChecksumSHA256 != nil {
+ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))}
+if s.ChecksumType != "" {
+ho.Add("x-amz-checksum-type", string(s.ChecksumType))}
+if s.MissingMeta != nil {
+ho.Add("x-amz-missing-meta", strconv.FormatInt(int64(*s.MissingMeta), 10))}
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
+if s.CacheControl != nil {
+ho.Add("Cache-Control", string(*s.CacheControl))}
+if s.ContentDisposition != nil {
+ho.Add("Content-Disposition", string(*s.ContentDisposition))}
+if s.ContentEncoding != nil {
+ho.Add("Content-Encoding", string(*s.ContentEncoding))}
+if s.ContentLanguage != nil {
+ho.Add("Content-Language", string(*s.ContentLanguage))}
+if s.ContentRange != nil {
+ho.Add("Content-Range", string(*s.ContentRange))}
+if s.ContentType != nil {
+ho.Add("Content-Type", string(*s.ContentType))}
+if s.Expires != nil {
+ho.Add("Expires", s.Expires.String())}
+if s.WebsiteRedirectLocation != nil {
+ho.Add("x-amz-website-redirect-location", string(*s.WebsiteRedirectLocation))}
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+for k, v := range s.Metadata {
+ho.Add(k, v)}
+if s.SSECustomerAlgorithm != nil {
+ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))}
+if s.SSECustomerKeyMD5 != nil {
+ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.StorageClass != "" {
+ho.Add("x-amz-storage-class", string(s.StorageClass))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
+if s.ReplicationStatus != "" {
+ho.Add("x-amz-replication-status", string(s.ReplicationStatus))}
+if s.PartsCount != nil {
+ho.Add("x-amz-mp-parts-count", strconv.FormatInt(int64(*s.PartsCount), 10))}
+if s.TagCount != nil {
+ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*s.TagCount), 10))}
+if s.ObjectLockMode != "" {
+ho.Add("x-amz-object-lock-mode", string(s.ObjectLockMode))}
+if s.ObjectLockRetainUntilDate != nil {
+ho.Add("x-amz-object-lock-retain-until-date", s.ObjectLockRetainUntilDate.String())}
+if s.ObjectLockLegalHoldStatus != "" {
+ho.Add("x-amz-object-lock-legal-hold", string(s.ObjectLockLegalHoldStatus))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -747,10 +820,14 @@ var ctx = r.Context()
 var o, err5 = bbs.GetObjectAttributes(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_GetObjectAttributesResponse(*o)
-ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))
-ho.Add("Last-Modified", s.LastModified.String())
-ho.Add("x-amz-version-id", string(*s.VersionId))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.DeleteMarker != nil {
+ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
+if s.LastModified != nil {
+ho.Add("Last-Modified", s.LastModified.String())}
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -784,7 +861,8 @@ var ctx = r.Context()
 var o, err5 = bbs.GetObjectTagging(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_GetObjectTaggingResponse(*o)
-ho.Add("x-amz-version-id", string(*s.VersionId))
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -809,11 +887,16 @@ var ctx = r.Context()
 var o, err5 = bbs.HeadBucket(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_HeadBucketResponse(*o)
-ho.Add("x-amz-bucket-arn", string(*s.BucketArn))
-ho.Add("x-amz-bucket-location-type", string(s.BucketLocationType))
-ho.Add("x-amz-bucket-location-name", string(*s.BucketLocationName))
-ho.Add("x-amz-bucket-region", string(*s.BucketRegion))
-ho.Add("x-amz-access-point-alias", strconv.FormatBool(*s.AccessPointAlias))
+if s.BucketArn != nil {
+ho.Add("x-amz-bucket-arn", string(*s.BucketArn))}
+if s.BucketLocationType != "" {
+ho.Add("x-amz-bucket-location-type", string(s.BucketLocationType))}
+if s.BucketLocationName != nil {
+ho.Add("x-amz-bucket-location-name", string(*s.BucketLocationName))}
+if s.BucketRegion != nil {
+ho.Add("x-amz-bucket-region", string(*s.BucketRegion))}
+if s.AccessPointAlias != nil {
+ho.Add("x-amz-access-point-alias", strconv.FormatBool(*s.AccessPointAlias))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -890,43 +973,82 @@ var ctx = r.Context()
 var o, err5 = bbs.HeadObject(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_HeadObjectResponse(*o)
-ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))
-ho.Add("accept-ranges", string(*s.AcceptRanges))
-ho.Add("x-amz-expiration", string(*s.Expiration))
-ho.Add("x-amz-restore", string(*s.Restore))
-ho.Add("x-amz-archive-status", string(s.ArchiveStatus))
-ho.Add("Last-Modified", s.LastModified.String())
-ho.Add("Content-Length", strconv.FormatInt(*s.ContentLength, 10))
-ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))
-ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))
-ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))
-ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))
-ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))
-ho.Add("x-amz-checksum-type", string(s.ChecksumType))
-ho.Add("ETag", string(*s.ETag))
-ho.Add("x-amz-missing-meta", strconv.FormatInt(int64(*s.MissingMeta), 10))
-ho.Add("x-amz-version-id", string(*s.VersionId))
-ho.Add("Cache-Control", string(*s.CacheControl))
-ho.Add("Content-Disposition", string(*s.ContentDisposition))
-ho.Add("Content-Encoding", string(*s.ContentEncoding))
-ho.Add("Content-Language", string(*s.ContentLanguage))
-ho.Add("Content-Type", string(*s.ContentType))
-ho.Add("Content-Range", string(*s.ContentRange))
-ho.Add("Expires", s.Expires.String())
-ho.Add("x-amz-website-redirect-location", string(*s.WebsiteRedirectLocation))
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))
-ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-storage-class", string(s.StorageClass))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
-ho.Add("x-amz-replication-status", string(s.ReplicationStatus))
-ho.Add("x-amz-mp-parts-count", strconv.FormatInt(int64(*s.PartsCount), 10))
-ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*s.TagCount), 10))
-ho.Add("x-amz-object-lock-mode", string(s.ObjectLockMode))
-ho.Add("x-amz-object-lock-retain-until-date", s.ObjectLockRetainUntilDate.String())
-ho.Add("x-amz-object-lock-legal-hold", string(s.ObjectLockLegalHoldStatus))
+if s.DeleteMarker != nil {
+ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
+if s.AcceptRanges != nil {
+ho.Add("accept-ranges", string(*s.AcceptRanges))}
+if s.Expiration != nil {
+ho.Add("x-amz-expiration", string(*s.Expiration))}
+if s.Restore != nil {
+ho.Add("x-amz-restore", string(*s.Restore))}
+if s.ArchiveStatus != "" {
+ho.Add("x-amz-archive-status", string(s.ArchiveStatus))}
+if s.LastModified != nil {
+ho.Add("Last-Modified", s.LastModified.String())}
+if s.ContentLength != nil {
+ho.Add("Content-Length", strconv.FormatInt(*s.ContentLength, 10))}
+if s.ChecksumCRC32 != nil {
+ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))}
+if s.ChecksumCRC32C != nil {
+ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))}
+if s.ChecksumCRC64NVME != nil {
+ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))}
+if s.ChecksumSHA1 != nil {
+ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))}
+if s.ChecksumSHA256 != nil {
+ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))}
+if s.ChecksumType != "" {
+ho.Add("x-amz-checksum-type", string(s.ChecksumType))}
+if s.ETag != nil {
+ho.Add("ETag", string(*s.ETag))}
+if s.MissingMeta != nil {
+ho.Add("x-amz-missing-meta", strconv.FormatInt(int64(*s.MissingMeta), 10))}
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
+if s.CacheControl != nil {
+ho.Add("Cache-Control", string(*s.CacheControl))}
+if s.ContentDisposition != nil {
+ho.Add("Content-Disposition", string(*s.ContentDisposition))}
+if s.ContentEncoding != nil {
+ho.Add("Content-Encoding", string(*s.ContentEncoding))}
+if s.ContentLanguage != nil {
+ho.Add("Content-Language", string(*s.ContentLanguage))}
+if s.ContentType != nil {
+ho.Add("Content-Type", string(*s.ContentType))}
+if s.ContentRange != nil {
+ho.Add("Content-Range", string(*s.ContentRange))}
+if s.Expires != nil {
+ho.Add("Expires", s.Expires.String())}
+if s.WebsiteRedirectLocation != nil {
+ho.Add("x-amz-website-redirect-location", string(*s.WebsiteRedirectLocation))}
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+for k, v := range s.Metadata {
+ho.Add(k, v)}
+if s.SSECustomerAlgorithm != nil {
+ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))}
+if s.SSECustomerKeyMD5 != nil {
+ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.StorageClass != "" {
+ho.Add("x-amz-storage-class", string(s.StorageClass))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
+if s.ReplicationStatus != "" {
+ho.Add("x-amz-replication-status", string(s.ReplicationStatus))}
+if s.PartsCount != nil {
+ho.Add("x-amz-mp-parts-count", strconv.FormatInt(int64(*s.PartsCount), 10))}
+if s.TagCount != nil {
+ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*s.TagCount), 10))}
+if s.ObjectLockMode != "" {
+ho.Add("x-amz-object-lock-mode", string(s.ObjectLockMode))}
+if s.ObjectLockRetainUntilDate != nil {
+ho.Add("x-amz-object-lock-retain-until-date", s.ObjectLockRetainUntilDate.String())}
+if s.ObjectLockLegalHoldStatus != "" {
+ho.Add("x-amz-object-lock-legal-hold", string(s.ObjectLockLegalHoldStatus))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1002,7 +1124,8 @@ var ctx = r.Context()
 var o, err5 = bbs.ListMultipartUploads(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_ListMultipartUploadsResponse(*o)
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1054,7 +1177,8 @@ var ctx = r.Context()
 var o, err5 = bbs.ListObjects(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_ListObjectsResponse(*o)
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1112,7 +1236,8 @@ var ctx = r.Context()
 var o, err5 = bbs.ListObjectsV2(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_ListObjectsV2Response(*o)
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1159,9 +1284,12 @@ var ctx = r.Context()
 var o, err5 = bbs.ListParts(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_ListPartsResponse(*o)
-ho.Add("x-amz-abort-date", s.AbortDate.String())
-ho.Add("x-amz-abort-rule-id", string(*s.AbortRuleId))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.AbortDate != nil {
+ho.Add("x-amz-abort-date", s.AbortDate.String())}
+if s.AbortRuleId != nil {
+ho.Add("x-amz-abort-rule-id", string(*s.AbortRuleId))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1291,23 +1419,40 @@ var ctx = r.Context()
 var o, err5 = bbs.PutObject(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_PutObjectResponse(*o)
-ho.Add("x-amz-expiration", string(*s.Expiration))
-ho.Add("ETag", string(*s.ETag))
-ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))
-ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))
-ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))
-ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))
-ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))
-ho.Add("x-amz-checksum-type", string(s.ChecksumType))
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("x-amz-version-id", string(*s.VersionId))
-ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))
-ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-context", string(*s.SSEKMSEncryptionContext))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-object-size", strconv.FormatInt(*s.Size, 10))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.Expiration != nil {
+ho.Add("x-amz-expiration", string(*s.Expiration))}
+if s.ETag != nil {
+ho.Add("ETag", string(*s.ETag))}
+if s.ChecksumCRC32 != nil {
+ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))}
+if s.ChecksumCRC32C != nil {
+ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))}
+if s.ChecksumCRC64NVME != nil {
+ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))}
+if s.ChecksumSHA1 != nil {
+ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))}
+if s.ChecksumSHA256 != nil {
+ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))}
+if s.ChecksumType != "" {
+ho.Add("x-amz-checksum-type", string(s.ChecksumType))}
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
+if s.SSECustomerAlgorithm != nil {
+ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))}
+if s.SSECustomerKeyMD5 != nil {
+ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.SSEKMSEncryptionContext != nil {
+ho.Add("x-amz-server-side-encryption-context", string(*s.SSEKMSEncryptionContext))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.Size != nil {
+ho.Add("x-amz-object-size", strconv.FormatInt(*s.Size, 10))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1353,7 +1498,8 @@ var ctx = r.Context()
 var o, err5 = bbs.PutObjectTagging(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_PutObjectTaggingResponse(*o)
-ho.Add("x-amz-version-id", string(*s.VersionId))
+if s.VersionId != nil {
+ho.Add("x-amz-version-id", string(*s.VersionId))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1418,18 +1564,30 @@ var ctx = r.Context()
 var o, err5 = bbs.UploadPart(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_UploadPartResponse(*o)
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("ETag", string(*s.ETag))
-ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))
-ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))
-ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))
-ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))
-ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))
-ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))
-ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+if s.ETag != nil {
+ho.Add("ETag", string(*s.ETag))}
+if s.ChecksumCRC32 != nil {
+ho.Add("x-amz-checksum-crc32", string(*s.ChecksumCRC32))}
+if s.ChecksumCRC32C != nil {
+ho.Add("x-amz-checksum-crc32c", string(*s.ChecksumCRC32C))}
+if s.ChecksumCRC64NVME != nil {
+ho.Add("x-amz-checksum-crc64nvme", string(*s.ChecksumCRC64NVME))}
+if s.ChecksumSHA1 != nil {
+ho.Add("x-amz-checksum-sha1", string(*s.ChecksumSHA1))}
+if s.ChecksumSHA256 != nil {
+ho.Add("x-amz-checksum-sha256", string(*s.ChecksumSHA256))}
+if s.SSECustomerAlgorithm != nil {
+ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))}
+if s.SSECustomerKeyMD5 != nil {
+ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
@@ -1498,13 +1656,20 @@ var ctx = r.Context()
 var o, err5 = bbs.UploadPartCopy(ctx, &i)
 if err5 != nil {log.Fatal(err5)}
 var s = s_UploadPartCopyResponse(*o)
-ho.Add("x-amz-copy-source-version-id", string(*s.CopySourceVersionId))
-ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))
-ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))
-ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))
-ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))
-ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))
-ho.Add("x-amz-request-charged", string(s.RequestCharged))
+if s.CopySourceVersionId != nil {
+ho.Add("x-amz-copy-source-version-id", string(*s.CopySourceVersionId))}
+if s.ServerSideEncryption != "" {
+ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
+if s.SSECustomerAlgorithm != nil {
+ho.Add("x-amz-server-side-encryption-customer-algorithm", string(*s.SSECustomerAlgorithm))}
+if s.SSECustomerKeyMD5 != nil {
+ho.Add("x-amz-server-side-encryption-customer-key-MD5", string(*s.SSECustomerKeyMD5))}
+if s.SSEKMSKeyId != nil {
+ho.Add("x-amz-server-side-encryption-aws-kms-key-id", string(*s.SSEKMSKeyId))}
+if s.BucketKeyEnabled != nil {
+ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*s.BucketKeyEnabled))}
+if s.RequestCharged != "" {
+ho.Add("x-amz-request-charged", string(s.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}

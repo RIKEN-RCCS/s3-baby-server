@@ -5,7 +5,7 @@
 ;; "s3.json" in Smithy-2.0 and generates a skeleton for dispatcher
 ;; code.
 
-;; This is for "guile --r7rs" and tested with GNU Guile-3.0.10.
+;; This is for "guile --r7rs" and tested with GNU-Guile-3.0.10.
 
 ;; Smithy syntax is described in: https://smithy.io/2.0/spec/idl.html
 ;; "+"-qualified element as in {Key+} matches one or more path
@@ -47,16 +47,15 @@
 ;; "x-id=GetObject" "x-id=ListBuckets" "x-id=ListParts"
 ;; "x-id=PutObject" "x-id=UploadPart" "x-id=UploadPartCopy"
 
-;; Note on AWS SDK.  Input parameter "XXXXRequest" in API (and Smithy)
-;; has a name "XXXXInput" in SDK.  "Request" is a wrapper of "Input"
-;; used for invoking an actual remote call.
+;; Note on AWS-SDK.  Input parameter "XXXXRequest" in API (and Smithy)
+;; has a name "XXXXInput" in AWS-SDK.
 
-;; ASSUPTION: It assumes enumeration types are string types.  Null
+;; ASSUMPTION: It assumes enumeration types are string types.  Null
 ;; value for enumeration types is "".
 
 ;; NOTE: Camelcase conversion makes enumeration "ETag" of
-;; "ObjectAttributes" is converted to "ObjectAttributesEtag" in
-;; AWS-SDK.
+;; "ObjectAttributes" is converted to "ObjectAttributesEtag" ("t" in
+;; lowercase) in AWS-SDK.
 
 ;; Golang http server: https://pkg.go.dev/net/http#ServeMux
 
@@ -944,6 +943,18 @@
   ;; sorting request-properties.
   (sort request-properties locus-ordered?))
 
+(define (resolve-type type-name)
+  ;; Returns a type representation.  Primitive types resolve to a type
+  ;; name in Golang.  Composite types resolve to itself that should be
+  ;; defined types.
+  ;;(format #t ";; . resolve-type ~s ~s~%" type-name
+  ;; (assoc type-name list-of-types))
+  (match-let* ((definition (assoc type-name list-of-types))
+	       ((_ type-kind . slot-properties) definition))
+    (if (primitive-type? type-kind)
+	type-kind
+	(format #f "types.~a" type-name))))
+
 (define (make-sdk-enumerator type-name enumerator-string)
   ;; Makes an enumerator of an enum of AWS-SDK.
   (format #f "types.~a~a" type-name (camelcase-string enumerator-string)))
@@ -1046,7 +1057,6 @@
   ;; Makes a coercion of a given type to a string.  It is in the
   ;; opposite direction of make-extern-coercing.  It errs when a
   ;; type-name is not defined.
-  ;;-(format #t "make-coercing-export ~s ~s~%" type-name (assoc type-name list-of-types))
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((_ type-kind . slot-properties) definition))
     (cond
@@ -1077,11 +1087,14 @@
       (list
        (assigner (format #f "string(~a)" rhs))))
      ((string=? type-kind "list")
+      ;; Lists are never used.
+      (error "make-coercing-export with list")
       (list
        (assigner (format #f "~a" rhs))))
      ((string=? type-kind "map")
-      ;; Map is handled by a caller.
-      '())
+      ;; Maps are handled by a caller.
+      (list
+       (assigner (format #f "~a" rhs))))
      ((string=? type-kind "structure")
       (list
        (assigner (format #f "~a" rhs))))
@@ -1091,18 +1104,6 @@
      (else
       (format #t "BAD type-kind ~s~%" type-kind)
       (error "make-coercing-export with unknown")))))
-
-(define (resolve-type type-name)
-  ;; Returns a type representation.  Primitive types resolve to a type
-  ;; name in Golang.  Composite types resolve to itself that should be
-  ;; defined types.
-  ;;(format #t ";; . resolve-type ~s ~s~%" type-name
-  ;; (assoc type-name list-of-types))
-  (match-let* ((definition (assoc type-name list-of-types))
-	       ((_ type-kind . slot-properties) definition))
-    (if (primitive-type? type-kind)
-	type-kind
-	(format #f "types.~a" type-name))))
 
 (define (make-input-assignment request-property)
   ;; Makes an assignment in a structure "s3.XXXXInput" of AWS-SDK.
@@ -1137,24 +1138,6 @@
       ((HEADER)
        ;; (format #f "i.~a = hi.Get(~s)" slot name)
        (cond
-	((string=? type-kind "map")
-	 (error "make-input-assignment with map in headers")
-	 ;; NEVER THIS CASE.
-	 (match-let ((((_ _ type2 . _) (_ _ type3 . _)) slot-properties))
-	   (let* ((key-type (resolve-type type2))
-		  (value-type (resolve-type type3))
-		  (_ (assert (string=? key-type "string")))
-		  (_ (assert (string=? value-type "string")))
-		  (map-type (format #f "map[~a]~a" key-type value-type))
-		  (assigner (lambda (rhs)
-			      (format #f "bin[key] = ~a" rhs))))
-	     (list (format #f "if len(hi.Values(~s)) != 0 {" name)
-		   (format #f "{var rhs = hi.Get(~s)" name)
-		   (format #f "var bin ~a" map-type)
-		   (format #f "maps.All(rhs)(func (k, v string) bool {")
-		   ;;(make-coercing-import name type3 assigner "val")
-		   (format #f "bin[k] = v})")
-		   (format #f "i.~a = bin}}" slot)))))
 	((string=? type-kind "list")
 	 ;; List's slot-properties is (("member" "member" type2 . _))
 	 (match-let (((_ _ type2 . _) (car slot-properties)))
@@ -1171,6 +1154,9 @@
 	      ;;(format #f "bin = append(bin, v)")
 	      (list
 	       (format #f "i.~a = bin}" slot))))))
+	((string=? type-kind "map")
+	 ;; NEVER THIS CASE.  MAPS ARE USED IN HEADER-PREFIX.
+	 (error "make-input-assignment with map in headers"))
 	(else
 	 (let ((rhs (format #f "hi.Get(~s)" name))
 	       (assigner (lambda (rhs)
@@ -1222,36 +1208,53 @@
        (error "make-input-assignment; bad locus ELEMENT" request-property)))))
 
 (define (make-output-extraction response-property)
-  ;; Makes extraction code from structure "s3.XXXXOutput" of AWS SDK.
+  ;; Makes extraction code from structure "s3.XXXXOutput" of AWS-SDK.
   ;; Each property is a list of five-tuples (slot name type locus
-  ;; required).
+  ;; required).  Note "XXXXOutput" is copyed and stored in variable
+  ;; "s".
   (match-let* (((slot name type locus required) response-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
     ;;(when tr? (format #t ";; . make-output-extraction ~s~%" slot))
     (case locus
       ((PATH)
-       '())
+       (error "make-output-extraction: path in response" name))
       ((QUERY)
        (error "make-output-extraction; bad query in response" name))
-      ((HEADER HEADER-PREFIX)
+      ((HEADER)
        ;;(list (format #f "ho.Add(~s, s.~a)" name slot))
        (cond
-	((string=? type-kind "map")
+	((string=? type-kind "enum")
 	 (let ((rhs (format #f "s.~a" slot))
 	       (assigner (lambda (rhs)
 			   (format #f "ho.Add(~s, ~a)" name rhs))))
-	   (make-coercing-export type assigner rhs)))
+	   (append
+	    (list (format #f "if ~a != \"\" {" rhs))
+	    (string-append-on-tail
+	     (make-coercing-export type assigner rhs) "}"))))
 	((string=? type-kind "list")
 	 (let ((rhs (format #f "s.~a" slot))
 	       (assigner (lambda (rhs)
 			   (format #f "ho.Add(~s, ~a)" name rhs))))
-	   (make-coercing-export type assigner rhs)))
+	   (append
+	    (list (format #f "if len(~a) != 0 {" rhs))
+	    (string-append-on-tail
+	     (make-coercing-export type assigner rhs) "}"))))
+	((string=? type-kind "map")
+	 ;; NEVER THIS CASE.  MAPS ARE USED IN HEADER-PREFIX.
+	 (error "make-output-extraction: map for header"))
 	(else
 	 (let ((rhs (format #f "s.~a" slot))
 	       (assigner (lambda (rhs)
 			   (format #f "ho.Add(~s, ~a)" name rhs))))
-	   (make-coercing-export type assigner rhs)))))
+	   (append
+	    (list (format #f "if ~a != nil {" rhs))
+	    (string-append-on-tail
+	     (make-coercing-export type assigner rhs) "}"))))))
+      ((HEADER-PREFIX)
+       (assert (string=? type-kind "map"))
+       (list (format #f "for k, v := range s.~a {" slot)
+	     (format #f "ho.Add(k, v)}")))
       ((PAYLOAD)
        (begin
 	 (when tr? (format #t ";; Payload in response: ~s~%" name))
@@ -1261,7 +1264,7 @@
 	 ;; (when tr? (format #t ";; Skip element in response: ~s~%" name))
 	 '()))
       (else
-       (error "make-output-extraction; bad properties" response-property)))))
+       (error "make-output-extraction: bad properties" response-property)))))
 
 (define (make-output-payload-extraction just-status code)
   (append
