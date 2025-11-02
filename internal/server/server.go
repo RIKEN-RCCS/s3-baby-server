@@ -10,12 +10,16 @@ import (
 	"s3-baby-server/internal/service"
 )
 
-type preamble_handler struct {
+type prior_handler struct {
 	bbs *BB_server
 	sx *http.ServeMux
 }
 
-func (sv *preamble_handler) ServeHTTP(w http.ResponseWriter, r *http.Request)  {
+func (bbs *BB_server) handle_input_error(w http.ResponseWriter, r *http.Request, e error) {panic(e)}
+
+// PRIOR_HANDLER chechs an authorization header in a request before
+// passing it to actual handlers.
+func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//var logger = bbs.Logger
 	//var authKey = bbs.AuthKey
 
@@ -24,7 +28,7 @@ func (sv *preamble_handler) ServeHTTP(w http.ResponseWriter, r *http.Request)  {
 	//if !option.CheckErrorHeader() {
 	//if !option.CheckKeyPath(s3.RootPath, option.GetPath()) {
 
-	fmt.Printf("preamble_handler does nothing.\n")
+	fmt.Printf("prior_handler does nothing.\n")
 	sv.sx.ServeHTTP(w, r)
 
 	//option.Logger.Error(err.Message, "status code", err.Status)
@@ -128,7 +132,7 @@ func Start(basePath, addr, logPath, authKey string) {
 		s3.FileSystem, authKey, logger)
 
 	register_dispatcher(&bbs, sx)
-	var sv = preamble_handler{&bbs, sx}
+	var sv = prior_handler{&bbs, sx}
 	if err := http.ListenAndServe(addr, &sv); err != nil {
 		logger.Error("", "error", err)
 	}

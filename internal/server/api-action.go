@@ -83,6 +83,9 @@ func (bbs *BB_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 	var o = s3.CreateBucketOutput{}
 
 	var bucket = params.Bucket
+	if bucket == nil {
+		panic(fmt.Errorf("Bad-impl: Bucket parameter missing"))
+	}
 	if !check_bucket_naming(*bucket) {
 		return &o, &types.InvalidRequest{}
 	}
@@ -104,7 +107,8 @@ func (bbs *BB_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 		}
 	}
 
-	o.Location = bucket
+	var location = ("/" + *bucket)
+	o.Location = &location
 	return &o, nil
 }
 

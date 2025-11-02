@@ -71,15 +71,14 @@
  (ice-9 regex)
  (ice-9 string-fun) ;; string-replace-substring
  ;;(scheme base)
+ ;;(srfi srfi-133) ;; r7rs-vector-library (NO srfi-133 in Guile)
  (only (scheme base) define-record-type textual-port? write-string)
  (only (scheme base) vector-map vector-for-each vector->list)
- ;;(srfi srfi-133) ;; r7rs-vector-library (NO srfi-133 in Guile)
- (only (rnrs base) infinite? assert)
  (srfi srfi-1) ;; list
  (srfi srfi-11) ;; multiple-values
- ;;(srfi srfi-28) ;; format
- (srfi srfi-60) ;; integers as bits
- )
+ (srfi srfi-19) ;; current-date, date->string
+ (srfi srfi-60) ;; arithmetic-shift
+ (only (rnrs base) infinite? assert))
 
 (setlocale LC_ALL "C.utf-8")
 
@@ -90,6 +89,11 @@
   (number? (string->number string)))
 
 (load "../test/minima/srfi-180-body.scm")
+
+;; Package path/name of s3-baby-server.  One generated file
+;; "api-template.go" shall be placed in bb-server-package, and other
+;; generated files "dispatcher.go", "handlers.go", and "marshalers.go"
+;; in bb-dispatcher-package.
 
 (define bb-package-path "s3-baby-server/internal")
 (define bb-dispatcher-package "server")
@@ -129,6 +133,8 @@
     "PutObjectTagging"
     "UploadPart"
     "UploadPartCopy"))
+
+(define generation-date (date->string (current-date) "~1"))
 
 (define tr? #t)
 
@@ -646,8 +652,7 @@
 	  ((check-uri-prefix? "/" uri)
 	   (list method "/"))
 	  (else
-	   (format #t "BAD unknown url pattern found: ~s" uri)
-	   #f))))
+	   (error "get-uri-method-path: unknown url pattern found: ~s" uri)))))
 
 (define (make-request-dispatch action)
   ;; Makes a dispatch entry, and returns a list of (name method-path
@@ -884,10 +889,10 @@
   (append
    (delete
     ""
-    (list "// dispatcher.go (2025-10-01)"
-	  "// Dispatcher for net/http.ServeMux.  It switches handlers"
-	  "// with regard to method-path patterns and required"
-	  "// parameters in request API."
+    (list (format #f "// dispatcher.go (~a)" generation-date)
+	  "// API-STUB.  Dispatcher for net/http.ServeMux.  It"
+	  "// switches handlers with regard to method-path patterns"
+	  "// and required parameters in request API."
 	  (format #f "package ~a" bb-dispatcher-package)
 	  "import ("
 	  ;; "\"context\""
@@ -896,6 +901,7 @@
 	      (format #f "\"~a/~a\"" bb-package-path bb-server-package)
 	      "")
 	  ")"
+	  "// REGISTER_DISPATCHER registers handers of BB-server to ServeMux."
 	  (string-append
 	   "func register_dispatcher"
 	   (format #f "(bbs *~a, sx *http.ServeMux)" bb-server-type)
@@ -953,12 +959,12 @@
 	    (let ((enumerator (make-sdk-enumerator type name)))
 	      (format #f "case ~s: return ~a, nil" name enumerator))))
 	slot-properties)
-   ;;(list "default: var err1 = errors.New(\"interning an enum\")"
-   ;; "log.Fatal(err1); return \"\", err1}}")
+   ;;(list "default: var err3 = errors.New(\"interning an enum\")"
+   ;; "log.Fatal(err3); return \"\", err3}}")
    (list (string-append
-	  (format #f "default: var err1 = fmt.Errorf")
+	  (format #f "default: var err3 = fmt.Errorf")
 	  (format #f "(\"interning an enum (types.~a) %#v\", s)" type))
-	 "log.Print(err1); return \"\", err1}}")))
+	 "log.Print(err3); return \"\", err3}}")))
 
 (define (make-enumerator-importers list-of-types-in-requests)
   ;; Makes importer functions for enumerators.  Functions are named
@@ -977,10 +983,10 @@
   ;; assigner makes an assignment.  It assumes a type-name is defined.
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
-    (let ((error-return-clause
+    (let ((handle-error-clause
 	   (string-append
-	    "if err2 != nil {return fmt.Errorf"
-	    (format #f "(\"Bad parameter in ~a: %w\", err2)}" name))))
+	    "if err2 != nil {bbs.handle_input_error(w, r, fmt.Errorf"
+	    (format #f "(\"Bad parameter in ~a: %w\", err2))}" name))))
       (cond
        ;; Primitive-types:
        ((string=? type-kind "blob")
@@ -988,36 +994,36 @@
        ((string=? type-kind "boolean")
 	(list
 	 (format #f "var x, err2 = strconv.ParseBool(~a)" rhs)
-	 error-return-clause
+	 handle-error-clause
 	 (assigner "&x")))
        ((string=? type-kind "integer")
 	(list
 	 (format #f "var x1, err2 = strconv.ParseInt(~a, 10, 32)" rhs)
-	 error-return-clause
+	 handle-error-clause
 	 "var x2 = int32(x1)"
 	 (assigner "&x2")))
        ((string=? type-kind "long")
 	(list
 	 (format #f "var x, err2 = strconv.ParseInt(~a, 10, 64)" rhs)
-	 error-return-clause
+	 handle-error-clause
 	 (assigner "&x")))
        ((string=? type-kind "operation")
-	(error "make-coercing-import with operation"))
+	(error "make-coercing-import: called with operation"))
        ((string=? type-kind "service")
-	(error "make-coercing-import with service"))
+	(error "make-coercing-import: called with service"))
        ((string=? type-kind "string")
 	(list
 	 (assigner (format #f "thing_pointer(~a)" rhs))))
        ((string=? type-kind "timestamp")
 	(list
 	 (format #f "var x, err2 = time.Parse(time.RFC3339, ~a)" rhs)
-	 error-return-clause
+	 handle-error-clause
 	 (assigner "&x")))
        ;; Composite-types:
        ((string=? type-kind "enum")
 	(list
 	 (format #f "var x, err2 = import_~a(~a)" type-name rhs)
-	 error-return-clause
+	 handle-error-clause
 	 (assigner "x")))
        ((string=? type-kind "list")
 	(list
@@ -1034,7 +1040,7 @@
        ;; Others:
        (else
 	(format #t "BAD type-kind ~s~%" type-kind)
-	(error "make-coercing-import with unknown"))))))
+	(error "make-coercing-import: called with unknown"))))))
 
 (define (make-coercing-export type-name assigner rhs)
   ;; Makes a coercion of a given type to a string.  It is in the
@@ -1103,18 +1109,22 @@
   ;; Slot property is a list of five-tuples (slot name type locus
   ;; required).  Note the structure name of a request is "XXXXRequest"
   ;; in the API and Smithy.
-  ;;(when tr? (format #t ";; . make-input-assignment1 ~s~%" (list-ref request-property 2)))
   (match-let* (((slot name type locus required) request-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
     (case locus
       ((PATH)
        ;; Path parameters are taken by r.PathValue(key)
-       (list (format #f "{var x = r.PathValue(~s)" name)
-	     (string-append
-	      (format #f "if x == \"\" {return fmt.Errorf")
-	      (format #f "(\"Missing path in url for: ~a\")}" name))
-	     (format #f "i.~a = &x}" slot)))
+       (let ((key-name
+	      (cond ((string=? name "Bucket") (string-downcase name))
+		    ((string=? name "Key") (string-downcase name))
+		    (else
+		     (error "make-input-assignment: path unknown" name)))))
+	 (list (format #f "{var x = r.PathValue(~s)" key-name)
+	       (string-append
+		"if x == \"\" {bbs.handle_input_error(w, r, fmt.Errorf"
+		(format #f "(\"Missing path in url for: ~a\"))}" key-name))
+	       (format #f "i.~a = &x}" slot))))
       ((QUERY)
        ;; (format #f "i.~a = qi.Get(~s)" slot name)
        (let ((rhs (format #f "qi.Get(~s)" name))
@@ -1199,17 +1209,17 @@
 	  (format #f "{var x types.~a" type)
 	  "var bs, err1 = io.ReadAll(r.Body)"
 	  (string-append
-	   "if err1 != nil {return fmt.Errorf"
-	   (format #f "(\"No http body for types.~a: %w\", err1)}" type))
+	   "if err1 != nil {panic(fmt.Errorf"
+	   (format #f "(\"No http body for types.~a: %w\", err1))}" type))
 	  "var err2 = xml.Unmarshal(bs, &x)"
 	  (string-append
-	   "if err2 != nil {return fmt.Errorf"
-	   (format #f "(\"Invalid http body for types.~a: %w\", err2)}" type))
+	   "if err2 != nil {panic(fmt.Errorf"
+	   (format #f "(\"Invalid http body for types.~a: %w\", err2))}" type))
 	  (format #f "i.~a = &x}" slot)))))
       ((ELEMENT)
-       (error "make-input-assignment, bad locus ELEMENT" request-property))
+       (error "make-input-assignment; bad locus ELEMENT" request-property))
       (else
-       (error "make-input-assignment, bad locus ELEMENT" request-property)))))
+       (error "make-input-assignment; bad locus ELEMENT" request-property)))))
 
 (define (make-output-extraction response-property)
   ;; Makes extraction code from structure "s3.XXXXOutput" of AWS SDK.
@@ -1223,9 +1233,7 @@
       ((PATH)
        '())
       ((QUERY)
-       (begin
-	 (format #t "BAD query in response: ~s~%" name)
-	 (values)))
+       (error "make-output-extraction; bad query in response" name))
       ((HEADER HEADER-PREFIX)
        ;;(list (format #f "ho.Add(~s, s.~a)" name slot))
        (cond
@@ -1253,8 +1261,7 @@
 	 ;; (when tr? (format #t ";; Skip element in response: ~s~%" name))
 	 '()))
       (else
-       (format #t "BAD properties=~s~%" response-property)
-       (values)))))
+       (error "make-output-extraction; bad properties" response-property)))))
 
 (define (make-output-payload-extraction just-status code)
   (append
@@ -1262,16 +1269,18 @@
     "ho.Set(\"Content-Type\", \"application/xml\")")
    (if (not just-status)
        (list
-	"var co, err5 = xml.MarshalIndent(s, \" \", \"  \")"
-	"if err5 != nil {log.Fatal(err5); return err5}")
+	;; Marshaling errors means implementation errors.
+	"var co, err6 = xml.MarshalIndent(s, \" \", \"  \")"
+	"if err6 != nil {log.Fatal(err6)}")
        '())
   (list
    (format #f "var status int = ~a" code)
    "w.WriteHeader(status)")
   (if (not just-status)
       (list
-       "var _, err6 = w.Write(co)"
-       "if err6 != nil {log.Fatal(err6); return err6}")
+       ;; Write errors means implementation or transport errors.
+       "var _, err7 = w.Write(co)"
+       "if err7 != nil {log.Fatal(err7)}")
       '())))
 
 (define (make-handler-function action)
@@ -1289,7 +1298,7 @@
       ;; Start of function declaration:
       (string-append (format #f "func h_~a" name)
 		     (format #f "(bbs *~a," bb-server-type)
-		     " w http.ResponseWriter, r *http.Request) error {")
+		     " w http.ResponseWriter, r *http.Request) {")
       "var qi = r.URL.Query()"
       "var hi = r.Header"
       "var ho = w.Header()"
@@ -1303,9 +1312,9 @@
      (list
       "var ctx = r.Context()"
       (if (string=? output-name "Unit")
-	  (format #f "var _, err3 = bbs.~a(ctx, &i)" name)
-	  (format #f "var o, err3 = bbs.~a(ctx, &i)" name))
-      "if err3 != nil {log.Fatal(err3); return err3}")
+	  (format #f "var _, err5 = bbs.~a(ctx, &i)" name)
+	  (format #f "var o, err5 = bbs.~a(ctx, &i)" name))
+      "if err5 != nil {log.Fatal(err5)}")
      ;; Output accessors:
      (if (string=? output-name "Unit")
 	 (make-output-payload-extraction #t code)
@@ -1315,11 +1324,7 @@
 	  (apply-append (map make-output-extraction response-properties))
 	  (make-output-payload-extraction #f code)))
      ;; Function end:
-     (list "return nil}"))))
-
-(define (display-handler-function action)
-  (let ((ss (make-handler-function action)))
-    (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
+     (list "}"))))
 
 (define (make-auxiliary-functions)
   (append
@@ -1339,7 +1344,7 @@
   (append
    (delete
     ""
-    (list "// handlers.go (2025-10-01)"
+    (list (format #f "// handlers.go (~a)" generation-date)
 	  "// API-STUB.  Handler functions (h_XXXX) called from the"
 	  "// dispatcher."
 	  (format #f "package ~a" bb-dispatcher-package)
@@ -1368,9 +1373,6 @@
   (let ((ss (make-handler-file list-of-actions)))
     (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
-(define (display-handlers)
-  (write-handlers #t))
-
 (define (write-enumerator-importers port)
   (let ((ss (make-enumerator-importers list-of-types-in-requests)))
     (format port "~a~%" (apply string-append (intervene-separator "\n" ss)))))
@@ -1385,6 +1387,13 @@
       (write-handlers port)
       (write-enumerator-importers port)
       (write-auxiliary-functions port))))
+
+(define (display-handlers)
+  (write-handlers #t))
+
+(define (display-handler-function action)
+  (let ((ss (make-handler-function action)))
+    (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
 ;; (display-handler-function (assoc "ListParts" list-of-actions))
 
@@ -1459,7 +1468,7 @@
 
 (define (make-marshaler-file list-of-actions)
   (append
-   (list "// marshalers.go (2025-10-01)"
+   (list (format #f "// marshalers.go (~a)" generation-date)
 	 "// API-STUB.  Marshalers of response structures.  Response"
 	 "// structures need custom marshalers, because they have"
 	 "// some slots that need to be renamed and also have an"
@@ -1520,7 +1529,7 @@
   (append
    (delete
     ""
-    (list "// api-template.go (2025-10-01)"
+    (list (format #f "// api-template.go (~a)" generation-date)
 	  "// API-STUB.  Handler templates. They should be replaced by"
 	  "// actual implementations."
 	  (if (not (string=? bb-server-package bb-dispatcher-package))
@@ -1530,8 +1539,11 @@
 	  "\"context\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	  ")"
-	  ;; ***DUMMY***
-	  "type BB_server struct {}"))
+	  "type BB_server struct {}"
+	  (string-append
+	   "func (bbs *BB_server) handle_input_error"
+	   "(w http.ResponseWriter, r *http.Request, e error) {"
+	   "panic(e)}")))
    (apply-append
     (map make-api-template list-of-actions))))
 
