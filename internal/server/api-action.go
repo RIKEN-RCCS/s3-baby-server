@@ -97,10 +97,12 @@ func (bbs *BB_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 	//var _, err1 = os.Stat(path)
 	var err2 = os.Mkdir(path, 0755)
 	if err2 != nil {
-		if !errors.Is(err2, fs.PathError) {
-			// Path entry exists. The error is not "fs.ErrExist".
+		/*if !errors.Is(err2, fs.ErrExist) {*/
+		var err3 *fs.PathError
+		if errors.As(err2, &err3) {
+			// Path entry exists.  The error is not "fs.ErrExist".
 			// "BucketAlreadyExists"
-			fmt.Printf("os.Mkdir() failed: %#v\n", err2)
+			fmt.Printf("os.Mkdir() failed: %#v\n", err3)
 			return &o, &types.BucketAlreadyOwnedByYou{}
 		} else {
 			fmt.Printf("os.Mkdir() failed: %#v\n", err2)
