@@ -65,6 +65,21 @@ type BB_server struct {
 	UploadPartHandler              http.HandlerFunc
 }
 
+// RESPOND_ON_ACTION_ERROR is an action error and makes a
+// response for it.
+func (bbs *BB_server) respond_on_action_error(w http.ResponseWriter, r *http.Request, e error) {panic(e)}
+
+// RESPOND_ON_INPUT_ERROR is an error on interning
+// enumerations and makes a response for it.
+func (bbs *BB_server) respond_on_input_error(w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Bad parameter %s", name))}
+
+// RESPOND_ON_MISSING_INPUT is an internal error and makes a
+// response for it.
+func (bbs *BB_server) respond_on_missing_input(w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Missing path: %s", name))}
+
+
+//func (bbs *BB_server) handle_input_error(w http.ResponseWriter, r *http.Request, e error) {panic(e)}
+
 func (bbs *BB_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
 	var o = s3.AbortMultipartUploadOutput{}
 	return &o, nil

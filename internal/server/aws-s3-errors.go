@@ -1,15 +1,47 @@
-// aws-s3-error-codes.go
+// aws-s3-errors.go
 
-// This code is extracted from the AWS S3 API specification.  It
-// contains a list of error codes in the "Error responses" section.
+// This defines error codes AWS S3.  This code is extracted from the
+// AWS S3 API specification.  It contains a list of error codes in the
+// "Error responses" section.
 
-// Some of the descriptions that are long are shortened by hand.
 // Aws_s3_error_code is an enumeration. Aws_s3_error_message is a map
 // from error-code to a pair of an http status-code and a message.
-// Entries may have -1 for http status-code, which corresponds to
-// "N/A" in the specification.
+// Some of the messages that are long are shortened by hand.  Entries
+// may have -1 for http status-code, which corresponds to "N/A" in the
+// specification.
 
 package server
+
+import (
+	"fmt"
+	"encoding/xml"
+	smithy "github.com/aws/smithy-go"
+)
+
+// Common elements of errors.
+type Error struct {
+	XMLName xml.Name `xml:"Error"`
+	Code Aws_s3_error_code
+	Message string
+	Resource string
+	RequestId string
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("%s: %s", e.ErrorCode(), e.ErrorMessage())
+}
+
+func (e *Error) ErrorCode() string {
+	return string(e.Code)
+}
+
+func (e *Error) ErrorMessage() string {
+	return e.Message
+}
+
+func (e *Error) ErrorFault() smithy.ErrorFault {
+	return smithy.FaultClient
+}
 
 type Aws_s3_error_code string
 
@@ -103,13 +135,13 @@ type Aws_s3_error_message struct {
 
 var aws_s3_error_to_code = map[Aws_s3_error_code]Aws_s3_error_message{
 	AccessDenied:                            {403, "Access Denied"},
-	AccountProblem:                          {403, "There is a problem with your Amazon Web Services account that prevents the action from completing successfully. Contact Amazon Web Services Support for further assistance."},
-	AllAccessDisabled:                       {403, "All access to this Amazon S3 resource has been disabled. Contact Amazon Web Services Support for further assistance."},
+	AccountProblem:                          {403, "There is a problem with your Amazon Web Services account."},
+	AllAccessDisabled:                       {403, "All access to this Amazon S3 resource has been disabled."},
 	AmbiguousGrantByEmailAddress:            {400, "The email address you provided is associated with more than one account."},
 	AuthorizationHeaderMalformed:            {400, "The authorization header you provided is invalid."},
 	BadDigest:                               {400, "The Content-MD5 you specified did not match what we received."},
 	BucketAlreadyExists:                     {409, "The requested bucket name is not available. The bucket namespace is shared by all users of the system. Please select a different name and try again."},
-	BucketAlreadyOwnedByYou:                 {409, "The bucket you tried to create already exists, and you own it. Amazon S3 returns this error in all Amazon Web Services Regions except in the North Virginia Region. For legacy compatibility, if you re-create an existing bucket that you already own in the North Virginia Region, Amazon S3 returns 200 OK and resets the bucket access control lists (ACLs)."},
+	BucketAlreadyOwnedByYou:                 {409, "The bucket you tried to create already exists, and you own it."},
 	BucketNotEmpty:                          {409, "The bucket you tried to delete is not empty."},
 	CredentialsNotSupported:                 {400, "This request does not support credentials."},
 	CrossLocationLoggingProhibited:          {403, "Cross-location logging not allowed. Buckets in one geographic location cannot log information to a bucket in another location."},
@@ -128,11 +160,11 @@ var aws_s3_error_to_code = map[Aws_s3_error_code]Aws_s3_error_message{
 	InvalidBucketState:                      {409, "The request is not valid with the current state of the bucket."},
 	InvalidDigest:                           {400, "The Content-MD5 you specified is not valid."},
 	InvalidEncryptionAlgorithmError:         {400, "The encryption request you specified is not valid. The valid value is AES256."},
-	InvalidLocationConstraint:               {400, "The specified location constraint is not valid. For more information about Regions, see ."},
+	InvalidLocationConstraint:               {400, "The specified location constraint is not valid."},
 	InvalidObjectState:                      {403, "The action is not valid for the current state of the object."},
 	InvalidPart:                             {400, "One or more of the specified parts could not be found. The part might not have been uploaded, or the specified entity tag might not have matched the part's entity tag."},
 	InvalidPartOrder:                        {400, "The list of parts was not in ascending order. Parts list must be specified in order by part number."},
-	InvalidPayer:                            {403, "All access to this object has been disabled. Please contact Amazon Web Services Support for further assistance."},
+	InvalidPayer:                            {403, "All access to this object has been disabled."},
 	InvalidPolicyDocument:                   {400, "The content of the form does not meet the conditions specified in the policy document."},
 	InvalidRange:                            {416, "The requested range cannot be satisfied."},
 	InvalidRequest:                          {400, "???"},
@@ -156,14 +188,14 @@ var aws_s3_error_to_code = map[Aws_s3_error_code]Aws_s3_error_message{
 	KeyTooLongError:                   {400, "Your key is too long."},
 	MalformedACLError:                 {400, "The XML you provided was not well-formed or did not validate against our published schema."},
 	MalformedPOSTRequest:              {400, "The body of your POST request is not well-formed multipart/form-data."},
-	MalformedXML:                      {400, "This happens when the user sends malformed XML (XML that doesn't conform to the published XSD) for the configuration. The error message is, \\\"The XML you provided was not well-formed or did not validate against our published schema.\\\""},
+	MalformedXML:                      {400, "The XML you provided was not well-formed or did not validate against our published schema."},
 	MaxMessageLengthExceeded:          {400, "Your request was too big."},
 	MaxPostPreDataLengthExceededError: {400, "Your POST request fields preceding the upload file were too large."},
 	MetadataTooLarge:                  {400, "Your metadata headers exceed the maximum allowed metadata size."},
 	MethodNotAllowed:                  {405, "The specified method is not allowed against this resource."},
 	MissingAttachment:                 {-1, "A SOAP attachment was expected, but none were found."},
 	MissingContentLength:              {411, "You must provide the Content-Length HTTP header."},
-	MissingRequestBodyError:           {400, "This happens when the user sends an empty XML document as a request. The error message is, \\\"Request body is empty.\\\""},
+	MissingRequestBodyError:           {400, "Request body is empty."},
 	MissingSecurityElement:            {400, "The SOAP 1.1 request is missing a security element."},
 	MissingSecurityHeader:             {400, "Your request is missing a required header."},
 	NoLoggingStatusForKey:             {400, "There is no such thing as a logging status subresource for a key."},
@@ -184,7 +216,7 @@ var aws_s3_error_to_code = map[Aws_s3_error_code]Aws_s3_error_message{
 	RequestTimeout:                    {400, "Your socket connection to the server was not read from or written to within the timeout period."},
 	RequestTimeTooSkewed:              {403, "The difference between the request time and the server's time is too large."},
 	RequestTorrentOfBucketError:       {400, "Requesting the torrent file of a bucket is not permitted."},
-	SignatureDoesNotMatch:             {403, "The request signature we calculated does not match the signature you provided. Check your Amazon Web Services secret access key and signing method. For more information, see and for details."},
+	SignatureDoesNotMatch:             {403, "The request signature we calculated does not match the signature you provided.."},
 	ServiceUnavailable:                {503, "Service is unable to handle request."},
 	SlowDown:                          {503, "Reduce your request rate."},
 	TemporaryRedirect:                 {307, "You are being redirected to the bucket while DNS updates."},

@@ -15,16 +15,14 @@ type prior_handler struct {
 	sx *http.ServeMux
 }
 
-func (bbs *BB_server) handle_input_error(w http.ResponseWriter, r *http.Request, e error) {panic(e)}
-
-// PRIOR_HANDLER chechs an authorization header in a request before
+// PRIOR_HANDLER checks an authorization header in a request before
 // passing it to actual handlers.
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//var logger = bbs.Logger
 	//var authKey = bbs.AuthKey
 
-	// option := newHTTPS3Options(r, logger)
-	// if !option.checkAuthorization(r, authKey) {
+	//option := newHTTPS3Options(r, logger)
+	//if !option.checkAuthorization(r, authKey) {
 	//if !option.CheckErrorHeader() {
 	//if !option.CheckKeyPath(s3.RootPath, option.GetPath()) {
 
@@ -42,7 +40,7 @@ func Start(basePath, addr, logPath, authKey string) {
 	//r.Use(PanicRecovery)
 	var sx = http.NewServeMux()
 
-	logger := Init(logPath) // ログファイルの作成
+	logger := Init(logPath)
 	logger.Info("Starting server", "address", addr)
 	logger.Debug("options", "authKey", authKey)
 	fs := &service.FileSystem{Logger: logger, RootPath: basePath, TmpPath: "/.S3BabyServer/TmpUpload", MpPath: "/.S3BabyServer/MultipartUpload"}

@@ -11,18 +11,18 @@ https://github.com/aws/aws-sdk-go-v2/service/s3/types/errors.go
 - Error Types
   - "BucketAlreadyExists"
   - "BucketAlreadyOwnedByYou"
-  - "EncryptionTypeMismatch"
-  - "IdempotencyParameterMismatch"
+  - "EncryptionTypeMismatch" (no correponding error code)
+  - "IdempotencyParameterMismatch" (no correponding error code)
   - "InvalidObjectState"
   - "InvalidRequest"
-  - "InvalidWriteOffset"
+  - "InvalidWriteOffset" (no correponding error code)
   - "NoSuchBucket"
   - "NoSuchKey"
   - "NoSuchUpload"
-  - "NotFound"
-  - "ObjectAlreadyInActiveTierError"
-  - "ObjectNotInActiveTierError"
-  - "TooManyParts"
+  - "NotFound" (no correponding error code)
+  - "ObjectAlreadyInActiveTierError" (no correponding error code)
+  - "ObjectNotInActiveTierError" (no correponding error code)
+  - "TooManyParts" (no correponding error code)
 
 These error types implement methods:
 "Error()", "ErrorCode()", "ErrorFault()", "ErrorMessage()".  There are
@@ -41,7 +41,7 @@ Errors are not defined in detail.  They are somewhat arbitrary (?).
 
 ### List of Error Codes
 
-The file "aws-s3-error-codes.go" is taken from the "Error Responses"
+The file "aws-s3-errors.go" is taken from the "Error Responses"
 section.
 
 The "Error Responses" section in the API specification contains a list

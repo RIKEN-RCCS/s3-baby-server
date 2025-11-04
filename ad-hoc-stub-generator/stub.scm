@@ -1,4 +1,6 @@
 ;; stub.scm (2025-10-16)
+;; Copyright 2025-2025 RIKEN R-CCS.
+;; SPDX-License-Identifier: BSD-2-Clause
 
 ;; Ad-hoc server stub generator.  IT NEVER EVER GENERATES WORKING
 ;; CODE.  This generates dispatcher code for S3 requests.  It reads
@@ -996,8 +998,8 @@
 	       ((type-name type-kind . slot-properties) definition))
     (let ((handle-error-clause
 	   (string-append
-	    "if err2 != nil {bbs.handle_input_error(w, r, fmt.Errorf"
-	    (format #f "(\"Bad parameter in ~a: %w\", err2))}" name))))
+	    "if err2 != nil {bbs.respond_on_input_error"
+	    (format #f "(w, r, ~s); return}" name))))
       (cond
        ;; Primitive-types:
        ((string=? type-kind "blob")
@@ -1123,8 +1125,9 @@
 		     (error "make-input-assignment: path unknown" name)))))
 	 (list (format #f "{var x = r.PathValue(~s)" key-name)
 	       (string-append
-		"if x == \"\" {bbs.handle_input_error(w, r, fmt.Errorf"
-		(format #f "(\"Missing path in url for: ~a\"))}" key-name))
+		"if x == \"\" {bbs.respond_on_missing_input"
+		(format #f "(w, r, ~s);" key-name)
+		" return}")
 	       (format #f "i.~a = &x}" slot))))
       ((QUERY)
        ;; (format #f "i.~a = qi.Get(~s)" slot name)
@@ -1317,7 +1320,9 @@
       (if (string=? output-name "Unit")
 	  (format #f "var _, err5 = bbs.~a(ctx, &i)" name)
 	  (format #f "var o, err5 = bbs.~a(ctx, &i)" name))
-      "if err5 != nil {log.Fatal(err5)}")
+      (string-append
+       "if err5 != nil {bbs.respond_on_action_error(w, r, err5);"
+       " return}"))
      ;; Output accessors:
      (if (string=? output-name "Unit")
 	 (make-output-payload-extraction #t code)
@@ -1543,10 +1548,24 @@
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	  ")"
 	  "type BB_server struct {}"
+	  "// RESPOND_ON_ACTION_ERROR is an action error and makes a"
+	  "// response for it."
 	  (string-append
-	   "func (bbs *BB_server) handle_input_error"
+	   "func (bbs *BB_server) respond_on_action_error"
 	   "(w http.ResponseWriter, r *http.Request, e error) {"
-	   "panic(e)}")))
+	   "panic(e)}")
+	  "// RESPOND_ON_INPUT_ERROR is an error on interning"
+	  "// enumerations and makes a response for it."
+	  (string-append
+	   "func (bbs *BB_server) respond_on_input_error"
+	   "(w http.ResponseWriter, r *http.Request, name string) {"
+	   "panic(fmt.Errorf(\"Bad parameter %s\", name))}")
+	  "// RESPOND_ON_MISSING_INPUT is an internal error and makes a"
+	  "// response for it."
+	  (string-append
+	   "func (bbs *BB_server) respond_on_missing_input"
+	   "(w http.ResponseWriter, r *http.Request, name string) {"
+	   "panic(fmt.Errorf(\"Missing path: %s\", name))}")))
    (apply-append
     (map make-api-template list-of-actions))))
 
