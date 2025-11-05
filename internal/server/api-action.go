@@ -23,6 +23,8 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	//"strconv"
+	"sync"
 	//"syscall"
 )
 
@@ -43,6 +45,9 @@ type Bb_server struct {
 	AuthKey string
 
 	BB_config BB_configuration
+
+	rid int64
+	mutex sync.Mutex
 
 	// FileSystem is in S3.FileSystem *FileSystem
 
@@ -71,9 +76,20 @@ type Bb_server struct {
 	UploadPartHandler              http.HandlerFunc
 }
 
-// MAKE_REQUEST_ID makes a new request-id.
+// MAKE_REQUEST_ID makes a new request-id.  It uses timer, or when
+// timer does not advance, uses the last value plus one.
 func (bbs *Bb_server) make_request_id() string {
-	return ""
+	var t int64 = time.Now().UnixMicro()
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	if bbs.rid < t {
+		bbs.rid = t
+	} else {
+		t = bbs.rid + 1
+		bbs.rid = t
+	}
+	//return strconv.FormatInt(t, 16)
+	return fmt.Sprintf("%016x", t)
 }
 
 // RESPOND_ON_ACTION_ERROR is an action error and makes a
@@ -85,6 +101,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	}
 	bbs.Logger.Info(string(e1.Code), "error", e1)
 
+	e1.RequestId = ctx.Value("request-id").(string)
 	var m = Aws_s3_error_to_message[e1.Code]
 	if len(e1.Message) == 0 {
 		e1.Message = m.Message
