@@ -1,14 +1,17 @@
 // aws-s3-errors.go
 
-// This defines error codes AWS S3.  This code is extracted from the
-// AWS S3 API specification.  It contains a list of error codes in the
-// "Error responses" section.
+// This file is derived from the copyright material by Amazon Web
+// Services, Inc.
 
-// Aws_s3_error_code is an enumeration. Aws_s3_error_message is a map
-// from error-code to a pair of an http status-code and a message.
-// Some of the messages that are long are shortened by hand.  Entries
-// may have -1 for http status-code, which corresponds to "N/A" in the
-// specification.
+// This defines error codes AWS S3.  The code in this file is
+// extracted from the AWS S3 API specification.  It contains a list of
+// error codes in the "Error responses" section.
+
+// Aws_s3_error_code is an enumeration.  Aws_s3_error_to_message is a
+// map from error-code to a pair of an http status-code and a message.
+// Some of the messages that are rather long are shortened by hand.
+// Entries may have -1 for http status-code, which corresponds to
+// "N/A" in the specification.
 
 package server
 
@@ -18,7 +21,8 @@ import (
 	smithy "github.com/aws/smithy-go"
 )
 
-// Common elements of errors.
+// Common elements of errors.  Attached tagging makes extending
+// structures will be marshaled with "Error" tag.
 type Error struct {
 	XMLName xml.Name `xml:"Error"`
 	Code Aws_s3_error_code
@@ -27,19 +31,19 @@ type Error struct {
 	RequestId string
 }
 
-func (e *Error) Error() string {
+func (e Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.ErrorCode(), e.ErrorMessage())
 }
 
-func (e *Error) ErrorCode() string {
+func (e Error) ErrorCode() string {
 	return string(e.Code)
 }
 
-func (e *Error) ErrorMessage() string {
+func (e Error) ErrorMessage() string {
 	return e.Message
 }
 
-func (e *Error) ErrorFault() smithy.ErrorFault {
+func (e Error) ErrorFault() smithy.ErrorFault {
 	return smithy.FaultClient
 }
 
@@ -128,12 +132,14 @@ const (
 	UserKeyMustBeSpecified                  = "UserKeyMustBeSpecified"
 )
 
+// Information on errors.  It is a pair of an http status-code and a
+// message.
 type Aws_s3_error_message struct {
-	Code    int
+	Status    int
 	Message string
 }
 
-var aws_s3_error_to_code = map[Aws_s3_error_code]Aws_s3_error_message{
+var Aws_s3_error_to_message = map[Aws_s3_error_code]Aws_s3_error_message{
 	AccessDenied:                            {403, "Access Denied"},
 	AccountProblem:                          {403, "There is a problem with your Amazon Web Services account."},
 	AllAccessDisabled:                       {403, "All access to this Amazon S3 resource has been disabled."},

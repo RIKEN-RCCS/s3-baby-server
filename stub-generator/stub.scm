@@ -99,7 +99,7 @@
 (define bb-package-path "s3-baby-server/internal")
 (define bb-dispatcher-package "server")
 (define bb-server-package "server")
-(define bb-server-name "BB_server")
+(define bb-server-name "Bb_server")
 (define bb-server-type
   (if (not (string=? bb-server-package bb-dispatcher-package))
       (string-append bb-server-package "." bb-server-name)
@@ -999,7 +999,7 @@
     (let ((handle-error-clause
 	   (string-append
 	    "if err2 != nil {bbs.respond_on_input_error"
-	    (format #f "(w, r, ~s); return}" name))))
+	    (format #f "(ctx, w, r, ~s); return}" name))))
       (cond
        ;; Primitive-types:
        ((string=? type-kind "blob")
@@ -1126,7 +1126,7 @@
 	 (list (format #f "{var x = r.PathValue(~s)" key-name)
 	       (string-append
 		"if x == \"\" {bbs.respond_on_missing_input"
-		(format #f "(w, r, ~s);" key-name)
+		(format #f "(ctx, w, r, ~s);" key-name)
 		" return}")
 	       (format #f "i.~a = &x}" slot))))
       ((QUERY)
@@ -1302,26 +1302,28 @@
     (append
      (list
       ;; Start of function declaration:
-      (string-append (format #f "func h_~a" name)
-		     (format #f "(bbs *~a," bb-server-type)
-		     " w http.ResponseWriter, r *http.Request) {")
+      (string-append
+       (format #f "func h_~a" name)
+       (format #f "(bbs *~a, w http.ResponseWriter, r *http.Request) {"
+	       bb-server-type))
       "var qi = r.URL.Query()"
       "var hi = r.Header"
       "var ho = w.Header()"
       "// Mark variables used to avoid unused errors:"
-      "var _, _, _ = qi, hi, ho")
+      "var _, _, _ = qi, hi, ho"
+      "var rid = bbs.make_request_id()"
+      "var ctx = context.WithValue(r.Context(), \"request-id\", rid)")
      ;; Input accessors:
      (list
       (format #f "var i = s3.~a{}" input-name))
      (apply-append (map make-input-assignment properties))
      ;; Hander invocation:
      (list
-      "var ctx = r.Context()"
       (if (string=? output-name "Unit")
 	  (format #f "var _, err5 = bbs.~a(ctx, &i)" name)
 	  (format #f "var o, err5 = bbs.~a(ctx, &i)" name))
       (string-append
-       "if err5 != nil {bbs.respond_on_action_error(w, r, err5);"
+       "if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5);"
        " return}"))
      ;; Output accessors:
      (if (string=? output-name "Unit")
@@ -1357,7 +1359,7 @@
 	  "// dispatcher."
 	  (format #f "package ~a" bb-dispatcher-package)
 	  "import ("
-	  ;; "\"context\""
+	  "\"context\""
 	  "\"encoding/xml\""
 	  ;;"\"errors\""
 	  "\"fmt\""
@@ -1547,24 +1549,31 @@
 	  "\"context\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	  ")"
-	  "type BB_server struct {}"
-	  "// RESPOND_ON_ACTION_ERROR is an action error and makes a"
-	  "// response for it."
+	  "type Bb_server struct {}"
+	  "// MAKE_REQUEST_ID makes a new request-id."
 	  (string-append
-	   "func (bbs *BB_server) respond_on_action_error"
-	   "(w http.ResponseWriter, r *http.Request, e error) {"
+	   "func (bbs *Bb_server) make_request_id() string {"
 	   "panic(e)}")
-	  "// RESPOND_ON_INPUT_ERROR is an error on interning"
-	  "// enumerations and makes a response for it."
+	  "// RESPOND_ON_ACTION_ERROR is called on an action error and"
+	  "// makes a response for it."
 	  (string-append
-	   "func (bbs *BB_server) respond_on_input_error"
-	   "(w http.ResponseWriter, r *http.Request, name string) {"
+	   "func (bbs *Bb_server) respond_on_action_error"
+	   "(ctx context.Context, w http.ResponseWriter,"
+	   " r *http.Request, e error) {"
+	   "panic(e)}")
+	  "// RESPOND_ON_INPUT_ERROR is called on an error on"
+	  "// interning enumerations and makes a response for it."
+	  (string-append
+	   "func (bbs *Bb_server) respond_on_input_error"
+	   "(ctx context.Context, w http.ResponseWriter,"
+	   " r *http.Request, name string) {"
 	   "panic(fmt.Errorf(\"Bad parameter %s\", name))}")
-	  "// RESPOND_ON_MISSING_INPUT is an internal error and makes a"
-	  "// response for it."
+	  "// RESPOND_ON_MISSING_INPUT is called on an internal error"
+	  "// and makes a response for it."
 	  (string-append
-	   "func (bbs *BB_server) respond_on_missing_input"
-	   "(w http.ResponseWriter, r *http.Request, name string) {"
+	   "func (bbs *Bb_server) respond_on_missing_input"
+	   "(ctx context.Context, w http.ResponseWriter,"
+	   " r *http.Request, name string) {"
 	   "panic(fmt.Errorf(\"Missing path: %s\", name))}")))
    (apply-append
     (map make-api-template list-of-actions))))

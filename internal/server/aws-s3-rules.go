@@ -1,4 +1,6 @@
 // aws-rules.go
+// Copyright 2025-2025 RIKEN R-CCS.
+// SPDX-License-Identifier: BSD-2-Clause
 
 package server
 
@@ -20,6 +22,11 @@ import (
 	//"strconv"
 	//"strings"
 )
+
+// - [General purpose bucket naming rules]
+//   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
+// - [Bucket naming guidelines]
+//   - https://cloud.google.com/storage/docs/naming-buckets)
 
 var bucket_naming_good_re = regexp.MustCompile(`^[a-z0-9-]{3,63}$`)
 
@@ -48,16 +55,14 @@ var bucket_naming_forbidden_re = regexp.MustCompile(
 		`|^g00g.*$` +
 		`|^minio$`)
 
-// CHECK_BUCKET_NAMING checks bucket naming restrictions.
+// CHECK_BUCKET_NAMING checks bucket naming restrictions.  Note
 // s3-baby-server forbits any DOTS, "aws", "amazon", "goog*", "g00g*",
-// and "minio".
-//
-// - Bucket naming rules
-//   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
-// - Bucket naming guidelines
-//   - https://cloud.google.com/storage/docs/naming-buckets
+// and "minio", in addition to AWS rules.
 func check_bucket_naming(name string) bool {
 	return (3 <= len(name) && len(name) <= 63 &&
 		bucket_naming_good_re.MatchString(name) &&
 		!bucket_naming_forbidden_re.MatchString(name))
 }
+
+// - [Naming Amazon S3 objects]
+//   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html

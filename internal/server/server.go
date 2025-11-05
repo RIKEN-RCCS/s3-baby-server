@@ -11,7 +11,7 @@ import (
 )
 
 type prior_handler struct {
-	bbs *BB_server
+	bbs *Bb_server
 	sx *http.ServeMux
 }
 
@@ -49,7 +49,7 @@ func Start(basePath, addr, logPath, authKey string) {
 	s3 := &service.S3Service{FileSystem: fs, MultiPart: mp, Tag: t}
 	fs.InitDir()
 
-	var bbs = BB_server{S3: s3, Logger: logger, AuthKey: authKey}
+	var bbs = Bb_server{S3: s3, Logger: logger, AuthKey: authKey}
 
 	//bind := func(path string, f api.S3HandlerFunc) *mux.Route {
 	//	return r.HandleFunc(path, api.HandlerBase(f, s3.FileSystem, authKey, logger))
