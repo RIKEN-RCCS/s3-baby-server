@@ -27,6 +27,13 @@ than "application/octet-stream".
 
 - No tags are allowed on buckets.  Tags on a request are ignored.
 
+## Terse Error Messages
+
+- Errors returned to a client do not contain information from OS such
+  as "fs.PathError", because they can show the home path that should
+  not be disclosed to a client.
+
+
 ## Additional Features
 
 - s3bbs stores access logs if a ".access-log" directory exists.
@@ -55,7 +62,7 @@ https://gist.githubusercontent.com/maratori/47a4d00457a92aa426dbd48a18776322/raw
 
 ----------------------------------------------------------------
 
-# API
+# Implemented API
 
 - AbortMultipartUpload
 - CompleteMultipartUpload

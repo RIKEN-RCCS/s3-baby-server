@@ -10,14 +10,14 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"io/fs"
-	"time"
 	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"time"
 	//"s3-baby-server/internal/api"
-	"s3-baby-server/internal/service"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"s3-baby-server/internal/service"
 	//"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"encoding/xml"
 	"log"
@@ -35,18 +35,18 @@ type BB_configuration struct {
 	Pending_upload_expiration time.Duration
 	Server_control_path       string
 
-	File_follow_link       bool
-	File_creation_mode       fs.FileMode
+	File_follow_link   bool
+	File_creation_mode fs.FileMode
 }
 
 type Bb_server struct {
-	S3     *service.S3Service
-	Logger *slog.Logger
+	S3      *service.S3Service
+	Logger  *slog.Logger
 	AuthKey string
 
 	BB_config BB_configuration
 
-	rid int64
+	rid   int64
 	mutex sync.Mutex
 
 	// FileSystem is in S3.FileSystem *FileSystem
@@ -118,21 +118,6 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	w1.Flush()
 }
 
-// RESPOND_ON_INPUT_ERROR is an error on interning
-// enumerations and makes a response for it.
-//func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Bad parameter %s", name))}
-
-// RESPOND_ON_MISSING_INPUT is an internal error and makes a
-// response for it.
-//func (bbs *Bb_server) respond_on_missing_input(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Missing path: %s", name))}
-
-// RECORD_INPUT_ERROR is called on an error on interning a
-// parameter to record it in the context.
-func (bbs *Bb_server) record_input_error(ctx context.Context, key string, e error) {
-	var v = ctx.Value("input-errors").(*[]Bb_input_error_record)
-	*v = append(*v, Bb_input_error_record{key, e})
-}
-
 func fs_error_name(err error) string {
 	if errors.Is(err, fs.ErrInvalid) {
 		return "ErrInvalid"
@@ -147,6 +132,21 @@ func fs_error_name(err error) string {
 	} else {
 		return "ErrUnknown"
 	}
+}
+
+func check_any_input_error(ctx context.Context, name string) error {
+	var m = ctx.Value("input-errors").(map[string]error)
+	if len(m) > 0 {
+		var e error
+		for _, e = range m {
+			break
+		}
+		var err5 = Aws_s3_Error{
+			Code: InvalidArgument, Resource: name,
+			Message: e.Error()}
+		return err5
+	}
+	return nil
 }
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
@@ -175,6 +175,15 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 		return &o, &err5
 	}
 
+	var location = "/" + *bucket
+
+	{
+		var err5 = check_any_input_error(ctx, location)
+		if err5 != nil {
+			return &o, err5
+		}
+	}
+
 	// (Many parameters are ignored).
 
 	var path = bbs.make_path(*bucket)
@@ -184,30 +193,28 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 	if err2 != nil {
 		// Note the error on existing path is fs.PathError and not
 		// fs.ErrExist.
-		var name = "/" + *bucket
 
+		bbs.Logger.Info("os.Mkdir() failed", "error", err2)
 		if errors.Is(err2, fs.ErrInvalid) {
-			var err5 = Aws_s3_Error{Code: InvalidArgument, Resource: name}
+			var err5 = Aws_s3_Error{Code: InvalidArgument, Resource: location}
 			return &o, &err5
 		} else if errors.Is(err2, fs.ErrPermission) {
-			var err5 = Aws_s3_Error{Code: AccessDenied, Resource: name}
+			var err5 = Aws_s3_Error{Code: AccessDenied, Resource: location}
 			return &o, &err5
 		} else if errors.Is(err2, fs.ErrExist) {
-			var err5 = Aws_s3_Error{Code: BucketAlreadyOwnedByYou, Resource: name}
+			var err5 = Aws_s3_Error{
+				Code:     BucketAlreadyOwnedByYou,
+				Resource: location}
 			return &o, &err5
 		} else {
-			/*var err3 *fs.PathError*/
 			/*if errors.As(err2, &err3) {*/
 			/*if !errors.Is(err2, fs.ErrExist) {*/
 			/*var err4, ok = err3.Err.(syscall.Errno)*/
-			bbs.Logger.Info("os.Mkdir() failed", "error", err2,
-				"fs-error", fs_error_name(err2))
-			var err5 = Aws_s3_Error{Code: InternalError, Resource: name}
+			var err5 = Aws_s3_Error{Code: InternalError, Resource: location}
 			return &o, &err5
 		}
 	}
 
-	var location = ("/" + *bucket)
 	o.Location = &location
 	return &o, nil
 }

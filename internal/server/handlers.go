@@ -16,22 +16,27 @@ import (
 "github.com/aws/aws-sdk-go-v2/service/s3"
 "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
-// Bb_enum_intern_error is an error returned when interning
-// enumerations.
+// BB_ENUM_INTERN_ERROR is an error returned when interning
+// an enumeration.
 type Bb_enum_intern_error struct {
 Enum string
 Name string
 }
 func (e *Bb_enum_intern_error) Error() string {
 return "Enum " + e.Enum + " unknown key: " + strconv.Quote(e.Name)}
-// Bb_input_error_record is recorded in a context when an
-// error occurs on interning a parameter.
-type Bb_input_error_record struct {
+// BB_INPUT_ERROR is recorded in a context when an error
+// occurs on interning a parameter.
+type Bb_input_error struct {
 Key string
 Err error
 }
-func (e *Bb_input_error_record) Error() string {
+func (e *Bb_input_error) Error() string {
 return "Parameter " + e.Key + " error: " + e.Err.Error()}
+// RECORD_INPUT_ERROR is called on an error on interning a
+// parameter to record it in the context.
+func h_record_input_error(ctx context.Context, key string, e error) {
+var m = ctx.Value("input-errors").(map[string]error)
+m[key] = &Bb_input_error{key, e}}
 func h_AbortMultipartUpload(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
@@ -39,20 +44,19 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.AbortMultipartUploadInput{}
 if len(hi.Values("x-amz-if-match-initiated-time")) != 0 {
 var s = hi.Get("x-amz-if-match-initiated-time")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-if-match-initiated-time", err2)} else {i.IfMatchInitiatedTime = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-if-match-initiated-time", err2)} else {i.IfMatchInitiatedTime = &x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if qi.Has("uploadId") {
 i.UploadId = thing_pointer(qi.Get("uploadId"))}
 {var x = r.PathValue("key")
@@ -79,9 +83,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.CompleteMultipartUploadInput{}
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
@@ -97,16 +100,16 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-mp-object-size")) != 0 {
 var s = hi.Get("x-amz-mp-object-size")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-mp-object-size", err2)} else {i.MpuObjectSize = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-mp-object-size", err2)} else {i.MpuObjectSize = &x}}
 if len(hi.Values("x-amz-checksum-type")) != 0 {
 var s = hi.Get("x-amz-checksum-type")
-var x, err2 = import_ChecksumType(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-checksum-type", err2)} else {i.ChecksumType = x}}
+var x, err2 = intern_ChecksumType(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-checksum-type", err2)} else {i.ChecksumType = x}}
 if len(hi.Values("x-amz-checksum-sha256")) != 0 {
 i.ChecksumSHA256 = thing_pointer(hi.Get("x-amz-checksum-sha256"))}
 if len(hi.Values("x-amz-checksum-sha1")) != 0 {
@@ -159,9 +162,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.CopyObjectInput{}
 if len(hi.Values("x-amz-source-expected-bucket-owner")) != 0 {
 i.ExpectedSourceBucketOwner = thing_pointer(hi.Get("x-amz-source-expected-bucket-owner"))}
@@ -169,22 +171,22 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
-var x, err2 = import_ObjectLockLegalHoldStatus(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-legal-hold", err2)} else {i.ObjectLockLegalHoldStatus = x}}
+var x, err2 = intern_ObjectLockLegalHoldStatus(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-legal-hold", err2)} else {i.ObjectLockLegalHoldStatus = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-retain-until-date", err2)} else {i.ObjectLockRetainUntilDate = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-retain-until-date", err2)} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-mode")) != 0 {
 var s = hi.Get("x-amz-object-lock-mode")
-var x, err2 = import_ObjectLockMode(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-mode", err2)} else {i.ObjectLockMode = x}}
+var x, err2 = intern_ObjectLockMode(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-mode", err2)} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-tagging")) != 0 {
 i.Tagging = thing_pointer(hi.Get("x-amz-tagging"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-copy-source-server-side-encryption-customer-key-MD5")) != 0 {
 i.CopySourceSSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-copy-source-server-side-encryption-customer-key-MD5"))}
 if len(hi.Values("x-amz-copy-source-server-side-encryption-customer-key")) != 0 {
@@ -194,7 +196,7 @@ i.CopySourceSSECustomerAlgorithm = thing_pointer(hi.Get("x-amz-copy-source-serve
 if len(hi.Values("x-amz-server-side-encryption-bucket-key-enabled")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption-bucket-key-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-server-side-encryption-bucket-key-enabled", err2)} else {i.BucketKeyEnabled = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-server-side-encryption-bucket-key-enabled", err2)} else {i.BucketKeyEnabled = &x}}
 if len(hi.Values("x-amz-server-side-encryption-context")) != 0 {
 i.SSEKMSEncryptionContext = thing_pointer(hi.Get("x-amz-server-side-encryption-context"))}
 if len(hi.Values("x-amz-server-side-encryption-aws-kms-key-id")) != 0 {
@@ -209,20 +211,20 @@ if len(hi.Values("x-amz-website-redirect-location")) != 0 {
 i.WebsiteRedirectLocation = thing_pointer(hi.Get("x-amz-website-redirect-location"))}
 if len(hi.Values("x-amz-storage-class")) != 0 {
 var s = hi.Get("x-amz-storage-class")
-var x, err2 = import_StorageClass(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-storage-class", err2)} else {i.StorageClass = x}}
+var x, err2 = intern_StorageClass(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-storage-class", err2)} else {i.StorageClass = x}}
 if len(hi.Values("x-amz-server-side-encryption")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption")
-var x, err2 = import_ServerSideEncryption(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-server-side-encryption", err2)} else {i.ServerSideEncryption = x}}
+var x, err2 = intern_ServerSideEncryption(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-server-side-encryption", err2)} else {i.ServerSideEncryption = x}}
 if len(hi.Values("x-amz-tagging-directive")) != 0 {
 var s = hi.Get("x-amz-tagging-directive")
-var x, err2 = import_TaggingDirective(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-tagging-directive", err2)} else {i.TaggingDirective = x}}
+var x, err2 = intern_TaggingDirective(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-tagging-directive", err2)} else {i.TaggingDirective = x}}
 if len(hi.Values("x-amz-metadata-directive")) != 0 {
 var s = hi.Get("x-amz-metadata-directive")
-var x, err2 = import_MetadataDirective(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-metadata-directive", err2)} else {i.MetadataDirective = x}}
+var x, err2 = intern_MetadataDirective(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-metadata-directive", err2)} else {i.MetadataDirective = x}}
 if len(hi.Values("x-amz-meta-")) != 0 {
 var prefix = http.CanonicalHeaderKey("x-amz-meta-")
 var bin map[string]string
@@ -242,17 +244,17 @@ i.GrantFullControl = thing_pointer(hi.Get("x-amz-grant-full-control"))}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "Expires", err2)} else {i.Expires = &x}}
+if err2 != nil {h_record_input_error(ctx, "Expires", err2)} else {i.Expires = &x}}
 if len(hi.Values("x-amz-copy-source-if-unmodified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-unmodified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-copy-source-if-unmodified-since", err2)} else {i.CopySourceIfUnmodifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-copy-source-if-unmodified-since", err2)} else {i.CopySourceIfUnmodifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-none-match")) != 0 {
 i.CopySourceIfNoneMatch = thing_pointer(hi.Get("x-amz-copy-source-if-none-match"))}
 if len(hi.Values("x-amz-copy-source-if-modified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-modified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-copy-source-if-modified-since", err2)} else {i.CopySourceIfModifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-copy-source-if-modified-since", err2)} else {i.CopySourceIfModifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-match")) != 0 {
 i.CopySourceIfMatch = thing_pointer(hi.Get("x-amz-copy-source-if-match"))}
 if len(hi.Values("x-amz-copy-source")) != 0 {
@@ -267,16 +269,16 @@ if len(hi.Values("Content-Disposition")) != 0 {
 i.ContentDisposition = thing_pointer(hi.Get("Content-Disposition"))}
 if len(hi.Values("x-amz-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-checksum-algorithm")
-var x, err2 = import_ChecksumAlgorithm(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
+var x, err2 = intern_ChecksumAlgorithm(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("Cache-Control")) != 0 {
 i.CacheControl = thing_pointer(hi.Get("Cache-Control"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
-var x, err2 = import_ObjectCannedACL(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
+var x, err2 = intern_ObjectCannedACL(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
 var o, err5 = bbs.CopyObject(ctx, &i)
 if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
 var s = s_CopyObjectResponse(*o)
@@ -315,18 +317,17 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.CreateBucketInput{}
 if len(hi.Values("x-amz-object-ownership")) != 0 {
 var s = hi.Get("x-amz-object-ownership")
-var x, err2 = import_ObjectOwnership(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-ownership", err2)} else {i.ObjectOwnership = x}}
+var x, err2 = intern_ObjectOwnership(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-ownership", err2)} else {i.ObjectOwnership = x}}
 if len(hi.Values("x-amz-bucket-object-lock-enabled")) != 0 {
 var s = hi.Get("x-amz-bucket-object-lock-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-bucket-object-lock-enabled", err2)} else {i.ObjectLockEnabledForBucket = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-bucket-object-lock-enabled", err2)} else {i.ObjectLockEnabledForBucket = &x}}
 if len(hi.Values("x-amz-grant-write-acp")) != 0 {
 i.GrantWriteACP = thing_pointer(hi.Get("x-amz-grant-write-acp"))}
 if len(hi.Values("x-amz-grant-write")) != 0 {
@@ -341,8 +342,8 @@ i.GrantFullControl = thing_pointer(hi.Get("x-amz-grant-full-control"))}
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
-var x, err2 = import_BucketCannedACL(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
+var x, err2 = intern_BucketCannedACL(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
 {var x types.CreateBucketConfiguration
 var bs, err1 = io.ReadAll(r.Body)
 if err1 != nil {panic(fmt.Errorf("No http body for types.CreateBucketConfiguration: %w", err1))}
@@ -371,42 +372,41 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.CreateMultipartUploadInput{}
 if len(hi.Values("x-amz-checksum-type")) != 0 {
 var s = hi.Get("x-amz-checksum-type")
-var x, err2 = import_ChecksumType(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-checksum-type", err2)} else {i.ChecksumType = x}}
+var x, err2 = intern_ChecksumType(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-checksum-type", err2)} else {i.ChecksumType = x}}
 if len(hi.Values("x-amz-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-checksum-algorithm")
-var x, err2 = import_ChecksumAlgorithm(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
+var x, err2 = intern_ChecksumAlgorithm(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
-var x, err2 = import_ObjectLockLegalHoldStatus(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-legal-hold", err2)} else {i.ObjectLockLegalHoldStatus = x}}
+var x, err2 = intern_ObjectLockLegalHoldStatus(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-legal-hold", err2)} else {i.ObjectLockLegalHoldStatus = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-retain-until-date", err2)} else {i.ObjectLockRetainUntilDate = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-retain-until-date", err2)} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-mode")) != 0 {
 var s = hi.Get("x-amz-object-lock-mode")
-var x, err2 = import_ObjectLockMode(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-mode", err2)} else {i.ObjectLockMode = x}}
+var x, err2 = intern_ObjectLockMode(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-mode", err2)} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-tagging")) != 0 {
 i.Tagging = thing_pointer(hi.Get("x-amz-tagging"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-server-side-encryption-bucket-key-enabled")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption-bucket-key-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-server-side-encryption-bucket-key-enabled", err2)} else {i.BucketKeyEnabled = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-server-side-encryption-bucket-key-enabled", err2)} else {i.BucketKeyEnabled = &x}}
 if len(hi.Values("x-amz-server-side-encryption-context")) != 0 {
 i.SSEKMSEncryptionContext = thing_pointer(hi.Get("x-amz-server-side-encryption-context"))}
 if len(hi.Values("x-amz-server-side-encryption-aws-kms-key-id")) != 0 {
@@ -421,12 +421,12 @@ if len(hi.Values("x-amz-website-redirect-location")) != 0 {
 i.WebsiteRedirectLocation = thing_pointer(hi.Get("x-amz-website-redirect-location"))}
 if len(hi.Values("x-amz-storage-class")) != 0 {
 var s = hi.Get("x-amz-storage-class")
-var x, err2 = import_StorageClass(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-storage-class", err2)} else {i.StorageClass = x}}
+var x, err2 = intern_StorageClass(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-storage-class", err2)} else {i.StorageClass = x}}
 if len(hi.Values("x-amz-server-side-encryption")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption")
-var x, err2 = import_ServerSideEncryption(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-server-side-encryption", err2)} else {i.ServerSideEncryption = x}}
+var x, err2 = intern_ServerSideEncryption(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-server-side-encryption", err2)} else {i.ServerSideEncryption = x}}
 if len(hi.Values("x-amz-meta-")) != 0 {
 var prefix = http.CanonicalHeaderKey("x-amz-meta-")
 var bin map[string]string
@@ -446,7 +446,7 @@ i.GrantFullControl = thing_pointer(hi.Get("x-amz-grant-full-control"))}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "Expires", err2)} else {i.Expires = &x}}
+if err2 != nil {h_record_input_error(ctx, "Expires", err2)} else {i.Expires = &x}}
 if len(hi.Values("Content-Type")) != 0 {
 i.ContentType = thing_pointer(hi.Get("Content-Type"))}
 if len(hi.Values("Content-Language")) != 0 {
@@ -461,8 +461,8 @@ i.CacheControl = thing_pointer(hi.Get("Cache-Control"))}
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
-var x, err2 = import_ObjectCannedACL(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
+var x, err2 = intern_ObjectCannedACL(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
 var o, err5 = bbs.CreateMultipartUpload(ctx, &i)
 if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
 var s = s_CreateMultipartUploadResponse(*o)
@@ -503,9 +503,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.DeleteBucketInput{}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
@@ -524,18 +523,17 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.DeleteObjectInput{}
 if len(hi.Values("x-amz-if-match-size")) != 0 {
 var s = hi.Get("x-amz-if-match-size")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-if-match-size", err2)} else {i.IfMatchSize = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-if-match-size", err2)} else {i.IfMatchSize = &x}}
 if len(hi.Values("x-amz-if-match-last-modified-time")) != 0 {
 var s = hi.Get("x-amz-if-match-last-modified-time")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-if-match-last-modified-time", err2)} else {i.IfMatchLastModifiedTime = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-if-match-last-modified-time", err2)} else {i.IfMatchLastModifiedTime = &x}}
 if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
@@ -543,11 +541,11 @@ i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-bypass-governance-retention")) != 0 {
 var s = hi.Get("x-amz-bypass-governance-retention")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-bypass-governance-retention", err2)} else {i.BypassGovernanceRetention = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-bypass-governance-retention", err2)} else {i.BypassGovernanceRetention = &x}}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if qi.Has("versionId") {
 i.VersionId = thing_pointer(qi.Get("versionId"))}
 if len(hi.Values("x-amz-mfa")) != 0 {
@@ -580,24 +578,23 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.DeleteObjectsInput{}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
-var x, err2 = import_ChecksumAlgorithm(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
+var x, err2 = intern_ChecksumAlgorithm(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-bypass-governance-retention")) != 0 {
 var s = hi.Get("x-amz-bypass-governance-retention")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-bypass-governance-retention", err2)} else {i.BypassGovernanceRetention = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-bypass-governance-retention", err2)} else {i.BypassGovernanceRetention = &x}}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-mfa")) != 0 {
 i.MFA = thing_pointer(hi.Get("x-amz-mfa"))}
 {var x = r.PathValue("bucket")
@@ -628,9 +625,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.DeleteObjectTaggingInput{}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
@@ -660,25 +656,24 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.GetObjectInput{}
 if len(hi.Values("x-amz-checksum-mode")) != 0 {
 var s = hi.Get("x-amz-checksum-mode")
-var x, err2 = import_ChecksumMode(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-checksum-mode", err2)} else {i.ChecksumMode = x}}
+var x, err2 = intern_ChecksumMode(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-checksum-mode", err2)} else {i.ChecksumMode = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
+if err2 != nil {h_record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-key")) != 0 {
@@ -690,7 +685,7 @@ i.VersionId = thing_pointer(qi.Get("versionId"))}
 if qi.Has("response-expires") {
 var s = qi.Get("response-expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "response-expires", err2)} else {i.ResponseExpires = &x}}
+if err2 != nil {h_record_input_error(ctx, "response-expires", err2)} else {i.ResponseExpires = &x}}
 if qi.Has("response-content-type") {
 i.ResponseContentType = thing_pointer(qi.Get("response-content-type"))}
 if qi.Has("response-content-language") {
@@ -708,13 +703,13 @@ if x != "" {i.Key = &x}}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var s = hi.Get("If-Unmodified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "If-Unmodified-Since", err2)} else {i.IfUnmodifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "If-Unmodified-Since", err2)} else {i.IfUnmodifiedSince = &x}}
 if len(hi.Values("If-None-Match")) != 0 {
 i.IfNoneMatch = thing_pointer(hi.Get("If-None-Match"))}
 if len(hi.Values("If-Modified-Since")) != 0 {
 var s = hi.Get("If-Modified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "If-Modified-Since", err2)} else {i.IfModifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "If-Modified-Since", err2)} else {i.IfModifiedSince = &x}}
 if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = thing_pointer(hi.Get("If-Match"))}
 {var x = r.PathValue("bucket")
@@ -811,24 +806,23 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.GetObjectAttributesInput{}
 if len(hi.Values("x-amz-object-attributes")) != 0 {
 var rhs = hi.Values("x-amz-object-attributes")
 var bin []types.ObjectAttributes
 for _, v := range slices.All(rhs) {
 var s = v
-var x, err2 = import_ObjectAttributes(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-attributes", err2)} else {bin = append(bin, x)}}
+var x, err2 = intern_ObjectAttributes(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-attributes", err2)} else {bin = append(bin, x)}}
 i.ObjectAttributes = bin}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-key")) != 0 {
@@ -841,7 +835,7 @@ if len(hi.Values("x-amz-max-parts")) != 0 {
 var s = hi.Get("x-amz-max-parts")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-max-parts", err2)} else {i.MaxParts = &x2}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-max-parts", err2)} else {i.MaxParts = &x2}}
 if qi.Has("versionId") {
 i.VersionId = thing_pointer(qi.Get("versionId"))}
 {var x = r.PathValue("key")
@@ -874,14 +868,13 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.GetObjectTaggingInput{}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if qi.Has("versionId") {
@@ -910,9 +903,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.HeadBucketInput{}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
@@ -946,25 +938,24 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.HeadObjectInput{}
 if len(hi.Values("x-amz-checksum-mode")) != 0 {
 var s = hi.Get("x-amz-checksum-mode")
-var x, err2 = import_ChecksumMode(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-checksum-mode", err2)} else {i.ChecksumMode = x}}
+var x, err2 = intern_ChecksumMode(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-checksum-mode", err2)} else {i.ChecksumMode = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
+if err2 != nil {h_record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-key")) != 0 {
@@ -976,7 +967,7 @@ i.VersionId = thing_pointer(qi.Get("versionId"))}
 if qi.Has("response-expires") {
 var s = qi.Get("response-expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "response-expires", err2)} else {i.ResponseExpires = &x}}
+if err2 != nil {h_record_input_error(ctx, "response-expires", err2)} else {i.ResponseExpires = &x}}
 if qi.Has("response-content-type") {
 i.ResponseContentType = thing_pointer(qi.Get("response-content-type"))}
 if qi.Has("response-content-language") {
@@ -994,13 +985,13 @@ if x != "" {i.Key = &x}}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var s = hi.Get("If-Unmodified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "If-Unmodified-Since", err2)} else {i.IfUnmodifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "If-Unmodified-Since", err2)} else {i.IfUnmodifiedSince = &x}}
 if len(hi.Values("If-None-Match")) != 0 {
 i.IfNoneMatch = thing_pointer(hi.Get("If-None-Match"))}
 if len(hi.Values("If-Modified-Since")) != 0 {
 var s = hi.Get("If-Modified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "If-Modified-Since", err2)} else {i.IfModifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "If-Modified-Since", err2)} else {i.IfModifiedSince = &x}}
 if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = thing_pointer(hi.Get("If-Match"))}
 {var x = r.PathValue("bucket")
@@ -1099,9 +1090,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.ListBucketsInput{}
 if qi.Has("bucket-region") {
 i.BucketRegion = thing_pointer(qi.Get("bucket-region"))}
@@ -1113,7 +1103,7 @@ if qi.Has("max-buckets") {
 var s = qi.Get("max-buckets")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "max-buckets", err2)} else {i.MaxBuckets = &x2}}
+if err2 != nil {h_record_input_error(ctx, "max-buckets", err2)} else {i.MaxBuckets = &x2}}
 var o, err5 = bbs.ListBuckets(ctx, &i)
 if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
 var s = s_ListBucketsResponse(*o)
@@ -1132,14 +1122,13 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.ListMultipartUploadsInput{}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if qi.Has("upload-id-marker") {
@@ -1150,13 +1139,13 @@ if qi.Has("max-uploads") {
 var s = qi.Get("max-uploads")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "max-uploads", err2)} else {i.MaxUploads = &x2}}
+if err2 != nil {h_record_input_error(ctx, "max-uploads", err2)} else {i.MaxUploads = &x2}}
 if qi.Has("key-marker") {
 i.KeyMarker = thing_pointer(qi.Get("key-marker"))}
 if qi.Has("encoding-type") {
 var s = qi.Get("encoding-type")
-var x, err2 = import_EncodingType(s)
-if err2 != nil {bbs.record_input_error(ctx, "encoding-type", err2)} else {i.EncodingType = x}}
+var x, err2 = intern_EncodingType(s)
+if err2 != nil {h_record_input_error(ctx, "encoding-type", err2)} else {i.EncodingType = x}}
 if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
 {var x = r.PathValue("bucket")
@@ -1181,37 +1170,36 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.ListObjectsInput{}
 if len(hi.Values("x-amz-optional-object-attributes")) != 0 {
 var rhs = hi.Values("x-amz-optional-object-attributes")
 var bin []types.OptionalObjectAttributes
 for _, v := range slices.All(rhs) {
 var s = v
-var x, err2 = import_OptionalObjectAttributes(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-optional-object-attributes", err2)} else {bin = append(bin, x)}}
+var x, err2 = intern_OptionalObjectAttributes(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-optional-object-attributes", err2)} else {bin = append(bin, x)}}
 i.OptionalObjectAttributes = bin}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if qi.Has("prefix") {
 i.Prefix = thing_pointer(qi.Get("prefix"))}
 if qi.Has("max-keys") {
 var s = qi.Get("max-keys")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "max-keys", err2)} else {i.MaxKeys = &x2}}
+if err2 != nil {h_record_input_error(ctx, "max-keys", err2)} else {i.MaxKeys = &x2}}
 if qi.Has("marker") {
 i.Marker = thing_pointer(qi.Get("marker"))}
 if qi.Has("encoding-type") {
 var s = qi.Get("encoding-type")
-var x, err2 = import_EncodingType(s)
-if err2 != nil {bbs.record_input_error(ctx, "encoding-type", err2)} else {i.EncodingType = x}}
+var x, err2 = intern_EncodingType(s)
+if err2 != nil {h_record_input_error(ctx, "encoding-type", err2)} else {i.EncodingType = x}}
 if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
 {var x = r.PathValue("bucket")
@@ -1236,30 +1224,29 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.ListObjectsV2Input{}
 if len(hi.Values("x-amz-optional-object-attributes")) != 0 {
 var rhs = hi.Values("x-amz-optional-object-attributes")
 var bin []types.OptionalObjectAttributes
 for _, v := range slices.All(rhs) {
 var s = v
-var x, err2 = import_OptionalObjectAttributes(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-optional-object-attributes", err2)} else {bin = append(bin, x)}}
+var x, err2 = intern_OptionalObjectAttributes(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-optional-object-attributes", err2)} else {bin = append(bin, x)}}
 i.OptionalObjectAttributes = bin}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if qi.Has("start-after") {
 i.StartAfter = thing_pointer(qi.Get("start-after"))}
 if qi.Has("fetch-owner") {
 var s = qi.Get("fetch-owner")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {bbs.record_input_error(ctx, "fetch-owner", err2)} else {i.FetchOwner = &x}}
+if err2 != nil {h_record_input_error(ctx, "fetch-owner", err2)} else {i.FetchOwner = &x}}
 if qi.Has("continuation-token") {
 i.ContinuationToken = thing_pointer(qi.Get("continuation-token"))}
 if qi.Has("prefix") {
@@ -1268,11 +1255,11 @@ if qi.Has("max-keys") {
 var s = qi.Get("max-keys")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "max-keys", err2)} else {i.MaxKeys = &x2}}
+if err2 != nil {h_record_input_error(ctx, "max-keys", err2)} else {i.MaxKeys = &x2}}
 if qi.Has("encoding-type") {
 var s = qi.Get("encoding-type")
-var x, err2 = import_EncodingType(s)
-if err2 != nil {bbs.record_input_error(ctx, "encoding-type", err2)} else {i.EncodingType = x}}
+var x, err2 = intern_EncodingType(s)
+if err2 != nil {h_record_input_error(ctx, "encoding-type", err2)} else {i.EncodingType = x}}
 if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
 {var x = r.PathValue("bucket")
@@ -1297,9 +1284,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.ListPartsInput{}
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
@@ -1311,8 +1297,8 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if qi.Has("uploadId") {
 i.UploadId = thing_pointer(qi.Get("uploadId"))}
 if qi.Has("part-number-marker") {
@@ -1321,7 +1307,7 @@ if qi.Has("max-parts") {
 var s = qi.Get("max-parts")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "max-parts", err2)} else {i.MaxParts = &x2}}
+if err2 != nil {h_record_input_error(ctx, "max-parts", err2)} else {i.MaxParts = &x2}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
 {var x = r.PathValue("bucket")
@@ -1350,34 +1336,33 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.PutObjectInput{}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
-var x, err2 = import_ObjectLockLegalHoldStatus(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-legal-hold", err2)} else {i.ObjectLockLegalHoldStatus = x}}
+var x, err2 = intern_ObjectLockLegalHoldStatus(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-legal-hold", err2)} else {i.ObjectLockLegalHoldStatus = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-retain-until-date", err2)} else {i.ObjectLockRetainUntilDate = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-retain-until-date", err2)} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-mode")) != 0 {
 var s = hi.Get("x-amz-object-lock-mode")
-var x, err2 = import_ObjectLockMode(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-object-lock-mode", err2)} else {i.ObjectLockMode = x}}
+var x, err2 = intern_ObjectLockMode(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-object-lock-mode", err2)} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-tagging")) != 0 {
 i.Tagging = thing_pointer(hi.Get("x-amz-tagging"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-server-side-encryption-bucket-key-enabled")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption-bucket-key-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-server-side-encryption-bucket-key-enabled", err2)} else {i.BucketKeyEnabled = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-server-side-encryption-bucket-key-enabled", err2)} else {i.BucketKeyEnabled = &x}}
 if len(hi.Values("x-amz-server-side-encryption-context")) != 0 {
 i.SSEKMSEncryptionContext = thing_pointer(hi.Get("x-amz-server-side-encryption-context"))}
 if len(hi.Values("x-amz-server-side-encryption-aws-kms-key-id")) != 0 {
@@ -1392,12 +1377,12 @@ if len(hi.Values("x-amz-website-redirect-location")) != 0 {
 i.WebsiteRedirectLocation = thing_pointer(hi.Get("x-amz-website-redirect-location"))}
 if len(hi.Values("x-amz-storage-class")) != 0 {
 var s = hi.Get("x-amz-storage-class")
-var x, err2 = import_StorageClass(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-storage-class", err2)} else {i.StorageClass = x}}
+var x, err2 = intern_StorageClass(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-storage-class", err2)} else {i.StorageClass = x}}
 if len(hi.Values("x-amz-server-side-encryption")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption")
-var x, err2 = import_ServerSideEncryption(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-server-side-encryption", err2)} else {i.ServerSideEncryption = x}}
+var x, err2 = intern_ServerSideEncryption(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-server-side-encryption", err2)} else {i.ServerSideEncryption = x}}
 if len(hi.Values("x-amz-meta-")) != 0 {
 var prefix = http.CanonicalHeaderKey("x-amz-meta-")
 var bin map[string]string
@@ -1407,7 +1392,7 @@ i.Metadata = bin}
 if len(hi.Values("x-amz-write-offset-bytes")) != 0 {
 var s = hi.Get("x-amz-write-offset-bytes")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-write-offset-bytes", err2)} else {i.WriteOffsetBytes = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-write-offset-bytes", err2)} else {i.WriteOffsetBytes = &x}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
 if len(hi.Values("x-amz-grant-write-acp")) != 0 {
@@ -1425,7 +1410,7 @@ i.IfMatch = thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "Expires", err2)} else {i.Expires = &x}}
+if err2 != nil {h_record_input_error(ctx, "Expires", err2)} else {i.Expires = &x}}
 if len(hi.Values("x-amz-checksum-sha256")) != 0 {
 i.ChecksumSHA256 = thing_pointer(hi.Get("x-amz-checksum-sha256"))}
 if len(hi.Values("x-amz-checksum-sha1")) != 0 {
@@ -1438,8 +1423,8 @@ if len(hi.Values("x-amz-checksum-crc32")) != 0 {
 i.ChecksumCRC32 = thing_pointer(hi.Get("x-amz-checksum-crc32"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
-var x, err2 = import_ChecksumAlgorithm(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
+var x, err2 = intern_ChecksumAlgorithm(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("Content-Type")) != 0 {
 i.ContentType = thing_pointer(hi.Get("Content-Type"))}
 if len(hi.Values("Content-MD5")) != 0 {
@@ -1447,7 +1432,7 @@ i.ContentMD5 = thing_pointer(hi.Get("Content-MD5"))}
 if len(hi.Values("Content-Length")) != 0 {
 var s = hi.Get("Content-Length")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {bbs.record_input_error(ctx, "Content-Length", err2)} else {i.ContentLength = &x}}
+if err2 != nil {h_record_input_error(ctx, "Content-Length", err2)} else {i.ContentLength = &x}}
 if len(hi.Values("Content-Language")) != 0 {
 i.ContentLanguage = thing_pointer(hi.Get("Content-Language"))}
 if len(hi.Values("Content-Encoding")) != 0 {
@@ -1460,8 +1445,8 @@ i.CacheControl = thing_pointer(hi.Get("Cache-Control"))}
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
-var x, err2 = import_ObjectCannedACL(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
+var x, err2 = intern_ObjectCannedACL(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-acl", err2)} else {i.ACL = x}}
 var o, err5 = bbs.PutObject(ctx, &i)
 if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
 var s = s_PutObjectResponse(*o)
@@ -1514,20 +1499,19 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.PutObjectTaggingInput{}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
-var x, err2 = import_ChecksumAlgorithm(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
+var x, err2 = intern_ChecksumAlgorithm(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("Content-MD5")) != 0 {
 i.ContentMD5 = thing_pointer(hi.Get("Content-MD5"))}
 if qi.Has("versionId") {
@@ -1562,16 +1546,15 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.UploadPartInput{}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-key")) != 0 {
@@ -1584,7 +1567,7 @@ if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
+if err2 != nil {h_record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
 if len(hi.Values("x-amz-checksum-sha256")) != 0 {
@@ -1599,14 +1582,14 @@ if len(hi.Values("x-amz-checksum-crc32")) != 0 {
 i.ChecksumCRC32 = thing_pointer(hi.Get("x-amz-checksum-crc32"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
-var x, err2 = import_ChecksumAlgorithm(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
+var x, err2 = intern_ChecksumAlgorithm(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-sdk-checksum-algorithm", err2)} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("Content-MD5")) != 0 {
 i.ContentMD5 = thing_pointer(hi.Get("Content-MD5"))}
 if len(hi.Values("Content-Length")) != 0 {
 var s = hi.Get("Content-Length")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {bbs.record_input_error(ctx, "Content-Length", err2)} else {i.ContentLength = &x}}
+if err2 != nil {h_record_input_error(ctx, "Content-Length", err2)} else {i.ContentLength = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
 var o, err5 = bbs.UploadPart(ctx, &i)
@@ -1651,9 +1634,8 @@ var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
 var ctx1 = r.Context()
-var input_errors = []Bb_input_error_record{}
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", &input_errors)
+var ctx = context.WithValue(ctx2, "input-errors", map[string]error{})
 var i = s3.UploadPartCopyInput{}
 if len(hi.Values("x-amz-source-expected-bucket-owner")) != 0 {
 i.ExpectedSourceBucketOwner = thing_pointer(hi.Get("x-amz-source-expected-bucket-owner"))}
@@ -1661,8 +1643,8 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
-var x, err2 = import_RequestPayer(s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
+var x, err2 = intern_RequestPayer(s)
+if err2 != nil {h_record_input_error(ctx, "x-amz-request-payer", err2)} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-copy-source-server-side-encryption-customer-key-MD5")) != 0 {
 i.CopySourceSSECustomerKeyMD5 = thing_pointer(hi.Get("x-amz-copy-source-server-side-encryption-customer-key-MD5"))}
 if len(hi.Values("x-amz-copy-source-server-side-encryption-customer-key")) != 0 {
@@ -1681,7 +1663,7 @@ if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {bbs.record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
+if err2 != nil {h_record_input_error(ctx, "partNumber", err2)} else {i.PartNumber = &x2}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
 if len(hi.Values("x-amz-copy-source-range")) != 0 {
@@ -1689,13 +1671,13 @@ i.CopySourceRange = thing_pointer(hi.Get("x-amz-copy-source-range"))}
 if len(hi.Values("x-amz-copy-source-if-unmodified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-unmodified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-copy-source-if-unmodified-since", err2)} else {i.CopySourceIfUnmodifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-copy-source-if-unmodified-since", err2)} else {i.CopySourceIfUnmodifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-none-match")) != 0 {
 i.CopySourceIfNoneMatch = thing_pointer(hi.Get("x-amz-copy-source-if-none-match"))}
 if len(hi.Values("x-amz-copy-source-if-modified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-modified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {bbs.record_input_error(ctx, "x-amz-copy-source-if-modified-since", err2)} else {i.CopySourceIfModifiedSince = &x}}
+if err2 != nil {h_record_input_error(ctx, "x-amz-copy-source-if-modified-since", err2)} else {i.CopySourceIfModifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-match")) != 0 {
 i.CopySourceIfMatch = thing_pointer(hi.Get("x-amz-copy-source-if-match"))}
 if len(hi.Values("x-amz-copy-source")) != 0 {
@@ -1727,15 +1709,15 @@ w.WriteHeader(status)
 var _, err7 = w.Write(co)
 if err7 != nil {log.Fatal(err7)}
 }
-func import_BucketCannedACL(s string) (types.BucketCannedACL, error) {
+func intern_BucketCannedACL(s string) (types.BucketCannedACL, error) {
 switch s {
 case "private": return types.BucketCannedACLPrivate, nil
 case "public-read": return types.BucketCannedACLPublicRead, nil
 case "public-read-write": return types.BucketCannedACLPublicReadWrite, nil
 case "authenticated-read": return types.BucketCannedACLAuthenticatedRead, nil
-default: var err3 = fmt.Errorf("interning an enum (types.BucketCannedACL) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.BucketCannedACL", s}
 return "_invalid_", err3}}
-func import_BucketLocationConstraint(s string) (types.BucketLocationConstraint, error) {
+func intern_BucketLocationConstraint(s string) (types.BucketLocationConstraint, error) {
 switch s {
 case "af-south-1": return types.BucketLocationConstraintAfSouth1, nil
 case "ap-east-1": return types.BucketLocationConstraintApEast1, nil
@@ -1770,66 +1752,66 @@ case "us-gov-east-1": return types.BucketLocationConstraintUsGovEast1, nil
 case "us-gov-west-1": return types.BucketLocationConstraintUsGovWest1, nil
 case "us-west-1": return types.BucketLocationConstraintUsWest1, nil
 case "us-west-2": return types.BucketLocationConstraintUsWest2, nil
-default: var err3 = fmt.Errorf("interning an enum (types.BucketLocationConstraint) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.BucketLocationConstraint", s}
 return "_invalid_", err3}}
-func import_BucketType(s string) (types.BucketType, error) {
+func intern_BucketType(s string) (types.BucketType, error) {
 switch s {
 case "Directory": return types.BucketTypeDirectory, nil
-default: var err3 = fmt.Errorf("interning an enum (types.BucketType) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.BucketType", s}
 return "_invalid_", err3}}
-func import_ChecksumAlgorithm(s string) (types.ChecksumAlgorithm, error) {
+func intern_ChecksumAlgorithm(s string) (types.ChecksumAlgorithm, error) {
 switch s {
 case "CRC32": return types.ChecksumAlgorithmCrc32, nil
 case "CRC32C": return types.ChecksumAlgorithmCrc32c, nil
 case "SHA1": return types.ChecksumAlgorithmSha1, nil
 case "SHA256": return types.ChecksumAlgorithmSha256, nil
 case "CRC64NVME": return types.ChecksumAlgorithmCrc64nvme, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ChecksumAlgorithm) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ChecksumAlgorithm", s}
 return "_invalid_", err3}}
-func import_ChecksumMode(s string) (types.ChecksumMode, error) {
+func intern_ChecksumMode(s string) (types.ChecksumMode, error) {
 switch s {
 case "ENABLED": return types.ChecksumModeEnabled, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ChecksumMode) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ChecksumMode", s}
 return "_invalid_", err3}}
-func import_ChecksumType(s string) (types.ChecksumType, error) {
+func intern_ChecksumType(s string) (types.ChecksumType, error) {
 switch s {
 case "COMPOSITE": return types.ChecksumTypeComposite, nil
 case "FULL_OBJECT": return types.ChecksumTypeFullObject, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ChecksumType) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ChecksumType", s}
 return "_invalid_", err3}}
-func import_DataRedundancy(s string) (types.DataRedundancy, error) {
+func intern_DataRedundancy(s string) (types.DataRedundancy, error) {
 switch s {
 case "SingleAvailabilityZone": return types.DataRedundancySingleAvailabilityZone, nil
 case "SingleLocalZone": return types.DataRedundancySingleLocalZone, nil
-default: var err3 = fmt.Errorf("interning an enum (types.DataRedundancy) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.DataRedundancy", s}
 return "_invalid_", err3}}
-func import_EncodingType(s string) (types.EncodingType, error) {
+func intern_EncodingType(s string) (types.EncodingType, error) {
 switch s {
 case "url": return types.EncodingTypeUrl, nil
-default: var err3 = fmt.Errorf("interning an enum (types.EncodingType) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.EncodingType", s}
 return "_invalid_", err3}}
-func import_LocationType(s string) (types.LocationType, error) {
+func intern_LocationType(s string) (types.LocationType, error) {
 switch s {
 case "AvailabilityZone": return types.LocationTypeAvailabilityZone, nil
 case "LocalZone": return types.LocationTypeLocalZone, nil
-default: var err3 = fmt.Errorf("interning an enum (types.LocationType) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.LocationType", s}
 return "_invalid_", err3}}
-func import_MetadataDirective(s string) (types.MetadataDirective, error) {
+func intern_MetadataDirective(s string) (types.MetadataDirective, error) {
 switch s {
 case "COPY": return types.MetadataDirectiveCopy, nil
 case "REPLACE": return types.MetadataDirectiveReplace, nil
-default: var err3 = fmt.Errorf("interning an enum (types.MetadataDirective) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.MetadataDirective", s}
 return "_invalid_", err3}}
-func import_ObjectAttributes(s string) (types.ObjectAttributes, error) {
+func intern_ObjectAttributes(s string) (types.ObjectAttributes, error) {
 switch s {
 case "ETag": return types.ObjectAttributesEtag, nil
 case "Checksum": return types.ObjectAttributesChecksum, nil
 case "ObjectParts": return types.ObjectAttributesObjectParts, nil
 case "StorageClass": return types.ObjectAttributesStorageClass, nil
 case "ObjectSize": return types.ObjectAttributesObjectSize, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ObjectAttributes) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ObjectAttributes", s}
 return "_invalid_", err3}}
-func import_ObjectCannedACL(s string) (types.ObjectCannedACL, error) {
+func intern_ObjectCannedACL(s string) (types.ObjectCannedACL, error) {
 switch s {
 case "private": return types.ObjectCannedACLPrivate, nil
 case "public-read": return types.ObjectCannedACLPublicRead, nil
@@ -1838,46 +1820,46 @@ case "authenticated-read": return types.ObjectCannedACLAuthenticatedRead, nil
 case "aws-exec-read": return types.ObjectCannedACLAwsExecRead, nil
 case "bucket-owner-read": return types.ObjectCannedACLBucketOwnerRead, nil
 case "bucket-owner-full-control": return types.ObjectCannedACLBucketOwnerFullControl, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ObjectCannedACL) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ObjectCannedACL", s}
 return "_invalid_", err3}}
-func import_ObjectLockLegalHoldStatus(s string) (types.ObjectLockLegalHoldStatus, error) {
+func intern_ObjectLockLegalHoldStatus(s string) (types.ObjectLockLegalHoldStatus, error) {
 switch s {
 case "ON": return types.ObjectLockLegalHoldStatusOn, nil
 case "OFF": return types.ObjectLockLegalHoldStatusOff, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ObjectLockLegalHoldStatus) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ObjectLockLegalHoldStatus", s}
 return "_invalid_", err3}}
-func import_ObjectLockMode(s string) (types.ObjectLockMode, error) {
+func intern_ObjectLockMode(s string) (types.ObjectLockMode, error) {
 switch s {
 case "GOVERNANCE": return types.ObjectLockModeGovernance, nil
 case "COMPLIANCE": return types.ObjectLockModeCompliance, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ObjectLockMode) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ObjectLockMode", s}
 return "_invalid_", err3}}
-func import_ObjectOwnership(s string) (types.ObjectOwnership, error) {
+func intern_ObjectOwnership(s string) (types.ObjectOwnership, error) {
 switch s {
 case "BucketOwnerPreferred": return types.ObjectOwnershipBucketOwnerPreferred, nil
 case "ObjectWriter": return types.ObjectOwnershipObjectWriter, nil
 case "BucketOwnerEnforced": return types.ObjectOwnershipBucketOwnerEnforced, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ObjectOwnership) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ObjectOwnership", s}
 return "_invalid_", err3}}
-func import_OptionalObjectAttributes(s string) (types.OptionalObjectAttributes, error) {
+func intern_OptionalObjectAttributes(s string) (types.OptionalObjectAttributes, error) {
 switch s {
 case "RestoreStatus": return types.OptionalObjectAttributesRestoreStatus, nil
-default: var err3 = fmt.Errorf("interning an enum (types.OptionalObjectAttributes) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.OptionalObjectAttributes", s}
 return "_invalid_", err3}}
-func import_RequestPayer(s string) (types.RequestPayer, error) {
+func intern_RequestPayer(s string) (types.RequestPayer, error) {
 switch s {
 case "requester": return types.RequestPayerRequester, nil
-default: var err3 = fmt.Errorf("interning an enum (types.RequestPayer) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.RequestPayer", s}
 return "_invalid_", err3}}
-func import_ServerSideEncryption(s string) (types.ServerSideEncryption, error) {
+func intern_ServerSideEncryption(s string) (types.ServerSideEncryption, error) {
 switch s {
 case "AES256": return types.ServerSideEncryptionAes256, nil
 case "aws:fsx": return types.ServerSideEncryptionAwsFsx, nil
 case "aws:kms": return types.ServerSideEncryptionAwsKms, nil
 case "aws:kms:dsse": return types.ServerSideEncryptionAwsKmsDsse, nil
-default: var err3 = fmt.Errorf("interning an enum (types.ServerSideEncryption) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.ServerSideEncryption", s}
 return "_invalid_", err3}}
-func import_StorageClass(s string) (types.StorageClass, error) {
+func intern_StorageClass(s string) (types.StorageClass, error) {
 switch s {
 case "STANDARD": return types.StorageClassStandard, nil
 case "REDUCED_REDUNDANCY": return types.StorageClassReducedRedundancy, nil
@@ -1891,12 +1873,12 @@ case "GLACIER_IR": return types.StorageClassGlacierIr, nil
 case "SNOW": return types.StorageClassSnow, nil
 case "EXPRESS_ONEZONE": return types.StorageClassExpressOnezone, nil
 case "FSX_OPENZFS": return types.StorageClassFsxOpenzfs, nil
-default: var err3 = fmt.Errorf("interning an enum (types.StorageClass) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.StorageClass", s}
 return "_invalid_", err3}}
-func import_TaggingDirective(s string) (types.TaggingDirective, error) {
+func intern_TaggingDirective(s string) (types.TaggingDirective, error) {
 switch s {
 case "COPY": return types.TaggingDirectiveCopy, nil
 case "REPLACE": return types.TaggingDirectiveReplace, nil
-default: var err3 = fmt.Errorf("interning an enum (types.TaggingDirective) %#v", s)
+default: var err3 = &Bb_enum_intern_error{"types.TaggingDirective", s}
 return "_invalid_", err3}}
 

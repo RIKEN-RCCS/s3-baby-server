@@ -966,7 +966,7 @@
   ;; A slot property of an enumeration-type is (slot name "Unit" ...),
   ;; and a name is a string representation of an enumerator.
   (append
-   (list (format #f "func import_~a(s string) (types.~a, error) {" type type)
+   (list (format #f "func intern_~a(s string) (types.~a, error) {" type type)
 	 (format #f "switch s {"))
    (map (lambda (property)
 	  (match-let (((slot name _ . _) property))
@@ -975,13 +975,13 @@
 	slot-properties)
    (list
     (string-append
-     (format #f "default: var err3 = fmt.Errorf")
-     (format #f "(\"interning an enum (types.~a) %#v\", s)" type))
+     (format #f "default: var err3 = &Bb_enum_intern_error")
+     (format #f "{\"types.~a\", s}" type))
     "return \"_invalid_\", err3}}")))
 
 (define (make-enumerator-importers list-of-types-in-requests)
   ;; Makes importer functions for enumerators.  Functions are named
-  ;; with an enumeration name prefixed by "import_".
+  ;; with an enumeration name prefixed by "intern_".
   (apply-append
    (map (lambda (type)
 	  (match-let* ((definition (assoc type list-of-types))
@@ -996,9 +996,9 @@
   ;; assigner makes an assignment.  It assumes a type-name is defined.
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind . slot-properties) definition))
-    (let ((record-error-clause
+    (let ((error-record-clause
 	   (string-append
-	    "if err2 != nil {bbs.record_input_error"
+	    "if err2 != nil {h_record_input_error"
 	    (format #f "(ctx, ~s, err2)}" name))))
       (cond
        ;; Primitive-types:
@@ -1009,7 +1009,7 @@
 	 (format #f "var s = ~a" rhs)
 	 (format #f "var x, err2 = strconv.ParseBool(s)")
 	 (string-append
-	  record-error-clause
+	  error-record-clause
 	  " else {"
 	  (assigner "&x")
 	  "}")))
@@ -1019,7 +1019,7 @@
 	 (format #f "var x1, err2 = strconv.ParseInt(s, 10, 32)")
 	 "var x2 = int32(x1)"
 	 (string-append
-	  record-error-clause
+	  error-record-clause
 	  " else {"
 	  (assigner "&x2")
 	  "}")))
@@ -1028,7 +1028,7 @@
 	 (format #f "var s = ~a" rhs)
 	 (format #f "var x, err2 = strconv.ParseInt(s, 10, 64)")
 	 (string-append
-	  record-error-clause
+	  error-record-clause
 	  " else {"
 	  (assigner "&x")
 	  "}")))
@@ -1044,7 +1044,7 @@
 	 (format #f "var s = ~a" rhs)
 	 (format #f "var x, err2 = time.Parse(time.RFC3339, s)")
 	 (string-append
-	  record-error-clause
+	  error-record-clause
 	  " else {"
 	  (assigner "&x")
 	  "}")))
@@ -1052,9 +1052,9 @@
        ((string=? type-kind "enum")
 	(list
 	 (format #f "var s = ~a" rhs)
-	 (format #f "var x, err2 = import_~a(s)" type-name)
+	 (format #f "var x, err2 = intern_~a(s)" type-name)
 	 (string-append
-	  record-error-clause
+	  error-record-clause
 	  " else {"
 	  (assigner "x")
 	  "}")))
@@ -1327,13 +1327,12 @@
 	   "// Mark variables used to avoid unused errors:"
 	   "var _, _, _ = qi, hi, ho"
 	   "var ctx1 = r.Context()"
-	   "var input_errors = []Bb_input_error_record{}"
 	   (string-append
 	    "var ctx2 = context.WithValue(ctx1, \"request-id\","
 	    " bbs.make_request_id())")
 	   (string-append
 	    "var ctx = context.WithValue(ctx2, \"input-errors\","
-	    " &input_errors)"))
+	    " map[string]error{})"))
      ;; Input accessors:
      (list (format #f "var i = s3.~a{}" input-name))
      (apply-append (map make-input-assignment properties))
@@ -1394,25 +1393,34 @@
 	      "")
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
-	  ")"
-	  "// Bb_enum_intern_error is an error returned when interning"
-	  "// enumerations."
-	  "type Bb_enum_intern_error struct {"
-	  "Enum string"
-	  "Name string"
-	  "}"
-	  "func (e *Bb_enum_intern_error) Error() string {"
-	  (string-append
-	   "return \"Enum \" + e.Enum + \" unknown key: \""
-	   " + strconv.Quote(e.Name)}")
-	  "// Bb_input_error_record is recorded in a context when an"
-	  "// error occurs on interning a parameter."
-	  "type Bb_input_error_record struct {"
-	  "Key string"
-	  "Err error"
-	  "}"
-	  "func (e *Bb_input_error_record) Error() string {"
-	  "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}"))
+	  ")"))
+   (list "// BB_ENUM_INTERN_ERROR is an error returned when interning"
+	 "// an enumeration."
+	 "type Bb_enum_intern_error struct {"
+	 "Enum string"
+	 "Name string"
+	 "}"
+	 "func (e *Bb_enum_intern_error) Error() string {"
+	 (string-append
+	  "return \"Enum \" + e.Enum + \" unknown key: \""
+	  " + strconv.Quote(e.Name)}")
+	 "// BB_INPUT_ERROR is recorded in a context when an error"
+	 "// occurs on interning a parameter."
+	 "type Bb_input_error struct {"
+	 "Key string"
+	 "Err error"
+	 "}"
+	 "func (e *Bb_input_error) Error() string {"
+	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}"
+	 "// RECORD_INPUT_ERROR is called on an error on interning a"
+	 "// parameter to record it in the context."
+	 (string-append
+	  "func h_record_input_error"
+	  "(ctx context.Context, key string, e error) {")
+	 ;;"var v = ctx.Value("input-errors").(*[]error)"
+	 ;;"*v = append(*v, Bb_input_error{key, e})}"
+	 "var m = ctx.Value(\"input-errors\").(map[string]error)"
+	 "m[key] = &Bb_input_error{key, e}}")
    (apply-append
     (map make-handler-function list-of-actions))))
 
@@ -1585,39 +1593,42 @@
 	  "import ("
 	  "\"context\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
-	  ")"
-	  "type Bb_server struct {}"
-	  "// MAKE_REQUEST_ID makes a new request-id."
-	  (string-append
-	   "func (bbs *Bb_server) make_request_id() string {"
-	   "panic(e)}")
-	  "// RESPOND_ON_ACTION_ERROR is called on an action error and"
-	  "// makes a response for it."
-	  (string-append
-	   "func (bbs *Bb_server) respond_on_action_error"
-	   "(ctx context.Context, w http.ResponseWriter,"
-	   " r *http.Request, e error) {"
-	   "panic(e)}")
-	  ;;"// RESPOND_ON_INPUT_ERROR is called on an error on"
-	  ;;"// interning enumerations and makes a response for it."
-	  ;;(string-append
-	  ;;"func (bbs *Bb_server) respond_on_input_error"
-	  ;;"(ctx context.Context, w http.ResponseWriter,"
-	  ;;" r *http.Request, name string) {"
-	  ;;"panic(fmt.Errorf(\"Bad parameter %s\", name))}")
-	  ;;"// RESPOND_ON_MISSING_INPUT is called on an internal error"
-	  ;;"// and makes a response for it."
-	  ;;(string-append
-	  ;;"func (bbs *Bb_server) respond_on_missing_input"
-	  ;;"(ctx context.Context, w http.ResponseWriter,"
-	  ;;" r *http.Request, name string) {"
-	  ;;"panic(fmt.Errorf(\"Missing path: %s\", name))}")
-	  "// RECORD_INPUT_ERROR is called on an error on interning a"
-	  "// parameter to record it in the context."
-	  (string-append
-	   "func (bbs *Bb_server) record_input_error"
-	   "(ctx context.Context, key string, e error) {"
-	   "panic(fmt.Errorf(\"Bad parameter to %s: %w\", key, e))}")))
+	  ")"))
+   (list "type Bb_server struct {}"
+	 "// MAKE_REQUEST_ID makes a new request-id."
+	 (string-append
+	  "func (bbs *Bb_server) make_request_id() string {"
+	  "panic(e)}")
+	 "// RESPOND_ON_ACTION_ERROR is called on an action error and"
+	 "// makes a response for it."
+	 (string-append
+	  "func (bbs *Bb_server) respond_on_action_error"
+	  "(ctx context.Context, w http.ResponseWriter,"
+	  " r *http.Request, e error) {"
+	  "panic(e)}"))
+   ;;"// RESPOND_ON_INPUT_ERROR is called on an error on"
+   ;;"// interning enumerations and makes a response for it."
+   ;;(string-append
+   ;;"func (bbs *Bb_server) respond_on_input_error"
+   ;;"(ctx context.Context, w http.ResponseWriter,"
+   ;;" r *http.Request, name string) {"
+   ;;"panic(fmt.Errorf(\"Bad parameter %s\", name))}")
+   ;;"// RESPOND_ON_MISSING_INPUT is called on an internal error"
+   ;;"// and makes a response for it."
+   ;;(string-append
+   ;;"func (bbs *Bb_server) respond_on_missing_input"
+   ;;"(ctx context.Context, w http.ResponseWriter,"
+   ;;" r *http.Request, name string) {"
+   ;;"panic(fmt.Errorf(\"Missing path: %s\", name))}")
+   ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
+   ;;"// parameter to record it in the context."
+   ;;"var v = ctx.Value("input-errors").(*[]Bb_input_error_record)"
+   ;;"*v = append(*v, Bb_input_error_record{key, e})}"
+   ;;(string-append
+   ;;	  "func record_input_error"
+   ;;	  "(ctx context.Context, key string, e error) {"
+   ;;	  "var m = ctx.Value(\"input-errors\").(map[string]error)"
+   ;;	  "v[key] = e}"))
    (apply-append
     (map make-api-template list-of-actions))))
 
