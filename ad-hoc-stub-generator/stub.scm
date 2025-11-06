@@ -998,8 +998,12 @@
 	       ((type-name type-kind . slot-properties) definition))
     (let ((error-record-clause
 	   (string-append
-	    "if err2 != nil {h_record_input_error"
-	    (format #f "(ctx, ~s, err2)}" name))))
+	    ;;"if err2 != nil {h_record_input_error"
+	    ;;(format #f "(ctx, ~s, err2)}" name)
+	    "if err2 != nil {"
+	    (format #f "input_errors[~s] = &Bb_input_error{~s, err2}"
+		    name name)
+	    "}")))
       (cond
        ;; Primitive-types:
        ((string=? type-kind "blob")
@@ -1326,13 +1330,14 @@
 	   "var ho = w.Header()"
 	   "// Mark variables used to avoid unused errors:"
 	   "var _, _, _ = qi, hi, ho"
+	   "var input_errors = map[string]error{}"
 	   "var ctx1 = r.Context()"
 	   (string-append
 	    "var ctx2 = context.WithValue(ctx1, \"request-id\","
 	    " bbs.make_request_id())")
 	   (string-append
 	    "var ctx = context.WithValue(ctx2, \"input-errors\","
-	    " map[string]error{})"))
+	    " input_errors)"))
      ;; Input accessors:
      (list (format #f "var i = s3.~a{}" input-name))
      (apply-append (map make-input-assignment properties))
@@ -1411,16 +1416,16 @@
 	 "Err error"
 	 "}"
 	 "func (e *Bb_input_error) Error() string {"
-	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}"
-	 "// RECORD_INPUT_ERROR is called on an error on interning a"
-	 "// parameter to record it in the context."
-	 (string-append
-	  "func h_record_input_error"
-	  "(ctx context.Context, key string, e error) {")
-	 ;;"var v = ctx.Value("input-errors").(*[]error)"
-	 ;;"*v = append(*v, Bb_input_error{key, e})}"
-	 "var m = ctx.Value(\"input-errors\").(map[string]error)"
-	 "m[key] = &Bb_input_error{key, e}}")
+	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}")
+   ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
+   ;;"// parameter to record it in the context."
+   ;;(string-append
+   ;; "func h_record_input_error"
+   ;; "(ctx context.Context, key string, e error) {")
+   ;;"var v = ctx.Value("input-errors").(*[]error)"
+   ;;"*v = append(*v, Bb_input_error{key, e})}"
+   ;;"var m = ctx.Value(\"input-errors\").(map[string]error)"
+   ;;"m[key] = &Bb_input_error{key, e}}"
    (apply-append
     (map make-handler-function list-of-actions))))
 
