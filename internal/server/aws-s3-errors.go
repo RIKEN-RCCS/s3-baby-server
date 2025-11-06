@@ -23,7 +23,7 @@ import (
 
 // Common elements of errors.  Attached tagging makes extending
 // structures will be marshaled with "Error" tag.
-type Error struct {
+type Aws_s3_Error struct {
 	XMLName xml.Name `xml:"Error"`
 	Code Aws_s3_error_code
 	Message string
@@ -31,19 +31,25 @@ type Error struct {
 	RequestId string
 }
 
-func (e Error) Error() string {
-	return fmt.Sprintf("%s: %s", e.ErrorCode(), e.ErrorMessage())
+func (e Aws_s3_Error) Error() string {
+	var code = e.ErrorCode()
+	var m = e.ErrorMessage()
+	if len(m) == 0 {
+		return fmt.Sprintf("%s", code)
+	} else {
+		return fmt.Sprintf("%s: %s", code, m)
+	}
 }
 
-func (e Error) ErrorCode() string {
+func (e Aws_s3_Error) ErrorCode() string {
 	return string(e.Code)
 }
 
-func (e Error) ErrorMessage() string {
+func (e Aws_s3_Error) ErrorMessage() string {
 	return e.Message
 }
 
-func (e Error) ErrorFault() smithy.ErrorFault {
+func (e Aws_s3_Error) ErrorFault() smithy.ErrorFault {
 	return smithy.FaultClient
 }
 

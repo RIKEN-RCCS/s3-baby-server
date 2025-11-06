@@ -76,8 +76,8 @@ type Bb_server struct {
 	UploadPartHandler              http.HandlerFunc
 }
 
-// MAKE_REQUEST_ID makes a new request-id.  It uses timer, or when
-// timer does not advance, uses the last value plus one.
+// MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
+// does not advance, uses the last value plus one.
 func (bbs *Bb_server) make_request_id() string {
 	var t int64 = time.Now().UnixMicro()
 	bbs.mutex.Lock()
@@ -95,7 +95,7 @@ func (bbs *Bb_server) make_request_id() string {
 // RESPOND_ON_ACTION_ERROR is an action error and makes a
 // response for it.
 func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	var e1, ok = e.(*Error)
+	var e1, ok = e.(*Aws_s3_Error)
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
@@ -120,11 +120,18 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 
 // RESPOND_ON_INPUT_ERROR is an error on interning
 // enumerations and makes a response for it.
-func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Bad parameter %s", name))}
+//func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Bad parameter %s", name))}
 
 // RESPOND_ON_MISSING_INPUT is an internal error and makes a
 // response for it.
-func (bbs *Bb_server) respond_on_missing_input(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Missing path: %s", name))}
+//func (bbs *Bb_server) respond_on_missing_input(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) {panic(fmt.Errorf("Missing path: %s", name))}
+
+// RECORD_INPUT_ERROR is called on an error on interning a
+// parameter to record it in the context.
+func (bbs *Bb_server) record_input_error(ctx context.Context, key string, e error) {
+	var v = ctx.Value("input-errors").(*[]Bb_input_error_record)
+	*v = append(*v, Bb_input_error_record{key, e})
+}
 
 func fs_error_name(err error) string {
 	if errors.Is(err, fs.ErrInvalid) {
@@ -164,7 +171,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 		log.Fatalf("Bad-impl: Bucket parameter missing")
 	}
 	if !check_bucket_naming(*bucket) {
-		var err5 = Error{Code: InvalidBucketName}
+		var err5 = Aws_s3_Error{Code: InvalidBucketName}
 		return &o, &err5
 	}
 
@@ -180,13 +187,13 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 		var name = "/" + *bucket
 
 		if errors.Is(err2, fs.ErrInvalid) {
-			var err5 = Error{Code: InvalidArgument, Resource: name}
+			var err5 = Aws_s3_Error{Code: InvalidArgument, Resource: name}
 			return &o, &err5
 		} else if errors.Is(err2, fs.ErrPermission) {
-			var err5 = Error{Code: AccessDenied, Resource: name}
+			var err5 = Aws_s3_Error{Code: AccessDenied, Resource: name}
 			return &o, &err5
 		} else if errors.Is(err2, fs.ErrExist) {
-			var err5 = Error{Code: BucketAlreadyOwnedByYou, Resource: name}
+			var err5 = Aws_s3_Error{Code: BucketAlreadyOwnedByYou, Resource: name}
 			return &o, &err5
 		} else {
 			/*var err3 *fs.PathError*/
@@ -195,7 +202,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 			/*var err4, ok = err3.Err.(syscall.Errno)*/
 			bbs.Logger.Info("os.Mkdir() failed", "error", err2,
 				"fs-error", fs_error_name(err2))
-			var err5 = Error{Code: InternalError, Resource: name}
+			var err5 = Aws_s3_Error{Code: InternalError, Resource: name}
 			return &o, &err5
 		}
 	}
