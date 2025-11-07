@@ -1341,13 +1341,16 @@
      ;; Input accessors:
      (list (format #f "var i = s3.~a{}" input-name))
      (apply-append (map make-input-assignment properties))
+     (list "if len(input_errors) > 0 {"
+	   "bbs.respond_on_input_error(ctx, w, r, input_errors)"
+	   "return}")
      ;; Hander invocation:
      (list (if (string=? output-name "Unit")
 	       (format #f "var _, err5 = bbs.~a(ctx, &i)" name)
 	       (format #f "var o, err5 = bbs.~a(ctx, &i)" name))
-	   (string-append
-	    "if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5);"
-	    " return}"))
+	   "if err5 != nil {"
+	   "bbs.respond_on_action_error(ctx, w, r, err5)"
+	   "return}")
      ;; Output accessors:
      (if (string=? output-name "Unit")
 	 (make-output-payload-extraction #t code)
@@ -1610,7 +1613,14 @@
 	  "func (bbs *Bb_server) respond_on_action_error"
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, e error) {"
-	  "panic(e)}"))
+	  "panic(e)}")
+	 "// RESPOND_ON_INPUT_ERROR is called on an input error and"
+	 "// makes a response for it."
+	 (string-append
+	  "func (bbs *Bb_server) respond_on_input_error"
+	  "(ctx context.Context, w http.ResponseWriter,"
+	  " r *http.Request, m map[string]error) {"
+	  "panic(m)}"))
    ;;"// RESPOND_ON_INPUT_ERROR is called on an error on"
    ;;"// interning enumerations and makes a response for it."
    ;;(string-append

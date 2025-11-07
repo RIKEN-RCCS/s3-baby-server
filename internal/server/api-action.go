@@ -16,14 +16,15 @@ import (
 	"os"
 	"time"
 	//"s3-baby-server/internal/api"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"s3-baby-server/internal/service"
-	//"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"encoding/xml"
 	"log"
 	"log/slog"
 	"net/http"
-	//"strconv"
+	"strconv"
+	"strings"
 	"sync"
 	//"syscall"
 )
@@ -118,6 +119,20 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	w1.Flush()
 }
 
+// RESPOND_ON_INPUT_ERROR is an action error and makes a
+// response for it.
+func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, m map[string]error) {
+	if len(m) == 0 {
+		log.Fatalf("BAD-IMPL: error handler is called without errors: %#v", m)
+	}
+	var e error
+	for _, e = range m {
+		break
+	}
+	var err1 = Aws_s3_Error{Code: InvalidArgument, Message: e.Error()}
+	bbs.respond_on_action_error(ctx, w, r, err1)
+}
+
 func fs_error_name(err error) string {
 	if errors.Is(err, fs.ErrInvalid) {
 		return "ErrInvalid"
@@ -130,23 +145,46 @@ func fs_error_name(err error) string {
 	} else if errors.Is(err, fs.ErrClosed) {
 		return "ErrClosed"
 	} else {
+		// os.ErrNoDeadline
+		// os.ErrDeadlineExceeded
 		return "ErrUnknown"
 	}
 }
 
-func check_any_input_error(ctx context.Context, name string) error {
-	var m = ctx.Value("input-errors").(map[string]error)
-	if len(m) > 0 {
-		var e error
-		for _, e = range m {
-			break
-		}
-		var err5 = Aws_s3_Error{
-			Code: InvalidArgument, Resource: name,
-			Message: e.Error()}
-		return err5
+// Makes an AWS-S3 error from a given OS error.  Error codes can be
+// mapped to something like, fs.ErrExist to "BucketAlreadyOwnedByYou".
+func map_os_error(ctx context.Context, location string, err1 error, m map[error]Aws_s3_error_code) error {
+	var kind error
+	var code1 Aws_s3_error_code
+	if errors.Is(err1, fs.ErrInvalid) {
+		kind = fs.ErrInvalid
+		code1 = InvalidArgument
+	} else if errors.Is(err1, fs.ErrPermission) {
+		kind = fs.ErrPermission
+		code1 = AccessDenied
+	} else if errors.Is(err1, fs.ErrExist) {
+		kind = fs.ErrExist
+		code1 = InternalError
+	} else if errors.Is(err1, fs.ErrNotExist) {
+		kind = fs.ErrNotExist
+		code1 = InternalError
+	} else if errors.Is(err1, fs.ErrClosed) {
+		kind = fs.ErrClosed
+		code1 = InternalError
+	} else {
+		kind = nil
+		code1 = InternalError
 	}
-	return nil
+
+	var code2, ok1 = m[kind]
+	if ok1 {
+		var err5 = Aws_s3_Error{Code: code2, Resource: location}
+		return &err5
+	} else {
+		var err5 = Aws_s3_Error{Code: code1, Resource: location,
+			Message: fs_error_name(kind)}
+		return &err5
+	}
 }
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
@@ -168,7 +206,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 
 	var bucket = params.Bucket
 	if bucket == nil {
-		log.Fatalf("Bad-impl: Bucket parameter missing")
+		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
 	if !check_bucket_naming(*bucket) {
 		var err5 = Aws_s3_Error{Code: InvalidBucketName}
@@ -176,13 +214,6 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 	}
 
 	var location = "/" + *bucket
-
-	{
-		var err5 = check_any_input_error(ctx, location)
-		if err5 != nil {
-			return &o, err5
-		}
-	}
 
 	// (Many parameters are ignored).
 
@@ -194,7 +225,15 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 		// Note the error on existing path is fs.PathError and not
 		// fs.ErrExist.
 
+		/*if errors.As(err2, &err3) {*/
+		/*if !errors.Is(err2, fs.ErrExist) {*/
+		/*var err4, ok = err3.Err.(syscall.Errno)*/
+
 		bbs.Logger.Info("os.Mkdir() failed", "error", err2)
+		var m = map[error]Aws_s3_error_code{fs.ErrExist: BucketAlreadyOwnedByYou}
+		var err5 = map_os_error(ctx, location, err2, m)
+		return &o, err5
+		/*
 		if errors.Is(err2, fs.ErrInvalid) {
 			var err5 = Aws_s3_Error{Code: InvalidArgument, Resource: location}
 			return &o, &err5
@@ -207,12 +246,10 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 				Resource: location}
 			return &o, &err5
 		} else {
-			/*if errors.As(err2, &err3) {*/
-			/*if !errors.Is(err2, fs.ErrExist) {*/
-			/*var err4, ok = err3.Err.(syscall.Errno)*/
 			var err5 = Aws_s3_Error{Code: InternalError, Resource: location}
 			return &o, &err5
 		}
+		*/
 	}
 
 	o.Location = &location
@@ -259,10 +296,128 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, params *s3.HeadObjectInput
 	var o = s3.HeadObjectOutput{}
 	return &o, nil
 }
-func (bbs *Bb_server) ListBuckets(ctx context.Context, params *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+
+func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+	fmt.Printf("bbs.ListBuckets\n")
 	var o = s3.ListBucketsOutput{}
+
+	// Ignore BucketRegion.
+
+	var start int
+	if i.ContinuationToken != nil {
+		var n, err1 = strconv.ParseInt(*i.ContinuationToken, 10, 32)
+		if err1 != nil {
+			/*
+			var m = map[string]error{"continuation-token":
+				&Bb_input_error{"continuation-token", err1}}
+			bbs.respond_on_input_error(m)
+			*/
+			var err2 = Bb_input_error{"continuation-token", err1}
+			var err3 = Aws_s3_Error{Code: InvalidArgument, Message: err2.Error()}
+
+			return &o, err3
+		}
+		start = int(n)
+	} else {
+		start = 0
+	}
+
+	var max_buckets int
+	if i.MaxBuckets != nil {
+		max_buckets = int(*i.MaxBuckets)
+		if max_buckets > 10000 {
+			var err2 = fmt.Errorf("Value too large: %d", max_buckets)
+			/*
+			var m = map[string]error{"max-buckets":
+				&Bb_input_error{"max-buckets", err2}}
+			bbs.respond_on_input_error(m)
+			*/
+			var err3 = Aws_s3_Error{Code: InvalidArgument, Message: err2.Error()}
+			return &o, err3
+		}
+	} else {
+		max_buckets = 10000
+	}
+
+	var pool_path = bbs.S3.FileSystem.RootPath
+	var entries1, err3 = os.ReadDir(pool_path)
+	if err3 != nil {
+		bbs.Logger.Info("os.ReadDir() failed in ListBuckets", "error", err3)
+		var m = map[error]Aws_s3_error_code{}
+		var err5 = map_os_error(ctx, "/", err3, m)
+		return &o, err5
+	}
+
+	if i.Prefix != nil {
+		var prefix = *i.Prefix
+		var dirs2 = []fs.DirEntry{}
+		for _, e := range entries1 {
+			if strings.HasPrefix(e.Name(), prefix) {
+				dirs2 = append(dirs2, e)
+			}
+		}
+	}
+
+	// Filter only directories that satisfies bucket naming.
+	// check_bucket_naming implies !strings.HasPrefix(name, ".").
+
+	var dirs2 = []os.DirEntry{}
+	for _, e := range entries1 {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") &&
+			check_bucket_naming(e.Name()) {
+			dirs2 = append(dirs2, e)
+		}
+	}
+
+	var dirs3 []os.DirEntry
+	var continuation int
+	if start < len(dirs2) {
+		var end = min(start + max_buckets, len(dirs2))
+		dirs3 = dirs2[start:end]
+		if end < len(dirs2) {
+			continuation = end
+		} else {
+			continuation = 0
+		}
+	} else {
+		dirs3 = []os.DirEntry{}
+		continuation = 0
+	}
+
+	var buckets = []types.Bucket{}
+	for _, e := range dirs3 {
+		var info, err4 = e.Info()
+		if err4 != nil {
+			// Skip the entry because it may be removed after scanning
+			// directory.  SHOULD CHECK errors.Is(err, ErrNotExist).
+			continue
+		}
+		var times, ok = file_time(info)
+		if !ok {
+			var t0 = info.ModTime()
+			times = [3]time.Time{t0, t0, t0}
+		}
+		var name = e.Name()
+		var b = types.Bucket{
+			// BucketArn:,
+			// BucketRegion:,
+			CreationDate: &times[1],
+			Name: &name,
+		}
+		buckets = append(buckets, b)
+	}
+
+	o.Buckets = buckets
+	if continuation != 0 {
+		var scontinuation = strconv.FormatInt(int64(continuation), 10)
+		o.ContinuationToken = &scontinuation
+	}
+	// o.Owner = &s3.Owner{DisplayName: , ID:}
+	o.Prefix = i.Prefix
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, error) {
 	var o = s3.ListMultipartUploadsOutput{}
 	return &o, nil

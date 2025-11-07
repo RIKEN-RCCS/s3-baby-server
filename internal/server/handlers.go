@@ -59,8 +59,13 @@ i.UploadId = thing_pointer(qi.Get("uploadId"))}
 if x != "" {i.Key = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.AbortMultipartUpload(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_AbortMultipartUploadResponse(*o)
 if s.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(s.RequestCharged))}
@@ -129,8 +134,13 @@ if err1 != nil {panic(fmt.Errorf("No http body for types.CompletedMultipartUploa
 var err2 = xml.Unmarshal(bs, &x)
 if err2 != nil {panic(fmt.Errorf("Invalid http body for types.CompletedMultipartUpload: %w", err2))}
 i.MultipartUpload = &x}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.CompleteMultipartUpload(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_CompleteMultipartUploadResponse(*o)
 if s.Expiration != nil {
 ho.Add("x-amz-expiration", string(*s.Expiration))}
@@ -277,8 +287,13 @@ if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_ObjectCannedACL(s)
 if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.CopyObject(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_CopyObjectResponse(*o)
 if s.Expiration != nil {
 ho.Add("x-amz-expiration", string(*s.Expiration))}
@@ -349,8 +364,13 @@ if err1 != nil {panic(fmt.Errorf("No http body for types.CreateBucketConfigurati
 var err2 = xml.Unmarshal(bs, &x)
 if err2 != nil {panic(fmt.Errorf("Invalid http body for types.CreateBucketConfiguration: %w", err2))}
 i.CreateBucketConfiguration = &x}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.CreateBucket(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_CreateBucketResponse(*o)
 if s.Location != nil {
 ho.Add("Location", string(*s.Location))}
@@ -463,8 +483,13 @@ if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_ObjectCannedACL(s)
 if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.CreateMultipartUpload(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_CreateMultipartUploadResponse(*o)
 if s.AbortDate != nil {
 ho.Add("x-amz-abort-date", s.AbortDate.String())}
@@ -511,8 +536,13 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var _, err5 = bbs.DeleteBucket(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 ho.Set("Content-Type", "application/xml")
 var status int = 204
 w.WriteHeader(status)
@@ -556,8 +586,13 @@ i.MFA = thing_pointer(hi.Get("x-amz-mfa"))}
 if x != "" {i.Key = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.DeleteObject(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_DeleteObjectResponse(*o)
 if s.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
@@ -608,8 +643,13 @@ if err1 != nil {panic(fmt.Errorf("No http body for types.Delete: %w", err1))}
 var err2 = xml.Unmarshal(bs, &x)
 if err2 != nil {panic(fmt.Errorf("Invalid http body for types.Delete: %w", err2))}
 i.Delete = &x}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.DeleteObjects(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_DeleteObjectsResponse(*o)
 if s.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(s.RequestCharged))}
@@ -640,8 +680,13 @@ i.VersionId = thing_pointer(qi.Get("versionId"))}
 if x != "" {i.Key = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.DeleteObjectTagging(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_DeleteObjectTaggingResponse(*o)
 if s.VersionId != nil {
 ho.Add("x-amz-version-id", string(*s.VersionId))}
@@ -719,8 +764,13 @@ if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = thing_pointer(hi.Get("If-Match"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.GetObject(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_GetObjectResponse(*o)
 if s.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
@@ -848,8 +898,13 @@ i.VersionId = thing_pointer(qi.Get("versionId"))}
 if x != "" {i.Key = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.GetObjectAttributes(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_GetObjectAttributesResponse(*o)
 if s.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
@@ -890,8 +945,13 @@ i.VersionId = thing_pointer(qi.Get("versionId"))}
 if x != "" {i.Key = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.GetObjectTagging(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_GetObjectTaggingResponse(*o)
 if s.VersionId != nil {
 ho.Add("x-amz-version-id", string(*s.VersionId))}
@@ -918,8 +978,13 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.HeadBucket(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_HeadBucketResponse(*o)
 if s.BucketArn != nil {
 ho.Add("x-amz-bucket-arn", string(*s.BucketArn))}
@@ -1005,8 +1070,13 @@ if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = thing_pointer(hi.Get("If-Match"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.HeadObject(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_HeadObjectResponse(*o)
 if s.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*s.DeleteMarker))}
@@ -1114,8 +1184,13 @@ var s = qi.Get("max-buckets")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
 if err2 != nil {input_errors["max-buckets"] = &Bb_input_error{"max-buckets", err2}} else {i.MaxBuckets = &x2}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.ListBuckets(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_ListBucketsResponse(*o)
 ho.Set("Content-Type", "application/xml")
 var co, err6 = xml.MarshalIndent(s, " ", "  ")
@@ -1161,8 +1236,13 @@ if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.ListMultipartUploads(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_ListMultipartUploadsResponse(*o)
 if s.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(s.RequestCharged))}
@@ -1216,8 +1296,13 @@ if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.ListObjects(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_ListObjectsResponse(*o)
 if s.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(s.RequestCharged))}
@@ -1277,8 +1362,13 @@ if qi.Has("delimiter") {
 i.Delimiter = thing_pointer(qi.Get("delimiter"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.ListObjectsV2(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_ListObjectsV2Response(*o)
 if s.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(s.RequestCharged))}
@@ -1326,8 +1416,13 @@ if err2 != nil {input_errors["max-parts"] = &Bb_input_error{"max-parts", err2}} 
 if x != "" {i.Key = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.ListParts(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_ListPartsResponse(*o)
 if s.AbortDate != nil {
 ho.Add("x-amz-abort-date", s.AbortDate.String())}
@@ -1462,8 +1557,13 @@ if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_ObjectCannedACL(s)
 if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.PutObject(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_PutObjectResponse(*o)
 if s.Expiration != nil {
 ho.Add("x-amz-expiration", string(*s.Expiration))}
@@ -1542,8 +1642,13 @@ if err1 != nil {panic(fmt.Errorf("No http body for types.Tagging: %w", err1))}
 var err2 = xml.Unmarshal(bs, &x)
 if err2 != nil {panic(fmt.Errorf("Invalid http body for types.Tagging: %w", err2))}
 i.Tagging = &x}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.PutObjectTagging(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_PutObjectTaggingResponse(*o)
 if s.VersionId != nil {
 ho.Add("x-amz-version-id", string(*s.VersionId))}
@@ -1609,8 +1714,13 @@ var x, err2 = strconv.ParseInt(s, 10, 64)
 if err2 != nil {input_errors["Content-Length"] = &Bb_input_error{"Content-Length", err2}} else {i.ContentLength = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.UploadPart(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_UploadPartResponse(*o)
 if s.ServerSideEncryption != "" {
 ho.Add("x-amz-server-side-encryption", string(s.ServerSideEncryption))}
@@ -1702,8 +1812,13 @@ if len(hi.Values("x-amz-copy-source")) != 0 {
 i.CopySource = thing_pointer(hi.Get("x-amz-copy-source"))}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+if len(input_errors) > 0 {
+bbs.respond_on_input_error(ctx, w, r, input_errors)
+return}
 var o, err5 = bbs.UploadPartCopy(ctx, &i)
-if err5 != nil {bbs.respond_on_action_error(ctx, w, r, err5); return}
+if err5 != nil {
+bbs.respond_on_action_error(ctx, w, r, err5)
+return}
 var s = s_UploadPartCopyResponse(*o)
 if s.CopySourceVersionId != nil {
 ho.Add("x-amz-copy-source-version-id", string(*s.CopySourceVersionId))}

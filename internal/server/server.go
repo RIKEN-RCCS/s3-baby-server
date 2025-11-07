@@ -5,6 +5,7 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"s3-baby-server/internal/api"
 	"s3-baby-server/internal/service"
@@ -33,6 +34,16 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//w.Header().Set("Content-Type", "application/xml")
 	//w.WriteHeader(err.Status)
 	//if err := xml.NewEncoder(w).Encode(err); err != nil {
+}
+
+// SERVER_CONTROL handles requests to shutdown.  It is hooked at the
+// url "/bbs.ctl".
+func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
+	var q = r.URL.Query()
+	var delete = q.Has("delete")
+	if delete {
+		log.Fatal("SHUTDOWN")
+	}
 }
 
 func Start(basePath, addr, logPath, authKey string) {
@@ -128,6 +139,10 @@ func Start(basePath, addr, logPath, authKey string) {
 		s3.FileSystem, authKey, logger)
 	bbs.UploadPartHandler = api.HandlerBase(api.UploadPartHandler(s3),
 		s3.FileSystem, authKey, logger)
+
+	sx.HandleFunc("POST /bbs.ctl/{$}", func(w http.ResponseWriter, r *http.Request) {
+		bbs.server_control(w, r)
+	})
 
 	register_dispatcher(&bbs, sx)
 	var sv = prior_handler{&bbs, sx}

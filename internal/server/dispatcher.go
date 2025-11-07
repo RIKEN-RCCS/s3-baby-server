@@ -87,8 +87,8 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		}
 		if true {
 			fmt.Printf("h_ListBuckets!\n")
-			//h_ListBuckets(bbs, w, r)
-			bbs.ListBucketsHandler(w, r)
+			h_ListBuckets(bbs, w, r)
+			//bbs.ListBucketsHandler(w, r)
 		} else {
 			http.NotFound(w, r)
 			return
