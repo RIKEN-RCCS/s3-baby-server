@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"s3-baby-server/internal/api"
 	"s3-baby-server/internal/service"
+	"time"
 )
 
 type prior_handler struct {
@@ -47,6 +48,8 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 }
 
 func Start(basePath, addr, logPath, authKey string) {
+	time.Local = time.UTC
+
 	//r := mux.NewRouter()
 	//r.Use(PanicRecovery)
 	var sx = http.NewServeMux()
