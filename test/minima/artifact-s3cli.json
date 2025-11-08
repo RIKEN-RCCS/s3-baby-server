@@ -32,7 +32,7 @@
   "step": "Displays a list of buckets.  There is one 'mybucket'.",
   "name": "LS",
   "kind": "s3 command",
-  "operation": "aws s3 ls --no-progress",
+  "operation": "aws s3 ls",
   "status": 0,
   "outcome1": null,
   "outcome2": ["#|date| #|time| mybucket"]
