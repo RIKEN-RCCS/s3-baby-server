@@ -10,7 +10,7 @@
   "step": "Display a list of buckets, which is initially empty.  Check no dot-files are listed.",
   "name": "server-connection",
   "kind": "basic",
-  "operation": "aws s3api list-buckets",
+  "operation": "aws s3api list-buckets --no-cli-pager",
   "status": 0,
   "outcome1": {"Buckets": [],
 	       "Owner": null,
@@ -32,7 +32,7 @@
   "step": "Displays a list of buckets.  There is one 'mybucket'.",
   "name": "LS",
   "kind": "s3 command",
-  "operation": "aws s3 ls",
+  "operation": "aws s3 ls --no-cli-pager --page-size 10",
   "status": 0,
   "outcome1": null,
   "outcome2": ["#|date| #|time| mybucket"]

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path"
 	"s3-baby-server/internal/api"
 	"s3-baby-server/internal/service"
 	"time"
@@ -48,7 +49,11 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 }
 
 func Start(basePath, addr, logPath, authKey string) {
+
+	// Run in UTC time zone instead of local time zone.
 	time.Local = time.UTC
+
+	var basepath1 = path.Clean(basePath)
 
 	//r := mux.NewRouter()
 	//r.Use(PanicRecovery)
@@ -57,7 +62,7 @@ func Start(basePath, addr, logPath, authKey string) {
 	logger := Init(logPath)
 	logger.Info("Starting server", "address", addr)
 	logger.Debug("options", "authKey", authKey)
-	fs := &service.FileSystem{Logger: logger, RootPath: basePath, TmpPath: "/.S3BabyServer/TmpUpload", MpPath: "/.S3BabyServer/MultipartUpload"}
+	fs := &service.FileSystem{Logger: logger, RootPath: basepath1, TmpPath: "/.S3BabyServer/TmpUpload", MpPath: "/.S3BabyServer/MultipartUpload"}
 	mp := &service.MultiPart{FileSystem: fs}
 	t := &service.Tag{FileSystem: fs, DirectiveCopy: "COPY", DirectiveReplace: "REPLACE"}
 	s3 := &service.S3Service{FileSystem: fs, MultiPart: mp, Tag: t}

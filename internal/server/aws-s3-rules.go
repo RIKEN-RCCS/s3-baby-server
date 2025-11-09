@@ -1,4 +1,4 @@
-// aws-rules.go
+// aws-s3-rules.go
 // Copyright 2025-2025 RIKEN R-CCS.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -66,3 +66,16 @@ func check_bucket_naming(name string) bool {
 
 // - [Naming Amazon S3 objects]
 //   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+
+// TAGGING
+
+// - [Categorizing your objects using tags]
+//   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+
+// MEMO: AWS-S3's limit of number of tags is 10, while EC2's limit is
+// 50.  AWS-S3's limit of length is in Unicode characters, while EC2'
+// limit is in utf-8.
+
+const limit_of_number_of_tags_1 = 10
+const limit_of_tag_key_length_ = 128
+const limit_of_tag_value_length_ = 256

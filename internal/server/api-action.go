@@ -200,11 +200,23 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, params *s3.CopyObjectInput
 	return &o, nil
 }
 
-func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
+func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
 	fmt.Printf("bbs.CreateBucket\n")
 	var o = s3.CreateBucketOutput{}
 
-	var bucket = params.Bucket
+	// List of parameters.
+	// + Bucket *string
+	// - ACL types.BucketCannedACL
+	// - CreateBucketConfiguration *types.CreateBucketConfiguration
+	// - GrantFullControl *string
+	// - GrantRead *string
+	// - GrantReadACP *string
+	// - GrantWrite *string
+	// - GrantWriteACP *string
+	// - ObjectLockEnabledForBucket *bool
+	// - ObjectOwnership types.ObjectOwnership
+
+	var bucket = i.Bucket
 	if bucket == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
@@ -215,11 +227,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 
 	var location = "/" + *bucket
 
-	// (Many parameters are ignored).
-
 	var path = bbs.make_path(*bucket)
-	//var _, err1 = os.Lstat(path)
-	//var _, err1 = os.Stat(path)
 	var err2 = os.Mkdir(path, 0755)
 	if err2 != nil {
 		// Note the error on existing path is fs.PathError and not
@@ -233,23 +241,6 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, params *s3.CreateBucketI
 		var m = map[error]Aws_s3_error_code{fs.ErrExist: BucketAlreadyOwnedByYou}
 		var err5 = map_os_error(ctx, location, err2, m)
 		return &o, err5
-		/*
-		if errors.Is(err2, fs.ErrInvalid) {
-			var err5 = Aws_s3_Error{Code: InvalidArgument, Resource: location}
-			return &o, &err5
-		} else if errors.Is(err2, fs.ErrPermission) {
-			var err5 = Aws_s3_Error{Code: AccessDenied, Resource: location}
-			return &o, &err5
-		} else if errors.Is(err2, fs.ErrExist) {
-			var err5 = Aws_s3_Error{
-				Code:     BucketAlreadyOwnedByYou,
-				Resource: location}
-			return &o, &err5
-		} else {
-			var err5 = Aws_s3_Error{Code: InternalError, Resource: location}
-			return &o, &err5
-		}
-		*/
 	}
 
 	o.Location = &location
@@ -301,7 +292,11 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	fmt.Printf("bbs.ListBuckets\n")
 	var o = s3.ListBucketsOutput{}
 
-	// Ignore BucketRegion.
+	// List of parameters.
+	// - BucketRegion *string
+	// + ContinuationToken *string
+	// + MaxBuckets *int32
+	// + Prefix *string
 
 	var start int
 	if i.ContinuationToken != nil {
@@ -314,7 +309,6 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 			*/
 			var err2 = Bb_input_error{"continuation-token", err1}
 			var err3 = Aws_s3_Error{Code: InvalidArgument, Message: err2.Error()}
-
 			return &o, err3
 		}
 		start = int(n)
@@ -434,10 +428,133 @@ func (bbs *Bb_server) ListParts(ctx context.Context, params *s3.ListPartsInput, 
 	var o = s3.ListPartsOutput{}
 	return &o, nil
 }
-func (bbs *Bb_server) PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+
+func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
 	var o = s3.PutObjectOutput{}
+
+	// List of parameters.
+	// - ACL types.ObjectCannedACL
+	// x Body io.Reader
+	// - BucketKeyEnabled *bool
+	// x CacheControl *string
+	// - ChecksumAlgorithm types.ChecksumAlgorithm
+	// - ChecksumCRC32 *string
+	// - ChecksumCRC32C *string
+	// - ChecksumCRC64NVME *string
+	// - ChecksumSHA1 *string
+	// - ChecksumSHA256 *string
+	// - ContentDisposition *string
+	// - ContentEncoding *string
+	// - ContentLanguage *string
+	// - ContentLength *int64
+	// - ContentMD5 *string
+	// - ContentType *string
+	// - ExpectedBucketOwner *string
+	// - Expires *time.Time
+	// - GrantFullControl *string
+	// - GrantRead *string
+	// - GrantReadACP *string
+	// - GrantWriteACP *string
+	// - IfMatch *string
+	// - IfNoneMatch *string
+	// - Metadata map[string]string
+	// - ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
+	// - ObjectLockMode types.ObjectLockMode
+	// - ObjectLockRetainUntilDate *time.Time
+	// - RequestPayer types.RequestPayer
+	// - SSECustomerAlgorithm *string
+	// - SSECustomerKey *string
+	// - SSECustomerKeyMD5 *string
+	// - SSEKMSEncryptionContext *string
+	// - SSEKMSKeyId *string
+	// - ServerSideEncryption types.ServerSideEncryption
+	// x StorageClass types.StorageClass
+	// x Tagging *string
+	// - WebsiteRedirectLocation *string
+	// - WriteOffsetBytes *int64
+
+	var bucket = i.Bucket
+	if bucket == nil {
+		log.Fatalf("BAD-IMPL: Bucket parameter missing")
+	}
+	if !check_bucket_naming(*bucket) {
+		var err5 = Aws_s3_Error{Code: InvalidBucketName}
+		return &o, &err5
+	}
+
+	var location = "/" + *bucket
+	var path = bbs.make_path(*bucket)
+	var info, err2 = os.Lstat(path)
+	if err2 != nil {
+		if errors.Is(err2, fs.ErrNotExist) {
+			var err5 = Aws_s3_Error{Code: NoSuchBucket,
+				Resource: location}
+			return &o, err5
+		} else {
+			var m = map[error]Aws_s3_error_code{}
+			var err5 = map_os_error(ctx, location, err2, m)
+			return &o, err5
+		}
+	}
+	if !info.IsDir() {
+		var err5 = Aws_s3_Error{Code: NoSuchBucket,
+			Resource: location}
+		return &o, err5
+	}
+
+	// ?? CHECK "Cache-Control": "no-cache".
+
+	if i.CacheControl != nil {
+		if !strings.EqualFold(*i.CacheControl, "no-cache") {
+			var err5 = Aws_s3_Error{Code: InvalidStorageClass,
+				Resource: location}
+			return &o, err5
+		}
+	}
+	if i.StorageClass != types.StorageClassStandard {
+		var err5 = Aws_s3_Error{Code: InvalidStorageClass,
+			Resource: location}
+		return &o, err5
+	}
+
+	var tags types.Tagging
+	if i.Tagging != nil {
+		var tags1, err3 = parse_tags(*i.Tagging)
+		if err3 != nil {
+			var err5 = Aws_s3_Error{Code: InvalidArgument,
+				Message: "Tag format error.",
+				Resource: location}
+			return &o, err5
+		}
+		tags = tags1
+	}
+	var _ = tags
+
+	/*
+	if f := s3.FileSystem.uploadFile(option.GetBody(), option.GetPath()); !f {
+		return nil, InternalError()
+	}
+
+	if err := s3.Tag.putTagging(option, option.GetPath()); err != nil {
+		return nil, err
+	}
+
+	var s3err *S3Error
+	if s.ETag, s3err = s3.getETag(option.GetPath()); s3err != nil {
+		return nil, InternalError()
+	}
+	if s3err = s3.compareMd5(option, nil, s.ETag); s3err != nil {
+		return nil, s3err
+	}
+	if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, ""); s3err != nil {
+		return nil, s3err
+	}
+	result := s.MakePutObjectResult()
+    */
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) PutObjectTagging(ctx context.Context, params *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, error) {
 	var o = s3.PutObjectTaggingOutput{}
 	return &o, nil

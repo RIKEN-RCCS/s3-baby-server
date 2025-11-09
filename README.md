@@ -27,6 +27,8 @@ than "application/octet-stream".
 
 - No tags are allowed on buckets.  Tags on a request are ignored.
 
+- Symbolic links are not allowed as buckets.
+
 ## Terse Error Messages
 
 - Errors returned to a client do not contain information from OS such
@@ -62,7 +64,12 @@ https://gist.githubusercontent.com/maratori/47a4d00457a92aa426dbd48a18776322/raw
 
 ----------------------------------------------------------------
 
-# Implemented API
+## Unsupported
+
+- Versions
+- POST Object
+
+## Implemented API
 
 - AbortMultipartUpload
 - CompleteMultipartUpload
