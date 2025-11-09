@@ -67,6 +67,11 @@ func check_bucket_naming(name string) bool {
 // - [Naming Amazon S3 objects]
 //   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
 
+func check_object_naming(name string) bool {
+	return true
+}
+
+
 // TAGGING
 
 // - [Categorizing your objects using tags]

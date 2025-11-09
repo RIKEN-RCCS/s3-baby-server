@@ -216,18 +216,18 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	// - ObjectLockEnabledForBucket *bool
 	// - ObjectOwnership types.ObjectOwnership
 
-	var bucket = i.Bucket
-	if bucket == nil {
+	if i.Bucket == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
-	if !check_bucket_naming(*bucket) {
+	var bucket = *i.Bucket
+	if !check_bucket_naming(bucket) {
 		var err5 = Aws_s3_Error{Code: InvalidBucketName}
 		return &o, &err5
 	}
 
-	var location = "/" + *bucket
+	var location = "/" + bucket
 
-	var path = bbs.make_path(*bucket)
+	var path = bbs.make_path(bucket)
 	var err2 = os.Mkdir(path, 0755)
 	if err2 != nil {
 		// Note the error on existing path is fs.PathError and not
@@ -433,6 +433,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	var o = s3.PutObjectOutput{}
 
 	// List of parameters.
+	// + Bucket *string
+	// + Key *string
 	// - ACL types.ObjectCannedACL
 	// x Body io.Reader
 	// - BucketKeyEnabled *bool
@@ -473,33 +475,33 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// - WebsiteRedirectLocation *string
 	// - WriteOffsetBytes *int64
 
-	var bucket = i.Bucket
-	if bucket == nil {
+	if i.Bucket == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
-	if !check_bucket_naming(*bucket) {
+	var bucket = *i.Bucket
+	if !check_bucket_naming(bucket) {
 		var err5 = Aws_s3_Error{Code: InvalidBucketName}
 		return &o, &err5
 	}
 
-	var location = "/" + *bucket
-	var path = bbs.make_path(*bucket)
-	var info, err2 = os.Lstat(path)
-	if err2 != nil {
-		if errors.Is(err2, fs.ErrNotExist) {
-			var err5 = Aws_s3_Error{Code: NoSuchBucket,
-				Resource: location}
-			return &o, err5
-		} else {
-			var m = map[error]Aws_s3_error_code{}
-			var err5 = map_os_error(ctx, location, err2, m)
-			return &o, err5
-		}
+	// Key part is clean, ServMux() handles it.
+
+	if i.Key == nil {
+		log.Fatalf("BAD-IMPL: Key parameter missing")
 	}
-	if !info.IsDir() {
-		var err5 = Aws_s3_Error{Code: NoSuchBucket,
-			Resource: location}
-		return &o, err5
+	var key = *i.Key
+	if strings.HasPrefix(key, "..") {
+		log.Fatalf("BAD-IMPL: Key parameter not clean")
+	}
+	if !check_object_naming(key) {
+		var err5 = Aws_s3_Error{Code: InvalidArgument}
+		return &o, &err5
+	}
+
+	var location = "/" + bucket
+	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
+	if err2 != nil {
+		return &o, err2
 	}
 
 	// ?? CHECK "Cache-Control": "no-cache".
