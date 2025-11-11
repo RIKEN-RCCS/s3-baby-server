@@ -52,13 +52,13 @@ func Start(basePath, addr, logPath, authKey string) {
 	logger := Init(logPath)
 
 	// Run in UTC time zone instead of local time zone.
+
 	time.Local = time.UTC
 
-	var basepath1, err1 = filepath.Localize(basePath)
-	if err1 != nil {
-		logger.Info("Bad path for pool-directory", "path", basePath)
-	}
-	var basepath2 = filepath.Clean(basepath1)
+	// Convert a path to platform specific one.
+
+	//var basepath1 = file.Clean(basePath)
+	var basepath2 = filepath.Clean(basePath)
 
 	//r := mux.NewRouter()
 	//r.Use(PanicRecovery)

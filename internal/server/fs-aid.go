@@ -156,10 +156,8 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, size int64, md5a []byte, body io.Reader) error {
 	var location = "/" + object
 	var dir1, filename = path.Split(object)
-	var dir2, err1 = filepath.Localize(dir1)
-	if err1 != nil {
-		return err1
-	}
+	//var dir2, err1 = filepath.Localize(dir1)
+	var dir2 = filepath.Clean(dir1)
 	var pool_path = bbs.S3.FileSystem.RootPath
 	var dirpath = filepath.Join(pool_path, dir2)
 	var name = filepath.Join(dirpath, ("." + filename + "@" + suffix))
@@ -260,11 +258,12 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string) error {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
-	var dir2, err1 = filepath.Localize(dir1)
-	if err1 != nil {
-		var errz = map_path_error(ctx, location, err1, nil)
-		return errz
-	}
+	//var dir2, err1 = filepath.Localize(dir1)
+	var dir2 = filepath.Clean(dir1)
+	//if err1 != nil {
+	//var errz = map_path_error(ctx, location, err1, nil)
+	//return errz
+	//}
 	var pool_path = bbs.S3.FileSystem.RootPath
 	var name1 = filepath.Join(pool_path, dir2, ("." + file + "@" + suffix))
 	var name2 = filepath.Join(pool_path, dir2, file)
@@ -283,10 +282,11 @@ func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string)
 func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (*File_meta_info, error) {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
-	var dir2, err1 = filepath.Localize(dir1)
-	if err1 != nil {
-		return nil, map_path_error(ctx, location, err1, nil)
-	}
+	//var dir2, err1 = filepath.Localize(dir1)
+	var dir2 = filepath.Clean(dir1)
+	//if err1 != nil {
+	//return nil, map_path_error(ctx, location, err1, nil)
+	//}
 	var pool_path = bbs.S3.FileSystem.RootPath
 	var name = filepath.Join(pool_path, dir2, ("." + file + "@meta"))
 
@@ -324,11 +324,12 @@ func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (
 func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, info *File_meta_info) error {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
-	var dir2, err1 = filepath.Localize(dir1)
-	if err1 != nil {
-		var errz = map_path_error(ctx, location, err1, nil)
-		return errz
-	}
+	//var dir2, err1 = filepath.Localize(dir1)
+	var dir2 = filepath.Clean(dir1)
+	//if err1 != nil {
+	//var errz = map_path_error(ctx, location, err1, nil)
+	//return errz
+	//}
 	var pool_path = bbs.S3.FileSystem.RootPath
 	var name = filepath.Join(pool_path, dir2, ("." + file + "@meta"))
 
