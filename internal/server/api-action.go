@@ -154,18 +154,18 @@ func (bbs *Bb_server) discharge_file_suffixes(rid int64) {
 	}
 }
 
-func (bbs *Bb_server) serialize_access(ctx context.Context, object string) error {
+func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) error {
 	var monitor = bbs.monitor1
-	var ok = monitor.enter(object, (10 * time.Millisecond))
+	var ok = monitor.enter(object, rid, (10 * time.Millisecond))
 	if !ok {
 		return Aws_s3_Error{Code: RequestTimeout}
 	}
 	return nil
 }
 
-func (bbs *Bb_server) release_serialized_access(ctx context.Context, object string) error {
+func (bbs *Bb_server) release_serialized_access(ctx context.Context, object string, rid int64) error {
 	var monitor = bbs.monitor1
-	monitor.exit(object)
+	monitor.exit(object, rid)
 	return nil
 }
 
@@ -577,7 +577,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	var rid int64 = get_request_id(ctx)
 	var suffix = bbs.make_file_suffix(rid)
-	defer bbs.discharge_file_suffixes(rid)
+	defer bbs.discharge_file_suffixes(rid,)
 
 	var err6 = bbs.upload_file(ctx, object, suffix, size, md5, i.Body)
 	if err6 != nil {
@@ -588,8 +588,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// meta-info file.  Failing to place an uploaded file may lose
 	// meta-info.
 
-	var _ = bbs.serialize_access(ctx, object)
-	defer bbs.release_serialized_access(ctx, object)
+	var _ = bbs.serialize_access(ctx, object, rid)
+	defer bbs.release_serialized_access(ctx, object, rid)
 
 	{
 		var err1 = bbs.store_file_meta_info(ctx, object, info)

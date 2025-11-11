@@ -1,73 +1,122 @@
 // monitor.go
+// Copyright 2025-2025 RIKEN R-CCS.
+// SPDX-License-Identifier: BSD-2-Clause
 
-// A monitor to exclude accesses to the same object.  It has timeout.
-// It wake-ups all waiting threads, which check their exclusion.
+// A monitor to exclude accesses to the same object.  Entring fails by
+// a timeout.  An entered task is allowed to run for the same duration
+// of the timeout.  It forces to remove a task when it is slow.
 
 package server
 
 import (
+	"fmt"
 	"time"
 	"sync"
 )
 
-type monitor struct {
-	resource map[string]time.Time
-	mutex sync.Mutex
-	blocker *sync.Cond
-	timeout time.Timer
-	reschedule chan struct{}
+type entered_task struct {
+	id int64
+	due time.Time
 }
 
-func (m *monitor) start_wakeup_timer() {
+type monitor struct {
+	resource map[string]entered_task
+	mutex sync.Mutex
+	blocker *sync.Cond
+	blocked int
+	timeout *time.Timer
+	schedule chan struct{}
+	trace bool
+}
+
+func (m *monitor) init() {
+	m.resource = make(map[string]entered_task)
 	m.blocker = sync.NewCond(&m.mutex)
-	m.timeout = *time.NewTimer(0 * time.Second)
-	for true {
+	m.timeout = time.NewTimer(10 * time.Second)
+	m.schedule = make(chan struct{})
+	m.trace = false
+}
+
+// Calls broadcast to waiting tasks.  It loops forever.  It removes
+// records of tasks which never or lately exit.  The loop exits when
+// m.schedule is closed.
+func (m *monitor) guard_loop() {
+	for {
 		var now = time.Now()
+		var nextdue = now.Add(3600 * time.Second)
 		m.mutex.Lock()
-		var next = now.Add(10 * time.Second)
-		for _, v := range m.resource {
-			if v.Before(next) {
-				next = v
+		for k, v := range m.resource {
+			if v.due.Before(now) {
+				delete(m.resource, k)
+				if m.trace {
+					fmt.Printf("monitor: delete slow task %#v\n", v.id)
+				}
+			}
+			if v.due.Before(nextdue) {
+				nextdue = v.due
 			}
 		}
-		defer m.mutex.Unlock()
-		var d time.Duration = next.Sub(now)
-		m.timeout.Reset(d)
-		select {
-        case <- m.timeout.C:
-            m.timeout.Stop()
-        case <- m.reschedule:
-            m.timeout.Stop()
-        }
+		m.mutex.Unlock()
+		var d = nextdue.Sub(now)
+		if d > 0 {
+			m.timeout.Reset(d)
+			var ok bool
+			select {
+			case <- m.timeout.C:
+				m.timeout.Stop()
+			case _, ok = <- m.schedule:
+				m.timeout.Stop()
+				if !ok {
+					return
+				}
+			}
+		}
+		if m.trace {
+			fmt.Printf("monitor: wakeup!\n")
+		}
 		m.blocker.Broadcast()
 	}
 }
 
-// It returns false when timeout.
-func (m *monitor) enter(object string, d time.Duration) bool {
+// Enters an exclusion region.  It returns false when timeout.  A
+// failed task should not call m.exit().  It schedules the timer for a
+// slow task.
+func (m *monitor) enter(object string, id int64, d time.Duration) bool {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	var duetime = time.Now().Add(d)
+	defer func() {
+		m.mutex.Unlock()
+		m.schedule <- struct{}{}
+	}()
+	var due = time.Now().Add(d)
 	for true {
-		if !time.Now().Before(duetime) {
+		if !time.Now().Before(due) {
+			// A task fails to enter.
 			return false
 		}
 		var _, inuse = m.resource[object]
 		if !inuse {
-			m.resource[object] = duetime
+			// A task enters.
+			var rundue = time.Now().Add(d)
+			m.resource[object] = entered_task{id, rundue}
 			return true
 		} else {
+			m.blocked++
 			m.blocker.Wait()
+			m.blocked--
 		}
 	}
 	return false
 }
 
-// It re-schedules the timer for a next timeout, which wake-ups all
-// waiting threads.
-func (m *monitor) exit(object string) {
+// Exits an exclusion region.  It schedules for a next task.
+func (m *monitor) exit(object string, id int64) {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	delete(m.resource, object)
-	m.reschedule <- struct{}{}
+	defer func() {
+		m.mutex.Unlock()
+		m.schedule <- struct{}{}
+	}()
+	var r = m.resource[object]
+	if r.id == id {
+		delete(m.resource, object)
+	}
 }
