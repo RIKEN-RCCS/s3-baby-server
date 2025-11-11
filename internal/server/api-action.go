@@ -54,9 +54,10 @@ type Bb_server struct {
 
 	rid   int64
 	suffixes map[string]suffix_record
+	monitor1 monitor
 	mutex sync.Mutex
 
-	serializer sync.Mutex
+	server_quit chan struct{}
 
 	// FileSystem is in S3.FileSystem *FileSystem
 
@@ -85,6 +86,11 @@ type Bb_server struct {
 	UploadPartHandler              http.HandlerFunc
 }
 
+type suffix_record struct {
+	rid int64
+	timestamp time.Time
+}
+
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
@@ -111,11 +117,6 @@ func get_request_id(ctx context.Context) int64 {
 	} else {
 		return *ridx
 	}
-}
-
-type suffix_record struct {
-	rid int64
-	timestamp time.Time
 }
 
 // MAKE_FILE_SUFFIX makes a short key string to make a temporary file
@@ -151,6 +152,21 @@ func (bbs *Bb_server) discharge_file_suffixes(rid int64) {
 			delete(bbs.suffixes, k)
 		}
 	}
+}
+
+func (bbs *Bb_server) serialize_access(ctx context.Context, object string) error {
+	var monitor = bbs.monitor1
+	var ok = monitor.enter(object, (10 * time.Millisecond))
+	if !ok {
+		return Aws_s3_Error{Code: RequestTimeout}
+	}
+	return nil
+}
+
+func (bbs *Bb_server) release_serialized_access(ctx context.Context, object string) error {
+	var monitor = bbs.monitor1
+	monitor.exit(object)
+	return nil
 }
 
 // RESPOND_ON_ACTION_ERROR is an action error and makes a
@@ -488,11 +504,9 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 	var bucket = *i.Bucket
 	if !check_bucket_naming(bucket) {
-		var err5 = Aws_s3_Error{Code: InvalidBucketName}
-		return &o, &err5
+		var errz = Aws_s3_Error{Code: InvalidBucketName}
+		return &o, &errz
 	}
-
-	// Key part is clean, ServMux() handles it.
 
 	if i.Key == nil {
 		log.Fatalf("BAD-IMPL: Key parameter missing")
@@ -505,6 +519,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		var errz = Aws_s3_Error{Code: InvalidArgument}
 		return &o, &errz
 	}
+
 	var object = path.Join(bucket, key)
 
 	var location = "/" + object
@@ -561,7 +576,6 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 
 	var rid int64 = get_request_id(ctx)
-
 	var suffix = bbs.make_file_suffix(rid)
 	defer bbs.discharge_file_suffixes(rid)
 
@@ -571,28 +585,24 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 
 	// It should be atomic on placing an uploaded file and saving a
-	// meta-info file.  Note saving meta-info first.  Failing to place
-	// an uploaded file may lose meta-info.
+	// meta-info file.  Failing to place an uploaded file may lose
+	// meta-info.
 
-	var err9 = func () error {
-		bbs.serializer.Lock()
-		defer bbs.serializer.Unlock()
+	var _ = bbs.serialize_access(ctx, object)
+	defer bbs.release_serialized_access(ctx, object)
 
+	{
 		var err1 = bbs.store_file_meta_info(ctx, object, info)
 		if err1 != nil {
-			return err1
+			return &o, err1
 		}
 		var err2 = bbs.place_uploaded(ctx, object, suffix)
-		if err2 != nil {
+		if err2 != nil && info != nil {
 			var _ = bbs.store_file_meta_info(ctx, object, nil)
 		}
 		if err2 != nil {
-			return err2
+			return &o, err2
 		}
-		return nil
-	}()
-	if err9 != nil {
-		return &o, err9
 	}
 
 	/*

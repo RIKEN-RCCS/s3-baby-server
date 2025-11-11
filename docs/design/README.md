@@ -57,6 +57,11 @@ document string in "s3.json".  They are in "shapes" /
 
 [Naming Amazon S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html)
 
+## Assuptions on Golang stdlib
+
+- It assumes key part is clean as a filesystem path, as ServMux()
+  handles it.
+
 ## Criticals
 
 - An object file and a meta-info file should be updated atomically.

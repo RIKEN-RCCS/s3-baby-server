@@ -1,4 +1,4 @@
-// handlers.go (2025-11-08)
+// handlers.go (2025-11-11)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 package server
@@ -1557,6 +1557,7 @@ if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_ObjectCannedACL(s)
 if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+{i.Body = r.Body}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -1714,6 +1715,7 @@ var x, err2 = strconv.ParseInt(s, 10, 64)
 if err2 != nil {input_errors["Content-Length"] = &Bb_input_error{"Content-Length", err2}} else {i.ContentLength = &x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
+{i.Body = r.Body}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}

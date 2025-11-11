@@ -1240,8 +1240,7 @@
       ((PAYLOAD)
        (cond
 	((string=? type-kind "blob")
-	 ;; Ignore blob.
-	 '())
+	 (list (format #f "{i.~a = r.Body}" slot)))
 	(else
 	 ;; Payload types are: {CompletedMultipartUpload,
 	 ;; CreateBucketConfiguration, Delete, Tagging}.
