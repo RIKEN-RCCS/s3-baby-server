@@ -35,10 +35,11 @@ than "application/octet-stream".
   as "fs.PathError", because they can show the home path that should
   not be disclosed to a client.
 
-
 ## Additional Features
 
-- s3bbs stores access logs if a ".access-log" directory exists.
+- S3BBS stores logs in a directory ".s3bbs/access-log" or
+  ".s3bbs/server-log" when it exists in a pool-direcotry.  It is
+  checked at starting a server.
 
 ## golangci-lint
 

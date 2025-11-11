@@ -56,3 +56,8 @@ document string in "s3.json".  They are in "shapes" /
 ## Name Restrictions
 
 [Naming Amazon S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html)
+
+## Criticals
+
+- An object file and a meta-info file should be updated atomically.
+  Otherwise, an uploaded file and its tags would mismatch.

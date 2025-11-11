@@ -17,7 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"s3-baby-server/pkg/utils"
+	"s3-baby-server/internal/utils"
 	"strconv"
 	"strings"
 )

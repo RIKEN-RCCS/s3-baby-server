@@ -46,10 +46,10 @@ var unsupported_header_list = []string{
 // allowed nested tagging in values in the format
 // 'TagSet=[{Key=<key>,Value=<value>}]'.
 
-func parse_tags(s string) (types.Tagging, error) {
+func parse_tags(s string) (*types.Tagging, error) {
 	var m, err1 = url.ParseQuery(s)
 	if err1 != nil {
-		return types.Tagging{}, err1
+		return nil, err1
 	}
 	var tags = []types.Tag{}
 	for k, v := range m {
@@ -64,6 +64,10 @@ func parse_tags(s string) (types.Tagging, error) {
 		}
 		tags = append(tags, types.Tag{Key: &k, Value: &value})
 	}
-	var tagging = types.Tagging{TagSet: tags}
-	return tagging, nil
+	if len(tags) == 0 {
+		return nil, nil
+	} else {
+		var tagging = types.Tagging{TagSet: tags}
+		return &tagging, nil
+	}
 }

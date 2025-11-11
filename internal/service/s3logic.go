@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"s3-baby-server/internal/model"
-	"s3-baby-server/pkg/utils"
+	"s3-baby-server/internal/utils"
 	"strings"
 	"time"
 )

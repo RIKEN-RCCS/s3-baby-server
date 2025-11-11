@@ -10,19 +10,22 @@ package server
 
 import (
 	"context"
-	"errors"
+	//"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"time"
 	//"s3-baby-server/internal/api"
 	"s3-baby-server/internal/service"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"encoding/xml"
+	"encoding/base64"
 	"log"
 	"log/slog"
 	"net/http"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,7 +37,9 @@ type BB_configuration struct {
 	Anonymize_ower            bool
 	Verify_fs_write           bool
 	Pending_upload_expiration time.Duration
-	Server_control_path       string
+	Server_controler_path       string
+
+	request_processing_timeout       time.Duration
 
 	File_follow_link   bool
 	File_creation_mode fs.FileMode
@@ -48,7 +53,10 @@ type Bb_server struct {
 	BB_config BB_configuration
 
 	rid   int64
+	suffixes map[string]suffix_record
 	mutex sync.Mutex
+
+	serializer sync.Mutex
 
 	// FileSystem is in S3.FileSystem *FileSystem
 
@@ -78,8 +86,9 @@ type Bb_server struct {
 }
 
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
-// does not advance, uses the last value plus one.
-func (bbs *Bb_server) make_request_id() string {
+// does not advance, uses the last value plus one.  It is strictly
+// increasing.
+func (bbs *Bb_server) make_request_id() *int64 {
 	var t int64 = time.Now().UnixMicro()
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
@@ -90,7 +99,58 @@ func (bbs *Bb_server) make_request_id() string {
 		bbs.rid = t
 	}
 	//return strconv.FormatInt(t, 16)
-	return fmt.Sprintf("%016x", t)
+	//return fmt.Sprintf("%016x", t)
+	return &t
+}
+
+func get_request_id(ctx context.Context) int64 {
+	var ridx = ctx.Value("request-id").(*int64)
+	if ridx == nil {
+		log.Fatal("BAD-IMPL: request-id not assigned")
+		return 0
+	} else {
+		return *ridx
+	}
+}
+
+type suffix_record struct {
+	rid int64
+	timestamp time.Time
+}
+
+// MAKE_FILE_SUFFIX makes a short key string to make a temporary file
+// unique.  It takes request-id.  It returns a string of 8 hex-digits.
+func (bbs *Bb_server) make_file_suffix(rid int64) string {
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	var loops int = 0
+	for true {
+		var r = rand.Int63()
+		var s = fmt.Sprintf("%08x", r)
+		var _, ok = bbs.suffixes[s]
+		if !ok {
+			bbs.suffixes[s] = suffix_record{rid, time.Now()}
+			return s
+		}
+		loops++
+		if loops >= 10 {
+			log.Fatal("BAD-IMPL: unique key generation loops forever")
+		}
+	}
+	// Never.
+	return ""
+}
+
+// DISCHARGE_FILE_SUFFIXES removes recorded file suffixes for
+// temporary files associated to a request-id.
+func (bbs *Bb_server) discharge_file_suffixes(rid int64) {
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	for k, v := range bbs.suffixes {
+		if v.rid == rid {
+			delete(bbs.suffixes, k)
+		}
+	}
 }
 
 // RESPOND_ON_ACTION_ERROR is an action error and makes a
@@ -102,7 +162,9 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	}
 	bbs.Logger.Info(string(e1.Code), "error", e1)
 
-	e1.RequestId = ctx.Value("request-id").(string)
+	var rid int64 = get_request_id(ctx)
+
+	e1.RequestId = fmt.Sprintf("%016x", rid)
 	var m = Aws_s3_error_to_message[e1.Code]
 	if len(e1.Message) == 0 {
 		e1.Message = m.Message
@@ -131,60 +193,6 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 	}
 	var err1 = Aws_s3_Error{Code: InvalidArgument, Message: e.Error()}
 	bbs.respond_on_action_error(ctx, w, r, err1)
-}
-
-func fs_error_name(err error) string {
-	if errors.Is(err, fs.ErrInvalid) {
-		return "ErrInvalid"
-	} else if errors.Is(err, fs.ErrPermission) {
-		return "ErrPermission"
-	} else if errors.Is(err, fs.ErrExist) {
-		return "ErrExist"
-	} else if errors.Is(err, fs.ErrNotExist) {
-		return "ErrNotExist"
-	} else if errors.Is(err, fs.ErrClosed) {
-		return "ErrClosed"
-	} else {
-		// os.ErrNoDeadline
-		// os.ErrDeadlineExceeded
-		return "ErrUnknown"
-	}
-}
-
-// Makes an AWS-S3 error from a given OS error.  Error codes can be
-// mapped to something like, fs.ErrExist to "BucketAlreadyOwnedByYou".
-func map_os_error(ctx context.Context, location string, err1 error, m map[error]Aws_s3_error_code) error {
-	var kind error
-	var code1 Aws_s3_error_code
-	if errors.Is(err1, fs.ErrInvalid) {
-		kind = fs.ErrInvalid
-		code1 = InvalidArgument
-	} else if errors.Is(err1, fs.ErrPermission) {
-		kind = fs.ErrPermission
-		code1 = AccessDenied
-	} else if errors.Is(err1, fs.ErrExist) {
-		kind = fs.ErrExist
-		code1 = InternalError
-	} else if errors.Is(err1, fs.ErrNotExist) {
-		kind = fs.ErrNotExist
-		code1 = InternalError
-	} else if errors.Is(err1, fs.ErrClosed) {
-		kind = fs.ErrClosed
-		code1 = InternalError
-	} else {
-		kind = nil
-		code1 = InternalError
-	}
-
-	var code2, ok1 = m[kind]
-	if ok1 {
-		var err5 = Aws_s3_Error{Code: code2, Resource: location}
-		return &err5
-	} else {
-		var err5 = Aws_s3_Error{Code: code1, Resource: location,
-			Message: fs_error_name(kind)}
-		return &err5
-	}
 }
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
@@ -436,9 +444,9 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// + Bucket *string
 	// + Key *string
 	// - ACL types.ObjectCannedACL
-	// x Body io.Reader
+	// + Body io.Reader
 	// - BucketKeyEnabled *bool
-	// x CacheControl *string
+	// + CacheControl *string
 	// - ChecksumAlgorithm types.ChecksumAlgorithm
 	// - ChecksumCRC32 *string
 	// - ChecksumCRC32C *string
@@ -470,8 +478,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// - SSEKMSEncryptionContext *string
 	// - SSEKMSKeyId *string
 	// - ServerSideEncryption types.ServerSideEncryption
-	// x StorageClass types.StorageClass
-	// x Tagging *string
+	// + StorageClass types.StorageClass
+	// + Tagging *string
 	// - WebsiteRedirectLocation *string
 	// - WriteOffsetBytes *int64
 
@@ -494,11 +502,12 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		log.Fatalf("BAD-IMPL: Key parameter not clean")
 	}
 	if !check_object_naming(key) {
-		var err5 = Aws_s3_Error{Code: InvalidArgument}
-		return &o, &err5
+		var errz = Aws_s3_Error{Code: InvalidArgument}
+		return &o, &errz
 	}
+	var object = path.Join(bucket, key)
 
-	var location = "/" + bucket
+	var location = "/" + object
 	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
 	if err2 != nil {
 		return &o, err2
@@ -508,29 +517,83 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	if i.CacheControl != nil {
 		if !strings.EqualFold(*i.CacheControl, "no-cache") {
-			var err5 = Aws_s3_Error{Code: InvalidStorageClass,
+			var errz = Aws_s3_Error{Code: InvalidStorageClass,
 				Resource: location}
-			return &o, err5
+			return &o, errz
 		}
 	}
 	if i.StorageClass != types.StorageClassStandard {
-		var err5 = Aws_s3_Error{Code: InvalidStorageClass,
+		var errz = Aws_s3_Error{Code: InvalidStorageClass,
 			Resource: location}
-		return &o, err5
+		return &o, errz
 	}
 
-	var tags types.Tagging
+	var info *File_meta_info = nil
 	if i.Tagging != nil {
 		var tags1, err3 = parse_tags(*i.Tagging)
 		if err3 != nil {
-			var err5 = Aws_s3_Error{Code: InvalidArgument,
+			var errz = Aws_s3_Error{Code: InvalidArgument,
 				Message: "Tag format error.",
 				Resource: location}
-			return &o, err5
+			return &o, errz
 		}
-		tags = tags1
+		if tags1 != nil {
+			info = &File_meta_info{Tags: tags1}
+		}
 	}
-	var _ = tags
+
+	var size int64
+	if i.ContentLength != nil {
+		size = *i.ContentLength
+	} else {
+		size = -1
+	}
+	var md5 []byte
+	if i.ContentMD5 != nil {
+		var bs, err4 = base64.StdEncoding.DecodeString(*i.ContentMD5)
+		if err4 != nil {
+			md5 = bs
+		} else {
+			md5 = []byte{}
+		}
+	} else {
+		md5 = []byte{}
+	}
+
+	var rid int64 = get_request_id(ctx)
+
+	var suffix = bbs.make_file_suffix(rid)
+	defer bbs.discharge_file_suffixes(rid)
+
+	var err6 = bbs.upload_file(ctx, object, suffix, size, md5, i.Body)
+	if err6 != nil {
+		return &o, err6
+	}
+
+	// It should be atomic on placing an uploaded file and saving a
+	// meta-info file.  Note saving meta-info first.  Failing to place
+	// an uploaded file may lose meta-info.
+
+	var err9 = func () error {
+		bbs.serializer.Lock()
+		defer bbs.serializer.Unlock()
+
+		var err1 = bbs.store_file_meta_info(ctx, object, info)
+		if err1 != nil {
+			return err1
+		}
+		var err2 = bbs.place_uploaded(ctx, object, suffix)
+		if err2 != nil {
+			var _ = bbs.store_file_meta_info(ctx, object, nil)
+		}
+		if err2 != nil {
+			return err2
+		}
+		return nil
+	}()
+	if err9 != nil {
+		return &o, err9
+	}
 
 	/*
 	if f := s3.FileSystem.uploadFile(option.GetBody(), option.GetPath()); !f {
