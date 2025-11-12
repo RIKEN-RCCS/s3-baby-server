@@ -7,19 +7,23 @@
 package server
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
+	"hash"
+	"hash/crc32"
+	"hash/crc64"
+	"log/slog"
 	//"crypto/rand"
-	//"encoding/base64"
 	"encoding/json"
-	//"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
-	//"math/big"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -198,7 +202,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 	var cleanup_needed = new(bool)
 	defer func() {
 		var err2 = f1.Close()
-		if err2 != nil&& !errors.Is(err2, fs.ErrClosed) {
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
 			bbs.Logger.Warn("op.Close() failed", "file", name,
 				"error", err2)
 		}
@@ -232,18 +236,18 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 
 	// Check MD5 of a temporary file.
 
-	if (len(md5a) != 0) {
+	if len(md5a) != 0 {
 		var md5b, err7 = calculate_md5(name, bbs.Logger)
 		if err7 != nil {
 			var errz = Aws_s3_Error{Code: InternalError,
 				Resource: location,
-				Message: fmt.Sprintf("md5 calculation failed")}
+				Message:  fmt.Sprintf("md5 calculation failed")}
 			return errz
 		}
 		if bytes.Compare(md5a, md5b) != 0 {
 			var errz = Aws_s3_Error{Code: IncompleteBody,
 				Resource: location,
-				Message: fmt.Sprintf("Body md5 unmatch")}
+				Message:  fmt.Sprintf("Body md5 unmatch")}
 			return errz
 		}
 	}
@@ -278,7 +282,7 @@ func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string)
 	return nil
 }
 
-// Fetches a info file.  The object path includes its bucket.
+// Fetches a meta-info file.  The object path includes its bucket.
 func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (*File_meta_info, error) {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
@@ -303,24 +307,25 @@ func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (
 	}
 	defer func() {
 		var err2 = f1.Close()
-		if err2 != nil&& !errors.Is(err2, fs.ErrClosed) {
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
 			bbs.Logger.Warn("op.Close() failed", "file", name,
 				"error", err2)
 		}
 	}()
 
 	var dec = json.NewDecoder(f1)
-	var meta File_meta_info
-	var err4 = dec.Decode(&meta)
+	var info File_meta_info
+	var err4 = dec.Decode(&info)
 	if err4 != nil {
 		bbs.Logger.Warn("BAD META-INFO FILE: The content broken",
 			"file", name, "error", err4)
 		return nil, map_os_error(ctx, location, err4, nil)
 	}
-	return &meta, nil
+	return &info, nil
 }
 
-// Stores a info file.  The object path includes its bucket.
+// Stores a meta-info file.  The object path includes its bucket.
+// Passing nil deletes a meta-info file.
 func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, info *File_meta_info) error {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
@@ -361,7 +366,7 @@ func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, i
 		}
 		defer func() {
 			var err2 = f1.Close()
-			if err2 != nil&& !errors.Is(err2, fs.ErrClosed) {
+			if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
 				bbs.Logger.Warn("op.Close() failed", "file", name,
 					"error", err2)
 			}
@@ -385,4 +390,56 @@ func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, i
 		}
 		return nil
 	}
+}
+
+// Various parameters for CRC can be found (for example) at:
+// https://reveng.sourceforge.io/crc-catalogue/all.htm
+
+func (bbs *Bb_server) calculate_checksum(ctx context.Context, algorithm types.ChecksumAlgorithm, object string) (string, error) {
+	var location = "/" + object
+	var name = bbs.make_file_name_of_object(object, "", "")
+	var f1, err1 = os.Open(name)
+	if err1 != nil {
+		bbs.Logger.Warn("os.Open() failed", "path", name, "error", err1)
+		return "", map_os_error(ctx, location, err1, nil)
+	}
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil {
+			bbs.Logger.Warn("os.Close() failed", "path", name, "error", err2)
+		}
+	}()
+
+	var hash1 hash.Hash
+	switch algorithm {
+	case types.ChecksumAlgorithmCrc32:
+		hash1 = crc32.NewIEEE()
+	case types.ChecksumAlgorithmCrc32c:
+		hash1 = crc32.New(crc32.MakeTable(crc32.Castagnoli))
+	case types.ChecksumAlgorithmSha1:
+		hash1 = sha1.New()
+	case types.ChecksumAlgorithmSha256:
+		hash1 = sha256.New()
+	case types.ChecksumAlgorithmCrc64nvme:
+		const poly_nvme = 0x9a6c9329ac4bc9b5
+		hash1 = crc64.New(crc64.MakeTable(poly_nvme))
+	default:
+		log.Fatal("Bad s3/types.ChecksumAlgorithm")
+	}
+
+	var _, err3 = io.Copy(hash1, f1)
+	if err3 != nil {
+		return "", err3
+	}
+	var sum []byte = hash1.Sum(nil)
+	var s = base64.StdEncoding.EncodeToString(sum)
+	return s, nil
+}
+
+func (bbs *Bb_server) make_file_name_of_object(object string, prefix, suffix string) string {
+	var dir1, file = path.Split(object)
+	var dir2 = filepath.Clean(dir1)
+	var pool_path = bbs.S3.FileSystem.RootPath
+	var name = filepath.Join(pool_path, dir2, (prefix + file + suffix))
+	return name
 }

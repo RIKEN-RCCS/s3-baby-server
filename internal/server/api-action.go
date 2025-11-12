@@ -155,24 +155,22 @@ func (bbs *Bb_server) discharge_file_suffixes(rid int64) {
 }
 
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) error {
-	var monitor = bbs.monitor1
-	var ok = monitor.enter(object, rid, (10 * time.Millisecond))
+	var ok = bbs.monitor1.enter(object, rid, (10 * time.Millisecond))
 	if !ok {
 		return Aws_s3_Error{Code: RequestTimeout}
 	}
 	return nil
 }
 
-func (bbs *Bb_server) release_serialized_access(ctx context.Context, object string, rid int64) error {
-	var monitor = bbs.monitor1
-	monitor.exit(object, rid)
+func (bbs *Bb_server) release_access(ctx context.Context, object string, rid int64) error {
+	bbs.monitor1.exit(object, rid)
 	return nil
 }
 
 // RESPOND_ON_ACTION_ERROR is an action error and makes a
 // response for it.
 func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	var e1, ok = e.(*Aws_s3_Error)
+	var e1, ok = e.(Aws_s3_Error)
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
@@ -528,19 +526,23 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		return &o, err2
 	}
 
-	// ?? CHECK "Cache-Control": "no-cache".
+	// AHO ?? Check "Cache-Control" which only accepts "no-cache".
 
 	if i.CacheControl != nil {
 		if !strings.EqualFold(*i.CacheControl, "no-cache") {
 			var errz = Aws_s3_Error{Code: InvalidStorageClass,
+				Message: "Bad Cache-Control",
 				Resource: location}
 			return &o, errz
 		}
 	}
-	if i.StorageClass != types.StorageClassStandard {
-		var errz = Aws_s3_Error{Code: InvalidStorageClass,
-			Resource: location}
-		return &o, errz
+	if i.StorageClass != "" {
+		if i.StorageClass != types.StorageClassStandard {
+			var errz = Aws_s3_Error{Code: InvalidStorageClass,
+				Message: "Bad x-amz-storage-class",
+				Resource: location}
+			return &o, errz
+		}
 	}
 
 	var info *File_meta_info = nil
@@ -589,7 +591,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// meta-info.
 
 	var _ = bbs.serialize_access(ctx, object, rid)
-	defer bbs.release_serialized_access(ctx, object, rid)
+	defer bbs.release_access(ctx, object, rid)
 
 	{
 		var err1 = bbs.store_file_meta_info(ctx, object, info)
@@ -626,6 +628,30 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 	result := s.MakePutObjectResult()
     */
+
+	// AHO
+
+	o.ETag = i.ContentMD5
+
+	if string(i.ChecksumAlgorithm) != "" {
+		var csum, errx = bbs.calculate_checksum(ctx, i.ChecksumAlgorithm, object)
+		if errx != nil {
+			return &o, errx
+		}
+		switch i.ChecksumAlgorithm {
+		case types.ChecksumAlgorithmCrc32:
+			o.ChecksumCRC32 = &csum
+		case types.ChecksumAlgorithmCrc32c:
+			o.ChecksumCRC32C = &csum
+		case types.ChecksumAlgorithmSha1:
+			o.ChecksumSHA1 = &csum
+		case types.ChecksumAlgorithmSha256:
+			o.ChecksumSHA256 = &csum
+		case types.ChecksumAlgorithmCrc64nvme:
+			o.ChecksumCRC64NVME = &csum
+		}
+		o.ChecksumType = types.ChecksumTypeFullObject
+	}
 
 	return &o, nil
 }

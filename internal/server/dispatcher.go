@@ -88,7 +88,6 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		if true {
 			fmt.Printf("h_ListBuckets!\n")
 			h_ListBuckets(bbs, w, r)
-			//bbs.ListBucketsHandler(w, r)
 		} else {
 			http.NotFound(w, r)
 			return
@@ -119,8 +118,7 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 			bbs.CopyObjectHandler(w, r)
 		} else if true {
 			fmt.Printf("h_PutObject!\n")
-			//h_PutObject(bbs, w, r)
-			bbs.PutObjectHandler(w, r)
+			h_PutObject(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return
@@ -130,7 +128,6 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		if true {
 			fmt.Printf("h_CreateBucket!\n")
 			h_CreateBucket(bbs, w, r)
-			//bbs.CreateBucketHandler(w, r)
 		} else {
 			http.NotFound(w, r)
 			return
