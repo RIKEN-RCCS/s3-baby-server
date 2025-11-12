@@ -54,7 +54,7 @@ type Bb_server struct {
 
 	rid   int64
 	suffixes map[string]suffix_record
-	monitor1 monitor
+	monitor1 *monitor
 	mutex sync.Mutex
 
 	server_quit chan struct{}

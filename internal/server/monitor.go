@@ -31,6 +31,12 @@ type wait_task struct {
 	due time.Time
 }
 
+func new_monitor() *monitor {
+	var m = monitor{}
+	m.init()
+	return &m
+}
+
 func (m *monitor) init() {
 	m.waitings = make(map[string][]wait_task)
 	m.blocker = sync.NewCond(&m.mutex)

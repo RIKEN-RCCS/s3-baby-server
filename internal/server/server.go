@@ -74,6 +74,10 @@ func Start(basePath, addr, logPath, authKey string) {
 	fs.InitDir()
 
 	var bbs = Bb_server{S3: s3, Logger: logger, AuthKey: authKey}
+	bbs.suffixes = make(map[string]suffix_record)
+	bbs.server_quit = make(chan struct{})
+	bbs.monitor1 = new_monitor()
+	go bbs.monitor1.guard_loop()
 
 	//bind := func(path string, f api.S3HandlerFunc) *mux.Route {
 	//	return r.HandleFunc(path, api.HandlerBase(f, s3.FileSystem, authKey, logger))
