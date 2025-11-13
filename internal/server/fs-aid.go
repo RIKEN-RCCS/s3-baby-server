@@ -85,11 +85,11 @@ func map_os_error(ctx context.Context, location string, err1 error, m map[error]
 	var code2, ok1 = m[kind]
 	if ok1 {
 		var err5 = Aws_s3_Error{Code: code2, Resource: location}
-		return &err5
+		return err5
 	} else {
 		var err5 = Aws_s3_Error{Code: code1, Resource: location,
 			Message: os_error_name(kind)}
-		return &err5
+		return err5
 	}
 }
 

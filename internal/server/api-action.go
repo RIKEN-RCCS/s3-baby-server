@@ -209,6 +209,12 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 	bbs.respond_on_action_error(ctx, w, r, err1)
 }
 
+// COPE_WRITE_ERROR is called on a write error of response payload and
+// makes a response for it.
+func (bbs *Bb_server) cope_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
+	panic(e)
+}
+
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
 	var o = s3.AbortMultipartUploadOutput{}
 	return &o, nil
@@ -223,7 +229,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, params *s3.CopyObjectInput
 }
 
 func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
-	fmt.Printf("bbs.CreateBucket\n")
+	fmt.Printf("CreateBucket\n")
 	var o = s3.CreateBucketOutput{}
 
 	// List of parameters.
