@@ -7,11 +7,11 @@
 // extracted from the AWS S3 API specification.  It contains a list of
 // error codes in the "Error responses" section.
 
-// Aws_s3_error_code is an enumeration.  Aws_s3_error_to_message is a
-// map from error-code to a pair of an http status-code and a message.
-// Some of the messages that are rather long are shortened by hand.
-// Entries may have -1 for http status-code, which corresponds to
-// "N/A" in the specification.
+// Aws_s3_error_code is an enumeration of string type.
+// Aws_s3_error_to_message is a map from error-code to a pair of an
+// http status-code and a message.  Some of the messages that are
+// rather long are shortened by hand.  Entries may have -1 for http
+// status-code, which corresponds to "N/A" in the specification.
 
 package server
 
@@ -23,7 +23,7 @@ import (
 
 // Common elements of errors.  Attached tagging makes extending
 // structures will be marshaled with "Error" tag.
-type Aws_s3_Error struct {
+type Aws_s3_error struct {
 	XMLName xml.Name `xml:"Error"`
 	Code Aws_s3_error_code
 	Message string
@@ -31,7 +31,7 @@ type Aws_s3_Error struct {
 	RequestId string
 }
 
-func (e Aws_s3_Error) Error() string {
+func (e *Aws_s3_error) Error() string {
 	var code = e.ErrorCode()
 	var m = e.ErrorMessage()
 	if len(m) == 0 {
@@ -41,15 +41,15 @@ func (e Aws_s3_Error) Error() string {
 	}
 }
 
-func (e Aws_s3_Error) ErrorCode() string {
+func (e *Aws_s3_error) ErrorCode() string {
 	return string(e.Code)
 }
 
-func (e Aws_s3_Error) ErrorMessage() string {
+func (e *Aws_s3_error) ErrorMessage() string {
 	return e.Message
 }
 
-func (e Aws_s3_Error) ErrorFault() smithy.ErrorFault {
+func (e *Aws_s3_error) ErrorFault() smithy.ErrorFault {
 	return smithy.FaultClient
 }
 

@@ -84,10 +84,10 @@ func map_os_error(ctx context.Context, location string, err1 error, m map[error]
 	}
 	var code2, ok1 = m[kind]
 	if ok1 {
-		var err5 = Aws_s3_Error{Code: code2, Resource: location}
+		var err5 = &Aws_s3_error{Code: code2, Resource: location}
 		return err5
 	} else {
-		var err5 = Aws_s3_Error{Code: code1, Resource: location,
+		var err5 = &Aws_s3_error{Code: code1, Resource: location,
 			Message: os_error_name(kind)}
 		return err5
 	}
@@ -140,7 +140,7 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 	var info, err2 = os.Lstat(path)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
-			var err5 = Aws_s3_Error{Code: NoSuchBucket,
+			var err5 = &Aws_s3_error{Code: NoSuchBucket,
 				Resource: location}
 			return err5
 		} else {
@@ -150,14 +150,14 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 		}
 	}
 	if !info.IsDir() {
-		var err5 = Aws_s3_Error{Code: NoSuchBucket,
+		var err5 = &Aws_s3_error{Code: NoSuchBucket,
 			Resource: location}
 		return err5
 	}
 	return nil
 }
 
-func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, size int64, md5a []byte, body io.Reader) error {
+func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, size int64, md5_to_check []byte, body io.Reader) ([]byte, error) {
 	var location = "/" + object
 	var dir1, filename = path.Split(object)
 	//var dir2, err1 = filepath.Localize(dir1)
@@ -173,14 +173,14 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 		} else {
 			bbs.Logger.Info("os.Lstat() failed",
 				"file", dirpath, "error", err2)
-			return map_os_error(ctx, location, err2, nil)
+			return nil, map_os_error(ctx, location, err2, nil)
 		}
 	}
 	if !info.IsDir() {
 		bbs.Logger.Warn("Path is not a directory", "path", dirpath)
-		var errz = Aws_s3_Error{Code: AccessDenied,
+		var errz = &Aws_s3_error{Code: AccessDenied,
 			Resource: location}
-		return errz
+		return nil, errz
 	}
 	if err2 != nil {
 		// assert(errors.Is(err2, fs.ErrNotExist))
@@ -188,7 +188,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 		if err3 != nil {
 			bbs.Logger.Info("os.Mkdir() failed", "path", dirpath,
 				"error", err3)
-			return map_os_error(ctx, location, err3, nil)
+			return nil, map_os_error(ctx, location, err3, nil)
 		}
 	}
 
@@ -197,7 +197,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 	var f1, err4 = os.Create(name)
 	if err4 != nil {
 		bbs.Logger.Info("os.Create() failed", "file", name, "error", err4)
-		return map_os_error(ctx, location, err4, nil)
+		return nil, map_os_error(ctx, location, err4, nil)
 	}
 	var cleanup_needed = new(bool)
 	defer func() {
@@ -216,39 +216,39 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 		bbs.Logger.Info("io.Copy() failed", "error", err5)
 		var m = map[error]Aws_s3_error_code{}
 		var errz = map_os_error(ctx, location, err5, m)
-		return errz
+		return nil, errz
 	}
 	var err6 = f1.Close()
 	if err6 != nil {
 		bbs.Logger.Info("os.Close() failed", "error", err6)
 		var m = map[error]Aws_s3_error_code{}
 		var errz = map_os_error(ctx, location, err6, m)
-		return errz
+		return nil, errz
 	}
 	if cc != size {
 		bbs.Logger.Info("Transfer failed")
-		var errz = Aws_s3_Error{Code: IncompleteBody,
+		var errz = &Aws_s3_error{Code: IncompleteBody,
 			Resource: location,
 			Message: fmt.Sprintf("Body expected length=%d but received length=%d",
 				size, cc)}
-		return errz
+		return nil, errz
 	}
 
 	// Check MD5 of a temporary file.
 
-	if len(md5a) != 0 {
-		var md5b, err7 = calculate_md5(name, bbs.Logger)
-		if err7 != nil {
-			var errz = Aws_s3_Error{Code: InternalError,
-				Resource: location,
-				Message:  fmt.Sprintf("md5 calculation failed")}
-			return errz
-		}
-		if bytes.Compare(md5a, md5b) != 0 {
-			var errz = Aws_s3_Error{Code: IncompleteBody,
+	var md5, err7 = calculate_md5(name, bbs.Logger)
+	if err7 != nil {
+		var errz = &Aws_s3_error{Code: InternalError,
+			Resource: location,
+			Message:  fmt.Sprintf("md5 calculation failed")}
+		return nil, errz
+	}
+	if len(md5_to_check) != 0 {
+		if bytes.Compare(md5_to_check, md5) != 0 {
+			var errz = &Aws_s3_error{Code: IncompleteBody,
 				Resource: location,
 				Message:  fmt.Sprintf("Body md5 unmatch")}
-			return errz
+			return nil, errz
 		}
 	}
 
@@ -256,7 +256,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 	// separated.  It should be in coordination with the meta-info
 	// file.
 
-	return nil
+	return md5, nil
 }
 
 func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string) error {
@@ -286,11 +286,7 @@ func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string)
 func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (*File_meta_info, error) {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
-	//var dir2, err1 = filepath.Localize(dir1)
 	var dir2 = filepath.Clean(dir1)
-	//if err1 != nil {
-	//return nil, map_path_error(ctx, location, err1, nil)
-	//}
 	var pool_path = bbs.S3.FileSystem.RootPath
 	var name = filepath.Join(pool_path, dir2, ("." + file + "@meta"))
 
@@ -392,6 +388,43 @@ func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, i
 	}
 }
 
+func (bbs *Bb_server) calculate_md5_(ctx context.Context, object string, actual_file bool) ([]byte, error) {
+	var location = "/" + object
+	var name = bbs.make_file_name_of_object(object, "", "")
+	var f1, err1 = os.Open(name)
+	if err1 != nil {
+		bbs.Logger.Warn("os.Open() failed", "path", name, "error", err1)
+		return nil, map_os_error(ctx, location, err1, nil)
+	}
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil {
+			bbs.Logger.Warn("os.Close() failed", "path", name, "error", err2)
+		}
+	}()
+
+	var hash1 = md5.New()
+	var _, err3 = io.Copy(hash1, f1)
+	if err3 != nil {
+		return nil, err3
+	}
+
+	var sum []byte = hash1.Sum(nil)
+	//var s = hex.EncodeToString(sum)
+	//var s = base64.StdEncoding.EncodeToString(sum)
+	return sum, nil
+}
+
+// ETags are strong always.
+func make_etag_from_md5(csum []byte) *string {
+	if len(csum) == 0{
+		return nil
+	} else {
+		var s = "\"" + base64.StdEncoding.EncodeToString(csum) + "\""
+		return &s
+	}
+}
+
 // Various parameters for CRC can be found (for example) at:
 // https://reveng.sourceforge.io/crc-catalogue/all.htm
 
@@ -442,4 +475,48 @@ func (bbs *Bb_server) make_file_name_of_object(object string, prefix, suffix str
 	var pool_path = bbs.S3.FileSystem.RootPath
 	var name = filepath.Join(pool_path, dir2, (prefix + file + suffix))
 	return name
+}
+
+func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent []int64) (io.ReadCloser, error) {
+	var location = "/" + object
+	var dir1, file = path.Split(object)
+	var dir2 = filepath.Clean(dir1)
+	var pool_path = bbs.S3.FileSystem.RootPath
+	var name = filepath.Join(pool_path, dir2, file)
+
+	var f1, err2 = os.Open(name)
+	if err2 != nil {
+		if errors.Is(err2, fs.ErrNotExist) {
+			// OK.
+			bbs.Logger.Info("os.Open() failed", "file", name,
+				"error", err2)
+			var errz = &Aws_s3_error{Code: NoSuchKey,
+				Resource: location}
+			return nil, errz
+		} else {
+			bbs.Logger.Warn("os.Open() failed", "file", name,
+				"error", err2)
+			return nil, map_os_error(ctx, location, err2, nil)
+		}
+	}
+	if extent == nil {
+		fmt.Printf("extent==nil\n")
+		return f1, nil
+	} else {
+		/*
+		var pos, err1 = f1.Seek(extent[0], 0)
+		if err1 != nil {
+			return nil, err1
+		}
+		if pos < extent[0] {
+			log.Fatalf("os.Seek returned incomplete")
+			return nil, io.ErrUnexpectedEOF
+		}
+		var f2 = &io.LimitedReader{R: f1, N: extent[1] - extent[0]}
+		return f2, nil
+		*/
+
+		var f2, err3 = New_range_reader(f1, [2]int64(extent[0:2]))
+		return f2, err3
+	}
 }

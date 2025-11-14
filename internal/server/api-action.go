@@ -157,7 +157,7 @@ func (bbs *Bb_server) discharge_file_suffixes(rid int64) {
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) error {
 	var ok = bbs.monitor1.enter(object, rid, (10 * time.Millisecond))
 	if !ok {
-		return Aws_s3_Error{Code: RequestTimeout}
+		return &Aws_s3_error{Code: RequestTimeout}
 	}
 	return nil
 }
@@ -170,7 +170,7 @@ func (bbs *Bb_server) release_access(ctx context.Context, object string, rid int
 // RESPOND_ON_ACTION_ERROR is an action error and makes a
 // response for it.
 func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	var e1, ok = e.(Aws_s3_Error)
+	var e1, ok = e.(*Aws_s3_error)
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
@@ -205,7 +205,7 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 	for _, e = range m {
 		break
 	}
-	var err1 = Aws_s3_Error{Code: InvalidArgument, Message: e.Error()}
+	var err1 = &Aws_s3_error{Code: InvalidArgument, Message: e.Error()}
 	bbs.respond_on_action_error(ctx, w, r, err1)
 }
 
@@ -213,6 +213,37 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 // makes a response for it.
 func (bbs *Bb_server) cope_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
 	panic(e)
+}
+
+func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *string, key1 *string) (string, error) {
+	if bucket1 == nil {
+		log.Fatalf("BAD-IMPL: Bucket parameter missing")
+	}
+	var bucket = *bucket1
+	if !check_bucket_naming(bucket) {
+		var errz = &Aws_s3_error{Code: InvalidBucketName}
+		return "", errz
+	}
+
+	if key1 == nil {
+		log.Fatalf("BAD-IMPL: Key parameter missing")
+	}
+	var key = *key1
+	if strings.HasPrefix(key, "..") {
+		log.Fatalf("BAD-IMPL: Key parameter not clean")
+	}
+	if !check_object_naming(key) {
+		var errz = &Aws_s3_error{Code: InvalidArgument}
+		return "", errz
+	}
+
+	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
+	if err2 != nil {
+		return "", err2
+	}
+
+	var object = path.Join(bucket, key)
+	return object, nil
 }
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
@@ -249,8 +280,8 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	}
 	var bucket = *i.Bucket
 	if !check_bucket_naming(bucket) {
-		var err5 = Aws_s3_Error{Code: InvalidBucketName}
-		return &o, &err5
+		var err5 = &Aws_s3_error{Code: InvalidBucketName}
+		return &o, err5
 	}
 
 	var location = "/" + bucket
@@ -295,10 +326,108 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, params *s3.Delete
 	var o = s3.DeleteObjectTaggingOutput{}
 	return &o, nil
 }
-func (bbs *Bb_server) GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+
+func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	fmt.Printf("*GetObject*\n")
 	var o = s3.GetObjectOutput{}
+
+	// List of parameters.
+	// + Bucket *string
+	// + Key *string
+	// - ChecksumMode types.ChecksumMode
+	// - ExpectedBucketOwner *string
+	// - IfMatch *string
+	// - IfModifiedSince *time.Time
+	// - IfNoneMatch *string
+	// - IfUnmodifiedSince *time.Time
+	// - PartNumber *int32
+	// - Range *string
+	// - RequestPayer types.RequestPayer
+	// - ResponseCacheControl *string
+	// - ResponseContentDisposition *string
+	// - ResponseContentEncoding *string
+	// - ResponseContentLanguage *string
+	// - ResponseContentType *string
+	// - ResponseExpires *time.Time
+	// - SSECustomerAlgorithm *string
+	// - SSECustomerKey *string
+	// - SSECustomerKeyMD5 *string
+	// - VersionId *string
+
+	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err1 != nil {
+		return nil, err1
+	}
+	var location = "/" + object
+	var _ = location
+
+	//var etag = bbs.calculate_md5(ctx, object)
+
+	// https://datatracker.ietf.org/doc/html/rfc7232
+
+	if i.IfMatch != nil || i.IfNoneMatch != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "if-match and if-none-match are unsupported"}
+		return nil, errz
+	}
+
+	/*
+	s := model.GetObjectState{}
+	if err := s3.validateGetObjectOptions(option); err != nil {
+		return nil, err
+	}
+	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+		return nil, InvalidBucketName()
+	}
+	if err := s3.isBucketAndKeyExists(option.GetBucket(), option.GetPath()); err != nil {
+		return nil, err
+	}
+	if !s3.FileSystem.checkKeyName(option.GetKey()) {
+		return nil, KeyTooLongError()
+	}
+	if s.Content = s3.FileSystem.readFile(option.GetPath()); s.Content == nil {
+		return nil, InternalError()
+	}
+	var s3err *S3Error
+	if s.Info, s.ETag, s3err = s3.getFileInfoAndETag(option.GetPath()); s3err != nil {
+		return nil, s3err
+	}
+	if s3err = s3.validateETagAndTime(option); s3err != nil {
+		return nil, s3err
+	}
+	if s.ContentRange, s.Content, s3err = s3.getRangeContent(option, s.Content); s3err != nil {
+		return nil, s3err
+	}
+	if !s3.getPartNumberContent(option) {
+		return nil, InvalidArgument()
+	}
+	if s.ResponseCrc64nvme, s3err = s3.checkChecksumMode(option, s.Content); s3err != nil {
+		return nil, s3err
+	}
+	s.TagCount, s.MissingMeta = s3.Tag.getTagCount(option.GetPath())
+	result := s.MakeGetObjectResult()
+	result.ContentDisposition = option.GetOption("response-content-disposition")
+	result.ContentEncoding = option.GetOption("response-content-encoding")
+	result.ContentLanguage = option.GetOption("response-content-language")
+	result.ContentType = option.GetOption("response-content-type")
+	return result, nil
+	*/
+
+	if i.Range != nil {
+	}
+
+	// type ReadCloser interface {Reader; Closer}
+
+	var f1, err4 = bbs.make_file_stream(ctx, object, nil)
+	if err4 != nil {
+		return nil, err4
+	}
+	fmt.Printf("GetObject f1=%#v\n", f1)
+	o.Body = f1
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, params *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, error) {
 	var o = s3.GetObjectAttributesOutput{}
 	return &o, nil
@@ -317,7 +446,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, params *s3.HeadObjectInput
 }
 
 func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
-	fmt.Printf("bbs.ListBuckets\n")
+	fmt.Printf("ListBuckets\n")
 	var o = s3.ListBucketsOutput{}
 
 	// List of parameters.
@@ -336,7 +465,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 			bbs.respond_on_input_error(m)
 			*/
 			var err2 = Bb_input_error{"continuation-token", err1}
-			var err3 = Aws_s3_Error{Code: InvalidArgument, Message: err2.Error()}
+			var err3 = &Aws_s3_error{Code: InvalidArgument, Message: err2.Error()}
 			return &o, err3
 		}
 		start = int(n)
@@ -354,7 +483,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 				&Bb_input_error{"max-buckets", err2}}
 			bbs.respond_on_input_error(m)
 			*/
-			var err3 = Aws_s3_Error{Code: InvalidArgument, Message: err2.Error()}
+			var err3 = &Aws_s3_error{Code: InvalidArgument, Message: err2.Error()}
 			return &o, err3
 		}
 	} else {
@@ -458,6 +587,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, params *s3.ListPartsInput, 
 }
 
 func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	fmt.Printf("PutObject")
 	var o = s3.PutObjectOutput{}
 
 	// List of parameters.
@@ -467,7 +597,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// + Body io.Reader
 	// - BucketKeyEnabled *bool
 	// + CacheControl *string
-	// - ChecksumAlgorithm types.ChecksumAlgorithm
+	// + ChecksumAlgorithm types.ChecksumAlgorithm
 	// - ChecksumCRC32 *string
 	// - ChecksumCRC32C *string
 	// - ChecksumCRC64NVME *string
@@ -503,12 +633,19 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// - WebsiteRedirectLocation *string
 	// - WriteOffsetBytes *int64
 
+	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err1 != nil {
+		return &o, err1
+	}
+	var location = "/" + object
+
+	/*
 	if i.Bucket == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
 	var bucket = *i.Bucket
 	if !check_bucket_naming(bucket) {
-		var errz = Aws_s3_Error{Code: InvalidBucketName}
+		var errz = &Aws_s3_error{Code: InvalidBucketName}
 		return &o, &errz
 	}
 
@@ -520,23 +657,23 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		log.Fatalf("BAD-IMPL: Key parameter not clean")
 	}
 	if !check_object_naming(key) {
-		var errz = Aws_s3_Error{Code: InvalidArgument}
+		var errz = &Aws_s3_error{Code: InvalidArgument}
 		return &o, &errz
 	}
 
-	var object = path.Join(bucket, key)
-
-	var location = "/" + object
 	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
 	if err2 != nil {
 		return &o, err2
 	}
+	*/
+
+	//var object = path.Join(bucket, key)
 
 	// AHO ?? Check "Cache-Control" which only accepts "no-cache".
 
 	if i.CacheControl != nil {
 		if !strings.EqualFold(*i.CacheControl, "no-cache") {
-			var errz = Aws_s3_Error{Code: InvalidStorageClass,
+			var errz = &Aws_s3_error{Code: InvalidStorageClass,
 				Message: "Bad Cache-Control",
 				Resource: location}
 			return &o, errz
@@ -544,7 +681,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 	if i.StorageClass != "" {
 		if i.StorageClass != types.StorageClassStandard {
-			var errz = Aws_s3_Error{Code: InvalidStorageClass,
+			var errz = &Aws_s3_error{Code: InvalidStorageClass,
 				Message: "Bad x-amz-storage-class",
 				Resource: location}
 			return &o, errz
@@ -555,7 +692,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if i.Tagging != nil {
 		var tags1, err3 = parse_tags(*i.Tagging)
 		if err3 != nil {
-			var errz = Aws_s3_Error{Code: InvalidArgument,
+			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: "Tag format error.",
 				Resource: location}
 			return &o, errz
@@ -571,23 +708,24 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	} else {
 		size = -1
 	}
-	var md5 []byte
+	var md5_to_check []byte
 	if i.ContentMD5 != nil {
 		var bs, err4 = base64.StdEncoding.DecodeString(*i.ContentMD5)
 		if err4 != nil {
-			md5 = bs
+			md5_to_check = bs
 		} else {
-			md5 = []byte{}
+			md5_to_check = []byte{}
 		}
 	} else {
-		md5 = []byte{}
+		md5_to_check = []byte{}
 	}
 
 	var rid int64 = get_request_id(ctx)
 	var suffix = bbs.make_file_suffix(rid)
 	defer bbs.discharge_file_suffixes(rid,)
 
-	var err6 = bbs.upload_file(ctx, object, suffix, size, md5, i.Body)
+	var md5, err6 = bbs.upload_file(ctx, object, suffix, size,
+		md5_to_check, i.Body)
 	if err6 != nil {
 		return &o, err6
 	}
@@ -635,11 +773,9 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	result := s.MakePutObjectResult()
     */
 
-	// AHO
+	o.ETag = make_etag_from_md5(md5)
 
-	o.ETag = i.ContentMD5
-
-	if string(i.ChecksumAlgorithm) != "" {
+	if i.ChecksumAlgorithm != "" {
 		var csum, errx = bbs.calculate_checksum(ctx, i.ChecksumAlgorithm, object)
 		if errx != nil {
 			return &o, errx

@@ -52,8 +52,7 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 			bbs.GetObjectTaggingHandler(w, r)
 		} else if true {
 			fmt.Printf("h_GetObject!\n")
-			//h_GetObject(bbs, w, r)
-			bbs.GetObjectHandler(w, r)
+			h_GetObject(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return
