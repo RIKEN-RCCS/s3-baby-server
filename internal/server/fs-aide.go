@@ -7,23 +7,23 @@
 package server
 
 import (
-	"bytes"
+	//"bytes"
 	"context"
-	"crypto/md5"
-	"crypto/sha1"
-	"crypto/sha256"
-	"encoding/base64"
+	//"crypto/md5"
+	//"crypto/sha1"
+	//"crypto/sha256"
+	//"encoding/base64"
 	"errors"
-	"hash"
-	"hash/crc32"
-	"hash/crc64"
-	"log/slog"
+	//"hash"
+	//"hash/crc32"
+	//"hash/crc64"
+	//"log/slog"
 	//"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
+	//"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -35,8 +35,16 @@ import (
 	//"strings"
 )
 
-type File_meta_info struct {
+// Meta-information associated to objects.  It is stored in a hidden
+// file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
+// will be encoded i json.
+type Meta_info struct {
+	Headers map[string]string
 	Tags *types.Tagging
+}
+
+func make_meta_file_name(file string) string {
+	return ("." + file + "@meta")
 }
 
 func os_error_name(err error) string {
@@ -60,7 +68,7 @@ func os_error_name(err error) string {
 // Makes an AWS-S3 error from a given OS error.  Error codes may be
 // replaced by a given map, to return something like
 // "BucketAlreadyOwnedByYou" for fs.ErrExist.  A map accepts nil.
-func map_os_error(ctx context.Context, location string, err1 error, m map[error]Aws_s3_error_code) error {
+func map_os_error(location string, err1 error, m map[error]Aws_s3_error_code) error {
 	var kind error
 	var code1 Aws_s3_error_code
 	if errors.Is(err1, fs.ErrInvalid) {
@@ -97,34 +105,6 @@ func map_path_error(ctx context.Context, location string, err1 error, m map[erro
 	return err1
 }
 
-func calculate_md5(file string, logger *slog.Logger) ([]byte, error) {
-	var info, err1 = os.Lstat(file)
-	if err1 != nil {
-		logger.Info("os.Lstat() for md5 failed", "error", err1)
-		return nil, err1
-	}
-	var f, err2 = os.Open(file)
-	if err2 != nil {
-		logger.Info("os.Open() for md5 failed", "error", err2)
-		return nil, err2
-	}
-	defer f.Close()
-	var h = md5.New()
-	var cc, err3 = io.Copy(h, f)
-	if err3 != nil {
-		logger.Info("io.Copy() for md5 failed", "error", err3)
-		return nil, err3
-	}
-	if cc != info.Size() {
-		logger.Info("io.Copy() for md5 failed, bad size")
-		var err4 = fmt.Errorf("io.Copy() for md5 failed, bad size")
-		return nil, err4
-	}
-
-	var sum []byte = h.Sum(nil)
-	return sum, nil
-}
-
 // Appends a pool-directory and a bucket, where a bucket is assumed as
 // a legal name.
 func (bbs *Bb_server) make_path(bucket string) string {
@@ -145,7 +125,7 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 			return err5
 		} else {
 			var m = map[error]Aws_s3_error_code{}
-			var err5 = map_os_error(ctx, location, err2, m)
+			var err5 = map_os_error(location, err2, m)
 			return err5
 		}
 	}
@@ -157,38 +137,39 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 	return nil
 }
 
-func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, size int64, md5_to_check []byte, body io.Reader) ([]byte, error) {
+func (bbs *Bb_server) upload_file(ctx context.Context, object, scratch string, size int64, body io.Reader) error {
 	var location = "/" + object
-	var dir1, filename = path.Split(object)
-	//var dir2, err1 = filepath.Localize(dir1)
-	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.S3.FileSystem.RootPath
-	var dirpath = filepath.Join(pool_path, dir2)
-	var name = filepath.Join(dirpath, ("." + filename + "@" + suffix))
+	//var dir1, filename = path.Split(object)
+	//var dir2 = filepath.Clean(dir1)
+	//var pool_path = bbs.S3.FileSystem.RootPath
+	//var dirpath = filepath.Join(pool_path, dir2)
+	//var name = filepath.Join(dirpath, ("." + filename + "@" + suffix))
+	var name = bbs.make_file_name_of_object(object, scratch)
+	var dir, _ = filepath.Split(name)
 
-	var info, err2 = os.Lstat(dirpath)
+	var info, err2 = os.Lstat(dir)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
 		} else {
 			bbs.Logger.Info("os.Lstat() failed",
-				"file", dirpath, "error", err2)
-			return nil, map_os_error(ctx, location, err2, nil)
+				"path", dir, "error", err2)
+			return map_os_error(location, err2, nil)
 		}
 	}
 	if !info.IsDir() {
-		bbs.Logger.Warn("Path is not a directory", "path", dirpath)
+		bbs.Logger.Warn("Path is not a directory", "path", dir)
 		var errz = &Aws_s3_error{Code: AccessDenied,
 			Resource: location}
-		return nil, errz
+		return errz
 	}
 	if err2 != nil {
 		// assert(errors.Is(err2, fs.ErrNotExist))
-		var err3 = os.MkdirAll(dirpath, 0755)
+		var err3 = os.MkdirAll(dir, 0755)
 		if err3 != nil {
-			bbs.Logger.Info("os.Mkdir() failed", "path", dirpath,
+			bbs.Logger.Info("os.Mkdir() failed", "path", dir,
 				"error", err3)
-			return nil, map_os_error(ctx, location, err3, nil)
+			return map_os_error(location, err3, nil)
 		}
 	}
 
@@ -197,7 +178,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 	var f1, err4 = os.Create(name)
 	if err4 != nil {
 		bbs.Logger.Info("os.Create() failed", "file", name, "error", err4)
-		return nil, map_os_error(ctx, location, err4, nil)
+		return map_os_error(location, err4, nil)
 	}
 	var cleanup_needed = new(bool)
 	defer func() {
@@ -213,30 +194,31 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 
 	var cc, err5 = io.Copy(f1, body)
 	if err5 != nil {
-		bbs.Logger.Info("io.Copy() failed", "error", err5)
+		bbs.Logger.Info("io.Copy() failed", "file", name, "error", err5)
 		var m = map[error]Aws_s3_error_code{}
-		var errz = map_os_error(ctx, location, err5, m)
-		return nil, errz
+		var errz = map_os_error(location, err5, m)
+		return errz
 	}
 	var err6 = f1.Close()
 	if err6 != nil {
-		bbs.Logger.Info("os.Close() failed", "error", err6)
+		bbs.Logger.Info("os.Close() failed", "file", name, "error", err6)
 		var m = map[error]Aws_s3_error_code{}
-		var errz = map_os_error(ctx, location, err6, m)
-		return nil, errz
+		var errz = map_os_error(location, err6, m)
+		return errz
 	}
 	if cc != size {
 		bbs.Logger.Info("Transfer failed")
 		var errz = &Aws_s3_error{Code: IncompleteBody,
 			Resource: location,
-			Message: fmt.Sprintf("Body expected length=%d but received length=%d",
+			Message: fmt.Sprintf("Body expected length=%d but received length=%d.",
 				size, cc)}
-		return nil, errz
+		return errz
 	}
 
 	// Check MD5 of a temporary file.
 
-	var md5, err7 = calculate_md5(name, bbs.Logger)
+	/*
+	var md5, err7 = bbs.calculate_csum("MD5", name, "")
 	if err7 != nil {
 		var errz = &Aws_s3_error{Code: InternalError,
 			Resource: location,
@@ -251,12 +233,13 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, suffix string, si
 			return nil, errz
 		}
 	}
+	*/
 
 	// The work of renaming a temporary file to an actual file is
 	// separated.  It should be in coordination with the meta-info
 	// file.
 
-	return md5, nil
+	return nil
 }
 
 func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string) error {
@@ -275,20 +258,21 @@ func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string)
 	var err8 = os.Rename(name1, name2)
 	if err8 != nil {
 		bbs.Logger.Info("io.Rename() failed", "error", err8)
-		var errz = map_os_error(ctx, location, err8, nil)
+		var errz = map_os_error(location, err8, nil)
 		return errz
 	}
 
 	return nil
 }
 
-// Fetches a meta-info file.  The object path includes its bucket.
-func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (*File_meta_info, error) {
+// Fetches a meta-info file.  It returns nil if meta-info does not
+// exist.  The object path is guaranteed its properness.
+func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_info, error) {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
 	var dir2 = filepath.Clean(dir1)
 	var pool_path = bbs.S3.FileSystem.RootPath
-	var name = filepath.Join(pool_path, dir2, ("." + file + "@meta"))
+	var name = filepath.Join(pool_path, dir2, make_meta_file_name(file))
 
 	var f1, err2 = os.Open(name)
 	if err2 != nil {
@@ -298,7 +282,7 @@ func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (
 		} else {
 			bbs.Logger.Warn("os.Open() failed", "file", name,
 				"error", err2)
-			return nil, map_os_error(ctx, location, err2, nil)
+			return nil, map_os_error(location, err2, nil)
 		}
 	}
 	defer func() {
@@ -310,29 +294,24 @@ func (bbs *Bb_server) fetch_file_meta_info(ctx context.Context, object string) (
 	}()
 
 	var dec = json.NewDecoder(f1)
-	var info File_meta_info
+	var info Meta_info
 	var err4 = dec.Decode(&info)
 	if err4 != nil {
 		bbs.Logger.Warn("BAD META-INFO FILE: The content broken",
 			"file", name, "error", err4)
-		return nil, map_os_error(ctx, location, err4, nil)
+		return nil, map_os_error(location, err4, nil)
 	}
 	return &info, nil
 }
 
 // Stores a meta-info file.  The object path includes its bucket.
 // Passing nil deletes a meta-info file.
-func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, info *File_meta_info) error {
+func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *Meta_info) error {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
-	//var dir2, err1 = filepath.Localize(dir1)
 	var dir2 = filepath.Clean(dir1)
-	//if err1 != nil {
-	//var errz = map_path_error(ctx, location, err1, nil)
-	//return errz
-	//}
 	var pool_path = bbs.S3.FileSystem.RootPath
-	var name = filepath.Join(pool_path, dir2, ("." + file + "@meta"))
+	var name = filepath.Join(pool_path, dir2, make_meta_file_name(file))
 
 	if info == nil {
 		// Remove a info file if exists.
@@ -344,13 +323,13 @@ func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, i
 			} else {
 				bbs.Logger.Warn("os.Lstat() failed", "file", name,
 					"error", err2)
-				return map_os_error(ctx, location, err2, nil)
+				return map_os_error(location, err2, nil)
 			}
 		}
 		var err3 = os.Remove(name)
 		if err3 != nil {
 			bbs.Logger.Warn("os.Remove() failed", "file", name, "error", err3)
-			return map_os_error(ctx, location, err3, nil)
+			return map_os_error(location, err3, nil)
 		}
 		return nil
 	} else {
@@ -358,7 +337,7 @@ func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, i
 		var f1, err1 = os.Create(name)
 		if err1 != nil {
 			bbs.Logger.Warn("os.Create() failed", "file", name, "error", err1)
-			return map_os_error(ctx, location, err1, nil)
+			return map_os_error(location, err1, nil)
 		}
 		defer func() {
 			var err2 = f1.Close()
@@ -382,94 +361,21 @@ func (bbs *Bb_server) store_file_meta_info(ctx context.Context, object string, i
 				bbs.Logger.Warn("op.Remove() failed", "file", name,
 					"error", err6)
 			}
-			return map_os_error(ctx, location, err4, nil)
+			return map_os_error(location, err4, nil)
 		}
 		return nil
 	}
 }
 
-func (bbs *Bb_server) calculate_md5_(ctx context.Context, object string, actual_file bool) ([]byte, error) {
-	var location = "/" + object
-	var name = bbs.make_file_name_of_object(object, "", "")
-	var f1, err1 = os.Open(name)
-	if err1 != nil {
-		bbs.Logger.Warn("os.Open() failed", "path", name, "error", err1)
-		return nil, map_os_error(ctx, location, err1, nil)
-	}
-	defer func() {
-		var err2 = f1.Close()
-		if err2 != nil {
-			bbs.Logger.Warn("os.Close() failed", "path", name, "error", err2)
-		}
-	}()
-
-	var hash1 = md5.New()
-	var _, err3 = io.Copy(hash1, f1)
-	if err3 != nil {
-		return nil, err3
-	}
-
-	var sum []byte = hash1.Sum(nil)
-	//var s = hex.EncodeToString(sum)
-	//var s = base64.StdEncoding.EncodeToString(sum)
-	return sum, nil
-}
-
-// ETags are strong always.
-func make_etag_from_md5(csum []byte) *string {
-	if len(csum) == 0{
-		return nil
+func (bbs *Bb_server) make_file_name_of_object(object string, scratch string) string {
+	var prefix, suffix string
+	if scratch == "" {
+		prefix = ""
+		suffix = ""
 	} else {
-		var s = "\"" + base64.StdEncoding.EncodeToString(csum) + "\""
-		return &s
+		prefix = "."
+		suffix = "@" + scratch
 	}
-}
-
-// Various parameters for CRC can be found (for example) at:
-// https://reveng.sourceforge.io/crc-catalogue/all.htm
-
-func (bbs *Bb_server) calculate_checksum(ctx context.Context, algorithm types.ChecksumAlgorithm, object string) (string, error) {
-	var location = "/" + object
-	var name = bbs.make_file_name_of_object(object, "", "")
-	var f1, err1 = os.Open(name)
-	if err1 != nil {
-		bbs.Logger.Warn("os.Open() failed", "path", name, "error", err1)
-		return "", map_os_error(ctx, location, err1, nil)
-	}
-	defer func() {
-		var err2 = f1.Close()
-		if err2 != nil {
-			bbs.Logger.Warn("os.Close() failed", "path", name, "error", err2)
-		}
-	}()
-
-	var hash1 hash.Hash
-	switch algorithm {
-	case types.ChecksumAlgorithmCrc32:
-		hash1 = crc32.NewIEEE()
-	case types.ChecksumAlgorithmCrc32c:
-		hash1 = crc32.New(crc32.MakeTable(crc32.Castagnoli))
-	case types.ChecksumAlgorithmSha1:
-		hash1 = sha1.New()
-	case types.ChecksumAlgorithmSha256:
-		hash1 = sha256.New()
-	case types.ChecksumAlgorithmCrc64nvme:
-		const poly_nvme = 0x9a6c9329ac4bc9b5
-		hash1 = crc64.New(crc64.MakeTable(poly_nvme))
-	default:
-		log.Fatal("Bad s3/types.ChecksumAlgorithm")
-	}
-
-	var _, err3 = io.Copy(hash1, f1)
-	if err3 != nil {
-		return "", err3
-	}
-	var sum []byte = hash1.Sum(nil)
-	var s = base64.StdEncoding.EncodeToString(sum)
-	return s, nil
-}
-
-func (bbs *Bb_server) make_file_name_of_object(object string, prefix, suffix string) string {
 	var dir1, file = path.Split(object)
 	var dir2 = filepath.Clean(dir1)
 	var pool_path = bbs.S3.FileSystem.RootPath
@@ -496,7 +402,7 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 		} else {
 			bbs.Logger.Warn("os.Open() failed", "file", name,
 				"error", err2)
-			return nil, map_os_error(ctx, location, err2, nil)
+			return nil, map_os_error(location, err2, nil)
 		}
 	}
 	if extent == nil {
@@ -519,4 +425,19 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 		var f2, err3 = New_range_reader(f1, [2]int64(extent[0:2]))
 		return f2, err3
 	}
+}
+
+func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
+	var location = "/" + object
+	var dir1, file = path.Split(object)
+	var dir2 = filepath.Clean(dir1)
+	var pool_path = bbs.S3.FileSystem.RootPath
+	var name = filepath.Join(pool_path, dir2, file)
+
+	var info, err1 = os.Lstat(name)
+	if err1 != nil {
+		bbs.Logger.Info("os.Lstat() failed", "file", name, "error", err1)
+		return nil, map_os_error(location, err1, nil)
+	}
+	return info, nil
 }

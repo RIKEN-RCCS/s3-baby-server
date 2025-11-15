@@ -17,6 +17,7 @@ import (
 	"path"
 	"time"
 	//"s3-baby-server/internal/api"
+	"s3-baby-server/pkg/httpaide"
 	"s3-baby-server/internal/service"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -29,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"bytes"
 	//"syscall"
 )
 
@@ -119,15 +121,16 @@ func get_request_id(ctx context.Context) int64 {
 	}
 }
 
-// MAKE_FILE_SUFFIX makes a short key string to make a temporary file
-// unique.  It takes request-id.  It returns a string of 8 hex-digits.
+// MAKE_FILE_SUFFIX makes a short key string to make a (temporary)
+// scratch file unique.  It takes request-id.  It returns a string of
+// 6 hex-digits.
 func (bbs *Bb_server) make_file_suffix(rid int64) string {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	var loops int = 0
 	for true {
 		var r = rand.Int63()
-		var s = fmt.Sprintf("%08x", r)
+		var s = fmt.Sprintf("%06x", r)
 		var _, ok = bbs.suffixes[s]
 		if !ok {
 			bbs.suffixes[s] = suffix_record{rid, time.Now()}
@@ -138,8 +141,8 @@ func (bbs *Bb_server) make_file_suffix(rid int64) string {
 			log.Fatal("BAD-IMPL: unique key generation loops forever")
 		}
 	}
-	// Never.
-	return ""
+	// NEVER.
+	panic("NEVER")
 }
 
 // DISCHARGE_FILE_SUFFIXES removes recorded file suffixes for
@@ -298,7 +301,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 		bbs.Logger.Info("os.Mkdir() failed", "error", err2)
 		var m = map[error]Aws_s3_error_code{fs.ErrExist: BucketAlreadyOwnedByYou}
-		var err5 = map_os_error(ctx, location, err2, m)
+		var err5 = map_os_error(location, err2, m)
 		return &o, err5
 	}
 
@@ -326,6 +329,25 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, params *s3.Delete
 	var o = s3.DeleteObjectTaggingOutput{}
 	return &o, nil
 }
+
+// SPECIAL CONDITIONS OF HANDLING RFC7232.
+//
+// The rule described in the AWS-S3 API document:
+// If-Match ∧ ¬If-Unmodified-Since → 200 OK
+// ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
+//
+// https://datatracker.ietf.org/doc/html/rfc7232
+//
+// The order of condition evaluation:
+// If-Match < If-Unmodified-Since (skip if If-Match exists)
+// < If-None-Match < If-Modified-Since (skip if If-None-Match exists)
+//
+// Status code to be returned on failure:
+// ¬If-Match → 412 Precondition Failed
+// ¬If-Unmodified-Since → 412 Precondition Failed
+// ¬If-None-Match (GET/HEAD) → 304 Not Modified
+// ¬If-None-Match (other) → 412 Precondition Failed
+// ¬If-Modified-Since → 304 Not Modified
 
 func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 	fmt.Printf("*GetObject*\n")
@@ -361,15 +383,100 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var location = "/" + object
 	var _ = location
 
-	//var etag = bbs.calculate_md5(ctx, object)
-
-	// https://datatracker.ietf.org/doc/html/rfc7232
-
 	if i.IfMatch != nil || i.IfNoneMatch != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "if-match and if-none-match are unsupported"}
 		return nil, errz
 	}
+
+	// - IfModifiedSince *time.Time
+	// - IfUnmodifiedSince *time.Time
+
+	var stat, err2 = bbs.fetch_file_stat(object)
+	if err2 != nil {
+		return nil, err2
+	}
+
+	var size = stat.Size()
+	var extent *[2]int64
+	if i.Range != nil {
+		var r, err3 = httpaide.Scan_rfc9110_range(*i.Range)
+		if err3 != nil {
+			var errz = &Aws_s3_error{Code: InvalidRange}
+			return nil, errz
+		}
+		if len(r) != 1 {
+			var errz = &Aws_s3_error{Code: InvalidRange}
+			return nil, errz
+		}
+		// Fix an unspecified upper bound.
+		if r[0][1] == -1 {
+			extent = &[2]int64{r[0][0], size}
+		} else {
+			extent = &r[0]
+		}
+	}
+
+	var length = extent[1] - extent[0]
+	o.ContentLength = &length
+	var mtime = stat.ModTime()
+	o.LastModified = &mtime
+	if extent != nil {
+		var crange = fmt.Sprintf("bytes %d-%d/%d", extent[0], extent[1], size)
+		o.ContentRange = &crange
+	}
+
+	var checksum types.ChecksumAlgorithm
+	if i.ChecksumMode == types.ChecksumModeEnabled {
+		checksum = types.ChecksumAlgorithmCrc64nvme
+	} else {
+		checksum = ""
+	}
+	var md5, csum, err3 = bbs.calculate_csum2(checksum, object, "")
+	if err3 != nil {
+		return nil, err3
+	}
+	if i.ChecksumMode == types.ChecksumModeEnabled {
+		o.ChecksumType = types.ChecksumTypeFullObject
+		var crc = base64.StdEncoding.EncodeToString(csum)
+		o.ChecksumCRC64NVME = &crc
+	}
+	o.ETag = make_etag_from_md5(md5)
+
+	var info, err5 = bbs.fetch_metainfo(ctx, object)
+	if err5 != nil {
+		return nil, err5
+	}
+	if info != nil {
+		// Always leave "MissingMeta" nil for zero.
+		o.Metadata = info.Headers
+		// o.MissingMeta
+	}
+	if info != nil && info.Tags != nil {
+		var count = int32(len(info.Tags.TagSet))
+		if count > 0 {
+			o.TagCount = &count
+		}
+	}
+
+	o.StorageClass = types.StorageClassStandard
+
+	{
+		o.AcceptRanges = i.Range
+		o.CacheControl = i.ResponseCacheControl
+		o.ContentDisposition = i.ResponseContentDisposition
+		o.ContentEncoding = i.ResponseContentEncoding
+		o.ContentLanguage = i.ResponseContentLanguage
+		o.ContentType = i.ResponseContentType
+		var expires = i.ResponseExpires.Format(time.RFC3339)
+		o.ExpiresString = &expires
+	}
+
+	var f1, err6 = bbs.make_file_stream(ctx, object, nil)
+	if err6 != nil {
+		return nil, err6
+	}
+	o.Body = f1
 
 	/*
 	s := model.GetObjectState{}
@@ -412,18 +519,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	result.ContentType = option.GetOption("response-content-type")
 	return result, nil
 	*/
-
-	if i.Range != nil {
-	}
-
-	// type ReadCloser interface {Reader; Closer}
-
-	var f1, err4 = bbs.make_file_stream(ctx, object, nil)
-	if err4 != nil {
-		return nil, err4
-	}
-	fmt.Printf("GetObject f1=%#v\n", f1)
-	o.Body = f1
 
 	return &o, nil
 }
@@ -495,7 +590,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	if err3 != nil {
 		bbs.Logger.Info("os.ReadDir() failed in ListBuckets", "error", err3)
 		var m = map[error]Aws_s3_error_code{}
-		var err5 = map_os_error(ctx, "/", err3, m)
+		var err5 = map_os_error("/", err3, m)
 		return &o, err5
 	}
 
@@ -688,7 +783,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		}
 	}
 
-	var info *File_meta_info = nil
+	var info *Meta_info
 	if i.Tagging != nil {
 		var tags1, err3 = parse_tags(*i.Tagging)
 		if err3 != nil {
@@ -698,7 +793,9 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 			return &o, errz
 		}
 		if tags1 != nil {
-			info = &File_meta_info{Tags: tags1}
+			info = &Meta_info{Tags: tags1}
+		} else {
+			info = nil
 		}
 	}
 
@@ -721,13 +818,84 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 
 	var rid int64 = get_request_id(ctx)
-	var suffix = bbs.make_file_suffix(rid)
-	defer bbs.discharge_file_suffixes(rid,)
+	var scratch = bbs.make_file_suffix(rid)
+	defer bbs.discharge_file_suffixes(rid)
 
-	var md5, err6 = bbs.upload_file(ctx, object, suffix, size,
-		md5_to_check, i.Body)
+	var err6 = bbs.upload_file(ctx, object, scratch, size, i.Body)
 	if err6 != nil {
-		return &o, err6
+		return nil, err6
+	}
+
+	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
+	var md5, csum, errx = bbs.calculate_csum2(checksum, object, scratch)
+	if errx != nil {
+		return nil, errx
+	}
+	o.ETag = make_etag_from_md5(md5)
+
+	if len(md5_to_check) != 0 {
+		if bytes.Compare(md5_to_check, md5) != 0 {
+			var errz = &Aws_s3_error{Code: BadDigest,
+				Resource: location}
+			return nil, errz
+		}
+	}
+
+	if checksum != "" {
+		var csum1 *string
+		switch checksum {
+		case types.ChecksumAlgorithmCrc32:
+			csum1 = i.ChecksumCRC32
+		case types.ChecksumAlgorithmCrc32c:
+			csum1 = i.ChecksumCRC32C
+		case types.ChecksumAlgorithmSha1:
+			csum1 = i.ChecksumSHA1
+		case types.ChecksumAlgorithmSha256:
+			csum1 = i.ChecksumSHA256
+		case types.ChecksumAlgorithmCrc64nvme:
+			csum1 = i.ChecksumCRC64NVME
+		default:
+			var err8 = &Aws_s3_error{Code: InvalidArgument,
+				Resource: location,
+				Message: "Checksum algorithm is illegal."}
+			return nil, err8
+		}
+		if csum1 == nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Checksum value is missing.",
+				Resource: location}
+			return nil, errz
+		}
+		var csum_to_check, err9 = base64.StdEncoding.DecodeString(*csum1)
+		if err9 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Resource: location,
+				Message: "Checksum value is illegal."}
+			return nil, errz
+		}
+		if bytes.Compare(csum_to_check, csum) != 0 {
+			var errz = &Aws_s3_error{Code: BadDigest,
+				Resource: location,
+				Message: "The checksum did not match what we received."}
+			return nil, errz
+		}
+	}
+
+	if checksum != "" {
+		var csum1 = base64.StdEncoding.EncodeToString(csum)
+		switch i.ChecksumAlgorithm {
+		case types.ChecksumAlgorithmCrc32:
+			o.ChecksumCRC32 = &csum1
+		case types.ChecksumAlgorithmCrc32c:
+			o.ChecksumCRC32C = &csum1
+		case types.ChecksumAlgorithmSha1:
+			o.ChecksumSHA1 = &csum1
+		case types.ChecksumAlgorithmSha256:
+			o.ChecksumSHA256 = &csum1
+		case types.ChecksumAlgorithmCrc64nvme:
+			o.ChecksumCRC64NVME = &csum1
+		}
+		o.ChecksumType = types.ChecksumTypeFullObject
 	}
 
 	// It should be atomic on placing an uploaded file and saving a
@@ -738,13 +906,13 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	defer bbs.release_access(ctx, object, rid)
 
 	{
-		var err1 = bbs.store_file_meta_info(ctx, object, info)
+		var err1 = bbs.store_metainfo(ctx, object, info)
 		if err1 != nil {
 			return &o, err1
 		}
-		var err2 = bbs.place_uploaded(ctx, object, suffix)
+		var err2 = bbs.place_uploaded(ctx, object, scratch)
 		if err2 != nil && info != nil {
-			var _ = bbs.store_file_meta_info(ctx, object, nil)
+			var _ = bbs.store_metainfo(ctx, object, nil)
 		}
 		if err2 != nil {
 			return &o, err2
@@ -772,28 +940,6 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 	result := s.MakePutObjectResult()
     */
-
-	o.ETag = make_etag_from_md5(md5)
-
-	if i.ChecksumAlgorithm != "" {
-		var csum, errx = bbs.calculate_checksum(ctx, i.ChecksumAlgorithm, object)
-		if errx != nil {
-			return &o, errx
-		}
-		switch i.ChecksumAlgorithm {
-		case types.ChecksumAlgorithmCrc32:
-			o.ChecksumCRC32 = &csum
-		case types.ChecksumAlgorithmCrc32c:
-			o.ChecksumCRC32C = &csum
-		case types.ChecksumAlgorithmSha1:
-			o.ChecksumSHA1 = &csum
-		case types.ChecksumAlgorithmSha256:
-			o.ChecksumSHA256 = &csum
-		case types.ChecksumAlgorithmCrc64nvme:
-			o.ChecksumCRC64NVME = &csum
-		}
-		o.ChecksumType = types.ChecksumTypeFullObject
-	}
 
 	return &o, nil
 }
