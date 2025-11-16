@@ -67,6 +67,9 @@
 ;; "ObjectAttributes" is converted to "ObjectAttributesEtag" ("t" in
 ;; lowercase) in AWS-SDK.
 
+;; NOTE: It ignores "smithy.rules#contextParam" which indicates
+;; "Bucket" name is given by host-name part.
+
 ;; Golang http server: https://pkg.go.dev/net/http#ServeMux
 
 (import
@@ -272,26 +275,26 @@
 ;; LIST-OF-TYPES.
 
 ;; A TYPE-DEFINITION is a three-tuple plus a list (type-name type-kind
-;; tag . slot-property ...).  Each slot-property describes record
-;; slots, when a type-kind is "enum", "list", "structure", or "union".
-;; An enumeration-type has type "Unit" in elements of it.  A list-type
-;; has a single "member" slot.  A map-type has two "key" and "value"
-;; slots. A TAG is an xml-tag used when it is marshaled.  It is either
-;; one cited by "xmlName", "enumValue", or a type-name of itself
-;; (otherwise).
+;; tag . slot-property ...).  Each SLOT-PROPERTY describes record
+;; slots, when a TYPE-KIND is "enum", "list", "structure", or "union".
+;; An enumeration type has type "Unit" in elements of it.  A list type
+;; has a single "member" slot.  A map type has two "key" and "value"
+;; slots.  A TAG is an xml-tag used when it is marshaled.  It is
+;; either one cited by "smithy.api#xmlName" or "smithy.api#enumValue",
+;; or #f otherwise.
 
 ;; A SLOT-PROPERTY is a five-tuple: (slot tag type locus required).
 ;; It describes slots of a composite type.  A SLOT is a name of a
 ;; record slot (it is specified by a key part in Smithy).  A TAG is
 ;; either a key in queries/headers, an xml-tag (specified by
 ;; "smithy.api#xmlName"), or an enumerator in enumeration types
-;; (specified by "smithy.api#enumValue").  a tag is used as an xml-tag
-;; when it is marshaled. A TYPE is a type-name of this slot (specified
-;; by "target").  A LOCUS indicates where a parameter is passed, and
-;; it is one of {PATH, QUERY, HEADER, HEADER-PREFIX, PAYLOAD,
-;; ELEMENT}.  locus=PAYLOAD means the value is a whole payload.  A
-;; locus and a required are only meaningful in request/response
-;; structures.
+;; (specified by "smithy.api#enumValue").  A tag is used as an xml-tag
+;; when it is marshaled.  A TYPE is a type-name of this slot
+;; (specified by "target").  A LOCUS indicates where a parameter is
+;; passed, and it is one of {PATH, QUERY, HEADER, HEADER-PREFIX,
+;; PAYLOAD, ELEMENT}.  locus=PAYLOAD means the value is a whole
+;; payload.  A locus and a required are only meaningful in
+;; request/response structures.
 
 ;; Types in AWS-S3 are all named, and they are of a type-kind in:
 ;; {"blob", "boolean", "enum"*, "integer", "list"*, "long", "map"*,
@@ -352,6 +355,10 @@
 	   => (lambda (pair) (cdr pair)))
 	  ((assoc '#{smithy.api#enumValue}# traits)
 	   => (lambda (pair) (cdr pair)))
+	  ((assoc '#{smithy.rules#contextParam}# traits)
+	   => (lambda (_)
+		;; (format #t ";; Ignore smithy.rules#contextParam~%")
+		default))
 	  (else default))))
 
 (define (make-slot-property member)
@@ -361,11 +368,6 @@
   (match-let (((slot-symbol . property) member))
     (let* ((slot (symbol->string slot-symbol))
 	   (traits (assoc-with-default '() 'traits property))
-	   ;;(tag (cond ((assoc '#{smithy.api#xmlName}# traits)
-	   ;;	       => (lambda (pair) (cdr pair)))
-	   ;;	      ((assoc '#{smithy.api#enumValue}# traits)
-	   ;;	       => (lambda (pair) (cdr pair)))
-	   ;;	      (else slot)))
 	   (tag (assoc-tag-of-slot slot property))
 	   (type (assoc-type-of-slot slot property))
 	   (required (cond ((assoc '#{smithy.api#required}# traits) #t)
@@ -413,7 +415,7 @@
 	   (let* ((type-kind (cdr pair))
 		  (id-string (symbol->string id))
 		  (type-name (drop-prefix "com.amazonaws.s3#" id-string))
-		  (tag (assoc-tag-of-slot type-name property)))
+		  (tag (assoc-tag-of-slot #f property)))
 	     (cond
 	      ((or (string=? type-kind "operation")
 		   (string=? type-kind "service"))
@@ -452,7 +454,9 @@
   (match-let (((type-name type-kind tag . slot-properties) definition))
     (for-each (lambda (property)
 		(match-let (((slot tag type locus required) property))
-		  (when (and (not (string=? slot tag)) (eqv? locus #f))
+		  (when (and (not (eqv? #f tag))
+			     (eqv? locus #f)
+			     (not (string=? slot tag)) )
 		    (format #t "SLOT TAG NAME DIFFER: ~s~%" property)
 		    (error "SLOT TAG NAME DIFFER" property))))
       slot-properties)))
@@ -476,8 +480,8 @@
 ;; An ACTION is a five-tuple (action-name signature action-property
 ;; request-properties response-properties).  A SIGNATURE is a
 ;; two-tuple of (request-type response-type).  An ACTION-PROPERTY is a
-;; three-tuple (method uri code).  It is a method type, a uri path
-;; pattern, and an http status code for a successful response.  A
+;; three-tuple (method uri code).  It consists of a method type, a uri
+;; path pattern, and an http status code for a successful response.  A
 ;; REQUEST-PROPERTY and a RESPONSE-PROPERTIES are a list of
 ;; slot-properties.
 
@@ -974,24 +978,25 @@
 ;; This part prints handler functions, which are called in the
 ;; dispatcher.
 
-#|
-(define (locus-ordered? property-a property-b)
-  (match-let (((slot-a tag-a type-a locus-a required-a) property-a)
-	      ((slot-b tag-b type-b locus-b required-b) property-b))
-    (cond ((eqv? locus-a 'PAYLOAD)
-	   #f)
-	  ((eqv? locus-b 'PAYLOAD)
-	   #t)
-	  (else
-	   #t))))
-|#
-
-#|
-(define (cast-payload-property-rear request-properties)
-  ;; Makes a payload assignment appear at the end for readability, by
-  ;; sorting request-properties.
-  (sort request-properties locus-ordered?))
-|#
+;; Handling input records is straightforward.  But, there are four
+;; cases of handling a payload in a response.
+;;
+;; (1) "Unit" output type: Output type of Unit means a returned
+;; response contains nothing.  EXAMPLE: "DeleteBucket".
+;;
+;; (2) A payload slot: A slot of an output record can be marked by
+;; "smithy.api#httpPayload" in its traits.  It indicates the slot is
+;; returned in a payload.  EXAMPLE: "CopyObject".  A record
+;; "CopyObjectOutput" has "CopyObjectResult" slot.
+;;
+;; (3) A payload output record: An output record can be marked by
+;; "smithy.api#xmlName" in its traits.  It indicates an output record
+;; itself is returned in a payload, but its xml-tag is replaced by a
+;; name cited.  EXAMPLE: "ListBuckets".  "ListBucketsOutput" is marked
+;; with "ListAllMyBucketsResult".
+;;
+;; (4) Others: Other output records have no payload.  EXAMPLE:
+;; "HeadObject".
 
 (define (split-payload-properties properties)
   ;; Separates exchanges in a payload from exchanges in parameters
@@ -1167,7 +1172,7 @@
        (assigner (format #f "string(*~a)" rhs))))
      ((string=? type-kind "timestamp")
       (list
-       (assigner (format #f "~a.String()" rhs))))
+       (assigner (format #f "~a.Format(time.RFC3339)" rhs))))
      ;; Composite-types:
      ((string=? type-kind "enum")
       (list
@@ -1201,7 +1206,7 @@
 	       ((type-name type-kind _ . slot-properties) definition))
     (case locus
       ((PATH)
-       ;; Path parameters are taken by r.PathValue(key)
+       ;; Path parameters are taken by request.PathValue(key).
        (let ((key-name
 	      (cond ((string=? tag "Bucket") (string-downcase tag))
 		    ((string=? tag "Key") (string-downcase tag))
@@ -1271,7 +1276,7 @@
 	((string=? type-kind "blob")
 	 (list (format #f "{i.~a = r.Body}" slot)))
 	(else
-	 ;; Payload types are: {CompletedMultipartUpload,
+	 ;; Records for a payload slot are: {CompletedMultipartUpload,
 	 ;; CreateBucketConfiguration, Delete, Tagging}.
 	 (list
 	  (format #f "{var x types.~a" type)
@@ -1353,35 +1358,35 @@
   (list (format #f "var status int = ~a" code)
 	"w.WriteHeader(status)"))
 
-#|
-(define (make-slot-property-of-output output-name)
-  ;; Makes a fake slot-property of an output record.  (Note an output
-  ;; itself is not a slot of another record).
-  (list output-name output-name output-name 'PAYLOAD #f))
-|#
-
-(define (make-payload-response code output-name slot-property)
+(define (make-payload-response code output-type slot-property)
   ;; Makes a return of a payload.  Payload is an output record itself
   ;; or a designated slot.  It uses an output record when
   ;; slot-property=#f.
   (cond
    ((eqv? #f slot-property)
-    ;; Payload is an output record (always in xml).
-    (list "ho.Set(\"Content-Type\", \"application/xml\")"
-	  ;; Marshaling errors means implementation errors.
-	  (string-append
-	   "var ox, err6 = xml.MarshalIndent"
-	   (format #f "(o, \" \", \"  \")"))
-	  "if err6 != nil {log.Fatal(err6)}"
-	  (format #f "var status int = ~a" code)
-	  "w.WriteHeader(status)"
-	  "var _, err7 = w.Write(ox)"
-	  "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}"))
+    ;; Payload is an output record (or nothing).
+    (match-let* ((definition (assoc output-type list-of-types))
+		 ((type-name type-kind tag . slot-properties) definition))
+      (cond
+       ((eqv? #f tag)
+	(format #t ";; No payload response: ~s~%" output-type)
+	(list (format #f "var status int = ~a" code)
+	      "w.WriteHeader(status)"))
+       (else
+	(list "ho.Set(\"Content-Type\", \"application/xml\")"
+	      ;; Marshaling errors means implementation errors.
+	      (string-append
+	       "var ox, err6 = xml.MarshalIndent"
+	       (format #f "(o, \" \", \"  \")"))
+	      "if err6 != nil {log.Fatal(err6)}"
+	      (format #f "var status int = ~a" code)
+	      "w.WriteHeader(status)"
+	      "var _, err7 = w.Write(ox)"
+	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}")))))
    (else
     ;; Payload is described by a slot-property.
     (match-let* (((slot tag type locus required) slot-property)
 		 (return-binary? (string=? type "StreamingBlob")))
-      (format #t "AHO make-payload-response= ~s~%" slot-property)
       (cond
        (return-binary?
 	(list "ho.Set(\"Content-Type\", \"application/octet-stream\")"
@@ -1564,15 +1569,15 @@
 ;;; RESPONSE MARSHALER PRINTER
 ;;;
 
-(define (check-output-in-payload response-properties)
-  ;; Checks if response is in a payload.  "CopyObject" has
-  ;; "CopyObjectResult", "GetObject" has "Body", and "UploadPartCopy"
-  ;; has "CopyPartResult"
-  (let ((check-output-in-payload1
+(define (check-output-whole-payload response-properties)
+  ;; Checks if a slot is a whole payload in a response.  "CopyObject"
+  ;; has "CopyObjectResult", "GetObject" has "Body", and
+  ;; "UploadPartCopy" has "CopyPartResult".
+  (let ((check-output-whole-payload1
 	 (lambda (property)
 	   (match-let (((slot tag type locus required) property))
 	     (eqv? locus 'PAYLOAD)))))
-    (any check-output-in-payload1 response-properties)))
+    (any check-output-whole-payload1 response-properties)))
 
 (define (make-slot-marshaler property)
   ;; Returns marshaler lines of code for an response element.  It
@@ -1620,37 +1625,38 @@
   (match-let*
       (((name (request-name response-name) _ _ response-properties) action)
        (type-name (adjust-output-structure-name response-name))
-       (output-in-payload (check-output-in-payload response-properties))
        (encoders (delete '() (map make-slot-marshaler response-properties)))
-       (nothing-in-payload (= (length encoders) 0)))
-    (when tr? (format #t ";; make-marshaler-function ~s~%" name))
-    (assert (or (not output-in-payload) (= (length encoders) 1)))
+       (whole-payload (check-output-whole-payload response-properties)))
+    (assert (or (not whole-payload) (= (length encoders) 1)))
     (if (string=? type-name "Unit")
 	'()
 	(match-let*
 	    ((definition (assoc type-name list-of-types))
 	     ((type-name type-kind tag . slot-properties) definition))
-	  (append
-	   (list
-	    (format #f "type h_~a s3.~a" response-name type-name)
-	    (string-append
-	     (format #f "func (s h_~a) MarshalXML" response-name)
-	     (format #f "(e *xml.Encoder, _ xml.StartElement) error {")))
-	   (cond
-	    (nothing-in-payload
-	     '())
-	    (output-in-payload
-	     (apply-append encoders))
-	    (else
-	     (append
-	      (list (format #f "var tag1 = h_make_tag(~s)" tag)
-		    "var err1 = e.EncodeToken(tag1)"
-		    "if err1 != nil {return err1}")
-	      (apply-append encoders)
-	      (list "var err9 = e.EncodeToken(tag1.End())"
-		    "if err9 != nil {return err9}"))))
-	   (list
-	    (format #f "return nil}")))))))
+	  (cond
+	   ((and (= (length encoders) 0) (eqv? #f tag))
+	    (format #t ";; Skip making marshaler: ~s~%" name)
+	    '())
+	   (else
+	    (append
+	     (list
+	      (format #f "type h_~a s3.~a" response-name type-name)
+	      (string-append
+	       (format #f "func (s h_~a) MarshalXML" response-name)
+	       (format #f "(e *xml.Encoder, _ xml.StartElement) error {")))
+	     (cond
+	      ((not (eqv? #f tag))
+	       (append
+		(list (format #f "var tag1 = h_make_tag(~s)" tag)
+		      "var err1 = e.EncodeToken(tag1)"
+		      "if err1 != nil {return err1}")
+		(apply-append encoders)
+		(list "var err9 = e.EncodeToken(tag1.End())"
+		      "if err9 != nil {return err9}")))
+	      ((not (= (length encoders) 0))
+	       (apply-append encoders)))
+	     (list
+	      (format #f "return nil}")))))))))
 
 (define (make-marshaler-file list-of-actions)
   (append

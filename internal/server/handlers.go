@@ -1,4 +1,4 @@
-// handlers.go (2025-11-13)
+// handlers.go (2025-11-16)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 package server
@@ -68,13 +68,8 @@ bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 204
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_CompleteMultipartUpload(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -372,13 +367,8 @@ if o.Location != nil {
 ho.Add("Location", string(*o.Location))}
 if o.BucketArn != nil {
 ho.Add("x-amz-bucket-arn", string(*o.BucketArn))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_CreateMultipartUpload(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -487,7 +477,7 @@ if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 if o.AbortDate != nil {
-ho.Add("x-amz-abort-date", o.AbortDate.String())}
+ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
 if o.AbortRuleId != nil {
 ho.Add("x-amz-abort-rule-id", string(*o.AbortRuleId))}
 if o.ServerSideEncryption != "" {
@@ -593,13 +583,8 @@ if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 204
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_DeleteObjects(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -681,13 +666,8 @@ bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 204
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_GetObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -771,7 +751,7 @@ ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.Restore != nil {
 ho.Add("x-amz-restore", string(*o.Restore))}
 if o.LastModified != nil {
-ho.Add("Last-Modified", o.LastModified.String())}
+ho.Add("Last-Modified", o.LastModified.Format(time.RFC3339))}
 if o.ContentLength != nil {
 ho.Add("Content-Length", strconv.FormatInt(*o.ContentLength, 10))}
 if o.ETag != nil {
@@ -805,7 +785,7 @@ ho.Add("Content-Range", string(*o.ContentRange))}
 if o.ContentType != nil {
 ho.Add("Content-Type", string(*o.ContentType))}
 if o.Expires != nil {
-ho.Add("Expires", o.Expires.String())}
+ho.Add("Expires", o.Expires.Format(time.RFC3339))}
 if o.WebsiteRedirectLocation != nil {
 ho.Add("x-amz-website-redirect-location", string(*o.WebsiteRedirectLocation))}
 if o.ServerSideEncryption != "" {
@@ -833,7 +813,7 @@ ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*o.TagCount), 10))}
 if o.ObjectLockMode != "" {
 ho.Add("x-amz-object-lock-mode", string(o.ObjectLockMode))}
 if o.ObjectLockRetainUntilDate != nil {
-ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.String())}
+ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.Format(time.RFC3339))}
 if o.ObjectLockLegalHoldStatus != "" {
 ho.Add("x-amz-object-lock-legal-hold", string(o.ObjectLockLegalHoldStatus))}
 ho.Set("Content-Type", "application/octet-stream")
@@ -896,7 +876,7 @@ return}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.LastModified != nil {
-ho.Add("Last-Modified", o.LastModified.String())}
+ho.Add("Last-Modified", o.LastModified.Format(time.RFC3339))}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 if o.RequestCharged != "" {
@@ -981,13 +961,8 @@ if o.BucketRegion != nil {
 ho.Add("x-amz-bucket-region", string(*o.BucketRegion))}
 if o.AccessPointAlias != nil {
 ho.Add("x-amz-access-point-alias", strconv.FormatBool(*o.AccessPointAlias))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_HeadObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1073,7 +1048,7 @@ ho.Add("x-amz-restore", string(*o.Restore))}
 if o.ArchiveStatus != "" {
 ho.Add("x-amz-archive-status", string(o.ArchiveStatus))}
 if o.LastModified != nil {
-ho.Add("Last-Modified", o.LastModified.String())}
+ho.Add("Last-Modified", o.LastModified.Format(time.RFC3339))}
 if o.ContentLength != nil {
 ho.Add("Content-Length", strconv.FormatInt(*o.ContentLength, 10))}
 if o.ChecksumCRC32 != nil {
@@ -1107,7 +1082,7 @@ ho.Add("Content-Type", string(*o.ContentType))}
 if o.ContentRange != nil {
 ho.Add("Content-Range", string(*o.ContentRange))}
 if o.Expires != nil {
-ho.Add("Expires", o.Expires.String())}
+ho.Add("Expires", o.Expires.Format(time.RFC3339))}
 if o.WebsiteRedirectLocation != nil {
 ho.Add("x-amz-website-redirect-location", string(*o.WebsiteRedirectLocation))}
 if o.ServerSideEncryption != "" {
@@ -1135,16 +1110,11 @@ ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*o.TagCount), 10))}
 if o.ObjectLockMode != "" {
 ho.Add("x-amz-object-lock-mode", string(o.ObjectLockMode))}
 if o.ObjectLockRetainUntilDate != nil {
-ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.String())}
+ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.Format(time.RFC3339))}
 if o.ObjectLockLegalHoldStatus != "" {
 ho.Add("x-amz-object-lock-legal-hold", string(o.ObjectLockLegalHoldStatus))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_ListBuckets(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1404,7 +1374,7 @@ if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 if o.AbortDate != nil {
-ho.Add("x-amz-abort-date", o.AbortDate.String())}
+ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
 if o.AbortRuleId != nil {
 ho.Add("x-amz-abort-rule-id", string(*o.AbortRuleId))}
 if o.RequestCharged != "" {
@@ -1578,13 +1548,8 @@ if o.Size != nil {
 ho.Add("x-amz-object-size", strconv.FormatInt(*o.Size, 10))}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_PutObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1630,13 +1595,8 @@ bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_UploadPart(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1724,13 +1684,8 @@ if o.BucketKeyEnabled != nil {
 ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*o.BucketKeyEnabled))}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
-ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
-if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
 }
 func h_UploadPartCopy(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
