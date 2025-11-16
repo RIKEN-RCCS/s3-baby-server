@@ -14,8 +14,7 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 	sx.HandleFunc("HEAD /{bucket}/{key...}", func(w http.ResponseWriter, r *http.Request) {
 		if true {
 			fmt.Printf("h_HeadObject!\n")
-			//h_HeadObject(bbs, w, r)
-			bbs.HeadObjectHandler(w, r)
+			h_HeadObject(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return
@@ -24,8 +23,7 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 	sx.HandleFunc("HEAD /{bucket}", func(w http.ResponseWriter, r *http.Request) {
 		if true {
 			fmt.Printf("h_HeadBucket!\n")
-			//h_HeadBucket(bbs, w, r)
-			bbs.HeadBucketHandler(w, r)
+			h_HeadBucket(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return

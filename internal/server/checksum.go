@@ -9,7 +9,6 @@ package server
 
 import (
 	//"bytes"
-	//"context"
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -18,22 +17,13 @@ import (
 	"hash"
 	"hash/crc32"
 	"hash/crc64"
-	//"log/slog"
 	//"crypto/rand"
-	//"encoding/json"
 	//"fmt"
 	"io"
-	//"io/fs"
 	"log"
 	"os"
-	//"path"
-	//"path/filepath"
 	//"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	//"regexp"
-	//"s3-baby-server/pkg/utils"
-	//"strconv"
-	//"strings"
 )
 
 // Calculates two checksum, md5 and one requested.  It skips one when
@@ -41,16 +31,12 @@ import (
 // of {"CRC32", "CRC32C", "SHA1", "SHA256", "CRC64NVME"}.
 func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object string, scratch string) ([]byte, []byte, error) {
 	var location = "/" + object
-	var name string
-	if scratch != "" {
-		name = bbs.make_file_name_of_object(object, "")
-	} else {
-		name = bbs.make_file_name_of_object(object, scratch)
-	}
+	var name = bbs.make_file_name_of_object(object, scratch)
 
 	var stat, err1 = os.Lstat(name)
 	if err1 != nil {
-		bbs.Logger.Info("os.Lstat() failed", "file", name, "error", err1)
+		bbs.Logger.Info("os.Lstat() failed in calculate_csum2",
+			"file", name, "error", err1)
 		return nil, nil, map_os_error(location, err1, nil)
 	}
 	var f1, err2 = os.Open(name)
@@ -92,10 +78,10 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 	}
 
 	var writer io.Writer
-	if hash2 == nil {
-		writer = hash1
-	} else {
+	if hash2 != nil {
 		writer = io.MultiWriter(hash1, hash2)
+	} else {
+		writer = hash1
 	}
 	var count, err4 = io.Copy(writer, f1)
 	if err4 != nil {
@@ -115,7 +101,7 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 	//var s = base64.StdEncoding.EncodeToString(sum)
 	//return sum, nil
 
-	if hash2 == nil {
+	if hash2 != nil {
 		var sum1 []byte = hash1.Sum(nil)
 		var sum2 []byte = hash2.Sum(nil)
 		return sum1, sum2, nil

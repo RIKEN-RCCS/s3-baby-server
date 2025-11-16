@@ -152,7 +152,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratch string, s
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
 		} else {
-			bbs.Logger.Info("os.Lstat() failed",
+			bbs.Logger.Info("os.Lstat() failed in upload_file",
 				"path", dir, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
@@ -321,8 +321,8 @@ func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *M
 				// OK.
 				return nil
 			} else {
-				bbs.Logger.Warn("os.Lstat() failed", "file", name,
-					"error", err2)
+				bbs.Logger.Warn("os.Lstat() failed in store_metainfo",
+					"file", name, "error", err2)
 				return map_os_error(location, err2, nil)
 			}
 		}
@@ -436,7 +436,8 @@ func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
 
 	var info, err1 = os.Lstat(name)
 	if err1 != nil {
-		bbs.Logger.Info("os.Lstat() failed", "file", name, "error", err1)
+		bbs.Logger.Info("os.Lstat() failed in fetch_file_stat",
+			"file", name, "error", err1)
 		return nil, map_os_error(location, err1, nil)
 	}
 	return info, nil
