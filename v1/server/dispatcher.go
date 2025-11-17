@@ -38,16 +38,13 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		var x_amz_object_attributes = (h.Get("x-amz-object-attributes") != "")
 		if attributes && x_amz_object_attributes {
 			fmt.Printf("h_GetObjectAttributes!\n")
-			//h_GetObjectAttributes(bbs, w, r)
-			bbs.GetObjectAttributesHandler(w, r)
+			h_GetObjectAttributes(bbs, w, r)
 		} else if uploadid {
 			fmt.Printf("h_ListPart!\n")
-			//h_ListParts(bbs, w, r)
-			bbs.ListPartsHandler(w, r)
+			h_ListParts(bbs, w, r)
 		} else if tagging {
 			fmt.Printf("h_GetObjectTagging!\n")
-			//h_GetObjectTagging(bbs, w, r)
-			bbs.GetObjectTaggingHandler(w, r)
+			h_GetObjectTagging(bbs, w, r)
 		} else if true {
 			fmt.Printf("h_GetObject!\n")
 			h_GetObject(bbs, w, r)
@@ -62,16 +59,13 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		var uploads = q.Has("uploads")
 		if list_type_2 {
 			fmt.Printf("h_ListObjectsV2!\n")
-			//h_ListObjectsV2(bbs, w, r)
-			bbs.ListObjectsV2Handler(w, r)
+			h_ListObjectsV2(bbs, w, r)
 		} else if uploads {
 			fmt.Printf("h_ListMultipartUploads!\n")
-			//h_ListMultipartUploads(bbs, w, r)
-			bbs.ListMultipartUploadsHandler(w, r)
+			h_ListMultipartUploads(bbs, w, r)
 		} else if true {
 			fmt.Printf("h_ListObjects!\n")
-			//h_ListObjects(bbs, w, r)
-			bbs.ListObjectsHandler(w, r)
+			h_ListObjects(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return
@@ -99,20 +93,16 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		var x_amz_copy_source = (h.Get("x-amz-copy-source") != "")
 		if partnumber && uploadid && x_amz_copy_source {
 			fmt.Printf("h_UploadPartCopy!\n")
-			//h_UploadPartCopy(bbs, w, r)
-			bbs.UploadPartCopyHandler(w, r)
+			h_UploadPartCopy(bbs, w, r)
 		} else if partnumber && uploadid {
 			fmt.Printf("h_UploadPart!\n")
-			//h_UploadPart(bbs, w, r)
-			bbs.UploadPartHandler(w, r)
+			h_UploadPart(bbs, w, r)
 		} else if tagging {
 			fmt.Printf("h_PutObjectTagging!\n")
-			//h_PutObjectTagging(bbs, w, r)
-			bbs.PutObjectTaggingHandler(w, r)
+			h_PutObjectTagging(bbs, w, r)
 		} else if x_amz_copy_source {
 			fmt.Printf("h_CopyObject!\n")
-			//h_CopyObject(bbs, w, r)
-			bbs.CopyObjectHandler(w, r)
+			h_CopyObject(bbs, w, r)
 		} else if true {
 			fmt.Printf("h_PutObject!\n")
 			h_PutObject(bbs, w, r)
@@ -136,12 +126,10 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		var uploads = q.Has("uploads")
 		if uploads {
 			fmt.Printf("h_CreateMultipartUpload!\n")
-			//h_CreateMultipartUpload(bbs, w, r)
-			bbs.CreateMultipartUploadHandler(w, r)
+			h_CreateMultipartUpload(bbs, w, r)
 		} else if uploadid {
 			fmt.Printf("h_CompleteMultipartUpload!\n")
-			//h_CompleteMultipartUpload(bbs, w, r)
-			bbs.CompleteMultipartUploadHandler(w, r)
+			h_CompleteMultipartUpload(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return
@@ -152,8 +140,7 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		var delete = q.Has("delete")
 		if delete {
 			fmt.Printf("h_DeleteObjects!\n")
-			//h_DeleteObjects(bbs, w, r)
-			bbs.DeleteObjectsHandler(w, r)
+			h_DeleteObjects(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return
@@ -165,16 +152,13 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 		var uploadid = q.Has("uploadId")
 		if tagging {
 			fmt.Printf("h_DeleteObjectTagging!\n")
-			//h_DeleteObjectTagging(bbs, w, r)
-			bbs.DeleteObjectTaggingHandler(w, r)
+			h_DeleteObjectTagging(bbs, w, r)
 		} else if uploadid {
 			fmt.Printf("h_AbortMultipartUpload!\n")
-			//h_AbortMultipartUpload(bbs, w, r)
-			bbs.AbortMultipartUploadHandler(w, r)
+			h_AbortMultipartUpload(bbs, w, r)
 		} else if true {
 			fmt.Printf("h_DeleteObject!\n")
-			//h_DeleteObject(bbs, w, r)
-			bbs.DeleteObjectHandler(w, r)
+			h_DeleteObject(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return
@@ -183,8 +167,7 @@ func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
 	sx.HandleFunc("DELETE /{bucket}", func(w http.ResponseWriter, r *http.Request) {
 		if true {
 			fmt.Printf("h_DeleteBucket!\n")
-			//h_DeleteBucket(bbs, w, r)
-			bbs.DeleteBucketHandler(w, r)
+			h_DeleteBucket(bbs, w, r)
 		} else {
 			http.NotFound(w, r)
 			return

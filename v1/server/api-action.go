@@ -55,7 +55,7 @@ import (
 	//"syscall"
 )
 
-type BB_configuration struct {
+type Bb_configuration struct {
 	Access_logging            bool
 	Anonymize_ower            bool
 	Verify_fs_write           bool
@@ -69,12 +69,11 @@ type BB_configuration struct {
 }
 
 type Bb_server struct {
-	//S3      *service.S3Service
 	pool_path string
 	Logger  *slog.Logger
 	AuthKey string
 
-	BB_config BB_configuration
+	Bb_config Bb_configuration
 
 	rid   int64
 	suffixes map[string]suffix_record
@@ -82,32 +81,6 @@ type Bb_server struct {
 	mutex sync.Mutex
 
 	server_quit chan struct{}
-
-	// FileSystem is in S3.FileSystem *FileSystem
-
-	AbortMultipartUploadHandler    http.HandlerFunc
-	CompleteMultipartUploadHandler http.HandlerFunc
-	CopyObjectHandler              http.HandlerFunc
-	CreateBucketHandler            http.HandlerFunc
-	CreateMultipartUploadHandler   http.HandlerFunc
-	DeleteBucketHandler            http.HandlerFunc
-	DeleteObjectHandler            http.HandlerFunc
-	DeleteObjectsHandler           http.HandlerFunc
-	DeleteObjectTaggingHandler     http.HandlerFunc
-	GetObjectAttributesHandler     http.HandlerFunc
-	GetObjectHandler               http.HandlerFunc
-	GetObjectTaggingHandler        http.HandlerFunc
-	HeadBucketHandler              http.HandlerFunc
-	HeadObjectHandler              http.HandlerFunc
-	ListBucketsHandler             http.HandlerFunc
-	ListMultipartUploadsHandler    http.HandlerFunc
-	ListObjectsHandler             http.HandlerFunc
-	ListObjectsV2Handler           http.HandlerFunc
-	ListPartsHandler               http.HandlerFunc
-	PutObjectHandler               http.HandlerFunc
-	PutObjectTaggingHandler        http.HandlerFunc
-	UploadPartCopyHandler          http.HandlerFunc
-	UploadPartHandler              http.HandlerFunc
 }
 
 type suffix_record struct {
