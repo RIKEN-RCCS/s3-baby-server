@@ -109,7 +109,7 @@ func map_path_error(ctx context.Context, location string, err1 error, m map[erro
 // a legal name.
 func (bbs *Bb_server) make_path(bucket string) string {
 	// file.Clean(path)
-	var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var path = filepath.Join(pool_path, bucket)
 	return path
 }
@@ -141,7 +141,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratch string, s
 	var location = "/" + object
 	//var dir1, filename = path.Split(object)
 	//var dir2 = filepath.Clean(dir1)
-	//var pool_path = bbs.S3.FileSystem.RootPath
+	//var pool_path = bbs.pool_path
 	//var dirpath = filepath.Join(pool_path, dir2)
 	//var name = filepath.Join(dirpath, ("." + filename + "@" + suffix))
 	var name = bbs.make_file_name_of_object(object, scratch)
@@ -251,7 +251,7 @@ func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string)
 	//var errz = map_path_error(ctx, location, err1, nil)
 	//return errz
 	//}
-	var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var name1 = filepath.Join(pool_path, dir2, ("." + file + "@" + suffix))
 	var name2 = filepath.Join(pool_path, dir2, file)
 
@@ -271,7 +271,7 @@ func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_
 	var location = "/" + object
 	var dir1, file = path.Split(object)
 	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var name = filepath.Join(pool_path, dir2, make_meta_file_name(file))
 
 	var f1, err2 = os.Open(name)
@@ -310,7 +310,7 @@ func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *M
 	var location = "/" + object
 	var dir1, file = path.Split(object)
 	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var name = filepath.Join(pool_path, dir2, make_meta_file_name(file))
 
 	if info == nil {
@@ -378,7 +378,7 @@ func (bbs *Bb_server) make_file_name_of_object(object string, scratch string) st
 	}
 	var dir1, file = path.Split(object)
 	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var name = filepath.Join(pool_path, dir2, (prefix + file + suffix))
 	return name
 }
@@ -387,7 +387,7 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 	var location = "/" + object
 	var dir1, file = path.Split(object)
 	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var name = filepath.Join(pool_path, dir2, file)
 
 	var f1, err2 = os.Open(name)
@@ -431,7 +431,7 @@ func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
 	var location = "/" + object
 	var dir1, file = path.Split(object)
 	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var name = filepath.Join(pool_path, dir2, file)
 
 	var info, err1 = os.Lstat(name)

@@ -1,8 +1,10 @@
 module s3-baby-server
 
-go 1.23
+go 1.24
 
 toolchain go1.24.6
+
+replace github.com/riken-rccs/s3-baby-server/pkg/httpaide => ../pkg/httpaide
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.39.6
@@ -19,4 +21,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.13 // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
+	github.com/riken-rccs/s3-baby-server/pkg/httpaide v0.0.0-00010101000000-000000000000 // indirect
 )

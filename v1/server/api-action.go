@@ -36,8 +36,9 @@ import (
 	"path"
 	"time"
 	//"s3-baby-server/internal/api"
-	"s3-baby-server/pkg/httpaide"
-	"s3-baby-server/internal/service"
+	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
+	//"s3-baby-server/pkg/httpaide"
+	//"s3-baby-server/service"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"encoding/xml"
@@ -68,7 +69,8 @@ type BB_configuration struct {
 }
 
 type Bb_server struct {
-	S3      *service.S3Service
+	//S3      *service.S3Service
+	pool_path string
 	Logger  *slog.Logger
 	AuthKey string
 
@@ -815,7 +817,8 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		max_buckets = 10000
 	}
 
-	var pool_path = bbs.S3.FileSystem.RootPath
+	//var pool_path = bbs.S3.FileSystem.RootPath
+	var pool_path = bbs.pool_path
 	var entries1, err3 = os.ReadDir(pool_path)
 	if err3 != nil {
 		bbs.Logger.Info("os.ReadDir() failed in ListBuckets", "error", err3)
