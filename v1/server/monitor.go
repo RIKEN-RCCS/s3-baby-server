@@ -5,7 +5,11 @@
 // A monitor to exclude accesses to the same object.  It serves in
 // fifo order.  Entering may fail by a timeout.
 
-// Make sure sending to a channel be outside of a mutex.
+// It takes a short sleep, when some tasks timeout.  It is to give
+// them a time to leave from the wait queue.  Without a sleep, it
+// makes worthless signals to a condition variable.
+
+// NOTE: Make sure sending to a channel be outside of a mutex.
 
 package server
 
