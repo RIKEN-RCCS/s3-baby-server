@@ -9,10 +9,10 @@
 ;; This is for "guile --r7rs" and tested with GNU-Guile-3.0.10.
 
 ;; It generates files "api-template.go", "dispatcher.go",
-;; "handlers.go", and "marshalers.go".  A dispatcher in
+;; "handler.go", and "marshaler.go".  A dispatcher in
 ;; "dispatcher.go" is a request multiplexer.  It calls routines in
-;; "handlers.go" to process requests and responses.  Marshalers in
-;; "marshalers.go" are needed to skip an extra memeber in responses,
+;; "handler.go" to process requests and responses.  Marshalers in
+;; "marshaler.go" are needed to skip an extra memeber in responses,
 ;; because the output structures in AWS-SDK have one added member.
 ;; "api-template.go" is a skeleton code of API handlers.  The files
 ;; other than "api-template.go" should be placed in the same package.
@@ -105,7 +105,7 @@
 
 ;; Package path/name of s3-baby-server.  One generated file
 ;; "api-template.go" shall be placed in bb-server-package, and other
-;; generated files "dispatcher.go", "handlers.go", and "marshalers.go"
+;; generated files "dispatcher.go", "handler.go", and "marshaler.go"
 ;; in bb-dispatcher-package.
 
 (define bb-package-path "s3-baby-server/internal")
@@ -848,7 +848,7 @@
 
 (define (make-fetch-condition source s)
   ;; Makes a condition on queries and headers.  A source is a variable
-  ;; name holding queries (q) or headers (h).
+  ;; name holding queries "q" or headers "h".
   (assert (or (string=? source "q") (string=? source "h")))
   (cond ((string-contains s "=")
 	 => (lambda (i)
@@ -859,7 +859,12 @@
 	(else
 	 (let* ((key s)
 		(var (make-variable-name key)))
-	   (format #f "var ~a = ~a.Has(~s)" var source key)))))
+	   (cond ((string=? source "q")
+		  (format #f "var ~a = q.Has(~s)" var key))
+		 ((string=? source "h")
+		  (format #f "var ~a = (len(h.Values(~s)) == 0)" var key))
+		 (else
+		  (error "never")))))))
 
 (define (make-conditionals queries-headers)
   ;;(format #t "make-conditionals ~s~%" queries-headers)
@@ -1485,7 +1490,7 @@
   (append
    (delete
     ""
-    (list (format #f "// handlers.go (~a)" generation-date)
+    (list (format #f "// handler.go (~a)" generation-date)
 	  "// API-STUB.  Handler functions (h_XXXX) called from the"
 	  "// dispatcher."
 	  (format #f "package ~a" bb-dispatcher-package)
@@ -1660,7 +1665,7 @@
 
 (define (make-marshaler-file list-of-actions)
   (append
-   (list (format #f "// marshalers.go (~a)" generation-date)
+   (list (format #f "// marshaler.go (~a)" generation-date)
 	 "// API-STUB.  Marshalers of response structures.  Response"
 	 "// structures need custom marshalers, because they have"
 	 "// some slots that need to be renamed and also have an"
@@ -1792,6 +1797,6 @@
       (write-api-template-file port list-of-actions))))
 
 ;; (dump-dispatcher "dispatcher.go")
-;; (dump-handlers "handlers.go")
-;; (dump-marshalers "marshalers.go")
+;; (dump-handlers "handler.go")
+;; (dump-marshalers "marshaler.go")
 ;; (dump-template "api-template.go")

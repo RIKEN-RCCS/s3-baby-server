@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
-	//"s3-baby-server/server"
 	"time"
 )
 
@@ -69,11 +68,6 @@ func Start(basePath, addr, logPath, authKey string) {
 
 	logger.Info("Starting server", "address", addr)
 	logger.Debug("options", "authKey", authKey)
-	//fs := &service.FileSystem{Logger: logger, RootPath: basepath2, TmpPath: "/.S3BabyServer/TmpUpload", MpPath: "/.S3BabyServer/MultipartUpload"}
-	//mp := &service.MultiPart{FileSystem: fs}
-	//t := &service.Tag{FileSystem: fs, DirectiveCopy: "COPY", DirectiveReplace: "REPLACE"}
-	//s3 := &service.S3Service{FileSystem: fs, MultiPart: mp, Tag: t}
-	//fs.InitDir()
 
 	var bbs = Bb_server{pool_path: basepath2, Logger: logger, AuthKey: authKey}
 	bbs.suffixes = make(map[string]suffix_record)
@@ -87,7 +81,8 @@ func Start(basePath, addr, logPath, authKey string) {
 
 	register_dispatcher(&bbs, sx)
 	var sv = prior_handler{&bbs, sx}
-	if err := http.ListenAndServe(addr, &sv); err != nil {
-		logger.Error("", "error", err)
+	var err1 = http.ListenAndServe(addr, &sv)
+	if err1 != nil {
+		logger.Error("", "error", err1)
 	}
 }
