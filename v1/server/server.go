@@ -9,9 +9,13 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"path/filepath"
+	"os"
+	"path"
+	//"path/filepath"
 	"time"
 )
+
+const Bb_version = "v1.2.1"
 
 type prior_handler struct {
 	bbs *Bb_server
@@ -48,41 +52,40 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Start(basePath, addr, logPath, authKey string) {
-	var logger = slog.Default()
-
+func Start_server(pool_directory, addr, logPath, authKey string) {
 	// Run in UTC time zone instead of local time zone.
 
 	time.Local = time.UTC
-
-	// Convert a path to platform specific one.
-
-	//var basepath1 = file.Clean(basePath)
-	var basepath2 = filepath.Clean(basePath)
-
-	// Change working directory to pool-directory.
-
-	//r := mux.NewRouter()
-	//r.Use(PanicRecovery)
-	var sx = http.NewServeMux()
+	var logger = slog.Default()
 
 	logger.Info("Starting server", "address", addr)
-	logger.Debug("options", "authKey", authKey)
 
-	var bbs = Bb_server{pool_path: basepath2, Logger: logger, AuthKey: authKey}
+	// Change working directory to the pool-directory.  It is to avoid
+	// accidentally disclose the full path (it may include a user or
+	// project name)
+
+	var wd = path.Clean(pool_directory)
+	var err1 = os.Chdir(wd)
+	if err1 != nil {
+		logger.Info("os.Chdir() failed", "directory", wd, "error", err1)
+		return
+	}
+
+	var bbs = &Bb_server{pool_path: ".", Logger: logger, AuthKey: authKey}
 	bbs.suffixes = make(map[string]suffix_record)
 	bbs.server_quit = make(chan struct{})
 	bbs.monitor1 = new_monitor()
 	go bbs.monitor1.guard_loop()
 
+	var sx = http.NewServeMux()
 	sx.HandleFunc("POST /bbs.ctl/{$}", func(w http.ResponseWriter, r *http.Request) {
 		bbs.server_control(w, r)
 	})
 
-	register_dispatcher(&bbs, sx)
-	var sv = prior_handler{&bbs, sx}
-	var err1 = http.ListenAndServe(addr, &sv)
-	if err1 != nil {
-		logger.Error("", "error", err1)
+	register_dispatcher(bbs, sx)
+	var sv = &prior_handler{bbs, sx}
+	var err2 = http.ListenAndServe(addr, sv)
+	if err2 != nil {
+		logger.Info("http.ListenAndServe() returns", "error", err2)
 	}
 }

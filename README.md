@@ -27,7 +27,9 @@ than "application/octet-stream".
 
 - No tags are allowed on buckets.  Tags on a request are ignored.
 
-- Symbolic links are not allowed as buckets.
+- (Symbolic links are not allowed as buckets).
+
+- No owner information is returned.
 
 ## Terse Error Messages
 

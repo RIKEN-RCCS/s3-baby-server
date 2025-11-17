@@ -140,18 +140,6 @@ func (bbs *Bb_server) make_file_suffix(rid int64) string {
 	panic("NEVER")
 }
 
-// DISCHARGE_FILE_SUFFIXES removes recorded file suffixes for
-// temporary files associated to a request-id.
-func (bbs *Bb_server) discharge_file_suffixes(rid int64) {
-	bbs.mutex.Lock()
-	defer bbs.mutex.Unlock()
-	for k, v := range bbs.suffixes {
-		if v.rid == rid {
-			delete(bbs.suffixes, k)
-		}
-	}
-}
-
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) error {
 	var ok = bbs.monitor1.enter(object, rid, (10 * time.Millisecond))
 	if !ok {
@@ -262,6 +250,8 @@ func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return bucket, nil
 }
 
+// SCAN_RANGE scans ranges in rfc9110.  Ranges exceeding file size are
+// rejected.
 func scan_range(rangestring *string, size int64, location string) (*[2]int64, error) {
 	var extent *[2]int64
 	if rangestring != nil {
@@ -293,6 +283,20 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, er
 		}
 	}
 	return extent, nil
+}
+
+func (bbs *Bb_server) check_conditions(ctx context.Context, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, error){
+	if match != nil || none_match != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "if-match and if-none-match are unsupported"}
+		return false, errz
+	}
+	if modified_since != nil || unmodified_since != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "if-modified-since and if-unmodified-since are unsupported"}
+		return false, errz
+	}
+	return true, nil
 }
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
@@ -408,18 +412,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err1
 	}
 	var location = "/" + object
-	var _ = location
-
-	if i.IfMatch != nil || i.IfNoneMatch != nil {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "if-match and if-none-match are unsupported"}
-		return nil, errz
-	}
-	if i.IfModifiedSince != nil || i.IfUnmodifiedSince != nil {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "if-modified-since and if-unmodified-since are unsupported"}
-		return nil, errz
-	}
 
 	var stat, err2 = bbs.fetch_file_stat(object)
 	if err2 != nil {
@@ -454,9 +446,15 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	}
 	o.ETag = make_etag_from_md5(md5)
 
-	var info, err5 = bbs.fetch_metainfo(ctx, object)
+	var _, err5 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
+		i.IfModifiedSince, i.IfUnmodifiedSince)
 	if err5 != nil {
 		return nil, err5
+	}
+
+	var info, err6 = bbs.fetch_metainfo(ctx, object)
+	if err6 != nil {
+		return nil, err6
 	}
 	if info != nil {
 		// Always leave "MissingMeta" nil for zero.
@@ -484,9 +482,9 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		}
 	}
 
-	var f1, err6 = bbs.make_file_stream(ctx, object, nil)
-	if err6 != nil {
-		return nil, err6
+	var f1, err7 = bbs.make_file_stream(ctx, object, nil)
+	if err7 != nil {
+		return nil, err7
 	}
 	o.Body = f1
 
@@ -547,6 +545,8 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, params *s3.GetObject
 func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
 	fmt.Printf("*HeadBucket*\n")
 	var o = s3.HeadBucketOutput{}
+
+	/*NOTYET*/
 
 	// List of parameters.
 	// - Bucket *string
@@ -759,14 +759,10 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	if i.ContinuationToken != nil {
 		var n, err1 = strconv.ParseInt(*i.ContinuationToken, 10, 32)
 		if err1 != nil {
-			/*
-			var m = map[string]error{"continuation-token":
-				&Bb_input_error{"continuation-token", err1}}
-			bbs.respond_on_input_error(m)
-			*/
 			var err2 = Bb_input_error{"continuation-token", err1}
-			var err3 = &Aws_s3_error{Code: InvalidArgument, Message: err2.Error()}
-			return nil, err3
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: err2.Error()}
+			return nil, errz
 		}
 		start = int(n)
 	} else {
@@ -778,19 +774,14 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		max_buckets = int(*i.MaxBuckets)
 		if max_buckets > 10000 {
 			var err2 = fmt.Errorf("Value too large: %d", max_buckets)
-			/*
-			var m = map[string]error{"max-buckets":
-				&Bb_input_error{"max-buckets", err2}}
-			bbs.respond_on_input_error(m)
-			*/
-			var err3 = &Aws_s3_error{Code: InvalidArgument, Message: err2.Error()}
-			return nil, err3
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: err2.Error()}
+			return nil, errz
 		}
 	} else {
 		max_buckets = 10000
 	}
 
-	//var pool_path = bbs.S3.FileSystem.RootPath
 	var pool_path = bbs.pool_path
 	var entries1, err3 = os.ReadDir(pool_path)
 	if err3 != nil {
@@ -838,15 +829,15 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 
 	var buckets = []types.Bucket{}
 	for _, e := range dirs3 {
-		var info, err4 = e.Info()
+		var stat, err4 = e.Info()
 		if err4 != nil {
 			// Skip the entry because it may be removed after scanning
 			// directory.  SHOULD CHECK errors.Is(err, ErrNotExist).
 			continue
 		}
-		var times, ok = file_time(info)
+		var times, ok = file_time(stat)
 		if !ok {
-			var t0 = info.ModTime()
+			var t0 = stat.ModTime()
 			times = [3]time.Time{t0, t0, t0}
 		}
 		var name = e.Name()
@@ -864,7 +855,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		var scontinuation = strconv.FormatInt(int64(continuation), 10)
 		o.ContinuationToken = &scontinuation
 	}
-	// o.Owner = &s3.Owner{DisplayName: , ID:}
+	// o.Owner = &s3.Owner{DisplayName:, ID:}
 	o.Prefix = i.Prefix
 
 	return &o, nil
@@ -874,14 +865,186 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListM
 	var o = s3.ListMultipartUploadsOutput{}
 	return &o, nil
 }
-func (bbs *Bb_server) ListObjects(ctx context.Context, params *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, error) {
+
+func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, error) {
+	fmt.Printf("*ListObjects*\n")
 	var o = s3.ListObjectsOutput{}
+
+	// List of parameters.
+	// - Bucket *string
+	// - Delimiter *string
+	// - EncodingType types.EncodingType
+	// - ExpectedBucketOwner *string
+	// - Marker *string
+	// - MaxKeys *int32
+	// - OptionalObjectAttributes []types.OptionalObjectAttributes
+	// - Prefix *string
+	// - RequestPayer types.RequestPayer
+
+	var bucket, err1 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	if err1 != nil {
+		return nil, err1
+	}
+
+	// o.CommonPrefixes []types.CommonPrefix
+	// o.Contents []types.Object
+	// o.IsTruncated *bool
+	// o.NextMarker *string
+
+	// o.RequestCharged types.RequestCharged
+
+	{
+		// var maxkeys int32 = 1000
+		o.Delimiter = i.Delimiter
+		o.EncodingType = i.EncodingType
+		o.Marker = i.Marker
+		o.MaxKeys = i.MaxKeys
+		o.Name = &bucket
+		o.Prefix = i.Prefix
+	}
+
+	/*
+	s := model.ListObjectsState{MaxKeys: 1000}
+	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+		return nil, InvalidBucketName()
+	}
+	s.Bucket = option.GetBucket()
+	if !s3.FileSystem.isFileExists(s.Bucket) {
+		return nil, NoSuchBucket()
+	}
+	s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
+	if v := option.GetOption("max-keys"); v != "" {
+		if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
+			s.MaxKeys = 1000
+		}
+	}
+	if v := option.GetOption("prefix"); v != "" {
+		s.Prefix = v
+	}
+	if v := option.GetOption("marker"); v != "" {
+		s.Marker = strings.ReplaceAll(v, "/", "\\")
+	}
+	if v := option.GetOption("delimiter"); v == "/" {
+		s.Delimiter = filepath.FromSlash(v)
+	}
+	var s3err *S3Error
+	if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
+		return nil, s3err
+	}
+	res, responseRes := s3.listObjects(s)
+	if res == nil {
+		return nil, NotImplemented()
+	}
+	result := s.MakeListObjectsResult(*responseRes)
+	result.Contents = *res
+	*/
+
 	return &o, nil
 }
-func (bbs *Bb_server) ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+
+func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	fmt.Printf("*ListObjectsV2*\n")
 	var o = s3.ListObjectsV2Output{}
+
+	// List of parameters.
+	// - Bucket *string
+	// - ContinuationToken *string
+	// - Delimiter *string
+	// - EncodingType types.EncodingType
+	// - ExpectedBucketOwner *string
+	// - FetchOwner *bool
+	// - MaxKeys *int32
+	// - OptionalObjectAttributes []types.OptionalObjectAttributes
+	// - Prefix *string
+	// - RequestPayer types.RequestPayer
+	// - StartAfter *string
+
+	var bucket, err1 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	if err1 != nil {
+		return nil, err1
+	}
+
+	if i.ExpectedBucketOwner != nil {
+		return nil, &Aws_s3_error{Code: AccessDenied}
+	}
+	if i.FetchOwner != nil && *i.FetchOwner == true {
+		return nil, &Aws_s3_error{Code: AccessDenied}
+	}
+
+	//i.StartAfter *string
+	//i.Delimiter *string
+	//i.Prefix *string
+
+	//i.ContinuationToken *string
+
+	//i.EncodingType types.EncodingType
+	//i.MaxKeys *int32
+
+	// o.CommonPrefixes []types.CommonPrefix
+	// o.Contents []types.Object
+
+	// o.NextContinuationToken *string
+	// o.IsTruncated *bool
+	// o.KeyCount *int32
+
+	// o.RequestCharged types.RequestCharged
+
+	{
+		// var maxkeys int32 = 1000
+		o.ContinuationToken = i.ContinuationToken
+		o.Delimiter = i.Delimiter
+		o.EncodingType = i.EncodingType
+		o.MaxKeys = i.MaxKeys
+		o.Name = &bucket
+		o.Prefix = i.Prefix
+		o.StartAfter = i.StartAfter
+	}
+
+	/*
+	s := model.ListObjectsState{MaxKeys: 1000, V2Flg: true}
+	s.Bucket = option.GetBucket()
+	if !s3.FileSystem.checkBucketName(s.Bucket) {
+		return nil, InvalidBucketName()
+	}
+	if !s3.FileSystem.isFileExists(s.Bucket) {
+		return nil, NoSuchBucket()
+	}
+	s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
+	if v := option.GetOption("max-keys"); v != "" {
+		if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
+			s.MaxKeys = 1000
+		}
+	}
+	if v := option.GetOption("prefix"); v != "" {
+		s.Prefix = v
+	}
+	if v := option.GetOption("start-after"); v != "" {
+		v = strings.ReplaceAll(v, "/", "\\")
+		s.StartAfter = v
+	}
+	if v := option.GetOption("delimiter"); v == "/" {
+		s.Delimiter = filepath.FromSlash(v)
+	}
+	var s3err *S3Error
+	if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
+		return nil, s3err
+	}
+	if v := option.GetOption("continuation-token"); v != "" {
+		if s.ContinuationToken, s.Target = s3.FileSystem.decodeContinuationToken(v); s.Target == 0 {
+			return nil, InternalError()
+		}
+	}
+	res, responseRes := s3.listObjects(s)
+	if res == nil {
+		return nil, NotImplemented()
+	}
+	result := s.MakeListObjectsV2Result(*responseRes)
+	result.Contents = *res
+	*/
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) ListParts(ctx context.Context, params *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, error) {
 	var o = s3.ListPartsOutput{}
 	return &o, nil
@@ -995,12 +1158,14 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	var rid int64 = get_request_id(ctx)
 	var scratch = bbs.make_file_suffix(rid)
-	defer bbs.discharge_file_suffixes(rid)
+	var cleanup_needed = new(bool)
+	defer bbs.discharge_scratch_file(ctx, object, scratch, cleanup_needed)
 
 	var err6 = bbs.upload_file(ctx, object, scratch, size, i.Body)
 	if err6 != nil {
 		return nil, err6
 	}
+	*cleanup_needed = true
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
 	var md5, csum, errx = bbs.calculate_csum2(checksum, object, scratch)
@@ -1097,6 +1262,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		if err2 != nil {
 			return &o, err2
 		}
+
+		*cleanup_needed = true
 	}
 
 	/*

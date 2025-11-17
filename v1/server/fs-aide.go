@@ -1,4 +1,4 @@
-// fs-aid.go
+// fs-aide.go
 // Copyright 2025-2025 RIKEN R-CCS.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -32,7 +32,7 @@ import (
 	//"regexp"
 	//"s3-baby-server/pkg/utils"
 	//"strconv"
-	//"strings"
+	"strings"
 )
 
 // Meta-information associated to objects.  It is stored in a hidden
@@ -265,6 +265,28 @@ func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string)
 	return nil
 }
 
+// DISCHARGE_SCRATCH_FILE removes a scatch file as well as file
+// suffixes for associated to a request-id.
+func (bbs *Bb_server) discharge_scratch_file(ctx context.Context, object, scratch string, cleanup_needed *bool) {
+	var rid int64 = get_request_id(ctx)
+
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	for k, v := range bbs.suffixes {
+		if v.rid == rid {
+			delete(bbs.suffixes, k)
+		}
+	}
+	if *cleanup_needed {
+		var name = bbs.make_file_name_of_object(object, scratch)
+		var err1 = os.Remove(name)
+		if err1 != nil {
+			bbs.Logger.Info("os.Remove() failed on scratch file",
+				"file", name, "error", err1)
+		}
+	}
+}
+
 // Fetches a meta-info file.  It returns nil if meta-info does not
 // exist.  The object path is guaranteed its properness.
 func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_info, error) {
@@ -441,4 +463,59 @@ func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
 		return nil, map_os_error(location, err1, nil)
 	}
 	return info, nil
+}
+
+// LIST_OBJECTS_delimited makes listing for "/"-delimiter case.  An
+// index and a marker indicates a start point.
+func (bbs *Bb_server) list_objects_delimited(bucket string, prefix string, index int, marker string, maxkeys int) ([]os.DirEntry, error) {
+	var location = "/" + bucket
+	var dir1, fileprefix = path.Split(path.Clean(prefix))
+	var pool_path = bbs.pool_path
+	var name = path.Join(pool_path, bucket, dir1)
+
+	var dir2, filemarker = path.Split(path.Clean(marker))
+	if marker != "" {
+		if dir1 != dir2 || !strings.HasPrefix(filemarker, fileprefix) {
+			// Nothing matches to the start-marker, thus, empty.
+			return nil, nil
+		}
+	}
+
+	// Note the entries ReadDir() returns are sorted.
+
+	var entries1, err1 = os.ReadDir(name)
+	if err1 != nil {
+		return nil, map_os_error(location, err1, nil)
+	}
+
+	// Filter entries by a prefix.
+
+	var entries2 []os.DirEntry
+	if fileprefix != "" {
+		for _, e := range entries1 {
+			if strings.HasPrefix(e.Name(), fileprefix) {
+				entries2 = append(entries2, e)
+			}
+		}
+	} else {
+		entries2 = entries1
+	}
+
+	// Find a position of a start-marker, or use a start-index.
+
+	var start int
+	if filemarker != "" {
+		for i, e := range entries2 {
+			if e.Name() == filemarker {
+				start = i
+				break
+			}
+		}
+	} else {
+		start = index
+	}
+	var entries3 = entries2[start:]
+	var entries4 = entries3[:min(len(entries3), maxkeys)]
+
+	return entries4, nil
 }

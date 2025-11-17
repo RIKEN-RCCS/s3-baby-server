@@ -14,8 +14,6 @@ import (
 	"s3-baby-server/server"
 )
 
-var BB_version = "v1.2.1"
-
 func main() {
 	var fs = flag.NewFlagSet("", flag.ExitOnError)
 	fs.Usage = func() {
@@ -68,7 +66,7 @@ func main() {
 		os.Exit(2)
 	}
 	if *print_version {
-		fmt.Fprintf(os.Stdout, "s3-baby-server %s:\n", BB_version)
+		fmt.Fprintf(os.Stdout, "s3-baby-server %s:\n", server.Bb_version)
 		os.Exit(0)
 	}
 
@@ -87,6 +85,5 @@ func main() {
 		os.Exit(2)
 	}
 
-	/*cmd.Execute()*/
-	server.Start(path, url, *log_file, cred)
+	server.Start_server(path, url, *log_file, cred)
 }
