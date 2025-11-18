@@ -1,4 +1,4 @@
-// fs-aide.go
+// fs-operation.go
 // Copyright 2025-2025 RIKEN R-CCS.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -7,31 +7,17 @@
 package server
 
 import (
-	//"bytes"
 	"context"
-	//"crypto/md5"
-	//"crypto/sha1"
-	//"crypto/sha256"
-	//"encoding/base64"
-	"errors"
-	//"hash"
-	//"hash/crc32"
-	//"hash/crc64"
-	//"log/slog"
-	//"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"io"
 	"io/fs"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
-	//"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	//"regexp"
-	//"s3-baby-server/pkg/utils"
-	//"strconv"
 	"strings"
 )
 
@@ -40,7 +26,7 @@ import (
 // will be encoded i json.
 type Meta_info struct {
 	Headers map[string]string
-	Tags *types.Tagging
+	Tags    *types.Tagging
 }
 
 func make_meta_file_name(file string) string {
@@ -218,21 +204,21 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratch string, s
 	// Check MD5 of a temporary file.
 
 	/*
-	var md5, err7 = bbs.calculate_csum("MD5", name, "")
-	if err7 != nil {
-		var errz = &Aws_s3_error{Code: InternalError,
-			Resource: location,
-			Message:  fmt.Sprintf("md5 calculation failed")}
-		return nil, errz
-	}
-	if len(md5_to_check) != 0 {
-		if bytes.Compare(md5_to_check, md5) != 0 {
-			var errz = &Aws_s3_error{Code: IncompleteBody,
+		var md5, err7 = bbs.calculate_csum("MD5", name, "")
+		if err7 != nil {
+			var errz = &Aws_s3_error{Code: InternalError,
 				Resource: location,
-				Message:  fmt.Sprintf("Body md5 unmatch")}
+				Message:  fmt.Sprintf("md5 calculation failed")}
 			return nil, errz
 		}
-	}
+		if len(md5_to_check) != 0 {
+			if bytes.Compare(md5_to_check, md5) != 0 {
+				var errz = &Aws_s3_error{Code: IncompleteBody,
+					Resource: location,
+					Message:  fmt.Sprintf("Body md5 unmatch")}
+				return nil, errz
+			}
+		}
 	*/
 
 	// The work of renaming a temporary file to an actual file is
@@ -432,16 +418,16 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 		return f1, nil
 	} else {
 		/*
-		var pos, err1 = f1.Seek(extent[0], 0)
-		if err1 != nil {
-			return nil, err1
-		}
-		if pos < extent[0] {
-			log.Fatalf("os.Seek returned incomplete")
-			return nil, io.ErrUnexpectedEOF
-		}
-		var f2 = &io.LimitedReader{R: f1, N: extent[1] - extent[0]}
-		return f2, nil
+			var pos, err1 = f1.Seek(extent[0], 0)
+			if err1 != nil {
+				return nil, err1
+			}
+			if pos < extent[0] {
+				log.Fatalf("os.Seek returned incomplete")
+				return nil, io.ErrUnexpectedEOF
+			}
+			var f2 = &io.LimitedReader{R: f1, N: extent[1] - extent[0]}
+			return f2, nil
 		*/
 
 		var f2, err3 = New_range_reader(f1, [2]int64(extent[0:2]))
@@ -465,13 +451,32 @@ func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
 	return info, nil
 }
 
+// check_common_prefix checks if a path has common-prefix part.  It
+// returns a common-prefix or "".
+func check_common_prefix(path, delimiter, prefix string) string {
+	if delimiter == "" {
+		return ""
+	}
+	var suffix = strings.TrimPrefix(path, prefix)
+	var s2 = strings.SplitAfter(suffix, delimiter)
+	if strings.HasSuffix(s2[0], delimiter) {
+		return strings.Join([]string{prefix, s2[0]}, "")
+	} else {
+		return ""
+	}
+}
+
 // LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
 // works with regard to the directory hierarchy.  A start-index and a
 // start-marker indicates a start point.  Note the entries ReadDir()
 // returns are sorted.  It returns a next start-index and a next
 // start-marker, in addition to the entries.  THE ENTRIES INCLUDE
 // DIRECTORIES EVEN IF THEY ARE EMPTY.
-func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, prefix string) ([]os.DirEntry, int, string, error) {
+func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]os.DirEntry, int, string, error) {
+	if delimiter != "/" {
+		log.Fatalf("BAD-IMPL: list_objects_delimited with non-slash")
+	}
+
 	var location = "/" + bucket
 	var dir1, fileprefix = path.Split(path.Clean(prefix))
 	var pool_path = bbs.pool_path
@@ -540,103 +545,79 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 // LIST_OBJECTS_FLAT makes listing for general delimiter case (it
 // works for both slash and non-slash delimiter).  It scans all the
 // files in the bucket.  It uses WalkDir() in "io/fs" as it returns
-// (not os-specific) slash-paths.  In the scanning loop, it does not
+// slash-paths (not os-specific).  In the scanning loop, it does not
 // count directory entries.  COUNT counts files visited and it is used
-// to check a starting index.  MEMO: A prefix does not have a
-// preceeding delimiter.  Common-prefixes have a trailing delimiter.
+// to check a start-index.  MEMO: A prefix should not have a
+// preceeding delimiter.  A common-prefix will have a trailing
+// delimiter.
 func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]os.DirEntry, int, string, error) {
 	var location = "/" + bucket
 	var pool_path = bbs.pool_path
 	var name = path.Join(pool_path, bucket)
 
-	// DIR holds the prefix, upto the last delimited part.  It ends
-	// with the delimiter (if one exists).
-
-	var dir string
-	if prefix == "" {
-		dir = prefix
-	} else if strings.HasSuffix(prefix, delimiter) {
-		dir = prefix
-	} else {
-		var s1 = strings.SplitAfter(prefix, delimiter)
-		dir = strings.Join(s1[:len(s1)-1], "")
-	}
-
-	var entries1 []fs.DirEntry
-	var nextindex = 0
-	var nextmarker = ""
+	var entries []fs.DirEntry
+	var nextindex int = 0
+	var nextmarker string = ""
 	var count int = 0
 	var collecting bool = false
 	var commonprefix string = ""
 
-	var bucketfs = os.DirFS(name)
-	var err1 = fs.WalkDir(bucketfs, "", func(path1 string, e fs.DirEntry, err1 error) error {
+	var bucket1 = os.DirFS(name)
+	var err1 = fs.WalkDir(bucket1, "", func(path1 string, e fs.DirEntry, err1 error) error {
 		// Skip errors or directories. (Don't count directories).
 
 		if err1 != nil {
+			bbs.Logger.Info("os.DirFS() callbacks with error",
+				"bucket", name, "path", path1, "error", err1)
 			return nil
 		}
 		if e.IsDir() {
 			return nil
 		}
 
-		count++
-		if (count - 1) < index {
-			return nil
-		}
+		defer func() {
+			count++
+		}()
 
-		// Drop the root part, WalkDir() includes it.
+		// Check the start-marker first, then check the start-index.
 
-		//var truepath = strings.TrimPrefix(path1, (name + "/"))
-		var truepath = path1
-
-		// Check the prefix.
-
-		if !strings.HasPrefix(truepath, prefix) {
-			return nil
-		}
-
-		// Check the start marker, unless already found.
-
-		if !collecting {
-			if marker == truepath {
+		if marker != "" && !collecting {
+			if marker == path1 {
 				collecting = true
 			} else {
 				return nil
 			}
 		}
-
-		// Check a common prefix.  Drop the directory part of the
-		// prefix.
-
-		var entry fs.DirEntry
-		var path3 = strings.TrimPrefix(truepath, dir)
-		var s2 = strings.SplitAfter(path3, delimiter)
-		if strings.HasSuffix(s2[0], delimiter) {
-			// It is a common prefix.
-			var commonpath = path.Join(dir, s2[0])
-			if !strings.HasSuffix(truepath, commonpath) {
-				log.Fatalf("BAD-IMPL")
-			}
-			if commonprefix == commonpath {
-				// Skip if it is the one last encountered.
-				return nil
-			}
-			commonprefix = commonpath
-			entry = e
-		} else {
-			entry = e
+		if count < index {
+			return nil
 		}
 
-		// No finish.  It needs one extra entry to check truncation.
-		// Notice the count goes one plus the limit.
+		// Check the prefix.
 
-		if len(entries1) < maxkeys {
-			entries1 = append(entries1, entry)
+		if !strings.HasPrefix(path1, prefix) {
+			return nil
+		}
+
+		// Check a common prefix, and already encountered.
+
+		var commonpart = check_common_prefix(path1, delimiter, prefix)
+		if commonpart != "" {
+			if commonprefix == commonpart {
+				// Skip if it is the one encountered.
+				return nil
+			}
+			commonprefix = commonpart
+		}
+
+		// Don't finish when fully collected.  It needs one extra
+		// entry to check truncation.
+
+		if len(entries) < maxkeys {
+			entries = append(entries, e)
 			return nil
 		} else {
-			nextindex = count - 1
-			nextmarker = truepath
+			nextindex = count
+			nextmarker = path1
 			return fs.SkipAll
 		}
 	})
@@ -644,6 +625,6 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 	if err1 != nil {
 		return nil, 0, "", map_os_error(location, err1, nil)
 	} else {
-		return entries1, nextindex, nextmarker, nil
+		return entries, nextindex, nextmarker, nil
 	}
 }
