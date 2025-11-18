@@ -35,24 +35,20 @@ import (
 	"os"
 	"path"
 	"time"
-	//"s3-baby-server/internal/api"
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
-	//"s3-baby-server/pkg/httpaide"
-	//"s3-baby-server/service"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"encoding/xml"
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/xml"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"log"
 	"log/slog"
-	"net/http"
 	"math/rand"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
-	"bytes"
-	//"syscall"
 )
 
 type Bb_configuration struct {
@@ -60,9 +56,9 @@ type Bb_configuration struct {
 	Anonymize_ower            bool
 	Verify_fs_write           bool
 	Pending_upload_expiration time.Duration
-	Server_controler_path       string
+	Server_controler_path     string
 
-	request_processing_timeout       time.Duration
+	request_processing_timeout time.Duration
 
 	File_follow_link   bool
 	File_creation_mode fs.FileMode
@@ -70,21 +66,21 @@ type Bb_configuration struct {
 
 type Bb_server struct {
 	pool_path string
-	Logger  *slog.Logger
-	AuthKey string
+	Logger    *slog.Logger
+	AuthKey   string
 
 	Bb_config Bb_configuration
 
-	rid   int64
+	rid      int64
 	suffixes map[string]suffix_record
 	monitor1 *monitor
-	mutex sync.Mutex
+	mutex    sync.Mutex
 
 	server_quit chan struct{}
 }
 
 type suffix_record struct {
-	rid int64
+	rid       int64
 	timestamp time.Time
 }
 
@@ -259,13 +255,13 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, er
 		if err3 != nil {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Resource: location,
-				Message: "Range format is illegal."}
+				Message:  "Range format is illegal."}
 			return nil, errz
 		}
 		if len(r) != 1 {
 			var errz = &Aws_s3_error{Code: InvalidRange,
 				Resource: location,
-				Message: "Range is not more than one."}
+				Message:  "Range is not more than one."}
 			return nil, errz
 		}
 		if extent[1] > size {
@@ -285,7 +281,7 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, er
 	return extent, nil
 }
 
-func (bbs *Bb_server) check_conditions(ctx context.Context, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, error){
+func (bbs *Bb_server) check_conditions(ctx context.Context, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, error) {
 	if match != nil || none_match != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "if-match and if-none-match are unsupported"}
@@ -317,7 +313,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	var o = s3.CreateBucketOutput{}
 
 	// List of parameters.
-	// + Bucket *string
+	// - Bucket *string
 	// - ACL types.BucketCannedACL
 	// - CreateBucketConfiguration *types.CreateBucketConfiguration
 	// - GrantFullControl *string
@@ -385,8 +381,8 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var o = s3.GetObjectOutput{}
 
 	// List of parameters.
-	// + Bucket *string
-	// + Key *string
+	// - Bucket *string
+	// - Key *string
 	// - ChecksumMode types.ChecksumMode
 	// - ExpectedBucketOwner *string
 	// - IfMatch *string
@@ -436,7 +432,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	var checksum = types.ChecksumAlgorithmCrc64nvme
 	var md5, csum, err4 = bbs.calculate_csum2(checksum, object, "")
-	if err3 != nil {
+	if err4 != nil {
 		return nil, err4
 	}
 	if i.ChecksumMode == types.ChecksumModeEnabled {
@@ -489,45 +485,45 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	o.Body = f1
 
 	/*
-	s := model.GetObjectState{}
-	if err := s3.validateGetObjectOptions(option); err != nil {
-		return nil, err
-	}
-	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-		return nil, InvalidBucketName()
-	}
-	if err := s3.isBucketAndKeyExists(option.GetBucket(), option.GetPath()); err != nil {
-		return nil, err
-	}
-	if !s3.FileSystem.checkKeyName(option.GetKey()) {
-		return nil, KeyTooLongError()
-	}
-	if s.Content = s3.FileSystem.readFile(option.GetPath()); s.Content == nil {
-		return nil, InternalError()
-	}
-	var s3err *S3Error
-	if s.Info, s.ETag, s3err = s3.getFileInfoAndETag(option.GetPath()); s3err != nil {
-		return nil, s3err
-	}
-	if s3err = s3.validateETagAndTime(option); s3err != nil {
-		return nil, s3err
-	}
-	if s.ContentRange, s.Content, s3err = s3.getRangeContent(option, s.Content); s3err != nil {
-		return nil, s3err
-	}
-	if !s3.getPartNumberContent(option) {
-		return nil, InvalidArgument()
-	}
-	if s.ResponseCrc64nvme, s3err = s3.checkChecksumMode(option, s.Content); s3err != nil {
-		return nil, s3err
-	}
-	s.TagCount, s.MissingMeta = s3.Tag.getTagCount(option.GetPath())
-	result := s.MakeGetObjectResult()
-	result.ContentDisposition = option.GetOption("response-content-disposition")
-	result.ContentEncoding = option.GetOption("response-content-encoding")
-	result.ContentLanguage = option.GetOption("response-content-language")
-	result.ContentType = option.GetOption("response-content-type")
-	return result, nil
+		s := model.GetObjectState{}
+		if err := s3.validateGetObjectOptions(option); err != nil {
+			return nil, err
+		}
+		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+			return nil, InvalidBucketName()
+		}
+		if err := s3.isBucketAndKeyExists(option.GetBucket(), option.GetPath()); err != nil {
+			return nil, err
+		}
+		if !s3.FileSystem.checkKeyName(option.GetKey()) {
+			return nil, KeyTooLongError()
+		}
+		if s.Content = s3.FileSystem.readFile(option.GetPath()); s.Content == nil {
+			return nil, InternalError()
+		}
+		var s3err *S3Error
+		if s.Info, s.ETag, s3err = s3.getFileInfoAndETag(option.GetPath()); s3err != nil {
+			return nil, s3err
+		}
+		if s3err = s3.validateETagAndTime(option); s3err != nil {
+			return nil, s3err
+		}
+		if s.ContentRange, s.Content, s3err = s3.getRangeContent(option, s.Content); s3err != nil {
+			return nil, s3err
+		}
+		if !s3.getPartNumberContent(option) {
+			return nil, InvalidArgument()
+		}
+		if s.ResponseCrc64nvme, s3err = s3.checkChecksumMode(option, s.Content); s3err != nil {
+			return nil, s3err
+		}
+		s.TagCount, s.MissingMeta = s3.Tag.getTagCount(option.GetPath())
+		result := s.MakeGetObjectResult()
+		result.ContentDisposition = option.GetOption("response-content-disposition")
+		result.ContentEncoding = option.GetOption("response-content-encoding")
+		result.ContentLanguage = option.GetOption("response-content-language")
+		result.ContentType = option.GetOption("response-content-type")
+		return result, nil
 	*/
 
 	return &o, nil
@@ -702,44 +698,44 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	// o.WebsiteRedirectLocation *string
 
 	/*
-	s := model.GetObjectState{}
-	if err := s3.validateGetObjectOptions(option); err != nil {
-		return nil, err
-	}
-	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-		return nil, InvalidBucketName()
-	}
-	path := option.GetPath()
-	if err := s3.isBucketAndKeyExists(option.GetBucket(), path); err != nil {
-		return nil, err
-	}
-	if !s3.FileSystem.checkKeyName(option.GetKey()) {
-		return nil, KeyTooLongError()
-	}
-	if s.Content = s3.FileSystem.readFile(path); s.Content == nil {
-		return nil, InternalError()
-	}
-	var s3err *S3Error
-	if s.Info, s.ETag, s3err = s3.getFileInfoAndETag(path); s3err != nil {
-		return nil, s3err
-	}
-	if s3err = s3.validateETagAndTime(option); s3err != nil {
-		return nil, s3err
-	}
-	if s.ContentRange, s.Content, s3err = s3.getRangeContent(option, s.Content); s3err != nil {
-		return nil, s3err
-	}
-	if !s3.getPartNumberContent(option) {
-		return nil, InvalidArgument()
-	}
-	if s.ResponseCrc64nvme, s3err = s3.checkChecksumMode(option, s.Content); s3err != nil {
-		return nil, s3err
-	}
-	result := s.MakeHeadObjectResult()
-	result.ContentDisposition = option.GetOption("response-content-disposition")
-	result.ContentEncoding = option.GetOption("response-content-encoding")
-	result.ContentLanguage = option.GetOption("response-content-language")
-	result.ContentType = option.GetOption("response-content-type")
+		s := model.GetObjectState{}
+		if err := s3.validateGetObjectOptions(option); err != nil {
+			return nil, err
+		}
+		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+			return nil, InvalidBucketName()
+		}
+		path := option.GetPath()
+		if err := s3.isBucketAndKeyExists(option.GetBucket(), path); err != nil {
+			return nil, err
+		}
+		if !s3.FileSystem.checkKeyName(option.GetKey()) {
+			return nil, KeyTooLongError()
+		}
+		if s.Content = s3.FileSystem.readFile(path); s.Content == nil {
+			return nil, InternalError()
+		}
+		var s3err *S3Error
+		if s.Info, s.ETag, s3err = s3.getFileInfoAndETag(path); s3err != nil {
+			return nil, s3err
+		}
+		if s3err = s3.validateETagAndTime(option); s3err != nil {
+			return nil, s3err
+		}
+		if s.ContentRange, s.Content, s3err = s3.getRangeContent(option, s.Content); s3err != nil {
+			return nil, s3err
+		}
+		if !s3.getPartNumberContent(option) {
+			return nil, InvalidArgument()
+		}
+		if s.ResponseCrc64nvme, s3err = s3.checkChecksumMode(option, s.Content); s3err != nil {
+			return nil, s3err
+		}
+		result := s.MakeHeadObjectResult()
+		result.ContentDisposition = option.GetOption("response-content-disposition")
+		result.ContentEncoding = option.GetOption("response-content-encoding")
+		result.ContentLanguage = option.GetOption("response-content-language")
+		result.ContentType = option.GetOption("response-content-type")
 	*/
 
 	return &o, nil
@@ -751,9 +747,9 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 
 	// List of parameters.
 	// - BucketRegion *string
-	// + ContinuationToken *string
-	// + MaxBuckets *int32
-	// + Prefix *string
+	// - ContinuationToken *string
+	// - MaxBuckets *int32
+	// - Prefix *string
 
 	var start int
 	if i.ContinuationToken != nil {
@@ -815,7 +811,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	var dirs3 []os.DirEntry
 	var continuation int
 	if start < len(dirs2) {
-		var end = min(start + max_buckets, len(dirs2))
+		var end = min(start+max_buckets, len(dirs2))
 		dirs3 = dirs2[start:end]
 		if end < len(dirs2) {
 			continuation = end
@@ -845,7 +841,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 			// BucketArn:,
 			// BucketRegion:,
 			CreationDate: &times[1],
-			Name: &name,
+			Name:         &name,
 		}
 		buckets = append(buckets, b)
 	}
@@ -870,6 +866,9 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	fmt.Printf("*ListObjects*\n")
 	var o = s3.ListObjectsOutput{}
 
+	const alwasy_use_flat_lister = true
+	const key_limit = 1000
+
 	// List of parameters.
 	// - Bucket *string
 	// - Delimiter *string
@@ -886,10 +885,51 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 		return nil, err1
 	}
 
-	// o.CommonPrefixes []types.CommonPrefix
-	// o.Contents []types.Object
-	// o.IsTruncated *bool
-	// o.NextMarker *string
+	var index = 0
+	var marker string
+	var maxkeys int
+	var delimiter string
+	var prefix string
+
+	if i.Marker != nil {
+		marker = *i.Marker
+	}
+	if i.MaxKeys != nil {
+		maxkeys = int(min(key_limit, *i.MaxKeys))
+	} else {
+		maxkeys = key_limit
+	}
+	if i.Delimiter != nil {
+		delimiter = *i.Delimiter
+	}
+	if i.Prefix != nil {
+		prefix = *i.Prefix
+	}
+
+	var entries []object_list_entry
+	var nextindex int
+	var nextmarker string
+	var err2 error
+	if !alwasy_use_flat_lister && delimiter == "/" {
+		entries, nextindex, nextmarker, err2 = bbs.list_objects_delimited(
+			bucket, index, marker, maxkeys, delimiter, prefix)
+	} else {
+		entries, nextindex, nextmarker, err2 = bbs.list_objects_flat(
+			bucket, index, marker, maxkeys, delimiter, prefix)
+	}
+	if err2 != nil {
+		return nil, err2
+	}
+
+	var contents, commonprefixes, err3 = bbs.make_list_objects_entries(
+		entries, bucket, delimiter, prefix, false)
+	var _ = err3
+	var istruncated = (nextindex != 0)
+
+	o.Contents = contents
+	o.CommonPrefixes = commonprefixes
+	o.IsTruncated = &istruncated
+	o.NextMarker = &nextmarker
 
 	// o.RequestCharged types.RequestCharged
 
@@ -904,39 +944,39 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	}
 
 	/*
-	s := model.ListObjectsState{MaxKeys: 1000}
-	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-		return nil, InvalidBucketName()
-	}
-	s.Bucket = option.GetBucket()
-	if !s3.FileSystem.isFileExists(s.Bucket) {
-		return nil, NoSuchBucket()
-	}
-	s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
-	if v := option.GetOption("max-keys"); v != "" {
-		if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
-			s.MaxKeys = 1000
+		s := model.ListObjectsState{MaxKeys: 1000}
+		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+			return nil, InvalidBucketName()
 		}
-	}
-	if v := option.GetOption("prefix"); v != "" {
-		s.Prefix = v
-	}
-	if v := option.GetOption("marker"); v != "" {
-		s.Marker = strings.ReplaceAll(v, "/", "\\")
-	}
-	if v := option.GetOption("delimiter"); v == "/" {
-		s.Delimiter = filepath.FromSlash(v)
-	}
-	var s3err *S3Error
-	if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
-		return nil, s3err
-	}
-	res, responseRes := s3.listObjects(s)
-	if res == nil {
-		return nil, NotImplemented()
-	}
-	result := s.MakeListObjectsResult(*responseRes)
-	result.Contents = *res
+		s.Bucket = option.GetBucket()
+		if !s3.FileSystem.isFileExists(s.Bucket) {
+			return nil, NoSuchBucket()
+		}
+		s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
+		if v := option.GetOption("max-keys"); v != "" {
+			if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
+				s.MaxKeys = 1000
+			}
+		}
+		if v := option.GetOption("prefix"); v != "" {
+			s.Prefix = v
+		}
+		if v := option.GetOption("marker"); v != "" {
+			s.Marker = strings.ReplaceAll(v, "/", "\\")
+		}
+		if v := option.GetOption("delimiter"); v == "/" {
+			s.Delimiter = filepath.FromSlash(v)
+		}
+		var s3err *S3Error
+		if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
+			return nil, s3err
+		}
+		res, responseRes := s3.listObjects(s)
+		if res == nil {
+			return nil, NotImplemented()
+		}
+		result := s.MakeListObjectsResult(*responseRes)
+		result.Contents = *res
 	*/
 
 	return &o, nil
@@ -945,6 +985,9 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
 	fmt.Printf("*ListObjectsV2*\n")
 	var o = s3.ListObjectsV2Output{}
+
+	const alwasy_use_flat_lister = true
+	const key_limit = 1000
 
 	// List of parameters.
 	// - Bucket *string
@@ -971,21 +1014,71 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 		return nil, &Aws_s3_error{Code: AccessDenied}
 	}
 
-	//i.StartAfter *string
-	//i.Delimiter *string
-	//i.Prefix *string
+	var index int
+	var marker string
+	var maxkeys int
+	var delimiter string
+	var prefix string
+	var urlencode bool
 
-	//i.ContinuationToken *string
+	if i.ContinuationToken != nil {
+		var n, err1 = strconv.ParseInt(*i.ContinuationToken, 10, 32)
+		if err1 != nil {
+			var err2 = Bb_input_error{"continuation-token", err1}
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: err2.Error()}
+			return nil, errz
+		}
+		index = int(n)
+	}
+	if i.StartAfter != nil {
+		marker = *i.StartAfter
+	}
+	if i.MaxKeys != nil {
+		maxkeys = int(min(key_limit, *i.MaxKeys))
+	} else {
+		maxkeys = key_limit
+	}
+	if i.Delimiter != nil {
+		delimiter = *i.Delimiter
+	}
+	if i.Prefix != nil {
+		prefix = *i.Prefix
+	}
+	if i.EncodingType == types.EncodingTypeUrl {
+		urlencode = true
+	}
 
-	//i.EncodingType types.EncodingType
-	//i.MaxKeys *int32
+	var entries []object_list_entry
+	var nextindex int
+	var nextmarker string
+	var err2 error
+	if !alwasy_use_flat_lister && delimiter == "/" {
+		entries, nextindex, nextmarker, err2 = bbs.list_objects_delimited(
+			bucket, index, marker, maxkeys, delimiter, prefix)
+	} else {
+		entries, nextindex, nextmarker, err2 = bbs.list_objects_flat(
+			bucket, index, marker, maxkeys, delimiter, prefix)
+	}
+	if err2 != nil {
+		return nil, err2
+	}
+	var _ = nextmarker
 
-	// o.CommonPrefixes []types.CommonPrefix
-	// o.Contents []types.Object
+	var contents, commonprefixes, err3 = bbs.make_list_objects_entries(
+		entries, bucket, delimiter, prefix, urlencode)
+	var _ = err3
+	var istruncated = (nextindex != 0)
 
-	// o.NextContinuationToken *string
-	// o.IsTruncated *bool
-	// o.KeyCount *int32
+	var keys = int32(len(contents) + len(commonprefixes))
+	o.Contents = contents
+	o.CommonPrefixes = commonprefixes
+	o.KeyCount = &keys
+	o.IsTruncated = &istruncated
+	if nextindex != 0 {
+		var scontinuation = strconv.FormatInt(int64(nextindex), 10)
+		o.NextContinuationToken = &scontinuation
+	}
 
 	// o.RequestCharged types.RequestCharged
 
@@ -1001,45 +1094,45 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	}
 
 	/*
-	s := model.ListObjectsState{MaxKeys: 1000, V2Flg: true}
-	s.Bucket = option.GetBucket()
-	if !s3.FileSystem.checkBucketName(s.Bucket) {
-		return nil, InvalidBucketName()
-	}
-	if !s3.FileSystem.isFileExists(s.Bucket) {
-		return nil, NoSuchBucket()
-	}
-	s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
-	if v := option.GetOption("max-keys"); v != "" {
-		if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
-			s.MaxKeys = 1000
+		s := model.ListObjectsState{MaxKeys: 1000, V2Flg: true}
+		s.Bucket = option.GetBucket()
+		if !s3.FileSystem.checkBucketName(s.Bucket) {
+			return nil, InvalidBucketName()
 		}
-	}
-	if v := option.GetOption("prefix"); v != "" {
-		s.Prefix = v
-	}
-	if v := option.GetOption("start-after"); v != "" {
-		v = strings.ReplaceAll(v, "/", "\\")
-		s.StartAfter = v
-	}
-	if v := option.GetOption("delimiter"); v == "/" {
-		s.Delimiter = filepath.FromSlash(v)
-	}
-	var s3err *S3Error
-	if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
-		return nil, s3err
-	}
-	if v := option.GetOption("continuation-token"); v != "" {
-		if s.ContinuationToken, s.Target = s3.FileSystem.decodeContinuationToken(v); s.Target == 0 {
-			return nil, InternalError()
+		if !s3.FileSystem.isFileExists(s.Bucket) {
+			return nil, NoSuchBucket()
 		}
-	}
-	res, responseRes := s3.listObjects(s)
-	if res == nil {
-		return nil, NotImplemented()
-	}
-	result := s.MakeListObjectsV2Result(*responseRes)
-	result.Contents = *res
+		s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
+		if v := option.GetOption("max-keys"); v != "" {
+			if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
+				s.MaxKeys = 1000
+			}
+		}
+		if v := option.GetOption("prefix"); v != "" {
+			s.Prefix = v
+		}
+		if v := option.GetOption("start-after"); v != "" {
+			v = strings.ReplaceAll(v, "/", "\\")
+			s.StartAfter = v
+		}
+		if v := option.GetOption("delimiter"); v == "/" {
+			s.Delimiter = filepath.FromSlash(v)
+		}
+		var s3err *S3Error
+		if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
+			return nil, s3err
+		}
+		if v := option.GetOption("continuation-token"); v != "" {
+			if s.ContinuationToken, s.Target = s3.FileSystem.decodeContinuationToken(v); s.Target == 0 {
+				return nil, InternalError()
+			}
+		}
+		res, responseRes := s3.listObjects(s)
+		if res == nil {
+			return nil, NotImplemented()
+		}
+		result := s.MakeListObjectsV2Result(*responseRes)
+		result.Contents = *res
 	*/
 
 	return &o, nil
@@ -1055,13 +1148,13 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	var o = s3.PutObjectOutput{}
 
 	// List of parameters.
-	// + Bucket *string
-	// + Key *string
+	// - Bucket *string
+	// - Key *string
 	// - ACL types.ObjectCannedACL
-	// + Body io.Reader
+	// - Body io.Reader
 	// - BucketKeyEnabled *bool
-	// + CacheControl *string
-	// + ChecksumAlgorithm types.ChecksumAlgorithm
+	// - CacheControl *string
+	// - ChecksumAlgorithm types.ChecksumAlgorithm
 	// - ChecksumCRC32 *string
 	// - ChecksumCRC32C *string
 	// - ChecksumCRC64NVME *string
@@ -1092,8 +1185,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// - SSEKMSEncryptionContext *string
 	// - SSEKMSKeyId *string
 	// - ServerSideEncryption types.ServerSideEncryption
-	// + StorageClass types.StorageClass
-	// + Tagging *string
+	// - StorageClass types.StorageClass
+	// - Tagging *string
 	// - WebsiteRedirectLocation *string
 	// - WriteOffsetBytes *int64
 
@@ -1108,7 +1201,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if i.CacheControl != nil {
 		if !strings.EqualFold(*i.CacheControl, "no-cache") {
 			var errz = &Aws_s3_error{Code: InvalidStorageClass,
-				Message: "Bad Cache-Control",
+				Message:  "Bad Cache-Control",
 				Resource: location}
 			return &o, errz
 		}
@@ -1116,7 +1209,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if i.StorageClass != "" {
 		if i.StorageClass != types.StorageClassStandard {
 			var errz = &Aws_s3_error{Code: InvalidStorageClass,
-				Message: "Bad x-amz-storage-class",
+				Message:  "Bad x-amz-storage-class",
 				Resource: location}
 			return &o, errz
 		}
@@ -1127,7 +1220,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		var tags1, err3 = parse_tags(*i.Tagging)
 		if err3 != nil {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "Tag format error.",
+				Message:  "Tag format error.",
 				Resource: location}
 			return &o, errz
 		}
@@ -1203,7 +1296,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		}
 		if csum1 == nil {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "Checksum value is missing.",
+				Message:  "Checksum value is missing.",
 				Resource: location}
 			return nil, errz
 		}
@@ -1211,7 +1304,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		if err9 != nil {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Resource: location,
-				Message: "Checksum value is illegal."}
+				Message:  "Checksum value is illegal."}
 			return nil, errz
 		}
 		if bytes.Compare(csum_to_check, csum) != 0 {
@@ -1221,7 +1314,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 				"calculated", hex.EncodeToString(csum))
 			var errz = &Aws_s3_error{Code: BadDigest,
 				Resource: location,
-				Message: "The checksum did not match what we received."}
+				Message:  "The checksum did not match what we received."}
 			return nil, errz
 		}
 	}
@@ -1267,26 +1360,26 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 
 	/*
-	if f := s3.FileSystem.uploadFile(option.GetBody(), option.GetPath()); !f {
-		return nil, InternalError()
-	}
+		if f := s3.FileSystem.uploadFile(option.GetBody(), option.GetPath()); !f {
+			return nil, InternalError()
+		}
 
-	if err := s3.Tag.putTagging(option, option.GetPath()); err != nil {
-		return nil, err
-	}
+		if err := s3.Tag.putTagging(option, option.GetPath()); err != nil {
+			return nil, err
+		}
 
-	var s3err *S3Error
-	if s.ETag, s3err = s3.getETag(option.GetPath()); s3err != nil {
-		return nil, InternalError()
-	}
-	if s3err = s3.compareMd5(option, nil, s.ETag); s3err != nil {
-		return nil, s3err
-	}
-	if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, ""); s3err != nil {
-		return nil, s3err
-	}
-	result := s.MakePutObjectResult()
-    */
+		var s3err *S3Error
+		if s.ETag, s3err = s3.getETag(option.GetPath()); s3err != nil {
+			return nil, InternalError()
+		}
+		if s3err = s3.compareMd5(option, nil, s.ETag); s3err != nil {
+			return nil, s3err
+		}
+		if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, ""); s3err != nil {
+			return nil, s3err
+		}
+		result := s.MakePutObjectResult()
+	*/
 
 	return &o, nil
 }

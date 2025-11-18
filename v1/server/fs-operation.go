@@ -15,11 +15,17 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 )
+
+type object_list_entry struct {
+	key string
+	stat fs.FileInfo
+}
 
 // Meta-information associated to objects.  It is stored in a hidden
 // file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
@@ -472,7 +478,7 @@ func check_common_prefix(path, delimiter, prefix string) string {
 // returns are sorted.  It returns a next start-index and a next
 // start-marker, in addition to the entries.  THE ENTRIES INCLUDE
 // DIRECTORIES EVEN IF THEY ARE EMPTY.
-func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]os.DirEntry, int, string, error) {
+func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
 	if delimiter != "/" {
 		log.Fatalf("BAD-IMPL: list_objects_delimited with non-slash")
 	}
@@ -539,7 +545,19 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 		nextmarker = ""
 	}
 
-	return entries4, nextindex, nextmarker, nil
+	var entries5 []object_list_entry
+	for _, e := range entries4 {
+		var key = path.Join(dir1, e.Name())
+		var stat, err2 = e.Info()
+		if err2 != nil {
+			bbs.Logger.Info("os.Stat() failed on os.DirEntry",
+				"direntry", e, "error", err2)
+			continue
+		}
+		entries5 = append(entries5, object_list_entry{key, stat})
+	}
+
+	return entries5, nextindex, nextmarker, nil
 }
 
 // LIST_OBJECTS_FLAT makes listing for general delimiter case (it
@@ -550,12 +568,12 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 // to check a start-index.  MEMO: A prefix should not have a
 // preceeding delimiter.  A common-prefix will have a trailing
 // delimiter.
-func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]os.DirEntry, int, string, error) {
+func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
 	var location = "/" + bucket
 	var pool_path = bbs.pool_path
 	var name = path.Join(pool_path, bucket)
 
-	var entries []fs.DirEntry
+	var entries []object_list_entry
 	var nextindex int = 0
 	var nextmarker string = ""
 	var count int = 0
@@ -613,7 +631,14 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 		// entry to check truncation.
 
 		if len(entries) < maxkeys {
-			entries = append(entries, e)
+			var key = path1
+			var stat, err2 = e.Info()
+			if err2 != nil {
+				bbs.Logger.Info("os.Stat() failed on os.DirEntry",
+					"direntry", e, "error", err2)
+				return nil
+			}
+			entries = append(entries, object_list_entry{key, stat})
 			return nil
 		} else {
 			nextindex = count
@@ -621,10 +646,59 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 			return fs.SkipAll
 		}
 	})
-
 	if err1 != nil {
 		return nil, 0, "", map_os_error(location, err1, nil)
-	} else {
-		return entries, nextindex, nextmarker, nil
 	}
+
+	return entries, nextindex, nextmarker, nil
+}
+
+func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
+	var contents []types.Object
+	var commonprefixes []types.CommonPrefix
+	for _, e := range entries {
+		var object = path.Join(bucket, e.key)
+		var commonpart = check_common_prefix(e.key, delimiter, prefix)
+		if commonpart == "" {
+			var md5, _, err3 = bbs.calculate_csum2("", object, "")
+			var etag *string
+			if err3 != nil {
+				bbs.Logger.Warn("MD5 calculation failed",
+					"file", object, "error", err3)
+				etag = nil
+			} else {
+				etag = make_etag_from_md5(md5)
+			}
+			var key string
+			if urlencode {
+				key = url.QueryEscape(e.key)
+			} else {
+				key = e.key
+			}
+			var size int64 = e.stat.Size()
+			var mtime = e.stat.ModTime()
+			var s = types.Object{
+				// - ChecksumAlgorithm []ChecksumAlgorithm
+				// - ChecksumType ChecksumType
+				// - ETag *string
+				// - Key *string
+				// - LastModified *time.Time
+				// - Owner *Owner
+				// - RestoreStatus *RestoreStatus
+				// - Size *int64
+				// - StorageClass ObjectStorageClass
+				Key: &key,
+				ETag: etag,
+				Size: &size,
+				LastModified: &mtime,
+				StorageClass: types.ObjectStorageClassStandard}
+			contents = append(contents, s)
+		} else {
+			var s = types.CommonPrefix{
+				// - Prefix *string
+				Prefix: &commonpart}
+			commonprefixes = append(commonprefixes, s)
+		}
+	}
+	return contents, commonprefixes, nil
 }
