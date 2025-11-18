@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	//"log"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -465,9 +465,13 @@ func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
 	return info, nil
 }
 
-// LIST_OBJECTS_delimited makes listing for "/"-delimiter case.  An
-// index and a marker indicates a start point.
-func (bbs *Bb_server) list_objects_delimited(bucket string, prefix string, index int, marker string, maxkeys int) ([]os.DirEntry, error) {
+// LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
+// works with regard to the directory hierarchy.  A start-index and a
+// start-marker indicates a start point.  Note the entries ReadDir()
+// returns are sorted.  It returns a next start-index and a next
+// start-marker, in addition to the entries.  THE ENTRIES INCLUDE
+// DIRECTORIES EVEN IF THEY ARE EMPTY.
+func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, prefix string) ([]os.DirEntry, int, string, error) {
 	var location = "/" + bucket
 	var dir1, fileprefix = path.Split(path.Clean(prefix))
 	var pool_path = bbs.pool_path
@@ -475,17 +479,15 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, prefix string, index
 
 	var dir2, filemarker = path.Split(path.Clean(marker))
 	if marker != "" {
-		if dir1 != dir2 || !strings.HasPrefix(filemarker, fileprefix) {
-			// Nothing matches to the start-marker, thus, empty.
-			return nil, nil
+		if dir1 != dir2 {
+			// Nothing matches to the start-marker, return empty.
+			return nil, 0, "", nil
 		}
 	}
 
-	// Note the entries ReadDir() returns are sorted.
-
 	var entries1, err1 = os.ReadDir(name)
 	if err1 != nil {
-		return nil, map_os_error(location, err1, nil)
+		return nil, 0, "", map_os_error(location, err1, nil)
 	}
 
 	// Filter entries by a prefix.
@@ -503,7 +505,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, prefix string, index
 
 	// Find a position of a start-marker, or use a start-index.
 
-	var start int
+	var start int = -1
 	if filemarker != "" {
 		for i, e := range entries2 {
 			if e.Name() == filemarker {
@@ -512,10 +514,136 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, prefix string, index
 			}
 		}
 	} else {
-		start = index
+		start = 0
 	}
+	if start == -1 {
+		// Nothing matches to the start-marker, return empty.
+		return nil, 0, "", nil
+	}
+
+	start = max(index, start)
 	var entries3 = entries2[start:]
 	var entries4 = entries3[:min(len(entries3), maxkeys)]
+	var nextindex int
+	var nextmarker string
+	if len(entries4) < len(entries3) {
+		nextindex = start + len(entries4)
+		nextmarker = entries3[len(entries4)].Name()
+	} else {
+		nextindex = 0
+		nextmarker = ""
+	}
 
-	return entries4, nil
+	return entries4, nextindex, nextmarker, nil
+}
+
+// LIST_OBJECTS_FLAT makes listing for general delimiter case (it
+// works for both slash and non-slash delimiter).  It scans all the
+// files in the bucket.  It uses WalkDir() in "io/fs" as it returns
+// (not os-specific) slash-paths.  In the scanning loop, it does not
+// count directory entries.  COUNT counts files visited and it is used
+// to check a starting index.  MEMO: A prefix does not have a
+// preceeding delimiter.  Common-prefixes have a trailing delimiter.
+func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]os.DirEntry, int, string, error) {
+	var location = "/" + bucket
+	var pool_path = bbs.pool_path
+	var name = path.Join(pool_path, bucket)
+
+	// DIR holds the prefix, upto the last delimited part.  It ends
+	// with the delimiter (if one exists).
+
+	var dir string
+	if prefix == "" {
+		dir = prefix
+	} else if strings.HasSuffix(prefix, delimiter) {
+		dir = prefix
+	} else {
+		var s1 = strings.SplitAfter(prefix, delimiter)
+		dir = strings.Join(s1[:len(s1)-1], "")
+	}
+
+	var entries1 []fs.DirEntry
+	var nextindex = 0
+	var nextmarker = ""
+	var count int = 0
+	var collecting bool = false
+	var commonprefix string = ""
+
+	var bucketfs = os.DirFS(name)
+	var err1 = fs.WalkDir(bucketfs, "", func(path1 string, e fs.DirEntry, err1 error) error {
+		// Skip errors or directories. (Don't count directories).
+
+		if err1 != nil {
+			return nil
+		}
+		if e.IsDir() {
+			return nil
+		}
+
+		count++
+		if (count - 1) < index {
+			return nil
+		}
+
+		// Drop the root part, WalkDir() includes it.
+
+		//var truepath = strings.TrimPrefix(path1, (name + "/"))
+		var truepath = path1
+
+		// Check the prefix.
+
+		if !strings.HasPrefix(truepath, prefix) {
+			return nil
+		}
+
+		// Check the start marker, unless already found.
+
+		if !collecting {
+			if marker == truepath {
+				collecting = true
+			} else {
+				return nil
+			}
+		}
+
+		// Check a common prefix.  Drop the directory part of the
+		// prefix.
+
+		var entry fs.DirEntry
+		var path3 = strings.TrimPrefix(truepath, dir)
+		var s2 = strings.SplitAfter(path3, delimiter)
+		if strings.HasSuffix(s2[0], delimiter) {
+			// It is a common prefix.
+			var commonpath = path.Join(dir, s2[0])
+			if !strings.HasSuffix(truepath, commonpath) {
+				log.Fatalf("BAD-IMPL")
+			}
+			if commonprefix == commonpath {
+				// Skip if it is the one last encountered.
+				return nil
+			}
+			commonprefix = commonpath
+			entry = e
+		} else {
+			entry = e
+		}
+
+		// No finish.  It needs one extra entry to check truncation.
+		// Notice the count goes one plus the limit.
+
+		if len(entries1) < maxkeys {
+			entries1 = append(entries1, entry)
+			return nil
+		} else {
+			nextindex = count - 1
+			nextmarker = truepath
+			return fs.SkipAll
+		}
+	})
+
+	if err1 != nil {
+		return nil, 0, "", map_os_error(location, err1, nil)
+	} else {
+		return entries1, nextindex, nextmarker, nil
+	}
 }
