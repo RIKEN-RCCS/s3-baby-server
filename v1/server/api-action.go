@@ -299,32 +299,138 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, match, none_match *s
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
 	var o = s3.AbortMultipartUploadOutput{}
-	return &o, nil
-}
-func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, params *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, error) {
-	var o = s3.CompleteMultipartUploadOutput{}
-	return &o, nil
-}
-func (bbs *Bb_server) CopyObject(ctx context.Context, params *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
-	var o = s3.CopyObjectOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.UploadId *string
+	// i.ExpectedBucketOwner *string
+	// i.IfMatchInitiatedTime *time.Time
+	// i.RequestPayer types.RequestPayer
+
+	// o.RequestCharged types.RequestCharged
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
 
+func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, params *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, error) {
+	var o = s3.CompleteMultipartUploadOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.UploadId *string
+	// i.ChecksumCRC32 *string
+	// i.ChecksumCRC32C *string
+	// i.ChecksumCRC64NVME *string
+	// i.ChecksumSHA1 *string
+	// i.ChecksumSHA256 *string
+	// i.ChecksumType types.ChecksumType
+	// i.ExpectedBucketOwner *string
+	// i.IfMatch *string
+	// i.IfNoneMatch *string
+	// i.MpuObjectSize *int64
+	// i.MultipartUpload *types.CompletedMultipartUpload
+	// i.RequestPayer types.RequestPayer
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+
+	// o.Bucket *string
+	// o.BucketKeyEnabled *bool
+	// o.ChecksumCRC32 *string
+	// o.ChecksumCRC32C *string
+	// o.ChecksumCRC64NVME *string
+	// o.ChecksumSHA1 *string
+	// o.ChecksumSHA256 *string
+	// o.ChecksumType types.ChecksumType
+	// o.ETag *string
+	// o.Expiration *string
+	// o.Key *string
+	// o.Location *string
+	// o.RequestCharged types.RequestCharged
+	// o.SSEKMSKeyId *string
+	// o.ServerSideEncryption types.ServerSideEncryption
+	// o.VersionId *string
+	// o.ResultMetadata middleware.Metadata
+
+	return &o, nil
+}
+
+func (bbs *Bb_server) CopyObject(ctx context.Context, params *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
+	var o = s3.CopyObjectOutput{}
+
+	// i.Bucket *string
+	// i.CopySource *string
+	// i.Key *string
+	// i.ACL types.ObjectCannedACL
+	// i.BucketKeyEnabled *bool
+	// i.CacheControl *string
+	// i.ChecksumAlgorithm types.ChecksumAlgorithm
+	// i.ContentDisposition *string
+	// i.ContentEncoding *string
+	// i.ContentLanguage *string
+	// i.ContentType *string
+	// i.CopySourceIfMatch *string
+	// i.CopySourceIfModifiedSince *time.Time
+	// i.CopySourceIfNoneMatch *string
+	// i.CopySourceIfUnmodifiedSince *time.Time
+	// i.CopySourceSSECustomerAlgorithm *string
+	// i.CopySourceSSECustomerKey *string
+	// i.CopySourceSSECustomerKeyMD5 *string
+	// i.ExpectedBucketOwner *string
+	// i.ExpectedSourceBucketOwner *string
+	// i.Expires *time.Time
+	// i.GrantFullControl *string
+	// i.GrantRead *string
+	// i.GrantReadACP *string
+	// i.GrantWriteACP *string
+	// i.Metadata map[string]string
+	// i.MetadataDirective types.MetadataDirective
+	// i.ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
+	// i.ObjectLockMode types.ObjectLockMode
+	// i.ObjectLockRetainUntilDate *time.Time
+	// i.RequestPayer types.RequestPayer
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+	// i.SSEKMSEncryptionContext *string
+	// i.SSEKMSKeyId *string
+	// i.ServerSideEncryption types.ServerSideEncryption
+	// i.StorageClass types.StorageClass
+	// i.Tagging *string
+	// i.TaggingDirective types.TaggingDirective
+	// i.WebsiteRedirectLocation *string
+
+	// o.BucketKeyEnabled *bool
+	// o.CopyObjectResult *types.CopyObjectResult
+	// o.CopySourceVersionId *string
+	// o.Expiration *string
+	// o.RequestCharged types.RequestCharged
+	// o.SSECustomerAlgorithm *string
+	// o.SSECustomerKeyMD5 *string
+	// o.SSEKMSEncryptionContext *string
+	// o.SSEKMSKeyId *string
+	// o.ServerSideEncryption types.ServerSideEncryption
+	// o.VersionId *string
+	// o.ResultMetadata middleware.Metadata
+
+	return &o, nil
+}
 func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
 	fmt.Printf("*CreateBucket*\n")
 	var o = s3.CreateBucketOutput{}
 
 	// List of parameters.
-	// - Bucket *string
-	// - ACL types.BucketCannedACL
-	// - CreateBucketConfiguration *types.CreateBucketConfiguration
-	// - GrantFullControl *string
-	// - GrantRead *string
-	// - GrantReadACP *string
-	// - GrantWrite *string
-	// - GrantWriteACP *string
-	// - ObjectLockEnabledForBucket *bool
-	// - ObjectOwnership types.ObjectOwnership
+	// i.Bucket *string
+	// i.ACL types.BucketCannedACL
+	// i.CreateBucketConfiguration *types.CreateBucketConfiguration
+	// i.GrantFullControl *string
+	// i.GrantRead *string
+	// i.GrantReadACP *string
+	// i.GrantWrite *string
+	// i.GrantWriteACP *string
+	// i.ObjectLockEnabledForBucket *bool
+	// i.ObjectOwnership types.ObjectOwnership
 
 	if i.Bucket == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
@@ -359,22 +465,123 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, params *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, error) {
 	var o = s3.CreateMultipartUploadOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.ACL types.ObjectCannedACL
+	// i.BucketKeyEnabled *bool
+	// i.CacheControl *string
+	// i.ChecksumAlgorithm types.ChecksumAlgorithm
+	// i.ChecksumType types.ChecksumType
+	// i.ContentDisposition *string
+	// i.ContentEncoding *string
+	// i.ContentLanguage *string
+	// i.ContentType *string
+	// i.ExpectedBucketOwner *string
+	// i.Expires *time.Time
+	// i.GrantFullControl *string
+	// i.GrantRead *string
+	// i.GrantReadACP *string
+	// i.GrantWriteACP *string
+	// i.Metadata map[string]string
+	// i.ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
+	// i.ObjectLockMode types.ObjectLockMode
+	// i.ObjectLockRetainUntilDate *time.Time
+	// i.RequestPayer types.RequestPayer
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+	// i.SSEKMSEncryptionContext *string
+	// i.SSEKMSKeyId *string
+	// i.ServerSideEncryption types.ServerSideEncryption
+	// i.StorageClass types.StorageClass
+	// i.Tagging *string
+	// i.WebsiteRedirectLocation *string
+
+	// o.AbortDate *time.Time
+	// o.AbortRuleId *string
+	// o.Bucket *string
+	// o.BucketKeyEnabled *bool
+	// o.ChecksumAlgorithm types.ChecksumAlgorithm
+	// o.ChecksumType types.ChecksumType
+	// o.Key *string
+	// o.RequestCharged types.RequestCharged
+	// o.SSECustomerAlgorithm *string
+	// o.SSECustomerKeyMD5 *string
+	// o.SSEKMSEncryptionContext *string
+	// o.SSEKMSKeyId *string
+	// o.ServerSideEncryption types.ServerSideEncryption
+	// o.UploadId *string
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) DeleteBucket(ctx context.Context, params *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, error) {
 	var o = s3.DeleteBucketOutput{}
+
+	// i.Bucket *string
+	// i.ExpectedBucketOwner *string
+
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
 	var o = s3.DeleteObjectOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.BypassGovernanceRetention *bool
+	// i.ExpectedBucketOwner *string
+	// i.IfMatch *string
+	// i.IfMatchLastModifiedTime *time.Time
+	// i.IfMatchSize *int64
+	// i.MFA *string
+	// i.RequestPayer types.RequestPayer
+	// i.VersionId *string
+
+	// o.DeleteMarker *bool
+	// o.RequestCharged types.RequestCharged
+	// o.VersionId *string
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
 	var o = s3.DeleteObjectsOutput{}
+
+	// i.Bucket *string
+	// i.Delete *types.Delete
+	// i.BypassGovernanceRetention *bool
+	// i.ChecksumAlgorithm types.ChecksumAlgorithm
+	// i.ExpectedBucketOwner *string
+	// i.MFA *string
+	// i.RequestPayer types.RequestPayer
+
+	// o.Deleted []types.DeletedObject
+	// o.Errors []types.Error
+	// o.RequestCharged types.RequestCharged
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, params *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, error) {
 	var o = s3.DeleteObjectTaggingOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.ExpectedBucketOwner *string
+	// i.VersionId *string
+	// i.noSmithyDocumentSerde
+
+	// o.VersionId *string
+	// o.ResultMetadata middleware.Metadata
+	// o.noSmithyDocumentSerde
+
 	return &o, nil
 }
 
@@ -383,27 +590,27 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var o = s3.GetObjectOutput{}
 
 	// List of parameters.
-	// - Bucket *string
-	// - Key *string
-	// - ChecksumMode types.ChecksumMode
-	// - ExpectedBucketOwner *string
-	// - IfMatch *string
-	// - IfModifiedSince *time.Time
-	// - IfNoneMatch *string
-	// - IfUnmodifiedSince *time.Time
-	// - PartNumber *int32
-	// - Range *string
-	// - RequestPayer types.RequestPayer
-	// - ResponseCacheControl *string
-	// - ResponseContentDisposition *string
-	// - ResponseContentEncoding *string
-	// - ResponseContentLanguage *string
-	// - ResponseContentType *string
-	// - ResponseExpires *time.Time
-	// - SSECustomerAlgorithm *string
-	// - SSECustomerKey *string
-	// - SSECustomerKeyMD5 *string
-	// - VersionId *string
+	// i.Bucket *string
+	// i.Key *string
+	// i.ChecksumMode types.ChecksumMode
+	// i.ExpectedBucketOwner *string
+	// i.IfMatch *string
+	// i.IfModifiedSince *time.Time
+	// i.IfNoneMatch *string
+	// i.IfUnmodifiedSince *time.Time
+	// i.PartNumber *int32
+	// i.Range *string
+	// i.RequestPayer types.RequestPayer
+	// i.ResponseCacheControl *string
+	// i.ResponseContentDisposition *string
+	// i.ResponseContentEncoding *string
+	// i.ResponseContentLanguage *string
+	// i.ResponseContentType *string
+	// i.ResponseExpires *time.Time
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+	// i.VersionId *string
 
 	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err1 != nil {
@@ -537,6 +744,17 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, params *s3.GetObj
 }
 func (bbs *Bb_server) GetObjectTagging(ctx context.Context, params *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, error) {
 	var o = s3.GetObjectTaggingOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.ExpectedBucketOwner *string
+	// i.RequestPayer types.RequestPayer
+	// i.VersionId *string
+
+	// o.TagSet []types.Tag
+	// o.VersionId *string
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
 
@@ -547,8 +765,8 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 	/*NOTYET*/
 
 	// List of parameters.
-	// - Bucket *string
-	// - ExpectedBucketOwner *string
+	// i.Bucket *string
+	// i.ExpectedBucketOwner *string
 
 	var bucket, err1 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
 	if err1 != nil {
@@ -570,27 +788,27 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	var o = s3.HeadObjectOutput{}
 
 	// List of parameters.
-	// - Bucket *string
-	// - Key *string
-	// - ChecksumMode types.ChecksumMode
-	// - ExpectedBucketOwner *string
-	// - IfMatch *string
-	// - IfModifiedSince *time.Time
-	// - IfNoneMatch *string
-	// - IfUnmodifiedSince *time.Time
-	// - PartNumber *int32
-	// - Range *string
-	// - RequestPayer types.RequestPayer
-	// - ResponseCacheControl *string
-	// - ResponseContentDisposition *string
-	// - ResponseContentEncoding *string
-	// - ResponseContentLanguage *string
-	// - ResponseContentType *string
-	// - ResponseExpires *time.Time
-	// - SSECustomerAlgorithm *string
-	// - SSECustomerKey *string
-	// - SSECustomerKeyMD5 *string
-	// - VersionId *string
+	// i.Bucket *string
+	// i.Key *string
+	// i.ChecksumMode types.ChecksumMode
+	// i.ExpectedBucketOwner *string
+	// i.IfMatch *string
+	// i.IfModifiedSince *time.Time
+	// i.IfNoneMatch *string
+	// i.IfUnmodifiedSince *time.Time
+	// i.PartNumber *int32
+	// i.Range *string
+	// i.RequestPayer types.RequestPayer
+	// i.ResponseCacheControl *string
+	// i.ResponseContentDisposition *string
+	// i.ResponseContentEncoding *string
+	// i.ResponseContentLanguage *string
+	// i.ResponseContentType *string
+	// i.ResponseExpires *time.Time
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+	// i.VersionId *string
 
 	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err1 != nil {
@@ -748,10 +966,10 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	var o = s3.ListBucketsOutput{}
 
 	// List of parameters.
-	// - BucketRegion *string
-	// - ContinuationToken *string
-	// - MaxBuckets *int32
-	// - Prefix *string
+	// i.BucketRegion *string
+	// i.ContinuationToken *string
+	// i.MaxBuckets *int32
+	// i.Prefix *string
 
 	var start int
 	if i.ContinuationToken != nil {
@@ -861,6 +1079,33 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 
 func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, error) {
 	var o = s3.ListMultipartUploadsOutput{}
+
+	// i.Bucket *string
+	// i.Delimiter *string
+	// i.EncodingType types.EncodingType
+	// i.ExpectedBucketOwner *string
+	// i.KeyMarker *string
+	// i.MaxUploads *int32
+	// i.Prefix *string
+	// i.RequestPayer types.RequestPayer
+	// i.UploadIdMarker *string
+
+
+	// o.Bucket *string
+	// o.CommonPrefixes []types.CommonPrefix
+	// o.Delimiter *string
+	// o.EncodingType types.EncodingType
+	// o.IsTruncated *bool
+	// o.KeyMarker *string
+	// o.MaxUploads *int32
+	// o.NextKeyMarker *string
+	// o.NextUploadIdMarker *string
+	// o.Prefix *string
+	// o.RequestCharged types.RequestCharged
+	// o.UploadIdMarker *string
+	// o.Uploads []types.MultipartUpload
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
 
@@ -869,15 +1114,15 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	var o = s3.ListObjectsOutput{}
 
 	// List of parameters.
-	// - Bucket *string
-	// - Delimiter *string
-	// - EncodingType types.EncodingType
-	// - ExpectedBucketOwner *string
-	// - Marker *string
-	// - MaxKeys *int32
-	// - OptionalObjectAttributes []types.OptionalObjectAttributes
-	// - Prefix *string
-	// - RequestPayer types.RequestPayer
+	// i.Bucket *string
+	// i.Delimiter *string
+	// i.EncodingType types.EncodingType
+	// i.ExpectedBucketOwner *string
+	// i.Marker *string
+	// i.MaxKeys *int32
+	// i.OptionalObjectAttributes []types.OptionalObjectAttributes
+	// i.Prefix *string
+	// i.RequestPayer types.RequestPayer
 
 	var bucket, err1 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
 	if err1 != nil {
@@ -986,17 +1231,17 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	var o = s3.ListObjectsV2Output{}
 
 	// List of parameters.
-	// - Bucket *string
-	// - ContinuationToken *string
-	// - Delimiter *string
-	// - EncodingType types.EncodingType
-	// - ExpectedBucketOwner *string
-	// - FetchOwner *bool
-	// - MaxKeys *int32
-	// - OptionalObjectAttributes []types.OptionalObjectAttributes
-	// - Prefix *string
-	// - RequestPayer types.RequestPayer
-	// - StartAfter *string
+	// i.Bucket *string
+	// i.ContinuationToken *string
+	// i.Delimiter *string
+	// i.EncodingType types.EncodingType
+	// i.ExpectedBucketOwner *string
+	// i.FetchOwner *bool
+	// i.MaxKeys *int32
+	// i.OptionalObjectAttributes []types.OptionalObjectAttributes
+	// i.Prefix *string
+	// i.RequestPayer types.RequestPayer
+	// i.StartAfter *string
 
 	var bucket, err1 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
 	if err1 != nil {
@@ -1136,6 +1381,36 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 
 func (bbs *Bb_server) ListParts(ctx context.Context, params *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, error) {
 	var o = s3.ListPartsOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.UploadId *string
+	// i.ExpectedBucketOwner *string
+	// i.MaxParts *int32
+	// i.PartNumberMarker *string
+	// i.RequestPayer types.RequestPayer
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+
+	// o.AbortDate *time.Time
+	// o.AbortRuleId *string
+	// o.Bucket *string
+	// o.ChecksumAlgorithm types.ChecksumAlgorithm
+	// o.ChecksumType types.ChecksumType
+	// o.Initiator *types.Initiator
+	// o.IsTruncated *bool
+	// o.Key *string
+	// o.MaxParts *int32
+	// o.NextPartNumberMarker *string
+	// o.Owner *types.Owner
+	// o.PartNumberMarker *string
+	// o.Parts []types.Part
+	// o.RequestCharged types.RequestCharged
+	// o.StorageClass types.StorageClass
+	// o.UploadId *string
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
 
@@ -1144,47 +1419,47 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	var o = s3.PutObjectOutput{}
 
 	// List of parameters.
-	// - Bucket *string
-	// - Key *string
-	// - ACL types.ObjectCannedACL
-	// - Body io.Reader
-	// - BucketKeyEnabled *bool
-	// - CacheControl *string
-	// - ChecksumAlgorithm types.ChecksumAlgorithm
-	// - ChecksumCRC32 *string
-	// - ChecksumCRC32C *string
-	// - ChecksumCRC64NVME *string
-	// - ChecksumSHA1 *string
-	// - ChecksumSHA256 *string
-	// - ContentDisposition *string
-	// - ContentEncoding *string
-	// - ContentLanguage *string
-	// - ContentLength *int64
-	// - ContentMD5 *string
-	// - ContentType *string
-	// - ExpectedBucketOwner *string
-	// - Expires *time.Time
-	// - GrantFullControl *string
-	// - GrantRead *string
-	// - GrantReadACP *string
-	// - GrantWriteACP *string
-	// - IfMatch *string
-	// - IfNoneMatch *string
-	// - Metadata map[string]string
-	// - ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
-	// - ObjectLockMode types.ObjectLockMode
-	// - ObjectLockRetainUntilDate *time.Time
-	// - RequestPayer types.RequestPayer
-	// - SSECustomerAlgorithm *string
-	// - SSECustomerKey *string
-	// - SSECustomerKeyMD5 *string
-	// - SSEKMSEncryptionContext *string
-	// - SSEKMSKeyId *string
-	// - ServerSideEncryption types.ServerSideEncryption
-	// - StorageClass types.StorageClass
-	// - Tagging *string
-	// - WebsiteRedirectLocation *string
-	// - WriteOffsetBytes *int64
+	// i.Bucket *string
+	// i.Key *string
+	// i.ACL types.ObjectCannedACL
+	// i.Body io.Reader
+	// i.BucketKeyEnabled *bool
+	// i.CacheControl *string
+	// i.ChecksumAlgorithm types.ChecksumAlgorithm
+	// i.ChecksumCRC32 *string
+	// i.ChecksumCRC32C *string
+	// i.ChecksumCRC64NVME *string
+	// i.ChecksumSHA1 *string
+	// i.ChecksumSHA256 *string
+	// i.ContentDisposition *string
+	// i.ContentEncoding *string
+	// i.ContentLanguage *string
+	// i.ContentLength *int64
+	// i.ContentMD5 *string
+	// i.ContentType *string
+	// i.ExpectedBucketOwner *string
+	// i.Expires *time.Time
+	// i.GrantFullControl *string
+	// i.GrantRead *string
+	// i.GrantReadACP *string
+	// i.GrantWriteACP *string
+	// i.IfMatch *string
+	// i.IfNoneMatch *string
+	// i.Metadata map[string]string
+	// i.ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
+	// i.ObjectLockMode types.ObjectLockMode
+	// i.ObjectLockRetainUntilDate *time.Time
+	// i.RequestPayer types.RequestPayer
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+	// i.SSEKMSEncryptionContext *string
+	// i.SSEKMSKeyId *string
+	// i.ServerSideEncryption types.ServerSideEncryption
+	// i.StorageClass types.StorageClass
+	// i.Tagging *string
+	// i.WebsiteRedirectLocation *string
+	// i.WriteOffsetBytes *int64
 
 	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err1 != nil {
@@ -1382,13 +1657,92 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 func (bbs *Bb_server) PutObjectTagging(ctx context.Context, params *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, error) {
 	var o = s3.PutObjectTaggingOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.Tagging *types.Tagging
+	// i.ChecksumAlgorithm types.ChecksumAlgorithm
+	// i.ContentMD5 *string
+	// i.ExpectedBucketOwner *string
+	// i.RequestPayer types.RequestPayer
+	// i.VersionId *string
+
+	// o.VersionId *string
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
 func (bbs *Bb_server) UploadPart(ctx context.Context, params *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, error) {
 	var o = s3.UploadPartOutput{}
+
+	// i.Bucket *string
+	// i.Key *string
+	// i.PartNumber *int32
+	// i.UploadId *string
+	// i.Body io.Reader
+	// i.ChecksumAlgorithm types.ChecksumAlgorithm
+	// i.ChecksumCRC32 *string
+	// i.ChecksumCRC32C *string
+	// i.ChecksumCRC64NVME *string
+	// i.ChecksumSHA1 *string
+	// i.ChecksumSHA256 *string
+	// i.ContentLength *int64
+	// i.ContentMD5 *string
+	// i.ExpectedBucketOwner *string
+	// i.RequestPayer types.RequestPayer
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+
+	// o.BucketKeyEnabled *bool
+	// o.ChecksumCRC32 *string
+	// o.ChecksumCRC32C *string
+	// o.ChecksumCRC64NVME *string
+	// o.ChecksumSHA1 *string
+	// o.ChecksumSHA256 *string
+	// o.ETag *string
+	// o.RequestCharged types.RequestCharged
+	// o.SSECustomerAlgorithm *string
+	// o.SSECustomerKeyMD5 *string
+	// o.SSEKMSKeyId *string
+	// o.ServerSideEncryption types.ServerSideEncryption
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
+
 func (bbs *Bb_server) UploadPartCopy(ctx context.Context, params *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, error) {
 	var o = s3.UploadPartCopyOutput{}
+
+	// i.Bucket *string
+	// i.CopySource *string
+	// i.Key *string
+	// i.PartNumber *int32
+	// i.UploadId *string
+	// i.CopySourceIfMatch *string
+	// i.CopySourceIfModifiedSince *time.Time
+	// i.CopySourceIfNoneMatch *string
+	// i.CopySourceIfUnmodifiedSince *time.Time
+	// i.CopySourceRange *string
+	// i.CopySourceSSECustomerAlgorithm *string
+	// i.CopySourceSSECustomerKey *string
+	// i.CopySourceSSECustomerKeyMD5 *string
+	// i.ExpectedBucketOwner *string
+	// i.ExpectedSourceBucketOwner *string
+	// i.RequestPayer types.RequestPayer
+	// i.SSECustomerAlgorithm *string
+	// i.SSECustomerKey *string
+	// i.SSECustomerKeyMD5 *string
+
+	// o.BucketKeyEnabled *bool
+	// o.CopyPartResult *types.CopyPartResult
+	// o.CopySourceVersionId *string
+	// o.RequestCharged types.RequestCharged
+	// o.SSECustomerAlgorithm *string
+	// o.SSECustomerKeyMD5 *string
+	// o.SSEKMSKeyId *string
+	// o.ServerSideEncryption types.ServerSideEncryption
+	// o.ResultMetadata middleware.Metadata
+
 	return &o, nil
 }
