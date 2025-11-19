@@ -1,27 +1,15 @@
-// aws-s3-rules.go
+// aws-s3-rule.go
 // Copyright 2025-2025 RIKEN R-CCS.
 // SPDX-License-Identifier: BSD-2-Clause
 
 package server
 
 import (
-	//"bytes"
-	//"crypto/md5"
-	//"crypto/rand"
-	//"encoding/base64"
-	//"encoding/hex"
-	//"fmt"
-	//"io"
-	//"io/fs"
-	//"log/slog"
-	//"math/big"
-	//"os"
-	//"path/filepath"
 	"regexp"
-	//"s3-baby-server/pkg/utils"
-	//"strconv"
-	//"strings"
 )
+
+const list_buckets_limit = 10000
+const list_objects_limit = 1000
 
 // - [General purpose bucket naming rules]
 //   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
@@ -70,7 +58,6 @@ func check_bucket_naming(name string) bool {
 func check_object_naming(name string) bool {
 	return true
 }
-
 
 // TAGGING
 

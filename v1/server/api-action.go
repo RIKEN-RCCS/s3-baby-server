@@ -84,6 +84,8 @@ type suffix_record struct {
 	timestamp time.Time
 }
 
+const alwasy_use_flat_lister = true
+
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
@@ -464,6 +466,12 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		}
 	}
 
+	var f1, err7 = bbs.make_file_stream(ctx, object, nil)
+	if err7 != nil {
+		return nil, err7
+	}
+	o.Body = f1
+
 	{
 		o.StorageClass = types.StorageClassStandard
 		o.AcceptRanges = i.Range
@@ -477,12 +485,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 			o.ExpiresString = &expires
 		}
 	}
-
-	var f1, err7 = bbs.make_file_stream(ctx, object, nil)
-	if err7 != nil {
-		return nil, err7
-	}
-	o.Body = f1
 
 	/*
 		s := model.GetObjectState{}
@@ -768,14 +770,14 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	var max_buckets int
 	if i.MaxBuckets != nil {
 		max_buckets = int(*i.MaxBuckets)
-		if max_buckets > 10000 {
+		if max_buckets > list_buckets_limit {
 			var err2 = fmt.Errorf("Value too large: %d", max_buckets)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: err2.Error()}
 			return nil, errz
 		}
 	} else {
-		max_buckets = 10000
+		max_buckets = list_buckets_limit
 	}
 
 	var pool_path = bbs.pool_path
@@ -866,9 +868,6 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	fmt.Printf("*ListObjects*\n")
 	var o = s3.ListObjectsOutput{}
 
-	const alwasy_use_flat_lister = true
-	const key_limit = 1000
-
 	// List of parameters.
 	// - Bucket *string
 	// - Delimiter *string
@@ -895,9 +894,9 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 		marker = *i.Marker
 	}
 	if i.MaxKeys != nil {
-		maxkeys = int(min(key_limit, *i.MaxKeys))
+		maxkeys = int(min(list_objects_limit, *i.MaxKeys))
 	} else {
-		maxkeys = key_limit
+		maxkeys = list_objects_limit
 	}
 	if i.Delimiter != nil {
 		delimiter = *i.Delimiter
@@ -934,7 +933,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	// o.RequestCharged types.RequestCharged
 
 	{
-		// var maxkeys int32 = 1000
+		// var maxkeys int32 = list_objects_limit
 		o.Delimiter = i.Delimiter
 		o.EncodingType = i.EncodingType
 		o.Marker = i.Marker
@@ -986,9 +985,6 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	fmt.Printf("*ListObjectsV2*\n")
 	var o = s3.ListObjectsV2Output{}
 
-	const alwasy_use_flat_lister = true
-	const key_limit = 1000
-
 	// List of parameters.
 	// - Bucket *string
 	// - ContinuationToken *string
@@ -1035,9 +1031,9 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 		marker = *i.StartAfter
 	}
 	if i.MaxKeys != nil {
-		maxkeys = int(min(key_limit, *i.MaxKeys))
+		maxkeys = int(min(list_objects_limit, *i.MaxKeys))
 	} else {
-		maxkeys = key_limit
+		maxkeys = list_objects_limit
 	}
 	if i.Delimiter != nil {
 		delimiter = *i.Delimiter
