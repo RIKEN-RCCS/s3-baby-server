@@ -23,7 +23,7 @@ import (
 )
 
 type object_list_entry struct {
-	key string
+	key  string
 	stat fs.FileInfo
 }
 
@@ -31,12 +31,14 @@ type object_list_entry struct {
 // file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
 // will be encoded i json.
 type Meta_info struct {
-	Headers map[string]string
+	Headers *map[string]string
 	Tags    *types.Tagging
 }
 
-func make_meta_file_name(file string) string {
-	return ("." + file + "@meta")
+type MPUL_info struct {
+	Id int64
+	Headers *map[string]string
+	Tags    *types.Tagging
 }
 
 func os_error_name(err error) string {
@@ -97,19 +99,36 @@ func map_path_error(ctx context.Context, location string, err1 error, m map[erro
 	return err1
 }
 
-// Appends a pool-directory and a bucket, where a bucket is assumed as
-// a legal name.
-func (bbs *Bb_server) make_path(bucket string) string {
-	// file.Clean(path)
+// make_path_of_bucket makes an OS-path to a bucket, by appending a
+// pool-directory and a bucket.  Note Join() calls Clean().
+func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 	var pool_path = bbs.pool_path
 	var path = filepath.Join(pool_path, bucket)
 	return path
 }
 
+// make_path_of_object makes an OS-path to an object, by appending a
+// pool-directory, a bucket, and a key.  A scratchkey is a random key,
+// or it can be "meta" or "mpul" (multipart upload).
+func (bbs *Bb_server) make_path_of_object(object string, scratchkey string) string {
+	var prefix, suffix string
+	if scratchkey == "" {
+		prefix = ""
+		suffix = ""
+	} else {
+		prefix = "."
+		suffix = "@" + scratchkey
+	}
+	var dir, file = path.Split(object)
+	var pool_path = bbs.pool_path
+	var path = filepath.Join(pool_path, dir, (prefix + file + suffix))
+	return path
+}
+
 func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket string) error {
 	var location = "/" + bucket
-	var path = bbs.make_path(bucket)
-	var info, err2 = os.Lstat(path)
+	var path = bbs.make_path_of_bucket(bucket)
+	var stat, err2 = os.Lstat(path)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			var err5 = &Aws_s3_error{Code: NoSuchBucket,
@@ -121,7 +140,7 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 			return err5
 		}
 	}
-	if !info.IsDir() {
+	if !stat.IsDir() {
 		var err5 = &Aws_s3_error{Code: NoSuchBucket,
 			Resource: location}
 		return err5
@@ -129,17 +148,180 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 	return nil
 }
 
-func (bbs *Bb_server) upload_file(ctx context.Context, object, scratch string, size int64, body io.Reader) error {
+func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string, size int64, body io.Reader) error {
 	var location = "/" + object
-	//var dir1, filename = path.Split(object)
-	//var dir2 = filepath.Clean(dir1)
-	//var pool_path = bbs.pool_path
-	//var dirpath = filepath.Join(pool_path, dir2)
-	//var name = filepath.Join(dirpath, ("." + filename + "@" + suffix))
-	var name = bbs.make_file_name_of_object(object, scratch)
-	var dir, _ = filepath.Split(name)
+	var path = bbs.make_path_of_object(object, scratchkey)
 
-	var info, err2 = os.Lstat(dir)
+	// Make intermediate directories.
+
+	var err1 = bbs.make_intermediate_directories(ctx, object)
+	if err1 != nil {
+		return err1
+	}
+
+	// Copy data to a temporary file.
+
+	var f1, err4 = os.Create(path)
+	if err4 != nil {
+		bbs.Logger.Info("os.Create() failed", "file", path, "error", err4)
+		return map_os_error(location, err4, nil)
+	}
+	var cleanup_needed = true
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err2)
+		}
+		if cleanup_needed {
+			var _ = os.Remove(path)
+		}
+	}()
+
+	var cc, err5 = io.Copy(f1, body)
+	if err5 != nil {
+		bbs.Logger.Info("io.Copy() failed", "file", path, "error", err5)
+		var m = map[error]Aws_s3_error_code{}
+		var errz = map_os_error(location, err5, m)
+		return errz
+	}
+	var err6 = f1.Close()
+	if err6 != nil {
+		bbs.Logger.Info("os.Close() failed", "file", path, "error", err6)
+		var m = map[error]Aws_s3_error_code{}
+		var errz = map_os_error(location, err6, m)
+		return errz
+	}
+	if cc != size {
+		bbs.Logger.Info("Transfer failed")
+		var errz = &Aws_s3_error{Code: IncompleteBody,
+			Resource: location,
+			Message: fmt.Sprintf("Body expected length=%d but received length=%d.",
+				size, cc)}
+		return errz
+	}
+
+	// The work of renaming a temporary file to an actual file is
+	// separated.  It should be in coordination with the meta-info
+	// file.
+
+	cleanup_needed = false
+	return nil
+}
+
+func (bbs *Bb_server) place_uploaded(ctx context.Context, object, scratchkey string) error {
+	var location = "/" + object
+	var path1 = bbs.make_path_of_object(object, scratchkey)
+	var path2 = bbs.make_path_of_object(object, "")
+
+	var err8 = os.Rename(path1, path2)
+	if err8 != nil {
+		bbs.Logger.Info("io.Rename() failed", "error", err8)
+		var errz = map_os_error(location, err8, nil)
+		return errz
+	}
+
+	return nil
+}
+
+// CREATE_UPLOAD_DIRECTORY creates a scratch directory for MPUL.  When
+// it already exists, it overtakes the directory by rewriting its
+// upload-id.  It creates an empty file in the directory, which will
+// later become a true file.  It is created here to keep ctime now.
+func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploadid string) error {
+	var location = "/" + object + "@mpul"
+	var path = bbs.make_path_of_object(object, "mpul")
+
+	// Make intermediate directories.
+
+	var err1 = bbs.make_intermediate_directories(ctx, object)
+	if err1 != nil {
+		return err1
+	}
+
+	// Make (or overtake) an MPUL directory.
+
+	var stat, err2 = os.Lstat(path)
+	if err2 != nil {
+		if errors.Is(err2, fs.ErrNotExist) {
+			// OK.
+		} else {
+			bbs.Logger.Warn("os.Lstat() failed on MPUL path",
+				"path", path, "error", err2)
+			return map_os_error(location, err2, nil)
+		}
+	}
+	if !stat.IsDir() {
+		bbs.Logger.Warn("MPUL path is not a directory", "path", path)
+		var errz = &Aws_s3_error{Code: AccessDenied,
+			Resource: location}
+		return errz
+	}
+	if err2 != nil {
+		// Overtake an existing directory
+		// assert(errors.Is(err2, fs.ErrNotExist))
+		bbs.Logger.Info("Overtaking an existing MPUL directory", "path", path)
+	} else {
+		var err3 = os.Mkdir(path, 0755)
+		if err3 != nil {
+			bbs.Logger.Info("os.Mkdir() failed", "path", path,
+				"error", err3)
+			return map_os_error(location, err3, nil)
+		}
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			var err4 = os.RemoveAll(path)
+			if err4 != nil {
+				bbs.Logger.Info("os.RemoveAll() failed", "path", path,
+					"error", err4)
+			}
+		}
+	}()
+
+	// Make MPUL data.
+
+	// AHO
+	var id int64 = 0
+	var info = MPUL_info{id, nil, nil}
+	var infopath = filepath.Join(path, "info")
+	var err5 = bbs.store_json_data(object, infopath, &info)
+	if err5 != nil {
+		return map_os_error(location, err5, nil)
+	}
+
+	// Create an empty file.
+
+	var datapath = filepath.Join(path, "data")
+	var err6 = bbs.create_empty_file(datapath)
+	if err6 != nil {
+		return map_os_error(location, err6, nil)
+	}
+
+	cleanup_needed = false
+	return nil
+}
+
+// DISCHARGE_SCRATCH_FILE removes a scatch file as well as file
+// suffixes for associated to a request-id.
+func (bbs *Bb_server) discharge_scratch_file(ctx context.Context, object, scratchkey string) {
+	//var rid int64 = get_request_id(ctx)
+	//bbs.discharge_file_suffix(rid)
+	var path = bbs.make_path_of_object(object, scratchkey)
+	var err1 = os.Remove(path)
+	if err1 != nil {
+		bbs.Logger.Info("os.Remove() failed on scratch file",
+			"file", path, "error", err1)
+	}
+}
+
+// make_intermediate_directories makes intermediate directories.
+func (bbs *Bb_server) make_intermediate_directories(ctx context.Context, object string) error {
+	var location = "/" + object
+	var path = bbs.make_path_of_object(object, "")
+	var dir, _ = filepath.Split(path)
+	var stat, err2 = os.Lstat(dir)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
@@ -149,7 +331,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratch string, s
 			return map_os_error(location, err2, nil)
 		}
 	}
-	if !info.IsDir() {
+	if !stat.IsDir() {
 		bbs.Logger.Warn("Path is not a directory", "path", dir)
 		var errz = &Aws_s3_error{Code: AccessDenied,
 			Resource: location}
@@ -164,129 +346,14 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratch string, s
 			return map_os_error(location, err3, nil)
 		}
 	}
-
-	// Copy data to a temporary file.
-
-	var f1, err4 = os.Create(name)
-	if err4 != nil {
-		bbs.Logger.Info("os.Create() failed", "file", name, "error", err4)
-		return map_os_error(location, err4, nil)
-	}
-	var cleanup_needed = new(bool)
-	defer func() {
-		var err2 = f1.Close()
-		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", name,
-				"error", err2)
-		}
-		if *cleanup_needed {
-			var _ = os.Remove(name)
-		}
-	}()
-
-	var cc, err5 = io.Copy(f1, body)
-	if err5 != nil {
-		bbs.Logger.Info("io.Copy() failed", "file", name, "error", err5)
-		var m = map[error]Aws_s3_error_code{}
-		var errz = map_os_error(location, err5, m)
-		return errz
-	}
-	var err6 = f1.Close()
-	if err6 != nil {
-		bbs.Logger.Info("os.Close() failed", "file", name, "error", err6)
-		var m = map[error]Aws_s3_error_code{}
-		var errz = map_os_error(location, err6, m)
-		return errz
-	}
-	if cc != size {
-		bbs.Logger.Info("Transfer failed")
-		var errz = &Aws_s3_error{Code: IncompleteBody,
-			Resource: location,
-			Message: fmt.Sprintf("Body expected length=%d but received length=%d.",
-				size, cc)}
-		return errz
-	}
-
-	// Check MD5 of a temporary file.
-
-	/*
-		var md5, err7 = bbs.calculate_csum("MD5", name, "")
-		if err7 != nil {
-			var errz = &Aws_s3_error{Code: InternalError,
-				Resource: location,
-				Message:  fmt.Sprintf("md5 calculation failed")}
-			return nil, errz
-		}
-		if len(md5_to_check) != 0 {
-			if bytes.Compare(md5_to_check, md5) != 0 {
-				var errz = &Aws_s3_error{Code: IncompleteBody,
-					Resource: location,
-					Message:  fmt.Sprintf("Body md5 unmatch")}
-				return nil, errz
-			}
-		}
-	*/
-
-	// The work of renaming a temporary file to an actual file is
-	// separated.  It should be in coordination with the meta-info
-	// file.
-
 	return nil
-}
-
-func (bbs *Bb_server) place_uploaded(ctx context.Context, object, suffix string) error {
-	var location = "/" + object
-	var dir1, file = path.Split(object)
-	//var dir2, err1 = filepath.Localize(dir1)
-	var dir2 = filepath.Clean(dir1)
-	//if err1 != nil {
-	//var errz = map_path_error(ctx, location, err1, nil)
-	//return errz
-	//}
-	var pool_path = bbs.pool_path
-	var name1 = filepath.Join(pool_path, dir2, ("." + file + "@" + suffix))
-	var name2 = filepath.Join(pool_path, dir2, file)
-
-	var err8 = os.Rename(name1, name2)
-	if err8 != nil {
-		bbs.Logger.Info("io.Rename() failed", "error", err8)
-		var errz = map_os_error(location, err8, nil)
-		return errz
-	}
-
-	return nil
-}
-
-// DISCHARGE_SCRATCH_FILE removes a scatch file as well as file
-// suffixes for associated to a request-id.
-func (bbs *Bb_server) discharge_scratch_file(ctx context.Context, object, scratch string, cleanup_needed *bool) {
-	var rid int64 = get_request_id(ctx)
-
-	bbs.mutex.Lock()
-	defer bbs.mutex.Unlock()
-	for k, v := range bbs.suffixes {
-		if v.rid == rid {
-			delete(bbs.suffixes, k)
-		}
-	}
-	if *cleanup_needed {
-		var name = bbs.make_file_name_of_object(object, scratch)
-		var err1 = os.Remove(name)
-		if err1 != nil {
-			bbs.Logger.Info("os.Remove() failed on scratch file",
-				"file", name, "error", err1)
-		}
-	}
 }
 
 // Fetches a meta-info file.  It returns nil if meta-info does not
 // exist.  The object path is guaranteed its properness.
 func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_info, error) {
 	var location = "/" + object
-	var dir1, file = path.Split(object)
-	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.pool_path
-	var name = filepath.Join(pool_path, dir2, make_meta_file_name(file))
+	var name = bbs.make_path_of_object(object, "meta")
 
 	var f1, err2 = os.Open(name)
 	if err2 != nil {
@@ -322,10 +389,7 @@ func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_
 // Passing nil deletes a meta-info file.
 func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *Meta_info) error {
 	var location = "/" + object
-	var dir1, file = path.Split(object)
-	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.pool_path
-	var name = filepath.Join(pool_path, dir2, make_meta_file_name(file))
+	var name = bbs.make_path_of_object(object, "meta")
 
 	if info == nil {
 		// Remove a info file if exists.
@@ -381,28 +445,9 @@ func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *M
 	}
 }
 
-func (bbs *Bb_server) make_file_name_of_object(object string, scratch string) string {
-	var prefix, suffix string
-	if scratch == "" {
-		prefix = ""
-		suffix = ""
-	} else {
-		prefix = "."
-		suffix = "@" + scratch
-	}
-	var dir1, file = path.Split(object)
-	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.pool_path
-	var name = filepath.Join(pool_path, dir2, (prefix + file + suffix))
-	return name
-}
-
 func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent []int64) (io.ReadCloser, error) {
 	var location = "/" + object
-	var dir1, file = path.Split(object)
-	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.pool_path
-	var name = filepath.Join(pool_path, dir2, file)
+	var name = bbs.make_path_of_object(object, "")
 
 	var f1, err2 = os.Open(name)
 	if err2 != nil {
@@ -443,18 +488,15 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 
 func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
 	var location = "/" + object
-	var dir1, file = path.Split(object)
-	var dir2 = filepath.Clean(dir1)
-	var pool_path = bbs.pool_path
-	var name = filepath.Join(pool_path, dir2, file)
+	var name = bbs.make_path_of_object(object, "")
 
-	var info, err1 = os.Lstat(name)
+	var stat, err1 = os.Lstat(name)
 	if err1 != nil {
 		bbs.Logger.Info("os.Lstat() failed in fetch_file_stat",
 			"file", name, "error", err1)
 		return nil, map_os_error(location, err1, nil)
 	}
-	return info, nil
+	return stat, nil
 }
 
 // check_common_prefix checks if a path has common-prefix part.  It
@@ -470,6 +512,82 @@ func check_common_prefix(path, delimiter, prefix string) string {
 	} else {
 		return ""
 	}
+}
+
+func (bbs *Bb_server) create_empty_file(path string) error {
+	var f1, err6 = os.Create(path)
+	if err6 != nil {
+		bbs.Logger.Warn("os.Create() failed", "file", path, "error", err6)
+		return err6
+	}
+	var err7 = f1.Close()
+	if err7 != nil {
+		bbs.Logger.Warn("op.Close() failed", "file", path, "error", err7)
+		// Ignore.
+	}
+	return nil
+}
+
+func (bbs *Bb_server) fetch_json_data(object, path string, data any) error {
+	var location = "/" + object
+	var f1, err1 = os.Open(path)
+	if err1 != nil {
+		bbs.Logger.Warn("os.Open() failed", "file", path,
+			"error", err1)
+		return map_os_error(location, err1, nil)
+	}
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err2)
+		}
+	}()
+
+	var d = json.NewDecoder(f1)
+	var err4 = d.Decode(&data)
+	if err4 != nil {
+		var datatype = fmt.Sprintf("%T", data)
+		bbs.Logger.Warn("json.Decode() failed",
+			"file", path, "type", datatype, "error", err4)
+		return map_os_error(location, err4, nil)
+	}
+	return nil
+}
+
+func (bbs *Bb_server) store_json_data(object, path string, data any) error {
+	var location = "/" + object
+	var f1, err1 = os.Create(path)
+	if err1 != nil {
+		bbs.Logger.Warn("os.Create() failed", "file", path, "error", err1)
+		return map_os_error(location, err1, nil)
+	}
+	var cleanup_needed = true
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err2)
+		}
+		if cleanup_needed {
+			var err3 = os.Remove(path)
+			if err3 != nil {
+				bbs.Logger.Warn("os.Remove() failed",
+					"file", path, "error", err3)
+			}
+		}
+	}()
+
+	var e = json.NewEncoder(f1)
+	var err4 = e.Encode(data)
+	if err4 != nil {
+		var datatype = fmt.Sprintf("%T", data)
+		bbs.Logger.Info("json.Encode() failed",
+			"file", path, "type", datatype, "error", err4)
+		return map_os_error(location, err4, nil)
+	}
+	cleanup_needed = false
+	return nil
 }
 
 // LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
@@ -550,7 +668,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 		var key = path.Join(dir1, e.Name())
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.Logger.Info("os.Stat() failed on os.DirEntry",
+			bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
 				"direntry", e, "error", err2)
 			continue
 		}
@@ -634,7 +752,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 			var key = path1
 			var stat, err2 = e.Info()
 			if err2 != nil {
-				bbs.Logger.Info("os.Stat() failed on os.DirEntry",
+				bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
 					"direntry", e, "error", err2)
 				return nil
 			}
@@ -687,9 +805,9 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 				// - RestoreStatus *RestoreStatus
 				// - Size *int64
 				// - StorageClass ObjectStorageClass
-				Key: &key,
-				ETag: etag,
-				Size: &size,
+				Key:          &key,
+				ETag:         etag,
+				Size:         &size,
 				LastModified: &mtime,
 				StorageClass: types.ObjectStorageClassStandard}
 			contents = append(contents, s)

@@ -31,7 +31,7 @@ import (
 // of {"CRC32", "CRC32C", "SHA1", "SHA256", "CRC64NVME"}.
 func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object string, scratch string) ([]byte, []byte, error) {
 	var location = "/" + object
-	var name = bbs.make_file_name_of_object(object, scratch)
+	var name = bbs.make_path_of_object(object, scratch)
 
 	var stat, err1 = os.Lstat(name)
 	if err1 != nil {

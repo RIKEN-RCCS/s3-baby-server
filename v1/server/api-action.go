@@ -38,6 +38,7 @@ import (
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 	"bytes"
 	"encoding/base64"
+	//"encoding/binary"
 	"encoding/hex"
 	"encoding/xml"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -46,6 +47,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -84,6 +86,13 @@ type suffix_record struct {
 	timestamp time.Time
 }
 
+type Bb_mpul_record struct {
+	upload_id       int64
+	//o.AbortDate *time.Time
+	//o.AbortRuleId *string
+	timestamp time.Time
+}
+
 const alwasy_use_flat_lister = true
 
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
@@ -114,9 +123,11 @@ func get_request_id(ctx context.Context) int64 {
 	}
 }
 
-// MAKE_FILE_SUFFIX makes a short key string to make a (temporary)
-// scratch file unique.  It takes request-id.  It returns a string of
-// 6 hex-digits.
+// MAKE_FILE_SUFFIX makes a key string for a scratch file.  It takes
+// request-id or zero.  A key is valid during request processing when
+// a request-id is given.  Otherwise, when zero is given, a key is for
+// multipart upload and it is active until completion.  It returns a
+// string of 6 hex-digits.
 func (bbs *Bb_server) make_file_suffix(rid int64) string {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
@@ -136,6 +147,16 @@ func (bbs *Bb_server) make_file_suffix(rid int64) string {
 	}
 	// NEVER.
 	panic("NEVER")
+}
+
+func (bbs *Bb_server) discharge_file_suffix(rid int64) {
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	for k, v := range bbs.suffixes {
+		if v.rid == rid {
+			delete(bbs.suffixes, k)
+		}
+	}
 }
 
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) error {
@@ -248,6 +269,19 @@ func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return bucket, nil
 }
 
+func check_unsupported_options(object string, storageclass types.StorageClass) error {
+	var location = "/" + object
+	if storageclass != "" {
+		if storageclass != types.StorageClassStandard {
+			var errz = &Aws_s3_error{Code: InvalidStorageClass,
+				Message:  "Bad x-amz-storage-class",
+				Resource: location}
+			return errz
+		}
+	}
+	return nil
+}
+
 // SCAN_RANGE scans ranges in rfc9110.  Ranges exceeding file size are
 // rejected.
 func scan_range(rangestring *string, size int64, location string) (*[2]int64, error) {
@@ -295,6 +329,56 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, match, none_match *s
 		return false, errz
 	}
 	return true, nil
+}
+
+// make_meta_info makes a meta-info from i.Metadata and i.Tagging.
+func make_meta_info(headers map[string]string, tagging *string, location string) (*Meta_info, error) {
+	var tags *types.Tagging
+	if tagging != nil {
+		var tags1, err1 = parse_tags(*tagging)
+		if err1 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message:  "Tag format error.",
+				Resource: location}
+			return nil, errz
+		}
+		tags = tags1
+	}
+	if tags != nil || headers != nil {
+		return &Meta_info{Headers: &headers, Tags: tags}, nil
+	} else {
+		return nil, nil
+	}
+}
+
+// AHO: I cannot find about nested tagging, while v1.1.1 code
+// allowed nested tagging in values in the format
+// 'TagSet=[{Key=<key>,Value=<value>}]'.
+
+func parse_tags(s string) (*types.Tagging, error) {
+	var m, err1 = url.ParseQuery(s)
+	if err1 != nil {
+		return nil, err1
+	}
+	var tags = []types.Tag{}
+	for k, v := range m {
+		if len(v) != 1 {
+			log.Printf("ignore multiple values in tags\n")
+		}
+		var value string
+		if len(v) == 0 {
+			value = ""
+		} else {
+			value = v[0]
+		}
+		tags = append(tags, types.Tag{Key: &k, Value: &value})
+	}
+	if len(tags) == 0 {
+		return nil, nil
+	} else {
+		var tagging = types.Tagging{TagSet: tags}
+		return &tagging, nil
+	}
 }
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
@@ -443,7 +527,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 	var location = "/" + bucket
 
-	var path = bbs.make_path(bucket)
+	var path = bbs.make_path_of_bucket(bucket)
 	var err2 = os.Mkdir(path, 0755)
 	if err2 != nil {
 		// Note the error on existing path is fs.PathError and not
@@ -463,7 +547,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	return &o, nil
 }
 
-func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, params *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, error) {
+func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, error) {
 	var o = s3.CreateMultipartUploadOutput{}
 
 	// i.Bucket *string
@@ -498,6 +582,55 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, params *s3.Crea
 	// i.Tagging *string
 	// i.WebsiteRedirectLocation *string
 
+	// (The tag-set must be encoded as URL Query parameters.)
+
+	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err1 != nil {
+		return nil, err1
+	}
+	var location = "/" + object
+	var _ = location
+
+	var err2 = check_unsupported_options(object, i.StorageClass)
+	if err2 != nil {
+		return nil, err2
+	}
+	var info, err3 = make_meta_info(i.Metadata, i.Tagging, location)
+	if err3 != nil {
+		return nil, err3
+	}
+	var _ = info
+
+	var rid int64 = get_request_id(ctx)
+	var scratchkey = bbs.make_file_suffix(rid)
+	var cleanup_needed = true
+	defer func() {
+		bbs.discharge_file_suffix(rid)
+		if cleanup_needed {
+			bbs.discharge_scratch_file(ctx, object, scratchkey)
+		}
+	}()
+
+	var _ = bbs.serialize_access(ctx, object, rid)
+	defer bbs.release_access(ctx, object, rid)
+
+	var err6 = bbs.create_upload_directory(ctx, object, scratchkey)
+	if err6 != nil {
+		return nil, err6
+	}
+
+	var uploadid = scratchkey
+	var _ = uploadid
+
+	{
+		o.Bucket = i.Bucket
+		o.Key = i.Key
+		o.ChecksumAlgorithm = i.ChecksumAlgorithm
+		o.ChecksumType = i.ChecksumType
+		var uploadid = "0"
+		o.UploadId = &uploadid
+	}
+
 	// o.AbortDate *time.Time
 	// o.AbortRuleId *string
 	// o.Bucket *string
@@ -512,7 +645,37 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, params *s3.Crea
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
 	// o.UploadId *string
-	// o.ResultMetadata middleware.Metadata
+
+/*
+	s := model.CreateMultipartUploadState{}
+	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+		return nil, InvalidBucketName()
+	}
+	if s.Bucket = option.GetBucket(); !s3.FileSystem.isFileExists(s.Bucket) {
+		return nil, NoSuchBucket()
+	}
+	s.Key = option.GetKey()
+	if !s3.FileSystem.checkKeyName(s.Key) {
+		return nil, KeyTooLongError()
+	}
+	var s3err *S3Error
+	if s3err = s3.validateOptions(option); s3err != nil {
+		return nil, s3err
+	}
+	if !s3.FileSystem.validateChecksumAlgorithm(option.GetOption("x-amz-checksum-algorithm")) {
+		return nil, InvalidArgument()
+	}
+	if s.UploadID = s3.MultiPart.makeUploadID(); s.UploadID == -1 {
+		return nil, InternalError()
+	}
+	result := s.MakeCreateMultipartUploadResult()
+	if !s3.MultiPart.createMpUploadMeta(*result) {
+		return nil, InternalError()
+	}
+	if s3err = s3.Tag.putTagging(option, s3.FileSystem.getPartNumberPath(utils.ToString(s.UploadID), s.Key)); s3err != nil {
+		return nil, s3err
+	}
+*/
 
 	return &o, nil
 }
@@ -663,7 +826,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	}
 	if info != nil {
 		// Always leave "MissingMeta" nil for zero.
-		o.Metadata = info.Headers
+		o.Metadata = *info.Headers
 		o.MissingMeta = nil
 	}
 	if info != nil && info.Tags != nil {
@@ -874,7 +1037,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	}
 	if info != nil {
 		// Always leave "MissingMeta" nil for zero.
-		o.Metadata = info.Headers
+		o.Metadata = *info.Headers
 		o.MissingMeta = nil
 	}
 	if info != nil && info.Tags != nil {
@@ -1463,7 +1626,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err1 != nil {
-		return &o, err1
+		return nil, err1
 	}
 	var location = "/" + object
 
@@ -1474,32 +1637,17 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 			var errz = &Aws_s3_error{Code: InvalidStorageClass,
 				Message:  "Bad Cache-Control",
 				Resource: location}
-			return &o, errz
-		}
-	}
-	if i.StorageClass != "" {
-		if i.StorageClass != types.StorageClassStandard {
-			var errz = &Aws_s3_error{Code: InvalidStorageClass,
-				Message:  "Bad x-amz-storage-class",
-				Resource: location}
-			return &o, errz
+			return nil, errz
 		}
 	}
 
-	var info *Meta_info
-	if i.Tagging != nil {
-		var tags1, err3 = parse_tags(*i.Tagging)
-		if err3 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "Tag format error.",
-				Resource: location}
-			return &o, errz
-		}
-		if tags1 != nil {
-			info = &Meta_info{Tags: tags1}
-		} else {
-			info = nil
-		}
+	var err2 = check_unsupported_options(object, i.StorageClass)
+	if err2 != nil {
+		return nil, err2
+	}
+	var info, err3 = make_meta_info(i.Metadata, i.Tagging, location)
+	if err3 != nil {
+		return nil, err3
 	}
 
 	var size int64
@@ -1521,18 +1669,23 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 
 	var rid int64 = get_request_id(ctx)
-	var scratch = bbs.make_file_suffix(rid)
-	var cleanup_needed = new(bool)
-	defer bbs.discharge_scratch_file(ctx, object, scratch, cleanup_needed)
+	var scratchkey = bbs.make_file_suffix(rid)
+	var cleanup_needed = true
+	defer func() {
+		bbs.discharge_file_suffix(rid)
+		if cleanup_needed {
+			bbs.discharge_scratch_file(ctx, object, scratchkey)
+		}
+	}()
 
-	var err6 = bbs.upload_file(ctx, object, scratch, size, i.Body)
+	var err6 = bbs.upload_file(ctx, object, scratchkey, size, i.Body)
 	if err6 != nil {
 		return nil, err6
 	}
-	*cleanup_needed = true
+	//cleanup_needed = true
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	var md5, csum, errx = bbs.calculate_csum2(checksum, object, scratch)
+	var md5, csum, errx = bbs.calculate_csum2(checksum, object, scratchkey)
 	if errx != nil {
 		return nil, errx
 	}
@@ -1617,18 +1770,29 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	{
 		var err1 = bbs.store_metainfo(ctx, object, info)
 		if err1 != nil {
-			return &o, err1
+			return nil, err1
 		}
-		var err2 = bbs.place_uploaded(ctx, object, scratch)
+		var err2 = bbs.place_uploaded(ctx, object, scratchkey)
 		if err2 != nil && info != nil {
 			var _ = bbs.store_metainfo(ctx, object, nil)
 		}
 		if err2 != nil {
-			return &o, err2
+			return nil, err2
 		}
-
-		*cleanup_needed = true
 	}
+
+	cleanup_needed = false
+
+	// o.BucketKeyEnabled *bool
+	// o.Expiration *string
+	// o.RequestCharged types.RequestCharged
+	// o.Size *int64
+	// o.SSECustomerAlgorithm *string
+	// o.SSECustomerKeyMD5 *string
+	// o.SSEKMSEncryptionContext *string
+	// o.SSEKMSKeyId *string
+	// o.ServerSideEncryption types.ServerSideEncryption
+	// o.VersionId *string
 
 	/*
 		if f := s3.FileSystem.uploadFile(option.GetBody(), option.GetPath()); !f {
