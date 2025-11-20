@@ -1,5 +1,5 @@
 // fs-operation.go
-// Copyright 2025-2025 RIKEN R-CCS.
+// Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 // MEMO: It avoids using "filepath" in other files that is OS dependent.
@@ -9,6 +9,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -35,8 +37,16 @@ type Meta_info struct {
 	Tags    *types.Tagging
 }
 
+type upload_checks struct {
+	location string
+	size int64
+	checksum types.ChecksumAlgorithm
+	md5_to_check []byte
+	csum_to_check []byte
+}
+
 type MPUL_info struct {
-	Id int64
+	Upload_id string
 	Headers *map[string]string
 	Tags    *types.Tagging
 }
@@ -99,7 +109,7 @@ func map_path_error(ctx context.Context, location string, err1 error, m map[erro
 	return err1
 }
 
-// make_path_of_bucket makes an OS-path to a bucket, by appending a
+// MAKE_PATH_OF_BUCKET makes an OS-path to a bucket, by appending a
 // pool-directory and a bucket.  Note Join() calls Clean().
 func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 	var pool_path = bbs.pool_path
@@ -107,7 +117,7 @@ func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 	return path
 }
 
-// make_path_of_object makes an OS-path to an object, by appending a
+// MAKE_PATH_OF_OBJECT makes an OS-path to an object, by appending a
 // pool-directory, a bucket, and a key.  A scratchkey is a random key,
 // or it can be "meta" or "mpul" (multipart upload).
 func (bbs *Bb_server) make_path_of_object(object string, scratchkey string) string {
@@ -123,6 +133,15 @@ func (bbs *Bb_server) make_path_of_object(object string, scratchkey string) stri
 	var pool_path = bbs.pool_path
 	var path = filepath.Join(pool_path, dir, (prefix + file + suffix))
 	return path
+}
+
+func make_part_object_name(object string, part int32) string {
+	var prefix = "."
+	var suffix = "@meta"
+	var partname = fmt.Sprintf("part05d", part)
+	var dir, file = path.Split(object)
+	var name = path.Join(dir, (prefix + file + suffix), partname)
+	return name
 }
 
 func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket string) error {
@@ -148,16 +167,87 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 	return nil
 }
 
-func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string, size int64, body io.Reader) error {
+func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string, info *Meta_info, check upload_checks, body io.Reader) ([]byte, []byte, error) {
+	var rid int64 = get_request_id(ctx)
+	var location = check.location
+
+	var err1 = bbs.make_intermediate_directories(object)
+	if err1 != nil {
+		return nil, nil, err1
+	}
+
+	var size int64 = check.size
+	var err2 = bbs.upload_file_scratch(object, scratchkey, size, body)
+	if err2 != nil {
+		return nil, nil, err2
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discharge_scratch_file(object, scratchkey)
+		}
+	}()
+
+	var checksum  = check.checksum
+	var md5, csum, err3 = bbs.calculate_csum2(checksum, object, scratchkey)
+	if err3 != nil {
+		return nil, nil, err3
+	}
+
+	var md5_to_check = check.md5_to_check
+	if len(md5_to_check) != 0 && bytes.Compare(md5_to_check, md5) != 0 {
+		bbs.Logger.Info("Digests mismatch",
+			"algorithm", "MD5",
+			"passed", hex.EncodeToString(md5_to_check),
+			"calculated", hex.EncodeToString(md5))
+		var errz = &Aws_s3_error{Code: BadDigest,
+			Resource: location}
+		return nil, nil, errz
+	}
+
+	var csum_to_check = check.csum_to_check
+	if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
+		bbs.Logger.Info("Checksums mismatch",
+			"algorithm", checksum,
+			"passed", hex.EncodeToString(csum_to_check),
+			"calculated", hex.EncodeToString(csum))
+		var errz = &Aws_s3_error{Code: BadDigest,
+			Resource: location,
+			Message:  "The checksum did not match what we received."}
+		return nil, nil, errz
+	}
+
+	// It should be atomic on placing an uploaded file and saving a
+	// meta-info file.  Failing to place an uploaded file will lose
+	// old meta-info.
+
+	var err4 = bbs.serialize_access(ctx, object, rid)
+	if err4 != nil {
+		return nil, nil, err4
+	}
+	defer bbs.release_access(ctx, object, rid)
+
+	if info != nil {
+		var err5 = bbs.store_metainfo(object, info)
+		if err5 != nil {
+			return nil, nil, err5
+		}
+	}
+	var err6 = bbs.place_uploaded(object, scratchkey)
+	if err6 != nil && info != nil {
+		var _ = bbs.store_metainfo(object, nil)
+	}
+	if err6 != nil {
+		return nil, nil, err6
+	}
+
+	cleanup_needed = false
+	return md5, csum, nil
+}
+
+func (bbs *Bb_server) upload_file_scratch(object, scratchkey string, size int64, body io.Reader) error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
-
-	// Make intermediate directories.
-
-	var err1 = bbs.make_intermediate_directories(ctx, object)
-	if err1 != nil {
-		return err1
-	}
 
 	// Copy data to a temporary file.
 
@@ -209,7 +299,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	return nil
 }
 
-func (bbs *Bb_server) place_uploaded(ctx context.Context, object, scratchkey string) error {
+func (bbs *Bb_server) place_uploaded(object, scratchkey string) error {
 	var location = "/" + object
 	var path1 = bbs.make_path_of_object(object, scratchkey)
 	var path2 = bbs.make_path_of_object(object, "")
@@ -224,17 +314,17 @@ func (bbs *Bb_server) place_uploaded(ctx context.Context, object, scratchkey str
 	return nil
 }
 
-// CREATE_UPLOAD_DIRECTORY creates a scratch directory for MPUL.  When
-// it already exists, it overtakes the directory by rewriting its
-// upload-id.  It creates an empty file in the directory, which will
-// later become a true file.  It is created here to keep ctime now.
+// CREATE_UPLOAD_DIRECTORY creates a scratch directory for MPUL.  It
+// overtakes an existing directory when it already exists, and
+// rewrites its upload-id.  It creates an empty file in the directory,
+// which will later become a true file.  It is to keep ctime now.
 func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploadid string) error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 
 	// Make intermediate directories.
 
-	var err1 = bbs.make_intermediate_directories(ctx, object)
+	var err1 = bbs.make_intermediate_directories(object)
 	if err1 != nil {
 		return err1
 	}
@@ -260,7 +350,7 @@ func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploa
 	if err2 != nil {
 		// Overtake an existing directory
 		// assert(errors.Is(err2, fs.ErrNotExist))
-		bbs.Logger.Info("Overtaking an existing MPUL directory", "path", path)
+		bbs.Logger.Debug("Overtaking an existing MPUL directory", "path", path)
 	} else {
 		var err3 = os.Mkdir(path, 0755)
 		if err3 != nil {
@@ -269,6 +359,7 @@ func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploa
 			return map_os_error(location, err3, nil)
 		}
 	}
+
 	var cleanup_needed = true
 	defer func() {
 		if cleanup_needed {
@@ -282,11 +373,9 @@ func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploa
 
 	// Make MPUL data.
 
-	// AHO
-	var id int64 = 0
-	var info = MPUL_info{id, nil, nil}
+	var mpul = MPUL_info{uploadid, nil, nil}
 	var infopath = filepath.Join(path, "info")
-	var err5 = bbs.store_json_data(object, infopath, &info)
+	var err5 = bbs.store_json_data(object, infopath, &mpul)
 	if err5 != nil {
 		return map_os_error(location, err5, nil)
 	}
@@ -303,21 +392,32 @@ func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploa
 	return nil
 }
 
-// DISCHARGE_SCRATCH_FILE removes a scatch file as well as file
-// suffixes for associated to a request-id.
-func (bbs *Bb_server) discharge_scratch_file(ctx context.Context, object, scratchkey string) {
-	//var rid int64 = get_request_id(ctx)
-	//bbs.discharge_file_suffix(rid)
-	var path = bbs.make_path_of_object(object, scratchkey)
-	var err1 = os.Remove(path)
+// DISCHARGE_SCRATCH_FILE removes a scratch file and a metainfo file.
+// Errors are ignored.
+func (bbs *Bb_server) discharge_scratch_file(object, scratchkey string) error {
+	var path1 = bbs.make_path_of_object(object, scratchkey)
+	var err1 = os.Remove(path1)
 	if err1 != nil {
-		bbs.Logger.Info("os.Remove() failed on scratch file",
-			"file", path, "error", err1)
+		bbs.Logger.Warn("os.Remove() failed on a scratch file",
+			"file", path1, "error", err1)
+		// Ignore an error.
 	}
+
+	var path2 = bbs.make_path_of_object(object, "meta")
+	var _, err2 = os.Lstat(path2)
+	if err2 == nil || !errors.Is(err2, fs.ErrNotExist) {
+		var err3 = os.Remove(path2)
+		if err3 != nil {
+			bbs.Logger.Warn("os.Remove() failed",
+				"file", path2, "error", err3)
+			// Ignore an error.
+		}
+	}
+	return nil
 }
 
-// make_intermediate_directories makes intermediate directories.
-func (bbs *Bb_server) make_intermediate_directories(ctx context.Context, object string) error {
+// MAKE_INTERMEDIATE_DIRECTORIES makes intermediate directories.
+func (bbs *Bb_server) make_intermediate_directories(object string) error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 	var dir, _ = filepath.Split(path)
@@ -326,7 +426,7 @@ func (bbs *Bb_server) make_intermediate_directories(ctx context.Context, object 
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
 		} else {
-			bbs.Logger.Info("os.Lstat() failed in upload_file",
+			bbs.Logger.Info("os.Lstat() failed in making directories",
 				"path", dir, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
@@ -350,18 +450,18 @@ func (bbs *Bb_server) make_intermediate_directories(ctx context.Context, object 
 }
 
 // Fetches a meta-info file.  It returns nil if meta-info does not
-// exist.  The object path is guaranteed its properness.
+// exist.  (The object path is guaranteed its properness).
 func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_info, error) {
 	var location = "/" + object
-	var name = bbs.make_path_of_object(object, "meta")
+	var path = bbs.make_path_of_object(object, "meta")
 
-	var f1, err2 = os.Open(name)
+	var f1, err2 = os.Open(path)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
 			return nil, nil
 		} else {
-			bbs.Logger.Warn("os.Open() failed", "file", name,
+			bbs.Logger.Warn("os.Open() failed", "file", path,
 				"error", err2)
 			return nil, map_os_error(location, err2, nil)
 		}
@@ -369,7 +469,7 @@ func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", name,
+			bbs.Logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
 		}
 	}()
@@ -379,7 +479,7 @@ func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_
 	var err4 = dec.Decode(&info)
 	if err4 != nil {
 		bbs.Logger.Warn("BAD META-INFO FILE: The content broken",
-			"file", name, "error", err4)
+			"file", path, "error", err4)
 		return nil, map_os_error(location, err4, nil)
 	}
 	return &info, nil
@@ -387,40 +487,40 @@ func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_
 
 // Stores a meta-info file.  The object path includes its bucket.
 // Passing nil deletes a meta-info file.
-func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *Meta_info) error {
+func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) error {
 	var location = "/" + object
-	var name = bbs.make_path_of_object(object, "meta")
+	var path = bbs.make_path_of_object(object, "meta")
 
 	if info == nil {
 		// Remove a info file if exists.
-		var _, err2 = os.Lstat(name)
+		var _, err2 = os.Lstat(path)
 		if err2 != nil {
 			if errors.Is(err2, fs.ErrNotExist) {
 				// OK.
 				return nil
 			} else {
 				bbs.Logger.Warn("os.Lstat() failed in store_metainfo",
-					"file", name, "error", err2)
+					"file", path, "error", err2)
 				return map_os_error(location, err2, nil)
 			}
 		}
-		var err3 = os.Remove(name)
+		var err3 = os.Remove(path)
 		if err3 != nil {
-			bbs.Logger.Warn("os.Remove() failed", "file", name, "error", err3)
+			bbs.Logger.Warn("os.Remove() failed", "file", path, "error", err3)
 			return map_os_error(location, err3, nil)
 		}
 		return nil
 	} else {
 		// Make a info file.
-		var f1, err1 = os.Create(name)
+		var f1, err1 = os.Create(path)
 		if err1 != nil {
-			bbs.Logger.Warn("os.Create() failed", "file", name, "error", err1)
+			bbs.Logger.Warn("os.Create() failed", "file", path, "error", err1)
 			return map_os_error(location, err1, nil)
 		}
 		defer func() {
 			var err2 = f1.Close()
 			if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-				bbs.Logger.Warn("op.Close() failed", "file", name,
+				bbs.Logger.Warn("op.Close() failed", "file", path,
 					"error", err2)
 			}
 		}()
@@ -431,12 +531,12 @@ func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *M
 			bbs.Logger.Info("json.Encode() failed", "error", err4)
 			var err5 = f1.Close()
 			if err5 != nil {
-				bbs.Logger.Warn("op.Close() failed", "file", name,
+				bbs.Logger.Warn("op.Close() failed", "file", path,
 					"error", err5)
 			}
-			var err6 = os.Remove(name)
+			var err6 = os.Remove(path)
 			if err6 != nil {
-				bbs.Logger.Warn("op.Remove() failed", "file", name,
+				bbs.Logger.Warn("op.Remove() failed", "file", path,
 					"error", err6)
 			}
 			return map_os_error(location, err4, nil)
@@ -445,21 +545,33 @@ func (bbs *Bb_server) store_metainfo(ctx context.Context, object string, info *M
 	}
 }
 
+func (bbs *Bb_server) fetch_mpul_info(object string) (*MPUL_info, error) {
+	var location = "/" + object + "@mpul"
+	var path = bbs.make_path_of_object(object, "mpul")
+	var mpul = MPUL_info{}
+	var infopath = filepath.Join(path, "info")
+	var err5 = bbs.fetch_json_data(object, infopath, &mpul)
+	if err5 != nil {
+		return nil, map_os_error(location, err5, nil)
+	}
+	return &mpul, nil
+}
+
 func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent []int64) (io.ReadCloser, error) {
 	var location = "/" + object
-	var name = bbs.make_path_of_object(object, "")
+	var path = bbs.make_path_of_object(object, "")
 
-	var f1, err2 = os.Open(name)
+	var f1, err2 = os.Open(path)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
-			bbs.Logger.Info("os.Open() failed", "file", name,
+			bbs.Logger.Info("os.Open() failed", "file", path,
 				"error", err2)
 			var errz = &Aws_s3_error{Code: NoSuchKey,
 				Resource: location}
 			return nil, errz
 		} else {
-			bbs.Logger.Warn("os.Open() failed", "file", name,
+			bbs.Logger.Warn("os.Open() failed", "file", path,
 				"error", err2)
 			return nil, map_os_error(location, err2, nil)
 		}
@@ -488,12 +600,12 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 
 func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
 	var location = "/" + object
-	var name = bbs.make_path_of_object(object, "")
+	var path = bbs.make_path_of_object(object, "")
 
-	var stat, err1 = os.Lstat(name)
+	var stat, err1 = os.Lstat(path)
 	if err1 != nil {
 		bbs.Logger.Info("os.Lstat() failed in fetch_file_stat",
-			"file", name, "error", err1)
+			"file", path, "error", err1)
 		return nil, map_os_error(location, err1, nil)
 	}
 	return stat, nil
@@ -771,6 +883,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 	return entries, nextindex, nextmarker, nil
 }
 
+// It calculates MD5.
 func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
 	var contents []types.Object
 	var commonprefixes []types.CommonPrefix

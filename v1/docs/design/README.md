@@ -62,7 +62,8 @@ document string in "s3.json".  They are in "shapes" /
 - It assumes key part is clean as a filesystem path, as ServMux()
   handles it.
 
-## Criticals
+## Serialization (Criticals)
 
-- An object file and a meta-info file should be updated atomically.
-  Otherwise, an uploaded file and its tags would mismatch.
+- Accesses to an object file and a meta-info file are serialized by an
+  object name.  Without a serialization, an uploaded file and its tags
+  could mismatch.

@@ -1,7 +1,7 @@
 //go:build linux
 
 // fs_linux.go
-// Copyright 2025-2025 RIKEN R-CCS.
+// Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 // This file is part of conditional builds for filesystem accesses.

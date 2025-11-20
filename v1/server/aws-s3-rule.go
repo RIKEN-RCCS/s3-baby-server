@@ -1,5 +1,5 @@
 // aws-s3-rule.go
-// Copyright 2025-2025 RIKEN R-CCS.
+// Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 package server
@@ -10,6 +10,7 @@ import (
 
 const list_buckets_limit = 10000
 const list_objects_limit = 1000
+const max_mpul_part_number = 10000
 
 // - [General purpose bucket naming rules]
 //   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html

@@ -1,5 +1,5 @@
 // range-reader.go
-// Copyright 2025-2025 RIKEN R-CCS.
+// Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 // Range_reader is a reader of a file in the given range.  It is type
