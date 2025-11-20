@@ -5,25 +5,6 @@
 // API-STUB.  Handler templates. They should be replaced by
 // actual implementations.
 
-// SPECIAL CONDITIONS OF HANDLING RFC7232.
-//
-// The rule described in the AWS-S3 API document:
-// If-Match ∧ ¬If-Unmodified-Since → 200 OK
-// ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
-//
-// https://datatracker.ietf.org/doc/html/rfc7232
-//
-// The order of condition evaluation:
-// If-Match < If-Unmodified-Since (skip if If-Match exists)
-// < If-None-Match < If-Modified-Since (skip if If-None-Match exists)
-//
-// Status code to be returned on failure:
-// ¬If-Match → 412 Precondition Failed
-// ¬If-Unmodified-Since → 412 Precondition Failed
-// ¬If-None-Match (GET/HEAD) → 304 Not Modified
-// ¬If-None-Match (other) → 412 Precondition Failed
-// ¬If-Modified-Since → 304 Not Modified
-
 package server
 
 import (
@@ -70,7 +51,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.Abort
 	return &o, nil
 }
 
-func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, params *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, error) {
+func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, error) {
 	fmt.Printf("*CompleteMultipartUpload*\n")
 	var o = s3.CompleteMultipartUploadOutput{}
 
@@ -94,6 +75,49 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, params *s3.Co
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
+	// Error Code: EntityTooSmall
+	// Error Code: InvalidPart
+	// Error Code: InvalidPartOrder
+	// Error Code: NoSuchUpload
+
+	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err1 != nil {
+		return nil, err1
+	}
+	var location = "/" + object
+
+	var uploadid, err2 = bbs.check_upload_id(object, i.UploadId)
+	if err2 != nil {
+		return nil, err2
+	}
+
+	var _, err5 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
+		nil, nil)
+	if err5 != nil {
+		return nil, err5
+	}
+
+	if i.MpuObjectSize == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "x-amz-mp-object-size missing.",
+			Resource: location}
+		return nil, errz
+	}
+	var size = *i.MpuObjectSize
+	var _ = size
+
+	if i.MultipartUpload == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Request body missing.",
+			Resource: location}
+		return nil, errz
+	}
+
+	var errx = bbs.concat_parts(ctx, object, uploadid, i.MultipartUpload)
+	if errx != nil {
+		return nil, errx
+	}
+
 	// o.Bucket *string
 	// o.BucketKeyEnabled *bool
 	// o.ChecksumCRC32 *string
@@ -110,7 +134,51 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, params *s3.Co
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
 	// o.VersionId *string
-	// o.ResultMetadata middleware.Metadata
+
+	/*
+	s := model.CompleteMultipartUploadState{}
+	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+		return nil, InvalidBucketName()
+	}
+	if s.Bucket = option.GetBucket(); !s3.FileSystem.isFileExists(s.Bucket) {
+		return nil, NoSuchBucket()
+	}
+	s.Key = option.GetKey()
+	if !s3.FileSystem.checkKeyName(s.Key) {
+		return nil, KeyTooLongError()
+	}
+	id := option.GetOption("uploadId")
+	if !s3.MultiPart.uploadIDExists(id) {
+		return nil, NoSuchUpload()
+	}
+	var reqBody model.CompleteMultipartUploadRequest
+	if err := xml.Unmarshal(option.GetBody(), &reqBody); err != nil {
+		return nil, InvalidRequest()
+	}
+	if !s3.checkPartSize(id, reqBody) {
+		return nil, EntityTooSmallError()
+	}
+	s.DstPath = option.GetPath()
+	if err := s3.MultiPart.completeMpUpload(s.Key, id, s.DstPath, reqBody); err != nil {
+		return nil, err
+	}
+	if s3err = s3.checkObjectSize(option, s.DstPath); s3err != nil {
+		return nil, s3err
+	}
+	if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, ""); s3err != nil {
+		return nil, s3err
+	}
+	if s.ETag, s3err = s3.getETag(s.DstPath); s3err != nil {
+		return nil, s3err
+	}
+	metaAPath := s3.FileSystem.getFullPath(s3.FileSystem.getPartNumberPath(id, s.Key)) // タグが設定されている場合は指定の場所に移動
+	if s3.FileSystem.isFileExists(s3.FileSystem.getMetaFileName(metaAPath)) {
+		s3.FileSystem.moveFile(s3.FileSystem.getMetaFileName(metaAPath), s3.FileSystem.getMetaFileName(option.GetPath()))
+	}
+	result := s.MakeCompleteMultipartUploadResult()
+	s3.FileSystem.forceDeleteDir(id)
+	return result, nil
+	*/
 
 	return &o, nil
 }
@@ -216,7 +284,8 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 		/*var err4, ok = err3.Err.(syscall.Errno)*/
 
 		bbs.Logger.Info("os.Mkdir() failed", "error", err2)
-		var m = map[error]Aws_s3_error_code{fs.ErrExist: BucketAlreadyOwnedByYou}
+		var m = map[error]Aws_s3_error_code{
+			fs.ErrExist: BucketAlreadyOwnedByYou}
 		var err5 = map_os_error(location, err2, m)
 		return nil, err5
 	}
@@ -279,7 +348,15 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	if err3 != nil {
 		return nil, err3
 	}
-	var _ = info
+
+	var checksum = i.ChecksumAlgorithm
+	var checksumtype = i.ChecksumType
+	if checksumtype != types.ChecksumTypeFullObject {
+		bbs.Logger.Info("Change ChecksumType",
+			"requested", checksumtype,
+			"employed", types.ChecksumTypeFullObject)
+		checksumtype = types.ChecksumTypeFullObject
+	}
 
 	var rid int64 = get_request_id(ctx)
 	var scratchkey = bbs.make_file_suffix(rid)
@@ -291,7 +368,12 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	}
 	defer bbs.release_access(ctx, object, rid)
 
-	var err6 = bbs.create_upload_directory(ctx, object, scratchkey)
+	var mpul = &MPUL_info{
+		Upload_id: scratchkey,
+		Checksum_type: checksumtype,
+		Checksum_algorithm: checksum,
+		Meta_info: Meta_info{Headers: info.Headers, Tags: info.Tags}}
+	var err6 = bbs.create_upload_directory(ctx, object, mpul)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -313,7 +395,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		o.Bucket = i.Bucket
 		o.Key = i.Key
 		o.ChecksumAlgorithm = i.ChecksumAlgorithm
-		o.ChecksumType = i.ChecksumType
+		o.ChecksumType = checksumtype
 		o.UploadId = &uploadid
 	}
 
@@ -327,36 +409,36 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
 
-/*
-	s := model.CreateMultipartUploadState{}
-	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-		return nil, InvalidBucketName()
-	}
-	if s.Bucket = option.GetBucket(); !s3.FileSystem.isFileExists(s.Bucket) {
-		return nil, NoSuchBucket()
-	}
-	s.Key = option.GetKey()
-	if !s3.FileSystem.checkKeyName(s.Key) {
-		return nil, KeyTooLongError()
-	}
-	var s3err *S3Error
-	if s3err = s3.validateOptions(option); s3err != nil {
-		return nil, s3err
-	}
-	if !s3.FileSystem.validateChecksumAlgorithm(option.GetOption("x-amz-checksum-algorithm")) {
-		return nil, InvalidArgument()
-	}
-	if s.UploadID = s3.MultiPart.makeUploadID(); s.UploadID == -1 {
-		return nil, InternalError()
-	}
-	result := s.MakeCreateMultipartUploadResult()
-	if !s3.MultiPart.createMpUploadMeta(*result) {
-		return nil, InternalError()
-	}
-	if s3err = s3.Tag.putTagging(option, s3.FileSystem.getPartNumberPath(utils.ToString(s.UploadID), s.Key)); s3err != nil {
-		return nil, s3err
-	}
-*/
+	/*
+		s := model.CreateMultipartUploadState{}
+		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+			return nil, InvalidBucketName()
+		}
+		if s.Bucket = option.GetBucket(); !s3.FileSystem.isFileExists(s.Bucket) {
+			return nil, NoSuchBucket()
+		}
+		s.Key = option.GetKey()
+		if !s3.FileSystem.checkKeyName(s.Key) {
+			return nil, KeyTooLongError()
+		}
+		var s3err *S3Error
+		if s3err = s3.validateOptions(option); s3err != nil {
+			return nil, s3err
+		}
+		if !s3.FileSystem.validateChecksumAlgorithm(option.GetOption("x-amz-checksum-algorithm")) {
+			return nil, InvalidArgument()
+		}
+		if s.UploadID = s3.MultiPart.makeUploadID(); s.UploadID == -1 {
+			return nil, InternalError()
+		}
+		result := s.MakeCreateMultipartUploadResult()
+		if !s3.MultiPart.createMpUploadMeta(*result) {
+			return nil, InternalError()
+		}
+		if s3err = s3.Tag.putTagging(option, s3.FileSystem.getPartNumberPath(utils.ToString(s.UploadID), s.Key)); s3err != nil {
+			return nil, s3err
+		}
+	*/
 
 	return &o, nil
 }
@@ -947,7 +1029,6 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListM
 	// i.RequestPayer types.RequestPayer
 	// i.UploadIdMarker *string
 
-
 	// o.Bucket *string
 	// o.CommonPrefixes []types.CommonPrefix
 	// o.Delimiter *string
@@ -1404,17 +1485,17 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	defer bbs.discharge_file_suffix(rid)
 
 	/*
-	var err1 = bbs.make_intermediate_directories(object)
-	if err1 != nil {
-		return nil, err1
-	}
+		var err1 = bbs.make_intermediate_directories(object)
+		if err1 != nil {
+			return nil, err1
+		}
 	*/
 
 	var check = upload_checks{
-		location: location,
-		size: size,
-		checksum: checksum,
-		md5_to_check: md5_to_check,
+		location:      location,
+		size:          size,
+		checksum:      checksum,
+		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
 	var md5, csum, err6 = bbs.upload_file(ctx, object, scratchkey, info,
@@ -1424,65 +1505,65 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 
 	/*
-	var cleanup_needed = true
-	defer func() {
-		if cleanup_needed {
-			bbs.discharge_scratch_file(object, scratchkey)
+		var cleanup_needed = true
+		defer func() {
+			if cleanup_needed {
+				bbs.discharge_scratch_file(object, scratchkey)
+			}
+		}()
+
+		var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
+		var md5, csum, err7 = bbs.calculate_csum2(checksum, object, scratchkey)
+		if err7 != nil {
+			return nil, err7
 		}
-	}()
 
-	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	var md5, csum, err7 = bbs.calculate_csum2(checksum, object, scratchkey)
-	if err7 != nil {
-		return nil, err7
-	}
-
-	if len(md5_to_check) != 0 && bytes.Compare(md5_to_check, md5) != 0 {
-		bbs.Logger.Info("Digests mismatch",
-			"algorithm", "MD5",
-			"passed", hex.EncodeToString(md5_to_check),
-			"calculated", hex.EncodeToString(md5))
-		var errz = &Aws_s3_error{Code: BadDigest,
-			Resource: location}
-		return nil, errz
-	}
-
-	if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
-		bbs.Logger.Info("Checksums mismatch",
-			"algorithm", checksum,
-			"passed", hex.EncodeToString(csum_to_check),
-			"calculated", hex.EncodeToString(csum))
-		var errz = &Aws_s3_error{Code: BadDigest,
-			Resource: location,
-			Message:  "The checksum did not match what we received."}
-		return nil, errz
-	}
-
-	// It should be atomic on placing an uploaded file and saving a
-	// meta-info file.  Failing to place an uploaded file may lose
-	// meta-info.
-
-	var err9 = bbs.serialize_access(ctx, object, rid)
-	if err9 != nil {
-		return nil, err9
-	}
-	defer bbs.release_access(ctx, object, rid)
-
-	{
-		var err1 = bbs.store_metainfo(ctx, object, info)
-		if err1 != nil {
-			return nil, err1
+		if len(md5_to_check) != 0 && bytes.Compare(md5_to_check, md5) != 0 {
+			bbs.Logger.Info("Digests mismatch",
+				"algorithm", "MD5",
+				"passed", hex.EncodeToString(md5_to_check),
+				"calculated", hex.EncodeToString(md5))
+			var errz = &Aws_s3_error{Code: BadDigest,
+				Resource: location}
+			return nil, errz
 		}
-		var err2 = bbs.place_uploaded(ctx, object, scratchkey)
-		if err2 != nil && info != nil {
-			var _ = bbs.store_metainfo(ctx, object, nil)
-		}
-		if err2 != nil {
-			return nil, err2
-		}
-	}
 
-	cleanup_needed = false
+		if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
+			bbs.Logger.Info("Checksums mismatch",
+				"algorithm", checksum,
+				"passed", hex.EncodeToString(csum_to_check),
+				"calculated", hex.EncodeToString(csum))
+			var errz = &Aws_s3_error{Code: BadDigest,
+				Resource: location,
+				Message:  "The checksum did not match what we received."}
+			return nil, errz
+		}
+
+		// It should be atomic on placing an uploaded file and saving a
+		// meta-info file.  Failing to place an uploaded file may lose
+		// meta-info.
+
+		var err9 = bbs.serialize_access(ctx, object, rid)
+		if err9 != nil {
+			return nil, err9
+		}
+		defer bbs.release_access(ctx, object, rid)
+
+		{
+			var err1 = bbs.store_metainfo(ctx, object, info)
+			if err1 != nil {
+				return nil, err1
+			}
+			var err2 = bbs.place_uploaded(ctx, object, scratchkey)
+			if err2 != nil && info != nil {
+				var _ = bbs.store_metainfo(ctx, object, nil)
+			}
+			if err2 != nil {
+				return nil, err2
+			}
+		}
+
+		cleanup_needed = false
 	*/
 
 	if checksum != "" {
@@ -1593,21 +1674,21 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	var location = "/" + object
 
 	/*
-	if i.CacheControl != nil {
-		if !strings.EqualFold(*i.CacheControl, "no-cache") {
-			var errz = &Aws_s3_error{Code: InvalidStorageClass,
-				Message:  "Bad Cache-Control",
-				Resource: location}
-			return nil, errz
+		if i.CacheControl != nil {
+			if !strings.EqualFold(*i.CacheControl, "no-cache") {
+				var errz = &Aws_s3_error{Code: InvalidStorageClass,
+					Message:  "Bad Cache-Control",
+					Resource: location}
+				return nil, errz
+			}
 		}
-	}
 	*/
 
 	/*
-	var err2 = check_unsupported_options(object, i.StorageClass)
-	if err2 != nil {
-		return nil, err2
-	}
+		var err2 = check_unsupported_options(object, i.StorageClass)
+		if err2 != nil {
+			return nil, err2
+		}
 	*/
 
 	var part int32
@@ -1618,7 +1699,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		return nil, errz
 	} else {
 		part = *i.PartNumber
-		if part < 1 || max_mpul_part_number < part {
+		if part < 1 || max_part_number < part {
 			var errz = &Aws_s3_error{Code: InvalidPart,
 				Resource: location}
 			return nil, errz
@@ -1632,7 +1713,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		return nil, errz
 	} else {
 		uploadid = *i.UploadId
-		if part < 1 || max_mpul_part_number < part {
+		if part < 1 || max_part_number < part {
 			var errz = &Aws_s3_error{Code: InvalidPart,
 				Resource: location}
 			return nil, errz
@@ -1713,17 +1794,17 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	var partobject = make_part_object_name(object, part)
 
 	/*
-	var err1 = bbs.make_intermediate_directories(object)
-	if err1 != nil {
-		return err1
-	}
+		var err1 = bbs.make_intermediate_directories(object)
+		if err1 != nil {
+			return err1
+		}
 	*/
 
 	var check = upload_checks{
-		location: location,
-		size: size,
-		checksum: checksum,
-		md5_to_check: md5_to_check,
+		location:      location,
+		size:          size,
+		checksum:      checksum,
+		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
 	var md5, csum, err6 = bbs.upload_file(ctx, partobject, scratchkey, nil,
@@ -1733,60 +1814,60 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	}
 
 	/*
-	var cleanup_needed = true
-	defer func() {
-		if cleanup_needed {
-			bbs.discharge_scratch_file(object, scratchkey)
+		var cleanup_needed = true
+		defer func() {
+			if cleanup_needed {
+				bbs.discharge_scratch_file(object, scratchkey)
+			}
+		}()
+
+		var md5, csum, errx = bbs.calculate_csum2(checksum, object, scratchkey)
+		if errx != nil {
+			return nil, errx
 		}
-	}()
 
-	var md5, csum, errx = bbs.calculate_csum2(checksum, object, scratchkey)
-	if errx != nil {
-		return nil, errx
-	}
-
-	if len(md5_to_check) != 0 && bytes.Compare(md5_to_check, md5) != 0 {
-		bbs.Logger.Info("Digests mismatch",
-			"algorithm", "MD5",
-			"passed", hex.EncodeToString(md5_to_check),
-			"calculated", hex.EncodeToString(md5))
-		var errz = &Aws_s3_error{Code: BadDigest,
-			Resource: location}
-		return nil, errz
-	}
-	if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
-		bbs.Logger.Info("Checksums mismatch",
-			"algorithm", checksum,
-			"passed", hex.EncodeToString(csum_to_check),
-			"calculated", hex.EncodeToString(csum))
-		var errz = &Aws_s3_error{Code: BadDigest,
-			Resource: location,
-			Message:  "The checksum did not match what we received."}
-		return nil, errz
-	}
-
-	// It should be atomic on placing an uploaded file and saving a
-	// meta-info file.  Failing to place an uploaded file may lose
-	// meta-info.
-
-	var _ = bbs.serialize_access(ctx, object, rid)
-	defer bbs.release_access(ctx, object, rid)
-
-	{
-		var err1 = bbs.store_metainfo(ctx, object, info)
-		if err1 != nil {
-			return nil, err1
+		if len(md5_to_check) != 0 && bytes.Compare(md5_to_check, md5) != 0 {
+			bbs.Logger.Info("Digests mismatch",
+				"algorithm", "MD5",
+				"passed", hex.EncodeToString(md5_to_check),
+				"calculated", hex.EncodeToString(md5))
+			var errz = &Aws_s3_error{Code: BadDigest,
+				Resource: location}
+			return nil, errz
 		}
-		var err2 = bbs.place_uploaded(ctx, object, scratchkey)
-		if err2 != nil && info != nil {
-			var _ = bbs.store_metainfo(ctx, object, nil)
+		if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
+			bbs.Logger.Info("Checksums mismatch",
+				"algorithm", checksum,
+				"passed", hex.EncodeToString(csum_to_check),
+				"calculated", hex.EncodeToString(csum))
+			var errz = &Aws_s3_error{Code: BadDigest,
+				Resource: location,
+				Message:  "The checksum did not match what we received."}
+			return nil, errz
 		}
-		if err2 != nil {
-			return nil, err2
-		}
-	}
 
-	cleanup_needed = false
+		// It should be atomic on placing an uploaded file and saving a
+		// meta-info file.  Failing to place an uploaded file may lose
+		// meta-info.
+
+		var _ = bbs.serialize_access(ctx, object, rid)
+		defer bbs.release_access(ctx, object, rid)
+
+		{
+			var err1 = bbs.store_metainfo(ctx, object, info)
+			if err1 != nil {
+				return nil, err1
+			}
+			var err2 = bbs.place_uploaded(ctx, object, scratchkey)
+			if err2 != nil && info != nil {
+				var _ = bbs.store_metainfo(ctx, object, nil)
+			}
+			if err2 != nil {
+				return nil, err2
+			}
+		}
+
+		cleanup_needed = false
 	*/
 
 	if checksum != "" {
@@ -1824,42 +1905,42 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	// o.ServerSideEncryption types.ServerSideEncryption
 
 	/*
-	s := model.PutObjectState{}
-	partNum := option.GetOption("partNumber")
-	if !utils.CheckPartNumber(partNum) {
-		return nil, InvalidArgument()
-	}
-	if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-		return nil, InvalidBucketName()
-	}
-	if b := option.GetBucket(); !s3.FileSystem.isFileExists(b) {
-		return nil, NoSuchBucket()
-	}
-	if !s3.FileSystem.checkKeyName(option.GetKey()) {
-		return nil, KeyTooLongError()
-	}
-	if !s3.FileSystem.canCreateFile(s3.FileSystem.getFullPath(option.GetPath())) {
-		return nil, InternalError()
-	}
-	id := option.GetOption("uploadId")
-	if !s3.FileSystem.isFileExists(s3.FileSystem.getUploadIDPath(id)) {
-		return nil, NoSuchUpload()
-	}
-	pNumPath := s3.FileSystem.getPartNumberPath(id, partNum)
-	if f := s3.FileSystem.uploadFile(option.GetBody(), pNumPath); !f {
-		return nil, InternalError()
-	}
-	var s3err *S3Error
-	if s.ETag, s3err = s3.getETag(pNumPath); s3err != nil {
-		return nil, InternalError()
-	}
-	if s3err = s3.compareMd5(option, nil, s.ETag); s3err != nil {
-		return nil, s3err
-	}
-	if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, pNumPath); s3err != nil {
-		return nil, s3err
-	}
-	result := s.MakePutObjectResult()
+		s := model.PutObjectState{}
+		partNum := option.GetOption("partNumber")
+		if !utils.CheckPartNumber(partNum) {
+			return nil, InvalidArgument()
+		}
+		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
+			return nil, InvalidBucketName()
+		}
+		if b := option.GetBucket(); !s3.FileSystem.isFileExists(b) {
+			return nil, NoSuchBucket()
+		}
+		if !s3.FileSystem.checkKeyName(option.GetKey()) {
+			return nil, KeyTooLongError()
+		}
+		if !s3.FileSystem.canCreateFile(s3.FileSystem.getFullPath(option.GetPath())) {
+			return nil, InternalError()
+		}
+		id := option.GetOption("uploadId")
+		if !s3.FileSystem.isFileExists(s3.FileSystem.getUploadIDPath(id)) {
+			return nil, NoSuchUpload()
+		}
+		pNumPath := s3.FileSystem.getPartNumberPath(id, partNum)
+		if f := s3.FileSystem.uploadFile(option.GetBody(), pNumPath); !f {
+			return nil, InternalError()
+		}
+		var s3err *S3Error
+		if s.ETag, s3err = s3.getETag(pNumPath); s3err != nil {
+			return nil, InternalError()
+		}
+		if s3err = s3.compareMd5(option, nil, s.ETag); s3err != nil {
+			return nil, s3err
+		}
+		if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, pNumPath); s3err != nil {
+			return nil, s3err
+		}
+		result := s.MakePutObjectResult()
 	*/
 
 	return &o, nil

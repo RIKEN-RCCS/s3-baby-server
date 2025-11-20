@@ -16,25 +16,28 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"io"
 	"io/fs"
-	"log"
-	"net/url"
+	//"log"
+	//"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
-type object_list_entry struct {
-	key  string
-	stat fs.FileInfo
-}
-
 // Meta-information associated to objects.  It is stored in a hidden
 // file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
-// will be encoded i json.
+// will be encoded in json.
 type Meta_info struct {
 	Headers *map[string]string
 	Tags    *types.Tagging
+}
+
+type MPUL_info struct {
+	Upload_id string
+	Checksum_type types.ChecksumType
+	Checksum_algorithm types.ChecksumAlgorithm
+	Meta_info
 }
 
 type upload_checks struct {
@@ -43,12 +46,6 @@ type upload_checks struct {
 	checksum types.ChecksumAlgorithm
 	md5_to_check []byte
 	csum_to_check []byte
-}
-
-type MPUL_info struct {
-	Upload_id string
-	Headers *map[string]string
-	Tags    *types.Tagging
 }
 
 func os_error_name(err error) string {
@@ -318,7 +315,7 @@ func (bbs *Bb_server) place_uploaded(object, scratchkey string) error {
 // overtakes an existing directory when it already exists, and
 // rewrites its upload-id.  It creates an empty file in the directory,
 // which will later become a true file.  It is to keep ctime now.
-func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploadid string) error {
+func (bbs *Bb_server) create_upload_directory(ctx context.Context, object string, mpul *MPUL_info) error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 
@@ -371,24 +368,69 @@ func (bbs *Bb_server) create_upload_directory(ctx context.Context, object, uploa
 		}
 	}()
 
-	// Make MPUL data.
+	// Store MPUL data.
 
-	var mpul = MPUL_info{uploadid, nil, nil}
-	var infopath = filepath.Join(path, "info")
-	var err5 = bbs.store_json_data(object, infopath, &mpul)
+	var err5 = bbs.store_mpul_info(object, mpul)
 	if err5 != nil {
-		return map_os_error(location, err5, nil)
+		return err5
 	}
 
 	// Create an empty file.
 
 	var datapath = filepath.Join(path, "data")
-	var err6 = bbs.create_empty_file(datapath)
+	var err6 = bbs.create_empty_file(object, datapath)
 	if err6 != nil {
-		return map_os_error(location, err6, nil)
+		return err6
 	}
 
 	cleanup_needed = false
+	return nil
+}
+
+func (bbs *Bb_server) concat_parts(ctx context.Context, object, uploadid string, partlist *types.CompletedMultipartUpload) error {
+	var location = "/" + object + "@mpul"
+	var path = bbs.make_path_of_object(object, "mpul")
+	var _ = path
+
+	// Check parts are sorted.
+
+	var error_in_sorting error = nil
+	var sorted = slices.IsSortedFunc(partlist.Parts,
+		func(a, b types.CompletedPart) int {
+			if a.PartNumber == nil || b.PartNumber == nil {
+				if error_in_sorting == nil {
+					error_in_sorting = &Aws_s3_error{Code: InvalidPart,
+						Message: "PartNumber missing.",
+						Resource: location}
+				}
+				// Return positive for a > b, indicating unsorted.
+				return 1
+			}
+			return int(*a.PartNumber - *b.PartNumber)
+		})
+	if error_in_sorting != nil {
+		return error_in_sorting
+	}
+	if !sorted {
+		var errz = &Aws_s3_error{Code: InvalidPartOrder,
+			Resource: location}
+		return errz
+	}
+
+	for _, p := range partlist.Parts {
+		// p : types.CompletedPart
+		// - ChecksumCRC32 *string
+		// - ChecksumCRC32C *string
+		// - ChecksumCRC64NVME *string
+		// - ChecksumSHA1 *string
+		// - ChecksumSHA256 *string
+		// - ETag *string
+		// - PartNumber *int32
+
+		var part = *p.PartNumber
+		var partobject = make_part_object_name(object, part)
+		var _ = partobject
+	}
 	return nil
 }
 
@@ -548,13 +590,107 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) error {
 func (bbs *Bb_server) fetch_mpul_info(object string) (*MPUL_info, error) {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
-	var mpul = MPUL_info{}
 	var infopath = filepath.Join(path, "info")
+	var mpul MPUL_info
 	var err5 = bbs.fetch_json_data(object, infopath, &mpul)
 	if err5 != nil {
 		return nil, map_os_error(location, err5, nil)
 	}
 	return &mpul, nil
+}
+
+func (bbs *Bb_server) store_mpul_info(object string, mpul *MPUL_info) error {
+	var location = "/" + object + "@mpul"
+	var path = bbs.make_path_of_object(object, "mpul")
+	var infopath = filepath.Join(path, "info")
+	var err5 = bbs.store_json_data(object, infopath, mpul)
+	if err5 != nil {
+		return map_os_error(location, err5, nil)
+	}
+	return nil
+}
+
+func (bbs *Bb_server) fetch_json_data(object, path string, data any) error {
+	var location = "/" + object
+	var f1, err1 = os.Open(path)
+	if err1 != nil {
+		bbs.Logger.Warn("os.Open() failed", "file", path,
+			"error", err1)
+		return map_os_error(location, err1, nil)
+	}
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err2)
+		}
+	}()
+
+	var d = json.NewDecoder(f1)
+	var err4 = d.Decode(&data)
+	if err4 != nil {
+		var datatype = fmt.Sprintf("%T", data)
+		bbs.Logger.Warn("json.Decode() failed",
+			"file", path, "type", datatype, "error", err4)
+		return map_os_error(location, err4, nil)
+	}
+	return nil
+}
+
+func (bbs *Bb_server) store_json_data(object, path string, data any) error {
+	var location = "/" + object
+	var f1, err1 = os.Create(path)
+	if err1 != nil {
+		bbs.Logger.Warn("os.Create() failed", "file", path, "error", err1)
+		return map_os_error(location, err1, nil)
+	}
+	var cleanup_needed = true
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err2)
+		}
+		if cleanup_needed {
+			var err3 = os.Remove(path)
+			if err3 != nil {
+				bbs.Logger.Warn("os.Remove() failed",
+					"file", path, "error", err3)
+			}
+		}
+	}()
+
+	var e = json.NewEncoder(f1)
+	var err4 = e.Encode(data)
+	if err4 != nil {
+		var datatype = fmt.Sprintf("%T", data)
+		bbs.Logger.Info("json.Encode() failed",
+			"file", path, "type", datatype, "error", err4)
+		return map_os_error(location, err4, nil)
+	}
+	cleanup_needed = false
+	return nil
+}
+
+// CHECK_UPLOAD_ID checks "params.UploadId".
+func (bbs *Bb_server) check_upload_id(object string, id *string) (string, error) {
+	var location = "/" + object + "@mpul"
+	if id == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "UploadId missing.",
+			Resource: location}
+		return "", errz
+	}
+	var uploadid = *id
+
+	var mpul, err1 = bbs.fetch_mpul_info(object)
+	if err1 != nil || mpul.Upload_id != uploadid {
+		var errz = &Aws_s3_error{Code: NoSuchUpload,
+			Resource: location}
+		return "", errz
+	}
+
+	return uploadid, nil
 }
 
 func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent []int64) (io.ReadCloser, error) {
@@ -626,11 +762,12 @@ func check_common_prefix(path, delimiter, prefix string) string {
 	}
 }
 
-func (bbs *Bb_server) create_empty_file(path string) error {
+func (bbs *Bb_server) create_empty_file(object, path string) error {
+	var location = "/" + object
 	var f1, err6 = os.Create(path)
 	if err6 != nil {
 		bbs.Logger.Warn("os.Create() failed", "file", path, "error", err6)
-		return err6
+		return map_os_error(location, err6, nil)
 	}
 	var err7 = f1.Close()
 	if err7 != nil {
@@ -638,298 +775,4 @@ func (bbs *Bb_server) create_empty_file(path string) error {
 		// Ignore.
 	}
 	return nil
-}
-
-func (bbs *Bb_server) fetch_json_data(object, path string, data any) error {
-	var location = "/" + object
-	var f1, err1 = os.Open(path)
-	if err1 != nil {
-		bbs.Logger.Warn("os.Open() failed", "file", path,
-			"error", err1)
-		return map_os_error(location, err1, nil)
-	}
-	defer func() {
-		var err2 = f1.Close()
-		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
-				"error", err2)
-		}
-	}()
-
-	var d = json.NewDecoder(f1)
-	var err4 = d.Decode(&data)
-	if err4 != nil {
-		var datatype = fmt.Sprintf("%T", data)
-		bbs.Logger.Warn("json.Decode() failed",
-			"file", path, "type", datatype, "error", err4)
-		return map_os_error(location, err4, nil)
-	}
-	return nil
-}
-
-func (bbs *Bb_server) store_json_data(object, path string, data any) error {
-	var location = "/" + object
-	var f1, err1 = os.Create(path)
-	if err1 != nil {
-		bbs.Logger.Warn("os.Create() failed", "file", path, "error", err1)
-		return map_os_error(location, err1, nil)
-	}
-	var cleanup_needed = true
-	defer func() {
-		var err2 = f1.Close()
-		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
-				"error", err2)
-		}
-		if cleanup_needed {
-			var err3 = os.Remove(path)
-			if err3 != nil {
-				bbs.Logger.Warn("os.Remove() failed",
-					"file", path, "error", err3)
-			}
-		}
-	}()
-
-	var e = json.NewEncoder(f1)
-	var err4 = e.Encode(data)
-	if err4 != nil {
-		var datatype = fmt.Sprintf("%T", data)
-		bbs.Logger.Info("json.Encode() failed",
-			"file", path, "type", datatype, "error", err4)
-		return map_os_error(location, err4, nil)
-	}
-	cleanup_needed = false
-	return nil
-}
-
-// LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
-// works with regard to the directory hierarchy.  A start-index and a
-// start-marker indicates a start point.  Note the entries ReadDir()
-// returns are sorted.  It returns a next start-index and a next
-// start-marker, in addition to the entries.  THE ENTRIES INCLUDE
-// DIRECTORIES EVEN IF THEY ARE EMPTY.
-func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
-	if delimiter != "/" {
-		log.Fatalf("BAD-IMPL: list_objects_delimited with non-slash")
-	}
-
-	var location = "/" + bucket
-	var dir1, fileprefix = path.Split(path.Clean(prefix))
-	var pool_path = bbs.pool_path
-	var name = path.Join(pool_path, bucket, dir1)
-
-	var dir2, filemarker = path.Split(path.Clean(marker))
-	if marker != "" {
-		if dir1 != dir2 {
-			// Nothing matches to the start-marker, return empty.
-			return nil, 0, "", nil
-		}
-	}
-
-	var entries1, err1 = os.ReadDir(name)
-	if err1 != nil {
-		return nil, 0, "", map_os_error(location, err1, nil)
-	}
-
-	// Filter entries by a prefix.
-
-	var entries2 []os.DirEntry
-	if fileprefix != "" {
-		for _, e := range entries1 {
-			if strings.HasPrefix(e.Name(), fileprefix) {
-				entries2 = append(entries2, e)
-			}
-		}
-	} else {
-		entries2 = entries1
-	}
-
-	// Find a position of a start-marker, or use a start-index.
-
-	var start int = -1
-	if filemarker != "" {
-		for i, e := range entries2 {
-			if e.Name() == filemarker {
-				start = i
-				break
-			}
-		}
-	} else {
-		start = 0
-	}
-	if start == -1 {
-		// Nothing matches to the start-marker, return empty.
-		return nil, 0, "", nil
-	}
-
-	start = max(index, start)
-	var entries3 = entries2[start:]
-	var entries4 = entries3[:min(len(entries3), maxkeys)]
-	var nextindex int
-	var nextmarker string
-	if len(entries4) < len(entries3) {
-		nextindex = start + len(entries4)
-		nextmarker = entries3[len(entries4)].Name()
-	} else {
-		nextindex = 0
-		nextmarker = ""
-	}
-
-	var entries5 []object_list_entry
-	for _, e := range entries4 {
-		var key = path.Join(dir1, e.Name())
-		var stat, err2 = e.Info()
-		if err2 != nil {
-			bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
-				"direntry", e, "error", err2)
-			continue
-		}
-		entries5 = append(entries5, object_list_entry{key, stat})
-	}
-
-	return entries5, nextindex, nextmarker, nil
-}
-
-// LIST_OBJECTS_FLAT makes listing for general delimiter case (it
-// works for both slash and non-slash delimiter).  It scans all the
-// files in the bucket.  It uses WalkDir() in "io/fs" as it returns
-// slash-paths (not os-specific).  In the scanning loop, it does not
-// count directory entries.  COUNT counts files visited and it is used
-// to check a start-index.  MEMO: A prefix should not have a
-// preceeding delimiter.  A common-prefix will have a trailing
-// delimiter.
-func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
-	var location = "/" + bucket
-	var pool_path = bbs.pool_path
-	var name = path.Join(pool_path, bucket)
-
-	var entries []object_list_entry
-	var nextindex int = 0
-	var nextmarker string = ""
-	var count int = 0
-	var collecting bool = false
-	var commonprefix string = ""
-
-	var bucket1 = os.DirFS(name)
-	var err1 = fs.WalkDir(bucket1, "", func(path1 string, e fs.DirEntry, err1 error) error {
-		// Skip errors or directories. (Don't count directories).
-
-		if err1 != nil {
-			bbs.Logger.Info("os.DirFS() callbacks with error",
-				"bucket", name, "path", path1, "error", err1)
-			return nil
-		}
-		if e.IsDir() {
-			return nil
-		}
-
-		defer func() {
-			count++
-		}()
-
-		// Check the start-marker first, then check the start-index.
-
-		if marker != "" && !collecting {
-			if marker == path1 {
-				collecting = true
-			} else {
-				return nil
-			}
-		}
-		if count < index {
-			return nil
-		}
-
-		// Check the prefix.
-
-		if !strings.HasPrefix(path1, prefix) {
-			return nil
-		}
-
-		// Check a common prefix, and already encountered.
-
-		var commonpart = check_common_prefix(path1, delimiter, prefix)
-		if commonpart != "" {
-			if commonprefix == commonpart {
-				// Skip if it is the one encountered.
-				return nil
-			}
-			commonprefix = commonpart
-		}
-
-		// Don't finish when fully collected.  It needs one extra
-		// entry to check truncation.
-
-		if len(entries) < maxkeys {
-			var key = path1
-			var stat, err2 = e.Info()
-			if err2 != nil {
-				bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
-					"direntry", e, "error", err2)
-				return nil
-			}
-			entries = append(entries, object_list_entry{key, stat})
-			return nil
-		} else {
-			nextindex = count
-			nextmarker = path1
-			return fs.SkipAll
-		}
-	})
-	if err1 != nil {
-		return nil, 0, "", map_os_error(location, err1, nil)
-	}
-
-	return entries, nextindex, nextmarker, nil
-}
-
-// It calculates MD5.
-func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
-	var contents []types.Object
-	var commonprefixes []types.CommonPrefix
-	for _, e := range entries {
-		var object = path.Join(bucket, e.key)
-		var commonpart = check_common_prefix(e.key, delimiter, prefix)
-		if commonpart == "" {
-			var md5, _, err3 = bbs.calculate_csum2("", object, "")
-			var etag *string
-			if err3 != nil {
-				bbs.Logger.Warn("MD5 calculation failed",
-					"file", object, "error", err3)
-				etag = nil
-			} else {
-				etag = make_etag_from_md5(md5)
-			}
-			var key string
-			if urlencode {
-				key = url.QueryEscape(e.key)
-			} else {
-				key = e.key
-			}
-			var size int64 = e.stat.Size()
-			var mtime = e.stat.ModTime()
-			var s = types.Object{
-				// - ChecksumAlgorithm []ChecksumAlgorithm
-				// - ChecksumType ChecksumType
-				// - ETag *string
-				// - Key *string
-				// - LastModified *time.Time
-				// - Owner *Owner
-				// - RestoreStatus *RestoreStatus
-				// - Size *int64
-				// - StorageClass ObjectStorageClass
-				Key:          &key,
-				ETag:         etag,
-				Size:         &size,
-				LastModified: &mtime,
-				StorageClass: types.ObjectStorageClassStandard}
-			contents = append(contents, s)
-		} else {
-			var s = types.CommonPrefix{
-				// - Prefix *string
-				Prefix: &commonpart}
-			commonprefixes = append(commonprefixes, s)
-		}
-	}
-	return contents, commonprefixes, nil
 }

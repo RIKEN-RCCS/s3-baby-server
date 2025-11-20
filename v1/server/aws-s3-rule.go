@@ -10,7 +10,19 @@ import (
 
 const list_buckets_limit = 10000
 const list_objects_limit = 1000
-const max_mpul_part_number = 10000
+const list_mpul_limit = 1000
+const list_parts_limit = 1000
+
+// [Amazon S3 multipart upload limits]
+// https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+
+const max_object_size = 5 * 1024 * 1024 * 1024 * 1024
+const max_part_number = 10000
+
+// Part size is in range [5 MB, 5 GB] except for the last part.
+
+const part_size_lb = 5 * 1024 * 1024
+const part_size_ub = 5 * 1024 * 1024 * 1024
 
 // - [General purpose bucket naming rules]
 //   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html

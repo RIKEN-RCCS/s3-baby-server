@@ -2,6 +2,25 @@
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
+// SPECIAL CONDITIONS OF HANDLING RFC7232.
+//
+// The rule described in the AWS-S3 API document:
+// If-Match ∧ ¬If-Unmodified-Since → 200 OK
+// ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
+//
+// https://datatracker.ietf.org/doc/html/rfc7232
+//
+// The order of condition evaluation:
+// If-Match < If-Unmodified-Since (skip if If-Match exists)
+// < If-None-Match < If-Modified-Since (skip if If-None-Match exists)
+//
+// Status code to be returned on failure:
+// ¬If-Match → 412 Precondition Failed
+// ¬If-Unmodified-Since → 412 Precondition Failed
+// ¬If-None-Match (GET/HEAD) → 304 Not Modified
+// ¬If-None-Match (other) → 412 Precondition Failed
+// ¬If-Modified-Since → 304 Not Modified
+
 package server
 
 import (
