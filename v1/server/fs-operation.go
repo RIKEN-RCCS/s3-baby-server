@@ -16,28 +16,38 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"io"
 	"io/fs"
+	"time"
 	//"log"
 	//"net/url"
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 )
 
-// Meta-information associated to objects.  It is stored in a hidden
+// Meta-information associated to an object.  It is stored in a hidden
 // file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
 // will be encoded in json.
 type Meta_info struct {
-	Headers *map[string]string
+	Headers map[string]string
 	Tags    *types.Tagging
 }
 
-type MPUL_info struct {
+type Mpul_info struct {
 	Upload_id string
+	Ctime time.Time
 	Checksum_type types.ChecksumType
 	Checksum_algorithm types.ChecksumAlgorithm
-	Meta_info
+	Meta_info *Meta_info
+}
+
+type Mpul_catalog struct {
+	Checksum_algorithm types.ChecksumAlgorithm
+	Parts []struct {
+		Size int64
+		ETag string
+		Checksum string
+	}
 }
 
 type upload_checks struct {
@@ -46,6 +56,7 @@ type upload_checks struct {
 	checksum types.ChecksumAlgorithm
 	md5_to_check []byte
 	csum_to_check []byte
+	etag_condition [2]*string
 }
 
 func os_error_name(err error) string {
@@ -135,10 +146,14 @@ func (bbs *Bb_server) make_path_of_object(object string, scratchkey string) stri
 func make_part_object_name(object string, part int32) string {
 	var prefix = "."
 	var suffix = "@meta"
-	var partname = fmt.Sprintf("part05d", part)
+	var partname = make_part_name(part)
 	var dir, file = path.Split(object)
 	var name = path.Join(dir, (prefix + file + suffix), partname)
 	return name
+}
+
+func make_part_name(part int32) string {
+	return fmt.Sprintf("part05d", part)
 }
 
 func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket string) error {
@@ -253,15 +268,11 @@ func (bbs *Bb_server) upload_file_scratch(object, scratchkey string, size int64,
 		bbs.Logger.Info("os.Create() failed", "file", path, "error", err4)
 		return map_os_error(location, err4, nil)
 	}
-	var cleanup_needed = true
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
 			bbs.Logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
-		}
-		if cleanup_needed {
-			var _ = os.Remove(path)
 		}
 	}()
 
@@ -280,11 +291,11 @@ func (bbs *Bb_server) upload_file_scratch(object, scratchkey string, size int64,
 		return errz
 	}
 	if cc != size {
-		bbs.Logger.Info("Transfer failed")
+		var msg = fmt.Sprintf("Body expected size=%d but received size=%d.",
+			size, cc)
+		bbs.Logger.Info("Transfer failed", "message", msg)
 		var errz = &Aws_s3_error{Code: IncompleteBody,
-			Resource: location,
-			Message: fmt.Sprintf("Body expected length=%d but received length=%d.",
-				size, cc)}
+			Resource: location}
 		return errz
 	}
 
@@ -292,7 +303,61 @@ func (bbs *Bb_server) upload_file_scratch(object, scratchkey string, size int64,
 	// separated.  It should be in coordination with the meta-info
 	// file.
 
-	cleanup_needed = false
+	return nil
+}
+
+func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchkey, uploadid string, partlist *types.CompletedMultipartUpload) error {
+	var location = "/" + object
+	var path = bbs.make_path_of_object(object, scratchkey)
+
+	bbs.Logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")
+
+	// Copy data to a temporary file.
+
+	var f1, err4 = os.Create(path)
+	if err4 != nil {
+		bbs.Logger.Info("os.Create() failed", "file", path, "error", err4)
+		return map_os_error(location, err4, nil)
+	}
+	var cleanup_needed = true
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err2)
+		}
+		if cleanup_needed {
+			var _ = os.Remove(path)
+		}
+	}()
+
+	var mpulpath = bbs.make_path_of_object(object, "mpul")
+	for _, p := range partlist.Parts {
+		// p : types.CompletedPart
+		// - ChecksumCRC32 *string
+		// - ChecksumCRC32C *string
+		// - ChecksumCRC64NVME *string
+		// - ChecksumSHA1 *string
+		// - ChecksumSHA256 *string
+		// - ETag *string
+		// - PartNumber *int32
+
+		var part = *p.PartNumber
+		var partname = make_part_name(part)
+		var partpath = filepath.Join(mpulpath, partname)
+		var f2, err2 = os.Create(partpath)
+		if err2 != nil {
+			bbs.Logger.Warn("os.Open() failed for MPUL data",
+				"file", partpath, "error", err2)
+			return map_os_error(location, err2, nil)
+		}
+		var _, err3 = io.Copy(f1, f2)
+		if err3 != nil {
+			bbs.Logger.Warn("io.Copy() failed for MPUL data",
+				"file", partpath, "error", err3)
+			return map_os_error(location, err3, nil)
+		}
+	}
 	return nil
 }
 
@@ -315,7 +380,7 @@ func (bbs *Bb_server) place_uploaded(object, scratchkey string) error {
 // overtakes an existing directory when it already exists, and
 // rewrites its upload-id.  It creates an empty file in the directory,
 // which will later become a true file.  It is to keep ctime now.
-func (bbs *Bb_server) create_upload_directory(ctx context.Context, object string, mpul *MPUL_info) error {
+func (bbs *Bb_server) create_upload_directory(ctx context.Context, object string, mpul *Mpul_info) error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 
@@ -375,62 +440,7 @@ func (bbs *Bb_server) create_upload_directory(ctx context.Context, object string
 		return err5
 	}
 
-	// Create an empty file.
-
-	var datapath = filepath.Join(path, "data")
-	var err6 = bbs.create_empty_file(object, datapath)
-	if err6 != nil {
-		return err6
-	}
-
 	cleanup_needed = false
-	return nil
-}
-
-func (bbs *Bb_server) concat_parts(ctx context.Context, object, uploadid string, partlist *types.CompletedMultipartUpload) error {
-	var location = "/" + object + "@mpul"
-	var path = bbs.make_path_of_object(object, "mpul")
-	var _ = path
-
-	// Check parts are sorted.
-
-	var error_in_sorting error = nil
-	var sorted = slices.IsSortedFunc(partlist.Parts,
-		func(a, b types.CompletedPart) int {
-			if a.PartNumber == nil || b.PartNumber == nil {
-				if error_in_sorting == nil {
-					error_in_sorting = &Aws_s3_error{Code: InvalidPart,
-						Message: "PartNumber missing.",
-						Resource: location}
-				}
-				// Return positive for a > b, indicating unsorted.
-				return 1
-			}
-			return int(*a.PartNumber - *b.PartNumber)
-		})
-	if error_in_sorting != nil {
-		return error_in_sorting
-	}
-	if !sorted {
-		var errz = &Aws_s3_error{Code: InvalidPartOrder,
-			Resource: location}
-		return errz
-	}
-
-	for _, p := range partlist.Parts {
-		// p : types.CompletedPart
-		// - ChecksumCRC32 *string
-		// - ChecksumCRC32C *string
-		// - ChecksumCRC64NVME *string
-		// - ChecksumSHA1 *string
-		// - ChecksumSHA256 *string
-		// - ETag *string
-		// - PartNumber *int32
-
-		var part = *p.PartNumber
-		var partobject = make_part_object_name(object, part)
-		var _ = partobject
-	}
 	return nil
 }
 
@@ -587,11 +597,11 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) error {
 	}
 }
 
-func (bbs *Bb_server) fetch_mpul_info(object string) (*MPUL_info, error) {
+func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 	var infopath = filepath.Join(path, "info")
-	var mpul MPUL_info
+	var mpul Mpul_info
 	var err5 = bbs.fetch_json_data(object, infopath, &mpul)
 	if err5 != nil {
 		return nil, map_os_error(location, err5, nil)
@@ -599,11 +609,34 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*MPUL_info, error) {
 	return &mpul, nil
 }
 
-func (bbs *Bb_server) store_mpul_info(object string, mpul *MPUL_info) error {
+func (bbs *Bb_server) store_mpul_info(object string, mpul *Mpul_info) error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 	var infopath = filepath.Join(path, "info")
 	var err5 = bbs.store_json_data(object, infopath, mpul)
+	if err5 != nil {
+		return map_os_error(location, err5, nil)
+	}
+	return nil
+}
+
+func (bbs *Bb_server) fetch_mpul_catalog(object string) (*Mpul_catalog, error) {
+	var location = "/" + object + "@mpul"
+	var path = bbs.make_path_of_object(object, "mpul")
+	var infopath = filepath.Join(path, "list")
+	var catalog Mpul_catalog
+	var err5 = bbs.fetch_json_data(object, infopath, &catalog)
+	if err5 != nil {
+		return nil, map_os_error(location, err5, nil)
+	}
+	return &catalog, nil
+}
+
+func (bbs *Bb_server) store_mpul_catalog(object string, catalog *Mpul_catalog) error {
+	var location = "/" + object + "@mpul"
+	var path = bbs.make_path_of_object(object, "mpul")
+	var infopath = filepath.Join(path, "list")
+	var err5 = bbs.store_json_data(object, infopath, catalog)
 	if err5 != nil {
 		return map_os_error(location, err5, nil)
 	}

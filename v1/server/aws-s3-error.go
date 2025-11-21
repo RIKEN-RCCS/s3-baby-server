@@ -1,4 +1,4 @@
-// aws-s3-errors.go
+// aws-s3-error.go
 
 // This file is derived from the copyright material by Amazon Web
 // Services, Inc.

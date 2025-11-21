@@ -1,8 +1,8 @@
-// file-listing.go
+// listing.go
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// MEMO: It avoids using "filepath" in other files that is OS dependent.
+// MEMO: It avoids using "filepath" that is OS dependent.
 
 package server
 
@@ -30,7 +30,7 @@ type object_list_entry struct {
 }
 
 // LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
-// works with regard to the directory hierarchy.  A start-index and a
+// works with regard to a directory hierarchy.  A start-index and a
 // start-marker indicates a start point.  Note the entries ReadDir()
 // returns are sorted.  It returns a next start-index and a next
 // start-marker, in addition to the entries.  THE ENTRIES INCLUDE
@@ -119,8 +119,8 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 
 // LIST_OBJECTS_FLAT makes listing for general delimiter case (it
 // works for both slash and non-slash delimiter).  It scans all the
-// files in the bucket.  It uses WalkDir() in "io/fs" as it returns
-// slash-paths (not os-specific).  In the scanning loop, it does not
+// files in the bucket.  It uses fs.WalkDir() in "io/fs" as it returns
+// slash-paths (not OS-specific).  In the scanning loop, it does not
 // count directory entries.  COUNT counts files visited and it is used
 // to check a start-index.  MEMO: A prefix should not have a
 // preceeding delimiter.  A common-prefix will have a trailing
@@ -210,7 +210,8 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 	return entries, nextindex, nextmarker, nil
 }
 
-// It calculates MD5.
+// make_list_objects_entries converts a list to response data.  It
+// calculates MD5.
 func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
 	var contents []types.Object
 	var commonprefixes []types.CommonPrefix

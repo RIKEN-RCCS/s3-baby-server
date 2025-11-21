@@ -67,3 +67,26 @@ document string in "s3.json".  They are in "shapes" /
 - Accesses to an object file and a meta-info file are serialized by an
   object name.  Without a serialization, an uploaded file and its tags
   could mismatch.
+
+## Upload ID
+
+Uniqueness of upload-id is not guaranteed.  Baby-server does not
+record upload-id for restarting the server.
+
+## Multipart Upload (MPUL)
+
+It creates a temporary directory (named "."+filename+"@mpul") and
+stores files "info", "list", "partNNNNN".
+
+## ???
+
+v1.1.1 code allowed nested tagging in values in the format
+'TagSet=[{Key=<key>,Value=<value>}]'.  (I cannot find about nested
+tagging).
+
+
+## Checksum
+
+Baby-server can only handle "types.ChecksumTypeFullObject".  A
+checksum in a request is ignored when it is not the case.  A returned
+checksum is always for full object.

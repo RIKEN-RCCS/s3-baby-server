@@ -2,14 +2,17 @@
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// A monitor to exclude accesses to the same object.  It serves in
+// A monitor to serialize accesses to the same object.  It serves in
 // fifo order.  Entering may fail by a timeout.
 
 // It takes a short sleep, when some tasks timeout.  It is to give
-// them a time to leave from the wait queue.  Without a sleep, it
-// makes worthless signals to a condition variable.
+// tasks a time to leave themselves from the wait queue.  Without a
+// sleep, worthless signals are delivered to a condition variable.
+// Parameter m.smallwait controls it.  It should be a fraction of
+// typical timeout.
 
-// NOTE: Make sure sending to a channel be outside of a mutex.
+// NOTE: Make sure sending to a channel (m.schedule) be outside of a
+// mutex.
 
 package server
 
@@ -27,6 +30,7 @@ type monitor struct {
 	timer *time.Timer
 	schedule chan struct{}
 	mutex sync.Mutex
+	smallwait time.Duration
 	trace bool
 }
 
@@ -46,11 +50,13 @@ func (m *monitor) init() {
 	m.blocker = sync.NewCond(&m.mutex)
 	m.timer = time.NewTimer(10 * time.Second)
 	m.schedule = make(chan struct{})
+	m.smallwait = (1 * time.Millisecond)
 	m.trace = false
 }
 
-// Broadcasts events to waiting tasks.  The loop runs forever, until
-// m.schedule is closed.  Note first queue entries are not waiting.
+// GUARD_LOOP broadcasts events to waiting tasks.  The loop runs
+// forever, until m.schedule is closed.  Note the first entry in the
+// queues is in service.
 func (m *monitor) guard_loop() {
 	for {
 		var now = time.Now()
@@ -66,11 +72,7 @@ func (m *monitor) guard_loop() {
 			}
 		}
 		m.mutex.Unlock()
-		var d = nextdue.Sub(now) + (1 * time.Millisecond)
-		if d <= 0 {
-			// Take small sleep when some tasks timeout.
-			d = 1 * time.Millisecond
-		}
+		var d = max(nextdue.Sub(now), m.smallwait)
 		if m.trace {fmt.Printf("monitor: sleep %v\n", d)}
 		m.timer.Reset(d)
 		var ok bool
@@ -88,9 +90,9 @@ func (m *monitor) guard_loop() {
 	}
 }
 
-// Enters an exclusion region.  It returns false when timeout.  A
-// failed task should not call m.exit().  It schedules the timer for a
-// timeout.  A race of notifications and intervening deletions is
+// ENTER enters an exclusion region.  It returns false when timeout.
+// A failed task should not call m.exit().  It schedules the timer for
+// a timeout.  A race of notifications and intervening deletions is
 // acceptable.  Deletions are OK.
 func (m *monitor) enter(object string, id int64, d time.Duration) bool {
 	var due = time.Now().Add(d)
@@ -133,7 +135,8 @@ func (m *monitor) enter(object string, id int64, d time.Duration) bool {
 	return false
 }
 
-// Exits an exclusion region.  It schedules for a next task.
+// EXIT exits an exclusion region.  It schedules for a next task.
+// Timeout tasks should not called it.
 func (m *monitor) exit(object string, id int64) {
 	m.mutex.Lock()
 	defer func() {
@@ -148,4 +151,10 @@ func (m *monitor) exit(object string, id int64) {
 	if len(m.waitings[object]) == 0 {
 		delete(m.waitings, object)
 	}
+}
+
+// DONE ends the use of a monitor.  It stops the thread for timeout
+// wakeup.
+func (m *monitor) done() {
+	close(m.schedule)
 }

@@ -327,7 +327,7 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, match, none_match *s
 	return true, nil
 }
 
-// make_meta_info makes a meta-info from i.Metadata and i.Tagging.
+// MAKE_META_INFO makes a meta-info from i.Metadata and i.Tagging.
 func make_meta_info(headers map[string]string, tagging *string, location string) (*Meta_info, error) {
 	var tags *types.Tagging
 	if tagging != nil {
@@ -341,16 +341,14 @@ func make_meta_info(headers map[string]string, tagging *string, location string)
 		tags = tags1
 	}
 	if tags != nil || headers != nil {
-		return &Meta_info{Headers: &headers, Tags: tags}, nil
+		return &Meta_info{Headers: headers, Tags: tags}, nil
 	} else {
 		return nil, nil
 	}
 }
 
-// AHO: I cannot find about nested tagging, while v1.1.1 code
-// allowed nested tagging in values in the format
-// 'TagSet=[{Key=<key>,Value=<value>}]'.
-
+// PARSE_TAGS scans tags in a requst.  (Tag set must be encoded as URL
+// query parameters).
 func parse_tags(s string) (*types.Tagging, error) {
 	var m, err1 = url.ParseQuery(s)
 	if err1 != nil {
