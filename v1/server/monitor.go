@@ -19,23 +19,23 @@ package server
 import (
 	"fmt"
 	"log"
-	"time"
 	"slices"
 	"sync"
+	"time"
 )
 
 type monitor struct {
-	waitings map[string][]wait_task
-	blocker *sync.Cond
-	timer *time.Timer
-	schedule chan struct{}
-	mutex sync.Mutex
+	waitings  map[string][]wait_task
+	blocker   *sync.Cond
+	timer     *time.Timer
+	schedule  chan struct{}
+	mutex     sync.Mutex
 	smallwait time.Duration
-	trace bool
+	trace     bool
 }
 
 type wait_task struct {
-	id int64
+	id  int64
 	due time.Time
 }
 
@@ -73,19 +73,23 @@ func (m *monitor) guard_loop() {
 		}
 		m.mutex.Unlock()
 		var d = max(nextdue.Sub(now), m.smallwait)
-		if m.trace {fmt.Printf("monitor: sleep %v\n", d)}
+		if m.trace {
+			fmt.Printf("monitor: sleep %v\n", d)
+		}
 		m.timer.Reset(d)
 		var ok bool
 		select {
-		case <- m.timer.C:
+		case <-m.timer.C:
 			m.timer.Stop()
-		case _, ok = <- m.schedule:
+		case _, ok = <-m.schedule:
 			m.timer.Stop()
 			if !ok {
 				return
 			}
 		}
-		if m.trace {fmt.Printf("monitor: wakeup\n")}
+		if m.trace {
+			fmt.Printf("monitor: wakeup\n")
+		}
 		m.blocker.Broadcast()
 	}
 }
@@ -96,7 +100,7 @@ func (m *monitor) guard_loop() {
 // acceptable.  Deletions are OK.
 func (m *monitor) enter(object string, id int64, d time.Duration) bool {
 	var due = time.Now().Add(d)
-	func () {
+	func() {
 		m.mutex.Lock()
 		defer func() {
 			m.mutex.Unlock()
@@ -109,18 +113,19 @@ func (m *monitor) enter(object string, id int64, d time.Duration) bool {
 	defer m.mutex.Unlock()
 	for true {
 		var queue2 = m.waitings[object]
-		if (len(queue2) == 0) {
+		if len(queue2) == 0 {
 			// Itself exists at least.
 			log.Fatal("monitor: BAD queue state at enter")
 		}
 		if !time.Now().Before(due) {
 			// A task fails to enter.
 			var i = slices.IndexFunc(queue2, func(e wait_task) bool {
-				return e.id == id})
-			if (i == -1) {
+				return e.id == id
+			})
+			if i == -1 {
 				log.Fatal("monitor: BAD queue state at timeout")
 			}
-			m.waitings[object] = slices.Delete(queue2, i, i + 1)
+			m.waitings[object] = slices.Delete(queue2, i, i+1)
 			if len(m.waitings[object]) == 0 {
 				delete(m.waitings, object)
 			}
@@ -150,6 +155,19 @@ func (m *monitor) exit(object string, id int64) {
 	m.waitings[object] = slices.Delete(queue1, 0, 1)
 	if len(m.waitings[object]) == 0 {
 		delete(m.waitings, object)
+	}
+}
+
+func (m *monitor) attest(object string, id int64) bool {
+	m.mutex.Lock()
+	defer func() {
+		m.mutex.Unlock()
+	}()
+	var queue1 = m.waitings[object]
+	if len(queue1) != 0 && queue1[0].id == id {
+		return true
+	} else {
+		return false
 	}
 }
 

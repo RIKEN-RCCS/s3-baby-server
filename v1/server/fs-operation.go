@@ -35,7 +35,7 @@ type Meta_info struct {
 
 type Mpul_info struct {
 	Upload_id string
-	Ctime time.Time
+	Timestamp time.Time
 	Checksum_type types.ChecksumType
 	Checksum_algorithm types.ChecksumAlgorithm
 	Meta_info *Meta_info
@@ -189,7 +189,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	}
 
 	var size int64 = check.size
-	var err2 = bbs.upload_file_scratch(object, scratchkey, size, body)
+	var err2 = bbs.upload_scratch_file(object, scratchkey, size, body)
 	if err2 != nil {
 		return nil, nil, err2
 	}
@@ -257,7 +257,11 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	return md5, csum, nil
 }
 
-func (bbs *Bb_server) upload_file_scratch(object, scratchkey string, size int64, body io.Reader) error {
+// UPLOAD_SCRATCH_FILE stores the contents as a scratch file.  The
+// work of renaming a scratch file to an actual file will be done in
+// serialization.  Also, renaming should be in coordination with the
+// the meta-info file.
+func (bbs *Bb_server) upload_scratch_file(object, scratchkey string, size int64, body io.Reader) error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
@@ -299,10 +303,30 @@ func (bbs *Bb_server) upload_file_scratch(object, scratchkey string, size int64,
 		return errz
 	}
 
-	// The work of renaming a temporary file to an actual file is
-	// separated.  It should be in coordination with the meta-info
-	// file.
+	return nil
+}
 
+// DISCHARGE_SCRATCH_FILE removes a scratch file and a metainfo file.
+// Errors are ignored.
+func (bbs *Bb_server) discharge_scratch_file(object, scratchkey string) error {
+	var path1 = bbs.make_path_of_object(object, scratchkey)
+	var err1 = os.Remove(path1)
+	if err1 != nil {
+		bbs.Logger.Warn("os.Remove() failed on a scratch file",
+			"file", path1, "error", err1)
+		// Ignore an error.
+	}
+
+	var path2 = bbs.make_path_of_object(object, "meta")
+	var _, err2 = os.Lstat(path2)
+	if err2 == nil || !errors.Is(err2, fs.ErrNotExist) {
+		var err3 = os.Remove(path2)
+		if err3 != nil {
+			bbs.Logger.Warn("os.Remove() failed on a metainfo file",
+				"file", path2, "error", err3)
+			// Ignore an error.
+		}
+	}
 	return nil
 }
 
@@ -376,11 +400,11 @@ func (bbs *Bb_server) place_uploaded(object, scratchkey string) error {
 	return nil
 }
 
-// CREATE_UPLOAD_DIRECTORY creates a scratch directory for MPUL.  It
+// CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL.  It
 // overtakes an existing directory when it already exists, and
 // rewrites its upload-id.  It creates an empty file in the directory,
 // which will later become a true file.  It is to keep ctime now.
-func (bbs *Bb_server) create_upload_directory(ctx context.Context, object string, mpul *Mpul_info) error {
+func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, mpul *Mpul_info) error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 
@@ -444,27 +468,40 @@ func (bbs *Bb_server) create_upload_directory(ctx context.Context, object string
 	return nil
 }
 
-// DISCHARGE_SCRATCH_FILE removes a scratch file and a metainfo file.
-// Errors are ignored.
-func (bbs *Bb_server) discharge_scratch_file(object, scratchkey string) error {
-	var path1 = bbs.make_path_of_object(object, scratchkey)
-	var err1 = os.Remove(path1)
-	if err1 != nil {
-		bbs.Logger.Warn("os.Remove() failed on a scratch file",
-			"file", path1, "error", err1)
-		// Ignore an error.
+// DISCHARGE_MPUL_DIRECTORY removes a directory for MPUL.  It does not
+// remove intermediate directories.  Errors are ignored.
+func (bbs *Bb_server) discharge_mpul_directory(object string) error {
+	var location = "/" + object + "@mpul"
+	var path = bbs.make_path_of_object(object, "mpul")
+
+	var stat, err2 = os.Lstat(path)
+	if err2 != nil {
+		if errors.Is(err2, fs.ErrNotExist) {
+			// OK.
+			return nil
+		} else {
+			// Ignore an error in taking stat.
+			bbs.Logger.Warn("os.Lstat() failed on a MPUL directory",
+				"path", path, "error", err2)
+		}
+	} else if !stat.IsDir() {
+		bbs.Logger.Warn("A MPUL path is not a directory", "path", path)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message: "A MPUL path is not a directory",
+			Resource: location}
+		return errz
 	}
 
-	var path2 = bbs.make_path_of_object(object, "meta")
-	var _, err2 = os.Lstat(path2)
-	if err2 == nil || !errors.Is(err2, fs.ErrNotExist) {
-		var err3 = os.Remove(path2)
-		if err3 != nil {
-			bbs.Logger.Warn("os.Remove() failed",
-				"file", path2, "error", err3)
-			// Ignore an error.
-		}
+	var err4 = os.RemoveAll(path)
+	if err4 != nil {
+		bbs.Logger.Info("os.RemoveAll() failed on a MPUL directory",
+			"path", path, "error", err4)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message: "Removing a MPUL scratch directory failed.",
+			Resource: location}
+		return errz
 	}
+
 	return nil
 }
 
@@ -706,24 +743,21 @@ func (bbs *Bb_server) store_json_data(object, path string, data any) error {
 }
 
 // CHECK_UPLOAD_ID checks "params.UploadId".
-func (bbs *Bb_server) check_upload_id(object string, id *string) (string, error) {
-	var location = "/" + object + "@mpul"
-	if id == nil {
+func (bbs *Bb_server) check_upload_id(object string, uploadid *string) (*Mpul_info, error) {
+	var location = "/" + object
+	if uploadid == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message:  "UploadId missing.",
 			Resource: location}
-		return "", errz
+		return nil, errz
 	}
-	var uploadid = *id
-
 	var mpul, err1 = bbs.fetch_mpul_info(object)
-	if err1 != nil || mpul.Upload_id != uploadid {
+	if err1 != nil || mpul.Upload_id != *uploadid {
 		var errz = &Aws_s3_error{Code: NoSuchUpload,
 			Resource: location}
-		return "", errz
+		return nil, errz
 	}
-
-	return uploadid, nil
+	return mpul, nil
 }
 
 func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent []int64) (io.ReadCloser, error) {

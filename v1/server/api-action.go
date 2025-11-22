@@ -34,7 +34,7 @@ import (
 	//"sync"
 )
 
-func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
+func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
 	fmt.Printf("*AbortMultipartUpload*\n")
 	var o = s3.AbortMultipartUploadOutput{}
 
@@ -46,8 +46,40 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, params *s3.Abort
 	// i.IfMatchInitiatedTime *time.Time
 	// i.RequestPayer types.RequestPayer
 
+	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err1 != nil {
+		return nil, err1
+	}
+	var location = "/" + object
+
+	var rid int64 = get_request_id(ctx)
+
+	{
+		var errx = bbs.serialize_access(ctx, object, rid)
+		if errx != nil {
+			return nil, errx
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var mpul, err2 = bbs.check_upload_id(object, i.UploadId)
+	if err2 != nil {
+		return nil, err2
+	}
+	if i.IfMatchInitiatedTime != nil {
+		if !mpul.Timestamp.Equal(*i.IfMatchInitiatedTime) {
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Resource: location}
+			return nil, errz
+		}
+	}
+
+	var err3 = bbs.discharge_mpul_directory(object)
+	if err3 != nil {
+		// Ignore errors.
+	}
+
 	// o.RequestCharged types.RequestCharged
-	// o.ResultMetadata middleware.Metadata
 
 	return &o, nil
 }
@@ -88,14 +120,9 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 	var location = "/" + object
 
-	var uploadid, err2 = bbs.check_upload_id(object, i.UploadId)
+	var mpul, err2 = bbs.check_upload_id(object, i.UploadId)
 	if err2 != nil {
 		return nil, err2
-	}
-
-	var mpul, err3 = bbs.fetch_mpul_info(object)
-	if err3 != nil {
-		return nil, err3
 	}
 
 	if i.MpuObjectSize == nil {
@@ -123,7 +150,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			if a.PartNumber == nil || b.PartNumber == nil {
 				// x_assert(error_in_sorting == nil)
 				error_in_sorting = &Aws_s3_error{Code: InvalidArgument,
-					Message: "PartNumber missing.",
+					Message:  "PartNumber missing.",
 					Resource: location}
 				// Return a positive to stop the loop.
 				return 1
@@ -151,7 +178,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			// It returns true on an error to stop the loop.
 			if e.PartNumber == nil || e.ETag == nil {
 				error_in_checking = &Aws_s3_error{Code: InvalidArgument,
-					Message: "PartNumber/ETag missing.",
+					Message:  "PartNumber/ETag missing.",
 					Resource: location}
 				// Return true to stop the loop.
 				return true
@@ -191,7 +218,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				}
 				if csum == nil {
 					error_in_checking = &Aws_s3_error{Code: InvalidArgument,
-						Message: "Checksum missing in multipart upload",
+						Message:  "Checksum missing in multipart upload",
 						Resource: location}
 					// Return true to stop the loop.
 					return true
@@ -219,7 +246,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	var scratchkey = bbs.make_file_suffix(rid)
 	defer bbs.discharge_file_suffix(rid)
 
-	var err5 = bbs.concat_parts_scratch(ctx, object, scratchkey, uploadid, partlist)
+	var err5 = bbs.concat_parts_scratch(ctx, object, scratchkey, mpul.Upload_id, partlist)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -272,6 +299,11 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 
 	cleanup_needed = false
+
+	var err10 = bbs.discharge_mpul_directory(object)
+	if err10 != nil {
+		// Ignore errors.
+	}
 
 	o.ETag = make_etag_from_md5(md5)
 
@@ -481,6 +513,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	if err3 != nil {
 		return nil, err3
 	}
+
 	var checksum = i.ChecksumAlgorithm
 	var checksumtype = i.ChecksumType
 	if checksumtype != types.ChecksumTypeFullObject {
@@ -496,10 +529,10 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	var uploadid = scratchkey
 
 	var mpul = &Mpul_info{
-		Upload_id: uploadid,
-		Checksum_type: checksumtype,
+		Upload_id:          uploadid,
+		Checksum_type:      checksumtype,
 		Checksum_algorithm: checksum,
-		Meta_info: info}
+		Meta_info:          info}
 
 	var err4 = bbs.serialize_access(ctx, object, rid)
 	if err4 != nil {
@@ -507,14 +540,14 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	}
 	defer bbs.release_access(ctx, object, rid)
 
-	var err6 = bbs.create_upload_directory(ctx, object, mpul)
+	var err6 = bbs.create_mpul_directory(ctx, object, mpul)
 	if err6 != nil {
 		return nil, err6
 	}
 	var cleanup_needed = true
 	defer func() {
 		if cleanup_needed {
-			bbs.discharge_scratch_file(object, scratchkey)
+			bbs.discharge_mpul_directory(object)
 		}
 	}()
 
@@ -1586,11 +1619,11 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	defer bbs.discharge_file_suffix(rid)
 
 	var check = upload_checks{
-		location:      location,
-		size:          size,
-		checksum:      checksum,
-		md5_to_check:  md5_to_check,
-		csum_to_check: csum_to_check,
+		location:       location,
+		size:           size,
+		checksum:       checksum,
+		md5_to_check:   md5_to_check,
+		csum_to_check:  csum_to_check,
 		etag_condition: [2]*string{i.IfMatch, i.IfNoneMatch}}
 	var md5, csum, err6 = bbs.upload_file(ctx, object, scratchkey, info,
 		check, i.Body)
