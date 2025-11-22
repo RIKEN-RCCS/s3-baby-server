@@ -55,9 +55,9 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	var rid int64 = get_request_id(ctx)
 
 	{
-		var errx = bbs.serialize_access(ctx, object, rid)
-		if errx != nil {
-			return nil, errx
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
 		}
 		defer bbs.release_access(ctx, object, rid)
 	}
@@ -246,7 +246,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	var scratchkey = bbs.make_file_suffix(rid)
 	defer bbs.discharge_file_suffix(rid)
 
-	var err5 = bbs.concat_parts_scratch(ctx, object, scratchkey, mpul.Upload_id, partlist)
+	var err5 = bbs.concat_parts_scratch(ctx, object, scratchkey, partlist, mpul)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -278,22 +278,15 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	var info = mpul.Meta_info
 
-	var err8 = bbs.serialize_access(ctx, object, rid)
-	if err8 != nil {
-		return nil, err8
-	}
-	defer bbs.release_access(ctx, object, rid)
-
-	if info != nil {
-		var err5 = bbs.store_metainfo(object, info)
-		if err5 != nil {
-			return nil, err5
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
 		}
+		defer bbs.release_access(ctx, object, rid)
 	}
-	var err9 = bbs.place_uploaded(object, scratchkey)
-	if err9 != nil && info != nil {
-		var _ = bbs.store_metainfo(object, nil)
-	}
+
+	var err9 = bbs.place_uploaded_file(object, scratchkey, info)
 	if err9 != nil {
 		return nil, err9
 	}
@@ -534,11 +527,13 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		Checksum_algorithm: checksum,
 		Meta_info:          info}
 
-	var err4 = bbs.serialize_access(ctx, object, rid)
-	if err4 != nil {
-		return nil, err4
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
 	}
-	defer bbs.release_access(ctx, object, rid)
 
 	var err6 = bbs.create_mpul_directory(ctx, object, mpul)
 	if err6 != nil {

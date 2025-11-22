@@ -85,6 +85,12 @@ v1.1.1 code allowed nested tagging in values in the format
 tagging).
 
 
+## Timestamp of objects
+
+AWS-S3 only manages timestamps of objects in mtime.  Only buckets
+needs ctime and mtime.  An object's mtime is amended when it is
+created with multipart upload.
+
 ## Checksum
 
 Baby-server can only handle "types.ChecksumTypeFullObject".  A

@@ -239,16 +239,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	}
 	defer bbs.release_access(ctx, object, rid)
 
-	if info != nil {
-		var err5 = bbs.store_metainfo(object, info)
-		if err5 != nil {
-			return nil, nil, err5
-		}
-	}
-	var err6 = bbs.place_uploaded(object, scratchkey)
-	if err6 != nil && info != nil {
-		var _ = bbs.store_metainfo(object, nil)
-	}
+	var err6 = bbs.place_uploaded_file(object, scratchkey, info)
 	if err6 != nil {
 		return nil, nil, err6
 	}
@@ -330,7 +321,7 @@ func (bbs *Bb_server) discharge_scratch_file(object, scratchkey string) error {
 	return nil
 }
 
-func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchkey, uploadid string, partlist *types.CompletedMultipartUpload) error {
+func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchkey string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info) error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
@@ -338,10 +329,10 @@ func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchk
 
 	// Copy data to a temporary file.
 
-	var f1, err4 = os.Create(path)
-	if err4 != nil {
-		bbs.Logger.Info("os.Create() failed", "file", path, "error", err4)
-		return map_os_error(location, err4, nil)
+	var f1, err1 = os.Create(path)
+	if err1 != nil {
+		bbs.Logger.Info("os.Create() failed", "file", path, "error", err1)
+		return map_os_error(location, err1, nil)
 	}
 	var cleanup_needed = true
 	defer func() {
@@ -382,13 +373,43 @@ func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchk
 			return map_os_error(location, err3, nil)
 		}
 	}
+
+	var err4 = f1.Close()
+	if err4 != nil {
+		bbs.Logger.Warn("op.Close() failed", "file", path,
+			"error", err4)
+		// Ignore an error.
+	}
+
+	cleanup_needed = false
+
+	var err5 = os.Chtimes(path, time.Time{}, mpul.Timestamp)
+	if err5 != nil {
+		bbs.Logger.Warn("op.Chtimes() failed", "file", path,
+			"error", err5)
+		// Ignore an error.
+	}
+
 	return nil
 }
 
-func (bbs *Bb_server) place_uploaded(object, scratchkey string) error {
+func (bbs *Bb_server) place_uploaded_file(object, scratchkey string, info *Meta_info) error {
 	var location = "/" + object
 	var path1 = bbs.make_path_of_object(object, scratchkey)
 	var path2 = bbs.make_path_of_object(object, "")
+
+	if info != nil {
+		var err5 = bbs.store_metainfo(object, info)
+		if err5 != nil {
+			return err5
+		}
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed && info != nil {
+			var _ = bbs.store_metainfo(object, nil)
+		}
+	}()
 
 	var err8 = os.Rename(path1, path2)
 	if err8 != nil {
@@ -396,14 +417,14 @@ func (bbs *Bb_server) place_uploaded(object, scratchkey string) error {
 		var errz = map_os_error(location, err8, nil)
 		return errz
 	}
+	cleanup_needed = false
 
 	return nil
 }
 
-// CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL.  It
-// overtakes an existing directory when it already exists, and
-// rewrites its upload-id.  It creates an empty file in the directory,
-// which will later become a true file.  It is to keep ctime now.
+// CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL and
+// populates it with a info file.  It may overtake an existing
+// directory when it already exists, and rewrites its upload-id.
 func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, mpul *Mpul_info) error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
@@ -415,7 +436,7 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 		return err1
 	}
 
-	// Make (or overtake) an MPUL directory.
+	// Make or overtake a MPUL directory.
 
 	var stat, err2 = os.Lstat(path)
 	if err2 != nil {
@@ -428,8 +449,9 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 		}
 	}
 	if !stat.IsDir() {
-		bbs.Logger.Warn("MPUL path is not a directory", "path", path)
-		var errz = &Aws_s3_error{Code: AccessDenied,
+		bbs.Logger.Warn("A MPUL path is not a directory", "path", path)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message: "A MPUL path is not a directory",
 			Resource: location}
 		return errz
 	}
@@ -492,6 +514,13 @@ func (bbs *Bb_server) discharge_mpul_directory(object string) error {
 		return errz
 	}
 
+	var infopath = filepath.Join(path, "info")
+	var err3 = os.Remove(infopath)
+	if err3 != nil {
+		// Ignore an error.
+		bbs.Logger.Warn("os.Remove() failed on a MPUL info file",
+			"file", infopath, "error", err3)
+	}
 	var err4 = os.RemoveAll(path)
 	if err4 != nil {
 		bbs.Logger.Info("os.RemoveAll() failed on a MPUL directory",
@@ -783,19 +812,6 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 		fmt.Printf("extent==nil\n")
 		return f1, nil
 	} else {
-		/*
-			var pos, err1 = f1.Seek(extent[0], 0)
-			if err1 != nil {
-				return nil, err1
-			}
-			if pos < extent[0] {
-				log.Fatalf("os.Seek returned incomplete")
-				return nil, io.ErrUnexpectedEOF
-			}
-			var f2 = &io.LimitedReader{R: f1, N: extent[1] - extent[0]}
-			return f2, nil
-		*/
-
 		var f2, err3 = New_range_reader(f1, [2]int64(extent[0:2]))
 		return f2, err3
 	}
