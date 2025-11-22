@@ -29,6 +29,8 @@ type object_list_entry struct {
 	stat fs.FileInfo
 }
 
+const always_use_flat_lister = true
+
 // LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
 // works with regard to a directory hierarchy.  A start-index and a
 // start-marker indicates a start point.  Note the entries ReadDir()

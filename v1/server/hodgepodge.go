@@ -27,11 +27,11 @@ import (
 	"context"
 	//"errors"
 	"fmt"
-	"io/fs"
+	//"io/fs"
 	//"os"
+	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 	"path"
 	"time"
-	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 	//"bytes"
 	//"encoding/base64"
 	//"encoding/binary"
@@ -40,56 +40,29 @@ import (
 	//"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"log"
-	"log/slog"
+	//"log/slog"
 	"math/rand"
 	"net/http"
 	"net/url"
 	//"strconv"
 	"strings"
-	"sync"
+	//"sync"
 )
-
-type Bb_configuration struct {
-	Access_logging            bool
-	Anonymize_ower            bool
-	Verify_fs_write           bool
-	Pending_upload_expiration time.Duration
-	Server_controler_path     string
-
-	request_processing_timeout time.Duration
-
-	File_follow_link   bool
-	File_creation_mode fs.FileMode
-}
-
-type Bb_server struct {
-	pool_path string
-	Logger    *slog.Logger
-	AuthKey   string
-
-	Bb_config Bb_configuration
-
-	rid      int64
-	suffixes map[string]suffix_record
-	monitor1 *monitor
-	mutex    sync.Mutex
-
-	server_quit chan struct{}
-}
 
 type suffix_record struct {
 	rid       int64
 	timestamp time.Time
 }
 
-type Bb_mpul_record struct {
-	upload_id       int64
-	//o.AbortDate *time.Time
-	//o.AbortRuleId *string
-	timestamp time.Time
+type unsupported_checks struct {
+	expectedbucketowner *string
+	mfa                 *string
+	optionalobjectattributes  []types.OptionalObjectAttributes
+	partnumber *int32
+	requestpayer types.RequestPayer
+	storageclass        types.StorageClass
+	versionid           *string
 }
-
-const alwasy_use_flat_lister = true
 
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
@@ -265,13 +238,33 @@ func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return bucket, nil
 }
 
-func check_unsupported_options(object string, storageclass types.StorageClass) error {
-	var location = "/" + object
-	if storageclass != "" {
-		if storageclass != types.StorageClassStandard {
+func check_unsupported_options(unsupported *unsupported_checks) error {
+	if unsupported.mfa != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "MFA is not supported."}
+		return errz
+	}
+	if unsupported.expectedbucketowner != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "Expected-bucket-owner is not supported."}
+		return errz
+	}
+
+	if unsupported.partnumber != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "PartNumber is not supported."}
+		return errz
+	}
+
+	if unsupported.versionid != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "Version-ID is not supported."}
+		return errz
+	}
+	if unsupported.storageclass != "" {
+		if unsupported.storageclass != types.StorageClassStandard {
 			var errz = &Aws_s3_error{Code: InvalidStorageClass,
-				Message:  "Bad x-amz-storage-class",
-				Resource: location}
+				Message:  "Bad x-amz-storage-class."}
 			return errz
 		}
 	}

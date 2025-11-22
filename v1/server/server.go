@@ -9,13 +9,43 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"io/fs"
 	"os"
 	"path"
 	//"path/filepath"
 	"time"
+	"sync"
 )
 
 const Bb_version = "v1.2.1"
+
+type Bb_configuration struct {
+	Access_logging            bool
+	Anonymize_ower            bool
+	Verify_fs_write           bool
+	Pending_upload_expiration time.Duration
+	Server_controler_path     string
+
+	request_processing_timeout time.Duration
+
+	File_follow_link   bool
+	File_creation_mode fs.FileMode
+}
+
+type Bb_server struct {
+	pool_path string
+	Logger    *slog.Logger
+	AuthKey   string
+
+	Bb_config Bb_configuration
+
+	rid      int64
+	suffixes map[string]suffix_record
+	monitor1 *monitor
+	mutex    sync.Mutex
+
+	server_quit chan struct{}
+}
 
 type prior_handler struct {
 	bbs *Bb_server

@@ -31,6 +31,9 @@ import (
 type Meta_info struct {
 	Headers map[string]string
 	Tags    *types.Tagging
+	//ETag *string
+	//Checksum_algorithm types.ChecksumAlgorithm
+	//Checksum *string
 }
 
 type Mpul_info struct {
@@ -808,7 +811,7 @@ func (bbs *Bb_server) check_upload_id(object string, uploadid *string) (*Mpul_in
 	return mpul, nil
 }
 
-func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent []int64) (io.ReadCloser, error) {
+func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent *[2]int64) (io.ReadCloser, error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
