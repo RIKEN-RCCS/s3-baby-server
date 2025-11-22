@@ -52,6 +52,7 @@ type Mpul_catalog struct {
 
 type upload_checks struct {
 	location string
+	uploadid string
 	size int64
 	checksum types.ChecksumAlgorithm
 	md5_to_check []byte
@@ -233,11 +234,29 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	// meta-info file.  Failing to place an uploaded file will lose
 	// old meta-info.
 
-	var err4 = bbs.serialize_access(ctx, object, rid)
-	if err4 != nil {
-		return nil, nil, err4
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
 	}
-	defer bbs.release_access(ctx, object, rid)
+
+	// Recheck the upload-id after serialization.
+
+	if check.uploadid != "" {
+		var mpul, err4 = bbs.fetch_mpul_info(object)
+		if err4 != nil {
+			var errz = &Aws_s3_error{Code: NoSuchUpload,
+				Resource: location}
+			return nil, nil, errz
+		}
+		if mpul.Upload_id != check.uploadid {
+			var errz = &Aws_s3_error{Code: NoSuchUpload,
+				Resource: location}
+			return nil, nil, errz
+		}
+	}
 
 	var err6 = bbs.place_uploaded_file(object, scratchkey, info)
 	if err6 != nil {
@@ -817,15 +836,24 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 	}
 }
 
-func (bbs *Bb_server) fetch_file_stat(object string) (fs.FileInfo, error) {
+// Takes a stat() on an object.  It is used to check the existence of
+// an object.
+func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
 	var stat, err1 = os.Lstat(path)
 	if err1 != nil {
-		bbs.Logger.Info("os.Lstat() failed in fetch_file_stat",
+		bbs.Logger.Info("os.Lstat() failed on an object",
 			"file", path, "error", err1)
-		return nil, map_os_error(location, err1, nil)
+		if errors.Is(err1, fs.ErrNotExist) {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "No object as named.",
+				Resource: location}
+			return nil, errz
+		} else {
+			return nil, map_os_error(location, err1, nil)
+		}
 	}
 	return stat, nil
 }

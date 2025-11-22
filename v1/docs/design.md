@@ -93,6 +93,11 @@ created with multipart upload.
 
 ## Checksum
 
-Baby-server can only handle "types.ChecksumTypeFullObject".  A
-checksum in a request is ignored when it is not the case.  A returned
-checksum is always for full object.
+Baby-server can only handle "types.ChecksumTypeFullObject".  A request
+of a checksum is ignored when it is not the case.  A returned checksum
+is always for full object.
+
+Baby-server records minimal metadata.  It discards metadata except for
+explicitly provided tags and headers.  Especially, it does not record
+checksums or checksum algorithms, too.  It returns checksums of
+CRC64NVME in spite of an algorithm specified at "PutObject".

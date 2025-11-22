@@ -271,7 +271,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 
 	var _, err7 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
-		nil, nil)
+		nil, nil, md5)
 	if err7 != nil {
 		return nil, err7
 	}
@@ -572,7 +572,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteBucket(ctx context.Context, params *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, error) {
+func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, error) {
 	fmt.Printf("*DeleteBucket*\n")
 	var o = s3.DeleteBucketOutput{}
 
@@ -580,12 +580,64 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, params *s3.DeleteBucketI
 	// i.Bucket *string
 	// i.ExpectedBucketOwner *string
 
-	// o.ResultMetadata middleware.Metadata
+	var bucket, err1 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	if err1 != nil {
+		return nil, err1
+	}
+	var object = bucket
+	var location = "/" + object
+
+	var rid int64 = get_request_id(ctx)
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var path = bbs.make_path_of_bucket(bucket)
+	var err2 = os.Remove(path)
+
+	// Check some objects remain, when removing has failed.
+
+	if err2 != nil {
+		var filelist, err3 = os.ReadDir(path)
+		if err3 != nil {
+			//if errors.Is(err3, fs.ErrNotExist)
+			bbs.Logger.Info("Reading in a bucket failed",
+				"path", path, "error", err3)
+			var errz = &Aws_s3_error{Code: InternalError,
+				Message: "Listing in a bucket failed.",
+				Resource: location}
+			return nil, errz
+		}
+		for _, e := range filelist {
+			if strings.HasPrefix(e.Name(), ".") {
+				continue
+			}
+			var errz = &Aws_s3_error{Code: BucketNotEmpty,
+				Resource: location}
+			return nil, errz
+		}
+
+		// Nothing but files start with a dot.  Remove them.
+
+		var err4 = os.RemoveAll(path)
+		if err4 != nil {
+			bbs.Logger.Info("os.RemoveAll() failed", "path", path,
+				"error", err4)
+			var errz = &Aws_s3_error{Code: BucketNotEmpty,
+				Resource: location}
+			return nil, errz
+		}
+	}
 
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
 	fmt.Printf("*DeleteObject*\n")
 	var o = s3.DeleteObjectOutput{}
 
@@ -601,10 +653,75 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, params *s3.DeleteObjectI
 	// i.RequestPayer types.RequestPayer
 	// i.VersionId *string
 
+	var object, err1 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err1 != nil {
+		return nil, err1
+	}
+	var location = "/" + object
+	var stat, err2 = bbs.fetch_object_status(object)
+	if err2 != nil {
+		return nil, err2
+	}
+
+	var md5, _, err3 = bbs.calculate_csum2("", object, "")
+	if err3 != nil {
+		return nil, err3
+	}
+
+	var _, err4 = bbs.check_conditions(ctx, i.IfMatch, nil,
+		nil, nil, md5)
+	if err4 != nil {
+		return nil, err4
+	}
+
+	if i.VersionId != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "Versioning is not supported."}
+		return nil, errz
+	}
+	if i.IfMatchSize != nil {
+		var size = stat.Size()
+		if size != *i.IfMatchSize {
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "x-amz-if-match-size does not match."}
+			return nil, errz
+		}
+	}
+	if i.IfMatchLastModifiedTime != nil {
+		var mtime = stat.ModTime()
+		if mtime != *i.IfMatchLastModifiedTime {
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "x-amz-if-match-last-modified-time does not match."}
+			return nil, errz
+		}
+	}
+
+	var rid int64 = get_request_id(ctx)
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var err5 = bbs.store_metainfo(object, nil)
+	if err5 != nil {
+		return nil, err5
+	}
+	var path = bbs.make_path_of_object(object, "")
+	var err6 = os.Remove(path)
+	if err6 != nil {
+		bbs.Logger.Warn("os.Remove() failed on an object",
+			"file", path, "error", err6)
+		var errz = map_os_error(location, err6, nil)
+		return nil, errz
+	}
+
 	// o.DeleteMarker *bool
 	// o.RequestCharged types.RequestCharged
 	// o.VersionId *string
-	// o.ResultMetadata middleware.Metadata
 
 	return &o, nil
 }
@@ -679,8 +796,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err1
 	}
 	var location = "/" + object
-
-	var stat, err2 = bbs.fetch_file_stat(object)
+	var stat, err2 = bbs.fetch_object_status(object)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -714,7 +830,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	o.ETag = make_etag_from_md5(md5)
 
 	var _, err5 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
-		i.IfModifiedSince, i.IfUnmodifiedSince)
+		i.IfModifiedSince, i.IfUnmodifiedSince, md5)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -754,48 +870,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 			o.ExpiresString = &expires
 		}
 	}
-
-	/*
-		s := model.GetObjectState{}
-		if err := s3.validateGetObjectOptions(option); err != nil {
-			return nil, err
-		}
-		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-			return nil, InvalidBucketName()
-		}
-		if err := s3.isBucketAndKeyExists(option.GetBucket(), option.GetPath()); err != nil {
-			return nil, err
-		}
-		if !s3.FileSystem.checkKeyName(option.GetKey()) {
-			return nil, KeyTooLongError()
-		}
-		if s.Content = s3.FileSystem.readFile(option.GetPath()); s.Content == nil {
-			return nil, InternalError()
-		}
-		var s3err *S3Error
-		if s.Info, s.ETag, s3err = s3.getFileInfoAndETag(option.GetPath()); s3err != nil {
-			return nil, s3err
-		}
-		if s3err = s3.validateETagAndTime(option); s3err != nil {
-			return nil, s3err
-		}
-		if s.ContentRange, s.Content, s3err = s3.getRangeContent(option, s.Content); s3err != nil {
-			return nil, s3err
-		}
-		if !s3.getPartNumberContent(option) {
-			return nil, InvalidArgument()
-		}
-		if s.ResponseCrc64nvme, s3err = s3.checkChecksumMode(option, s.Content); s3err != nil {
-			return nil, s3err
-		}
-		s.TagCount, s.MissingMeta = s3.Tag.getTagCount(option.GetPath())
-		result := s.MakeGetObjectResult()
-		result.ContentDisposition = option.GetOption("response-content-disposition")
-		result.ContentEncoding = option.GetOption("response-content-encoding")
-		result.ContentLanguage = option.GetOption("response-content-language")
-		result.ContentType = option.GetOption("response-content-type")
-		return result, nil
-	*/
 
 	return &o, nil
 }
@@ -881,27 +955,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		return nil, err1
 	}
 	var location = "/" + object
-
-	if i.IfMatch != nil || i.IfNoneMatch != nil {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "if-match and if-none-match are unsupported"}
-		return nil, errz
-	}
-	if i.IfModifiedSince != nil || i.IfUnmodifiedSince != nil {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "if-modified-since and if-unmodified-since are unsupported"}
-		return nil, errz
-	}
-
-	if i.PartNumber != nil && *i.PartNumber != 1 {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message: "PartNumber should be one always."}
-		return nil, errz
-	}
-	var one int32 = 1
-	o.PartsCount = &one
-
-	var stat, err2 = bbs.fetch_file_stat(object)
+	var stat, err2 = bbs.fetch_object_status(object)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -911,6 +965,33 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	if err3 != nil {
 		return nil, err3
 	}
+
+	if i.PartNumber != nil && *i.PartNumber != 1 {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "PartNumber should be one always."}
+		return nil, errz
+	}
+
+	var checksum = types.ChecksumAlgorithmCrc64nvme
+	var md5, csum, err4 = bbs.calculate_csum2(checksum, object, "")
+	if err4 != nil {
+		return nil, err4
+	}
+
+	var _, err5 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
+		i.IfModifiedSince, i.IfUnmodifiedSince, md5)
+	if err5 != nil {
+		return nil, err5
+	}
+
+	var info, err6 = bbs.fetch_metainfo(ctx, object)
+	if err6 != nil {
+		return nil, err6
+	}
+
+	var mtime = stat.ModTime()
+	o.LastModified = &mtime
+
 	if extent != nil {
 		var length = extent[1] - extent[0]
 		o.ContentLength = &length
@@ -919,14 +1000,9 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	} else {
 		o.ContentLength = &size
 	}
-	var mtime = stat.ModTime()
-	o.LastModified = &mtime
+	var one int32 = 1
+	o.PartsCount = &one
 
-	var checksum = types.ChecksumAlgorithmCrc64nvme
-	var md5, csum, err4 = bbs.calculate_csum2(checksum, object, "")
-	if err4 != nil {
-		return nil, err4
-	}
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		o.ChecksumType = types.ChecksumTypeFullObject
 		var crc = base64.StdEncoding.EncodeToString(csum)
@@ -934,19 +1010,15 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	}
 	o.ETag = make_etag_from_md5(md5)
 
-	var info, err5 = bbs.fetch_metainfo(ctx, object)
-	if err5 != nil {
-		return nil, err5
-	}
 	if info != nil {
 		// Always leave "MissingMeta" nil for zero.
 		o.Metadata = info.Headers
 		o.MissingMeta = nil
-	}
-	if info != nil && info.Tags != nil {
-		var count = int32(len(info.Tags.TagSet))
-		if count > 0 {
-			o.TagCount = &count
+		if info.Tags != nil {
+			var count = int32(len(info.Tags.TagSet))
+			if count > 0 {
+				o.TagCount = &count
+			}
 		}
 	}
 
@@ -982,47 +1054,6 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	// o.ServerSideEncryption types.ServerSideEncryption
 	// o.VersionId *string
 	// o.WebsiteRedirectLocation *string
-
-	/*
-		s := model.GetObjectState{}
-		if err := s3.validateGetObjectOptions(option); err != nil {
-			return nil, err
-		}
-		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-			return nil, InvalidBucketName()
-		}
-		path := option.GetPath()
-		if err := s3.isBucketAndKeyExists(option.GetBucket(), path); err != nil {
-			return nil, err
-		}
-		if !s3.FileSystem.checkKeyName(option.GetKey()) {
-			return nil, KeyTooLongError()
-		}
-		if s.Content = s3.FileSystem.readFile(path); s.Content == nil {
-			return nil, InternalError()
-		}
-		var s3err *S3Error
-		if s.Info, s.ETag, s3err = s3.getFileInfoAndETag(path); s3err != nil {
-			return nil, s3err
-		}
-		if s3err = s3.validateETagAndTime(option); s3err != nil {
-			return nil, s3err
-		}
-		if s.ContentRange, s.Content, s3err = s3.getRangeContent(option, s.Content); s3err != nil {
-			return nil, s3err
-		}
-		if !s3.getPartNumberContent(option) {
-			return nil, InvalidArgument()
-		}
-		if s.ResponseCrc64nvme, s3err = s3.checkChecksumMode(option, s.Content); s3err != nil {
-			return nil, s3err
-		}
-		result := s.MakeHeadObjectResult()
-		result.ContentDisposition = option.GetOption("response-content-disposition")
-		result.ContentEncoding = option.GetOption("response-content-encoding")
-		result.ContentLanguage = option.GetOption("response-content-language")
-		result.ContentType = option.GetOption("response-content-type")
-	*/
 
 	return &o, nil
 }
@@ -1253,42 +1284,6 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 		o.Prefix = i.Prefix
 	}
 
-	/*
-		s := model.ListObjectsState{MaxKeys: 1000}
-		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-			return nil, InvalidBucketName()
-		}
-		s.Bucket = option.GetBucket()
-		if !s3.FileSystem.isFileExists(s.Bucket) {
-			return nil, NoSuchBucket()
-		}
-		s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
-		if v := option.GetOption("max-keys"); v != "" {
-			if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
-				s.MaxKeys = 1000
-			}
-		}
-		if v := option.GetOption("prefix"); v != "" {
-			s.Prefix = v
-		}
-		if v := option.GetOption("marker"); v != "" {
-			s.Marker = strings.ReplaceAll(v, "/", "\\")
-		}
-		if v := option.GetOption("delimiter"); v == "/" {
-			s.Delimiter = filepath.FromSlash(v)
-		}
-		var s3err *S3Error
-		if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
-			return nil, s3err
-		}
-		res, responseRes := s3.listObjects(s)
-		if res == nil {
-			return nil, NotImplemented()
-		}
-		result := s.MakeListObjectsResult(*responseRes)
-		result.Contents = *res
-	*/
-
 	return &o, nil
 }
 
@@ -1399,48 +1394,6 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 		o.Prefix = i.Prefix
 		o.StartAfter = i.StartAfter
 	}
-
-	/*
-		s := model.ListObjectsState{MaxKeys: 1000, V2Flg: true}
-		s.Bucket = option.GetBucket()
-		if !s3.FileSystem.checkBucketName(s.Bucket) {
-			return nil, InvalidBucketName()
-		}
-		if !s3.FileSystem.isFileExists(s.Bucket) {
-			return nil, NoSuchBucket()
-		}
-		s.BucketAPath = s3.FileSystem.getFullPath(s.Bucket)
-		if v := option.GetOption("max-keys"); v != "" {
-			if s.MaxKeys = utils.ToInt(v); s.MaxKeys > 1000 { // max-keysの上限は1000
-				s.MaxKeys = 1000
-			}
-		}
-		if v := option.GetOption("prefix"); v != "" {
-			s.Prefix = v
-		}
-		if v := option.GetOption("start-after"); v != "" {
-			v = strings.ReplaceAll(v, "/", "\\")
-			s.StartAfter = v
-		}
-		if v := option.GetOption("delimiter"); v == "/" {
-			s.Delimiter = filepath.FromSlash(v)
-		}
-		var s3err *S3Error
-		if s.URLFlag, s3err = s3.checkEncodingType(option); s3err != nil {
-			return nil, s3err
-		}
-		if v := option.GetOption("continuation-token"); v != "" {
-			if s.ContinuationToken, s.Target = s3.FileSystem.decodeContinuationToken(v); s.Target == 0 {
-				return nil, InternalError()
-			}
-		}
-		res, responseRes := s3.listObjects(s)
-		if res == nil {
-			return nil, NotImplemented()
-		}
-		result := s.MakeListObjectsV2Result(*responseRes)
-		result.Contents = *res
-	*/
 
 	return &o, nil
 }
@@ -1615,11 +1568,13 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	var check = upload_checks{
 		location:       location,
+		uploadid:	    "",
 		size:           size,
 		checksum:       checksum,
 		md5_to_check:   md5_to_check,
 		csum_to_check:  csum_to_check,
-		etag_condition: [2]*string{i.IfMatch, i.IfNoneMatch}}
+		etag_condition: [2]*string{i.IfMatch, i.IfNoneMatch},
+	}
 	var md5, csum, err6 = bbs.upload_file(ctx, object, scratchkey, info,
 		check, i.Body)
 	if err6 != nil {
@@ -1657,28 +1612,6 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
 	// o.VersionId *string
-
-	/*
-		if f := s3.FileSystem.uploadFile(option.GetBody(), option.GetPath()); !f {
-			return nil, InternalError()
-		}
-
-		if err := s3.Tag.putTagging(option, option.GetPath()); err != nil {
-			return nil, err
-		}
-
-		var s3err *S3Error
-		if s.ETag, s3err = s3.getETag(option.GetPath()); s3err != nil {
-			return nil, InternalError()
-		}
-		if s3err = s3.compareMd5(option, nil, s.ETag); s3err != nil {
-			return nil, s3err
-		}
-		if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, ""); s3err != nil {
-			return nil, s3err
-		}
-		result := s.MakePutObjectResult()
-	*/
 
 	return &o, nil
 }
@@ -1751,6 +1684,11 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		}
 	*/
 
+	var mpul, err2 = bbs.check_upload_id(object, i.UploadId)
+	if err2 != nil {
+		return nil, err2
+	}
+
 	var part int32
 	if i.PartNumber == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -1759,20 +1697,6 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		return nil, errz
 	} else {
 		part = *i.PartNumber
-		if part < 1 || max_part_number < part {
-			var errz = &Aws_s3_error{Code: InvalidPart,
-				Resource: location}
-			return nil, errz
-		}
-	}
-	var uploadid string
-	if i.UploadId == nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "UploadId missing.",
-			Resource: location}
-		return nil, errz
-	} else {
-		uploadid = *i.UploadId
 		if part < 1 || max_part_number < part {
 			var errz = &Aws_s3_error{Code: InvalidPart,
 				Resource: location}
@@ -1838,27 +1762,16 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	var scratchkey = bbs.make_file_suffix(rid)
 	defer bbs.discharge_file_suffix(rid)
 
-	var mpul, err4 = bbs.fetch_mpul_info(object)
-	if err4 != nil {
-		// AHO
-		var errz = &Aws_s3_error{Code: NoSuchUpload,
-			Resource: location}
-		return nil, errz
-	}
-	if mpul.Upload_id != uploadid {
-		var errz = &Aws_s3_error{Code: InvalidPart,
-			Resource: location}
-		return nil, errz
-	}
-
 	var partobject = make_part_object_name(object, part)
 
 	var check = upload_checks{
 		location:      location,
+		uploadid:	   mpul.Upload_id,
 		size:          size,
 		checksum:      checksum,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
+		etag_condition: [2]*string{nil, nil},
 	}
 	var md5, csum, err6 = bbs.upload_file(ctx, partobject, scratchkey, nil,
 		check, i.Body)
@@ -1868,7 +1781,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 	if checksum != "" {
 		var csum1 = base64.StdEncoding.EncodeToString(csum)
-		switch i.ChecksumAlgorithm {
+		switch checksum {
 		case types.ChecksumAlgorithmCrc32:
 			o.ChecksumCRC32 = &csum1
 		case types.ChecksumAlgorithmCrc32c:
@@ -1888,56 +1801,11 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	}
 
 	// o.BucketKeyEnabled *bool
-	// o.ChecksumCRC32 *string
-	// o.ChecksumCRC32C *string
-	// o.ChecksumCRC64NVME *string
-	// o.ChecksumSHA1 *string
-	// o.ChecksumSHA256 *string
-	// o.ETag *string
 	// o.RequestCharged types.RequestCharged
 	// o.SSECustomerAlgorithm *string
 	// o.SSECustomerKeyMD5 *string
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
-
-	/*
-		s := model.PutObjectState{}
-		partNum := option.GetOption("partNumber")
-		if !utils.CheckPartNumber(partNum) {
-			return nil, InvalidArgument()
-		}
-		if !s3.FileSystem.checkBucketName(option.GetBucket()) {
-			return nil, InvalidBucketName()
-		}
-		if b := option.GetBucket(); !s3.FileSystem.isFileExists(b) {
-			return nil, NoSuchBucket()
-		}
-		if !s3.FileSystem.checkKeyName(option.GetKey()) {
-			return nil, KeyTooLongError()
-		}
-		if !s3.FileSystem.canCreateFile(s3.FileSystem.getFullPath(option.GetPath())) {
-			return nil, InternalError()
-		}
-		id := option.GetOption("uploadId")
-		if !s3.FileSystem.isFileExists(s3.FileSystem.getUploadIDPath(id)) {
-			return nil, NoSuchUpload()
-		}
-		pNumPath := s3.FileSystem.getPartNumberPath(id, partNum)
-		if f := s3.FileSystem.uploadFile(option.GetBody(), pNumPath); !f {
-			return nil, InternalError()
-		}
-		var s3err *S3Error
-		if s.ETag, s3err = s3.getETag(pNumPath); s3err != nil {
-			return nil, InternalError()
-		}
-		if s3err = s3.compareMd5(option, nil, s.ETag); s3err != nil {
-			return nil, s3err
-		}
-		if s.ChecksumAlgorithm, s.ChecksumValue, s3err = s3.getChecksumMode(option, pNumPath); s3err != nil {
-			return nil, s3err
-		}
-		result := s.MakePutObjectResult()
-	*/
 
 	return &o, nil
 }
