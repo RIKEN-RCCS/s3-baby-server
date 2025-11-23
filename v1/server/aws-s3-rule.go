@@ -6,6 +6,7 @@ package server
 
 import (
 	"regexp"
+	"strings"
 )
 
 const list_buckets_limit = 10000
@@ -67,8 +68,30 @@ func check_bucket_naming(name string) bool {
 
 // - [Naming Amazon S3 objects]
 //   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+//
+//    The object key name consists of a sequence of Unicode characters
+//    encoded in UTF-8, with a maximum length of 1,024 bytes or
+//    approximately 1,024 Latin characters.
 
+const object_name_limit = 1000
+
+// A list of avoidable characters in [Object key naming guidelines].
+
+var object_naming_avoided_set = (`"#%<>[\]^{|}~` + "`")
+
+// CHECK_OBJECT_NAMING checks the naming rules.  A passed name is a
+// url path (passed as decoded) and expected as normalized.
 func check_object_naming(name string) bool {
+	if len(name) > object_name_limit {
+		return false
+	}
+	if strings.ContainsAny(name, object_naming_avoided_set) {
+		return false
+	}
+	var s1 = strings.Split(name, "/")
+	if !(len(s1) >= 1 && s1[len(s1) - 1] != "") {
+		return false
+	}
 	return true
 }
 

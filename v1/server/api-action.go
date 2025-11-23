@@ -28,7 +28,7 @@ import (
 	//"log/slog"
 	//"math/rand"
 	//"net/http"
-	//"net/url"
+	"net/url"
 	"strconv"
 	"strings"
 	//"sync"
@@ -264,14 +264,14 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	var scratchkey = bbs.make_file_suffix(rid)
 	defer bbs.discharge_file_suffix(rid)
 
-	var err5 = bbs.concat_parts_scratch(ctx, object, scratchkey, partlist, mpul)
+	var err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul)
 	if err5 != nil {
 		return nil, err5
 	}
 	var cleanup_needed = true
 	defer func() {
 		if cleanup_needed {
-			bbs.discharge_scratch_file(object, scratchkey)
+			bbs.discard_scratch_file(object, scratchkey)
 		}
 	}()
 
@@ -304,7 +304,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var err9 = bbs.place_uploaded_file(object, scratchkey, info)
+	var err9 = bbs.place_scratch_file(object, scratchkey, info)
 	if err9 != nil {
 		return nil, err9
 	}
@@ -359,7 +359,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	return &o, nil
 }
 
-func (bbs *Bb_server) CopyObject(ctx context.Context, params *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
+func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
 	fmt.Printf("*CopyObject*\n")
 	var o = s3.CopyObjectOutput{}
 
@@ -406,8 +406,131 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, params *s3.CopyObjectInput
 	// i.TaggingDirective types.TaggingDirective
 	// i.WebsiteRedirectLocation *string
 
+	var unsupported = unsupported_checks {
+		// i.CopySource *string
+		// i.ACL types.ObjectCannedACL
+		// i.BucketKeyEnabled *bool
+		// i.CacheControl *string
+		// i.ChecksumAlgorithm types.ChecksumAlgorithm
+		// i.ContentDisposition *string
+		// i.ContentEncoding *string
+		// i.ContentLanguage *string
+		// i.ContentType *string
+		// i.CopySourceSSECustomerAlgorithm *string
+		// i.ExpectedBucketOwner *string
+		// i.ExpectedSourceBucketOwner *string
+		// i.Expires *time.Time
+		// i.GrantFullControl *string
+		// i.GrantRead *string
+		// i.GrantReadACP *string
+		// i.GrantWriteACP *string
+		// i.MetadataDirective types.MetadataDirective
+		// i.ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
+		// i.ObjectLockMode types.ObjectLockMode
+		// i.ObjectLockRetainUntilDate *time.Time
+		// i.RequestPayer types.RequestPayer
+		// i.SSECustomerAlgorithm *string
+		// i.ServerSideEncryption types.ServerSideEncryption
+		// i.TaggingDirective types.TaggingDirective
+		// i.WebsiteRedirectLocation *string
+	}
+	var err1 = check_unsupported_options(&unsupported)
+	if err1 != nil {
+		return nil, err1
+	}
+	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err2 != nil {
+		return nil, err2
+	}
+
+	if i.CopySource == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "No x-amz-copy-source supplied."}
+		return nil, errz
+	}
+	var u, err3 = url.Parse(*i.CopySource)
+	if err3 != nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "Bad x-amz-copy-source."}
+		return nil, errz
+	}
+	var source = u.Path
+
+	{
+		var d1 = strings.Split(object, "/")
+		var s1 = strings.Split(source, "/")
+		if check_object_naming(source) {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad x-amz-copy-source."}
+			return nil, errz
+		}
+		if !(len(d1) >= 2 && len(s1) >= 2 && d1[0] == s1[0]) {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "x-amz-copy-source must be in the same bucket."}
+			return nil, errz
+		}
+	}
+
+	var _, info, err4 = bbs.check_object_status(source)
+	if err4 != nil {
+		return nil, err4
+	}
+
+	var rid int64 = get_request_id(ctx)
+	var scratchkey = bbs.make_file_suffix(rid)
+	defer bbs.discharge_file_suffix(rid)
+
+	var err6 = bbs.copy_file_as_scratch(ctx, object, scratchkey, source)
+	if err6 != nil {
+		return nil, err6
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(object, scratchkey)
+		}
+	}()
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var md5, _, err7 = bbs.calculate_csum2("", object, scratchkey)
+	if err7 != nil {
+		return nil, err7
+	}
+
+	var err9 = bbs.place_scratch_file(object, scratchkey, info)
+	if err9 != nil {
+		return nil, err9
+	}
+
+	var d_stat, err10 = bbs.fetch_object_status(object)
+	if err10 != nil {
+		return nil, err10
+	}
+
+	var mtime = d_stat.ModTime()
+	var etag = make_etag_from_md5(md5)
+
+	o.CopyObjectResult = &types.CopyObjectResult {
+		// ChecksumCRC32 *string
+		// ChecksumCRC32C *string
+		// ChecksumCRC64NVME *string
+		// ChecksumSHA1 *string
+		// ChecksumSHA256 *string
+		// ChecksumType ChecksumType
+		ETag: etag,
+		LastModified: &mtime,
+	}
+
+	cleanup_needed = false
+
 	// o.BucketKeyEnabled *bool
-	// o.CopyObjectResult *types.CopyObjectResult
 	// o.CopySourceVersionId *string
 	// o.Expiration *string
 	// o.RequestCharged types.RequestCharged
@@ -417,7 +540,6 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, params *s3.CopyObjectInput
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
 	// o.VersionId *string
-	// o.ResultMetadata middleware.Metadata
 
 	return &o, nil
 }
@@ -706,7 +828,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 		return nil, err2
 	}
 	var location = "/" + object
-	var _, err3 = bbs.fetch_object_status(object)
+	var _, _, err3 = bbs.check_object_status(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -833,7 +955,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err2
 	}
 	var location = "/" + object
-	var stat, err3 = bbs.fetch_object_status(object)
+	var stat, info, err3 = bbs.check_object_status(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -858,11 +980,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
 	if err7 != nil {
 		return nil, err7
-	}
-
-	var info, err8 = bbs.fetch_metainfo(ctx, object)
-	if err8 != nil {
-		return nil, err8
 	}
 
 	if extent != nil {
@@ -1034,7 +1151,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		return nil, err2
 	}
 	var location = "/" + object
-	var stat, err3 = bbs.fetch_object_status(object)
+	var stat, info, err3 = bbs.check_object_status(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1055,11 +1172,6 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		i.IfModifiedSince, i.IfUnmodifiedSince, md5)
 	if err6 != nil {
 		return nil, err6
-	}
-
-	var info, err7 = bbs.fetch_metainfo(ctx, object)
-	if err7 != nil {
-		return nil, err7
 	}
 
 	var mtime = stat.ModTime()

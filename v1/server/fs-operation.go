@@ -193,14 +193,14 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	}
 
 	var size int64 = check.size
-	var err2 = bbs.upload_scratch_file(object, scratchkey, size, body)
+	var err2 = bbs.upload_file_as_scratch(object, scratchkey, size, body)
 	if err2 != nil {
 		return nil, nil, err2
 	}
 	var cleanup_needed = true
 	defer func() {
 		if cleanup_needed {
-			bbs.discharge_scratch_file(object, scratchkey)
+			bbs.discard_scratch_file(object, scratchkey)
 		}
 	}()
 
@@ -261,7 +261,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 		}
 	}
 
-	var err6 = bbs.place_uploaded_file(object, scratchkey, info)
+	var err6 = bbs.place_scratch_file(object, scratchkey, info)
 	if err6 != nil {
 		return nil, nil, err6
 	}
@@ -270,11 +270,11 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	return md5, csum, nil
 }
 
-// UPLOAD_SCRATCH_FILE stores the contents as a scratch file.  The
+// UPLOAD_FILE_AS_SCRATCH stores the contents as a scratch file.  The
 // work of renaming a scratch file to an actual file will be done in
 // serialization.  Also, renaming should be in coordination with the
 // the meta-info file.
-func (bbs *Bb_server) upload_scratch_file(object, scratchkey string, size int64, body io.Reader) error {
+func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int64, body io.Reader) error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
@@ -319,9 +319,9 @@ func (bbs *Bb_server) upload_scratch_file(object, scratchkey string, size int64,
 	return nil
 }
 
-// DISCHARGE_SCRATCH_FILE removes a scratch file and a metainfo file.
+// DISCARD_SCRATCH_FILE removes a scratch file and a metainfo file.
 // Errors are ignored.
-func (bbs *Bb_server) discharge_scratch_file(object, scratchkey string) error {
+func (bbs *Bb_server) discard_scratch_file(object, scratchkey string) error {
 	var path1 = bbs.make_path_of_object(object, scratchkey)
 	var err1 = os.Remove(path1)
 	if err1 != nil {
@@ -343,7 +343,7 @@ func (bbs *Bb_server) discharge_scratch_file(object, scratchkey string) error {
 	return nil
 }
 
-func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchkey string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info) error {
+func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scratchkey string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info) error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
@@ -382,17 +382,23 @@ func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchk
 		var part = *p.PartNumber
 		var partname = make_part_name(part)
 		var partpath = filepath.Join(mpulpath, partname)
-		var f2, err2 = os.Create(partpath)
-		if err2 != nil {
+		var f2, err1 = os.Open(partpath)
+		if err1 != nil {
 			bbs.Logger.Warn("os.Open() failed for MPUL data",
+				"file", partpath, "error", err1)
+			return map_os_error(location, err1, nil)
+		}
+		var _, err2 = io.Copy(f1, f2)
+		if err2 != nil {
+			bbs.Logger.Warn("io.Copy() failed for MPUL data",
 				"file", partpath, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
-		var _, err3 = io.Copy(f1, f2)
+		var err3 = f2.Close()
 		if err3 != nil {
-			bbs.Logger.Warn("io.Copy() failed for MPUL data",
-				"file", partpath, "error", err3)
-			return map_os_error(location, err3, nil)
+			bbs.Logger.Warn("op.Close() failed", "file", partpath,
+				"error", err3)
+			// Ignore an error.
 		}
 	}
 
@@ -415,7 +421,65 @@ func (bbs *Bb_server) concat_parts_scratch(ctx context.Context, object, scratchk
 	return nil
 }
 
-func (bbs *Bb_server) place_uploaded_file(object, scratchkey string, info *Meta_info) error {
+func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchkey string, source string) error {
+	var location = "/" + object
+	var path = bbs.make_path_of_object(object, scratchkey)
+
+	bbs.Logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")
+
+	// Copy data to a temporary file.
+
+	var f1, err1 = os.Create(path)
+	if err1 != nil {
+		bbs.Logger.Info("os.Create() failed", "file", path, "error", err1)
+		return map_os_error(location, err1, nil)
+	}
+	var cleanup_needed = true
+	defer func() {
+		var err2 = f1.Close()
+		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err2)
+		}
+		if cleanup_needed {
+			var _ = os.Remove(path)
+		}
+	}()
+
+	{
+		var sourcepath = bbs.make_path_of_object(source, "")
+		var f2, err1 = os.Create(sourcepath)
+		if err1 != nil {
+			bbs.Logger.Warn("os.Open() failed for CopyObject",
+				"file", sourcepath, "error", err1)
+			return map_os_error(location, err1, nil)
+		}
+		var _, err2 = io.Copy(f1, f2)
+		if err2 != nil {
+			bbs.Logger.Warn("io.Copy() failed for CopyObject",
+				"file", sourcepath, "error", err2)
+			return map_os_error(location, err2, nil)
+		}
+		var err3 = f1.Close()
+		if err3 != nil {
+			bbs.Logger.Warn("op.Close() failed", "file", path,
+				"error", err3)
+			// Ignore an error.
+		}
+	}
+
+	var err4 = f1.Close()
+	if err4 != nil {
+		bbs.Logger.Warn("op.Close() failed", "file", path,
+			"error", err4)
+		// Ignore an error.
+	}
+
+	cleanup_needed = false
+	return nil
+}
+
+func (bbs *Bb_server) place_scratch_file(object, scratchkey string, info *Meta_info) error {
 	var location = "/" + object
 	var path1 = bbs.make_path_of_object(object, scratchkey)
 	var path2 = bbs.make_path_of_object(object, "")
@@ -591,7 +655,7 @@ func (bbs *Bb_server) make_intermediate_directories(object string) error {
 
 // Fetches a meta-info file.  It returns nil if meta-info does not
 // exist.  (The object path is guaranteed its properness).
-func (bbs *Bb_server) fetch_metainfo(ctx context.Context, object string) (*Meta_info, error) {
+func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "meta")
 
@@ -841,6 +905,19 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 
 // Takes a stat() on an object.  It is used to check the existence of
 // an object.
+func (bbs *Bb_server) check_object_status(object string) (fs.FileInfo, *Meta_info, error) {
+	var stat, err1 = bbs.fetch_object_status(object)
+	if err1 != nil {
+		return nil, nil, err1
+	}
+	var info, err2 = bbs.fetch_metainfo(object)
+	if err2 != nil {
+		return nil, nil, err2
+	}
+	return stat, info, nil
+}
+
+// Takes a stat() on an object.  Non-regular files are not an object.
 func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
@@ -857,6 +934,20 @@ func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, error) {
 		} else {
 			return nil, map_os_error(location, err1, nil)
 		}
+	}
+	var mode = stat.Mode()
+	switch {
+	case mode.IsRegular():
+		// OK.
+	case mode&fs.ModeSymlink != 0:
+		fallthrough
+	default:
+		bbs.Logger.Info("An object path is not a regular file",
+			"file", path, "mode", mode)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "No object as named.",
+			Resource: location}
+		return nil, errz
 	}
 	return stat, nil
 }

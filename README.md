@@ -23,13 +23,18 @@ than "application/octet-stream".
 
 ## Restrictions
 
-- File names cannot begin with a dot ("."), they are hidden.
+- Object names cannot begin with a dot (".").  They are hidden, and
+  internally used.
+
+- Object names cannot be end with "/".
 
 - No tags are allowed on buckets.  Tags on a request are ignored.
 
-- (Symbolic links are not allowed as buckets).
+- Symbolic links in the local filesystem are simply ignored.
 
 - No owner information is returned.
+
+- Copying by "CopyObject" is only inside a single bucket.
 
 ## Terse Error Messages
 
