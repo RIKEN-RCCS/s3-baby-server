@@ -46,13 +46,15 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	// i.IfMatchInitiatedTime *time.Time
 	// i.RequestPayer types.RequestPayer
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-		// i.RequestPayer types.RequestPayer
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+			// i.RequestPayer types.RequestPayer
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
@@ -71,7 +73,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var mpul, err3 = bbs.check_upload_id(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_id_matches(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -118,13 +120,15 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-		// i.RequestPayer types.RequestPayer
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+			// i.RequestPayer types.RequestPayer
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	// Error Code: EntityTooSmall
@@ -138,7 +142,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 	var location = "/" + object
 
-	var mpul, err3 = bbs.check_upload_id(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_id_matches(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -287,9 +291,11 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	if err6 != nil {
 		return nil, err6
 	}
+	var etag = make_etag_from_md5(md5)
 
-	var _, err7 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
-		nil, nil, md5)
+	var _, err7 = bbs.check_conditions(ctx, etag, nil,
+		i.IfMatch, i.IfNoneMatch,
+		nil, nil)
 	if err7 != nil {
 		return nil, err7
 	}
@@ -406,38 +412,40 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	// i.TaggingDirective types.TaggingDirective
 	// i.WebsiteRedirectLocation *string
 
-	var unsupported = unsupported_checks {
-		// i.CopySource *string
-		// i.ACL types.ObjectCannedACL
-		// i.BucketKeyEnabled *bool
-		// i.CacheControl *string
-		// i.ChecksumAlgorithm types.ChecksumAlgorithm
-		// i.ContentDisposition *string
-		// i.ContentEncoding *string
-		// i.ContentLanguage *string
-		// i.ContentType *string
-		// i.CopySourceSSECustomerAlgorithm *string
-		// i.ExpectedBucketOwner *string
-		// i.ExpectedSourceBucketOwner *string
-		// i.Expires *time.Time
-		// i.GrantFullControl *string
-		// i.GrantRead *string
-		// i.GrantReadACP *string
-		// i.GrantWriteACP *string
-		// i.MetadataDirective types.MetadataDirective
-		// i.ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
-		// i.ObjectLockMode types.ObjectLockMode
-		// i.ObjectLockRetainUntilDate *time.Time
-		// i.RequestPayer types.RequestPayer
-		// i.SSECustomerAlgorithm *string
-		// i.ServerSideEncryption types.ServerSideEncryption
-		// i.TaggingDirective types.TaggingDirective
-		// i.WebsiteRedirectLocation *string
+	{
+		var unsupported = unsupported_checks {
+			// i.ACL types.ObjectCannedACL
+			// i.BucketKeyEnabled *bool
+			// i.CacheControl *string
+			// i.ChecksumAlgorithm types.ChecksumAlgorithm
+			// i.ContentDisposition *string
+			// i.ContentEncoding *string
+			// i.ContentLanguage *string
+			// i.ContentType *string
+			// i.CopySourceSSECustomerAlgorithm *string
+			// i.ExpectedBucketOwner *string
+			// i.ExpectedSourceBucketOwner *string
+			// i.Expires *time.Time
+			// i.GrantFullControl *string
+			// i.GrantRead *string
+			// i.GrantReadACP *string
+			// i.GrantWriteACP *string
+			// i.MetadataDirective types.MetadataDirective
+			// i.ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
+			// i.ObjectLockMode types.ObjectLockMode
+			// i.ObjectLockRetainUntilDate *time.Time
+			// i.RequestPayer types.RequestPayer
+			// i.SSECustomerAlgorithm *string
+			// i.ServerSideEncryption types.ServerSideEncryption
+			// i.TaggingDirective types.TaggingDirective
+			// i.WebsiteRedirectLocation *string
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
-	}
+
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
@@ -448,15 +456,17 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			Message: "No x-amz-copy-source supplied."}
 		return nil, errz
 	}
-	var u, err3 = url.Parse(*i.CopySource)
-	if err3 != nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message: "Bad x-amz-copy-source."}
-		return nil, errz
-	}
-	var source = u.Path
 
+	var source string
 	{
+		var u, err3 = url.Parse(*i.CopySource)
+		if err3 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad x-amz-copy-source."}
+			return nil, errz
+		}
+		source = u.Path
+
 		var d1 = strings.Split(object, "/")
 		var s1 = strings.Split(source, "/")
 		if check_object_naming(source) {
@@ -471,9 +481,23 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		}
 	}
 
-	var _, info, err4 = bbs.check_object_status(source)
+	var s_stat, info, err3 = bbs.check_object_status(source)
+	if err3 != nil {
+		return nil, err3
+	}
+	var md5, _, err4 = bbs.calculate_csum2("", source, "")
 	if err4 != nil {
 		return nil, err4
+	}
+
+	var s_mtime = s_stat.ModTime()
+	var etag = make_etag_from_md5(md5)
+
+	var _, err5 = bbs.check_conditions(ctx, etag, &s_mtime,
+		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
+		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
+	if err5 != nil {
+		return nil, err5
 	}
 
 	var rid int64 = get_request_id(ctx)
@@ -499,10 +523,12 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		defer bbs.release_access(ctx, object, rid)
 	}
 
+	/*
 	var md5, _, err7 = bbs.calculate_csum2("", object, scratchkey)
 	if err7 != nil {
 		return nil, err7
 	}
+	*/
 
 	var err9 = bbs.place_scratch_file(object, scratchkey, info)
 	if err9 != nil {
@@ -514,8 +540,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		return nil, err10
 	}
 
-	var mtime = d_stat.ModTime()
-	var etag = make_etag_from_md5(md5)
+	var d_mtime = d_stat.ModTime()
 
 	o.CopyObjectResult = &types.CopyObjectResult {
 		// ChecksumCRC32 *string
@@ -525,7 +550,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		// ChecksumSHA256 *string
 		// ChecksumType ChecksumType
 		ETag: etag,
-		LastModified: &mtime,
+		LastModified: &d_mtime,
 	}
 
 	cleanup_needed = false
@@ -560,13 +585,15 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	// i.ObjectLockEnabledForBucket *bool
 	// i.ObjectOwnership types.ObjectOwnership
 
-	var unsupported = unsupported_checks {
-		// expectedbucketowner: i.ExpectedBucketOwner
-		// i.RequestPayer types.RequestPayer
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			// expectedbucketowner: i.ExpectedBucketOwner
+			// i.RequestPayer types.RequestPayer
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	if i.Bucket == nil {
@@ -639,12 +666,14 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	// i.Tagging *string
 	// i.WebsiteRedirectLocation *string
 
-	var unsupported = unsupported_checks {
-		storageclass: i.StorageClass,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			storageclass: i.StorageClass,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
@@ -732,12 +761,14 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	// i.Bucket *string
 	// i.ExpectedBucketOwner *string
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
@@ -813,14 +844,16 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	// i.RequestPayer types.RequestPayer
 	// i.VersionId *string
 
-	var unsupported = unsupported_checks {
-		mfa: i.MFA,
-		expectedbucketowner: i.ExpectedBucketOwner,
-		versionid: i.VersionId,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			mfa: i.MFA,
+			expectedbucketowner: i.ExpectedBucketOwner,
+			versionid: i.VersionId,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
@@ -837,9 +870,11 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	if err4 != nil {
 		return nil, err4
 	}
+	var etag = make_etag_from_md5(md5)
 
-	var _, err5 = bbs.check_conditions(ctx, i.IfMatch, nil,
-		nil, nil, md5)
+	var _, err5 = bbs.check_conditions(ctx, etag, nil,
+		i.IfMatch, nil,
+		nil, nil)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -939,15 +974,17 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	// i.SSECustomerKeyMD5 *string
 	// i.VersionId *string
 
-	var unsupported = unsupported_checks {
-		//mfa: i.MFA,
-		expectedbucketowner: i.ExpectedBucketOwner,
-		//partnumber: i.PartNumber
-		versionid: i.VersionId,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			//mfa: i.MFA,
+			expectedbucketowner: i.ExpectedBucketOwner,
+			//partnumber: i.PartNumber
+			versionid: i.VersionId,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
@@ -971,8 +1008,13 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	if err5 != nil {
 		return nil, err5
 	}
-	var _, err6 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
-		i.IfModifiedSince, i.IfUnmodifiedSince, md5)
+
+	var mtime = stat.ModTime()
+	var etag = make_etag_from_md5(md5)
+
+	var _, err6 = bbs.check_conditions(ctx, etag, &mtime,
+		i.IfMatch, i.IfNoneMatch,
+		i.IfModifiedSince, i.IfUnmodifiedSince)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -990,10 +1032,9 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	} else {
 		o.ContentLength = &size
 	}
-	var mtime = stat.ModTime()
-	o.LastModified = &mtime
 
-	o.ETag = make_etag_from_md5(md5)
+	o.LastModified = &mtime
+	o.ETag = etag
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		o.ChecksumType = types.ChecksumTypeFullObject
@@ -1088,12 +1129,14 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 	// i.Bucket *string
 	// i.ExpectedBucketOwner *string
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var _, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
@@ -1137,13 +1180,15 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	// i.SSECustomerKeyMD5 *string
 	// i.VersionId *string
 
-	var unsupported = unsupported_checks {
-		partnumber: i.PartNumber,
-		expectedbucketowner: i.ExpectedBucketOwner,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			partnumber: i.PartNumber,
+			expectedbucketowner: i.ExpectedBucketOwner,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
@@ -1168,13 +1213,16 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		return nil, err5
 	}
 
-	var _, err6 = bbs.check_conditions(ctx, i.IfMatch, i.IfNoneMatch,
-		i.IfModifiedSince, i.IfUnmodifiedSince, md5)
+	var mtime = stat.ModTime()
+	var etag = make_etag_from_md5(md5)
+
+	var _, err6 = bbs.check_conditions(ctx, etag, &mtime,
+		i.IfMatch, i.IfNoneMatch,
+		i.IfModifiedSince, i.IfUnmodifiedSince)
 	if err6 != nil {
 		return nil, err6
 	}
 
-	var mtime = stat.ModTime()
 	o.LastModified = &mtime
 
 	if extent != nil {
@@ -1253,11 +1301,13 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	// i.MaxBuckets *int32
 	// i.Prefix *string
 
-	var unsupported = unsupported_checks {
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var start int
@@ -1381,11 +1431,13 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListM
 	// i.RequestPayer types.RequestPayer
 	// i.UploadIdMarker *string
 
-	var unsupported = unsupported_checks {
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	// o.Bucket *string
@@ -1421,14 +1473,16 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	// i.Prefix *string
 	// i.RequestPayer types.RequestPayer
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-		optionalobjectattributes: i.OptionalObjectAttributes,
-		requestpayer: i.RequestPayer,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+			optionalobjectattributes: i.OptionalObjectAttributes,
+			requestpayer: i.RequestPayer,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
@@ -1513,14 +1567,16 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	// i.RequestPayer types.RequestPayer
 	// i.StartAfter *string
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-		optionalobjectattributes: i.OptionalObjectAttributes,
-		requestpayer: i.RequestPayer,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+			optionalobjectattributes: i.OptionalObjectAttributes,
+			requestpayer: i.RequestPayer,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
@@ -1633,11 +1689,13 @@ func (bbs *Bb_server) ListParts(ctx context.Context, params *s3.ListPartsInput, 
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
-	var unsupported = unsupported_checks {
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	// o.AbortDate *time.Time
@@ -1708,13 +1766,15 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// i.WebsiteRedirectLocation *string
 	// i.WriteOffsetBytes *int64
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-		storageclass: i.StorageClass,
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+			storageclass: i.StorageClass,
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
@@ -1891,14 +1951,16 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
-	var unsupported = unsupported_checks {
-		expectedbucketowner: i.ExpectedBucketOwner,
-		requestpayer: i.RequestPayer,
-		// i.SSECustomerAlgorithm *string
-	}
-	var err1 = check_unsupported_options(&unsupported)
-	if err1 != nil {
-		return nil, err1
+	{
+		var unsupported = unsupported_checks {
+			expectedbucketowner: i.ExpectedBucketOwner,
+			requestpayer: i.RequestPayer,
+			// i.SSECustomerAlgorithm *string
+		}
+		var err1 = check_unsupported_options(&unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
@@ -1918,7 +1980,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		}
 	*/
 
-	var mpul, err3 = bbs.check_upload_id(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_id_matches(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}

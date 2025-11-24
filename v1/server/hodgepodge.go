@@ -306,7 +306,7 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, er
 	return extent, nil
 }
 
-func (bbs *Bb_server) check_conditions(ctx context.Context, match, none_match *string, modified_since, unmodified_since *time.Time, md5 []byte) (bool, error) {
+func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime *time.Time, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, error) {
 	if match != nil || none_match != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "if-match and if-none-match are unsupported"}

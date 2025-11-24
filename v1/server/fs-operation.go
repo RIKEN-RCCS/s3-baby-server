@@ -857,8 +857,9 @@ func (bbs *Bb_server) store_json_data(object, path string, data any) error {
 	return nil
 }
 
-// CHECK_UPLOAD_ID checks "params.UploadId".
-func (bbs *Bb_server) check_upload_id(object string, uploadid *string) (*Mpul_info, error) {
+// CHECK_UPLOAD_ID_MATCHES checks "params.UploadId" is a currently
+// on-going upload.
+func (bbs *Bb_server) check_upload_id_matches(object string, uploadid *string) (*Mpul_info, error) {
 	var location = "/" + object
 	if uploadid == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
