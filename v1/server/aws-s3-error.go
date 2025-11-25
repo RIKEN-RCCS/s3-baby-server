@@ -5,7 +5,10 @@
 
 // This defines error codes AWS S3.  The code in this file is
 // extracted from the AWS S3 API specification.  It contains a list of
-// error codes in the "Error responses" section.
+// error codes in the sections "Error" and "Error responses".
+
+// [Error]
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_Error.html
 
 // Aws_s3_error_code is an enumeration of string type.
 // Aws_s3_error_to_message is a map from error-code to a pair of an
@@ -21,11 +24,15 @@ import (
 	smithy "github.com/aws/smithy-go"
 )
 
-// Common elements of errors.  Attached tagging makes extending
-// structures will be marshaled with "Error" tag.
+// Common elements of errors.  Attached xml-tag makes extending
+// structures will be marshaled with "Error" tag.  It mimics a record
+// described in "Error responses" section, but it is different from
+// types.Error.  It implements smithy.APIError.  Code is string but
+// not enumeration for copying to types.Error.
 type Aws_s3_error struct {
 	XMLName xml.Name `xml:"Error"`
-	Code Aws_s3_error_code
+	//Code Aws_s3_error_code
+	Code string
 	Message string
 	Resource string
 	RequestId string
@@ -50,10 +57,26 @@ func (e *Aws_s3_error) ErrorMessage() string {
 }
 
 func (e *Aws_s3_error) ErrorFault() smithy.ErrorFault {
-	return smithy.FaultClient
+	return smithy.FaultServer
 }
 
 type Aws_s3_error_code string
+
+// Errors extending smithy.APIError type defined in types.
+//  - types.BucketAlreadyExists
+//  - types.BucketAlreadyOwnedByYou
+//  - types.EncryptionTypeMismatch
+//  - types.IdempotencyParameterMismatch
+//  - types.InvalidObjectState
+//  - types.InvalidRequest
+//  - types.InvalidWriteOffset
+//  - types.NoSuchBucket
+//  - types.NoSuchKey
+//  - types.NoSuchUpload
+//  - types.NotFound
+//  - types.ObjectAlreadyInActiveTierError
+//  - types.ObjectNotInActiveTierError
+//  - types.TooManyParts
 
 const (
 	AccessDenied                            = "AccessDenied"
@@ -145,7 +168,7 @@ type Aws_s3_error_message struct {
 	Message string
 }
 
-var Aws_s3_error_to_message = map[Aws_s3_error_code]Aws_s3_error_message{
+var Aws_s3_error_to_message = map[string]Aws_s3_error_message{
 	AccessDenied:                            {403, "Access Denied"},
 	AccountProblem:                          {403, "There is a problem with your Amazon Web Services account."},
 	AllAccessDisabled:                       {403, "All access to this Amazon S3 resource has been disabled."},

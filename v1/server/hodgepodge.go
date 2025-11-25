@@ -55,13 +55,100 @@ type suffix_record struct {
 }
 
 type unsupported_checks struct {
-	expectedbucketowner *string
-	mfa                 *string
-	optionalobjectattributes  []types.OptionalObjectAttributes
-	partnumber *int32
-	requestpayer types.RequestPayer
-	storageclass        types.StorageClass
-	versionid           *string
+	ACL_bucket_canned types.BucketCannedACL
+	ACL_object_canned types.ObjectCannedACL
+	BucketKeyEnabled *bool
+	BucketRegion *string
+	BypassGovernanceRetention *bool
+	CacheControl *string
+	ChecksumAlgorithm types.ChecksumAlgorithm
+	ChecksumCRC32 *string
+	ChecksumCRC32C *string
+	ChecksumCRC64NVME *string
+	ChecksumMode types.ChecksumMode
+	ChecksumSHA1 *string
+	ChecksumSHA256 *string
+	ChecksumType types.ChecksumType
+	ContentDisposition *string
+	ContentEncoding *string
+	ContentLanguage *string
+	ContentLength *int64
+	ContentMD5 *string
+	ContentType *string
+	ContinuationToken *string
+	CopySourceIfMatch *string
+	CopySourceIfModifiedSince *time.Time
+	CopySourceIfNoneMatch *string
+	CopySourceIfUnmodifiedSince *time.Time
+	CopySourceRange *string
+	CopySourceSSECustomerAlgorithm *string
+	CopySourceSSECustomerKey *string
+	CopySourceSSECustomerKeyMD5 *string
+	CreateBucketConfiguration *types.CreateBucketConfiguration
+	Delete *types.Delete
+	Delimiter *string
+	EncodingType types.EncodingType
+	ExpectedBucketOwner *string
+	ExpectedSourceBucketOwner *string
+	Expires *time.Time
+	FetchOwner *bool
+	GrantFullControl *string
+	GrantRead *string
+	GrantReadACP *string
+	GrantWrite *string
+	GrantWriteACP *string
+	IfMatch *string
+	IfMatchInitiatedTime *time.Time
+	IfMatchLastModifiedTime *time.Time
+	IfMatchSize *int64
+	IfModifiedSince *time.Time
+	IfNoneMatch *string
+	IfUnmodifiedSince *time.Time
+	KeyMarker *string
+	MFA *string
+	Marker *string
+	MaxBuckets *int32
+	MaxKeys *int32
+	MaxParts *int32
+	MaxUploads *int32
+	Metadata map[string]string
+	MetadataDirective types.MetadataDirective
+	MpuObjectSize *int64
+	MultipartUpload *types.CompletedMultipartUpload
+	ObjectAttributes []types.ObjectAttributes
+	ObjectLockEnabledForBucket *bool
+	ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
+	ObjectLockMode types.ObjectLockMode
+	ObjectLockRetainUntilDate *time.Time
+	ObjectOwnership types.ObjectOwnership
+	OptionalObjectAttributes []types.OptionalObjectAttributes
+	PartNumber *int32
+	PartNumberMarker *string
+	Prefix *string
+	Range *string
+	RequestPayer types.RequestPayer
+	ResponseCacheControl *string
+	ResponseContentDisposition *string
+	ResponseContentEncoding *string
+	ResponseContentLanguage *string
+	ResponseContentType *string
+	ResponseExpires *time.Time
+	SSECustomerAlgorithm *string
+	SSECustomerKey *string
+	SSECustomerKeyMD5 *string
+	SSEKMSEncryptionContext *string
+	SSEKMSKeyId *string
+	ServerSideEncryption types.ServerSideEncryption
+	StartAfter *string
+	StorageClass types.StorageClass
+	Tagging_string *string
+	Tagging_tagging *types.Tagging
+	TaggingDirective types.TaggingDirective
+	UploadId *string
+	UploadIdMarker *string
+	VersionId *string
+	WebsiteRedirectLocation *string
+	WriteOffsetBytes *int64
 }
 
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
@@ -92,12 +179,12 @@ func get_request_id(ctx context.Context) int64 {
 	}
 }
 
-// MAKE_FILE_SUFFIX makes a key string for a scratch file.  It takes
-// request-id or zero.  A key is valid during request processing when
-// a request-id is given.  Otherwise, when zero is given, a key is for
-// multipart upload and it is active until completion.  It returns a
-// string of 6 hex-digits.
-func (bbs *Bb_server) make_file_suffix(rid int64) string {
+// MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
+// takes request-id or zero.  A key is valid during request processing
+// when a request-id is given.  Otherwise, when zero is given, a key
+// is for multipart upload and it is active until completion.  It
+// returns a string of 6 hex-digits.
+func (bbs *Bb_server) make_scratch_suffix(rid int64) string {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	var loops int = 0
@@ -118,7 +205,7 @@ func (bbs *Bb_server) make_file_suffix(rid int64) string {
 	panic("NEVER")
 }
 
-func (bbs *Bb_server) discharge_file_suffix(rid int64) {
+func (bbs *Bb_server) discharge_scratch_suffix(rid int64) {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	for k, v := range bbs.suffixes {
@@ -238,36 +325,38 @@ func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return bucket, nil
 }
 
-func check_unsupported_options(unsupported *unsupported_checks) error {
-	if unsupported.mfa != nil {
+func check_unsupported_options(action string, checks *unsupported_checks) error {
+	if checks.ExpectedBucketOwner != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "expected-bucket-owner is not supported."}
+		return errz
+	}
+	if checks.MFA != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "MFA is not supported."}
 		return errz
 	}
-	if unsupported.expectedbucketowner != nil {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "Expected-bucket-owner is not supported."}
-		return errz
-	}
-
-	if unsupported.partnumber != nil {
+	if checks.PartNumber != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "PartNumber is not supported."}
 		return errz
 	}
-
-	if unsupported.versionid != nil {
+	if checks.VersionId != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "Version-ID is not supported."}
 		return errz
 	}
-	if unsupported.storageclass != "" {
-		if unsupported.storageclass != types.StorageClassStandard {
+
+	// Options that support only the restricted set.
+
+	if checks.StorageClass != "" {
+		if checks.StorageClass != types.StorageClassStandard {
 			var errz = &Aws_s3_error{Code: InvalidStorageClass,
 				Message:  "Bad x-amz-storage-class."}
 			return errz
 		}
 	}
+
 	return nil
 }
 

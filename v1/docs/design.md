@@ -65,8 +65,22 @@ document string in "s3.json".  They are in "shapes" /
 ## Serialization (Criticals)
 
 - Accesses to an object file and a meta-info file are serialized by an
-  object name.  Without a serialization, an uploaded file and its tags
-  could mismatch.
+  object name.  It keeps correspondence between an object and its
+  meta-info.
+
+- Downloading of an object is not excluded by other operations such as
+  deletion.  Thus, an object can be truncated while downloading.
+
+- Deletion of buckets/objects are slack.  Deletion is serialized after
+  checking conditions.  ETag calculation takes time and it is placed
+  out size of serialization.
+
+- Listing of objects and parts (of multipart uploads) are slack.
+  Listing is performed without serialization.
+
+- Operations between buckets and objects are not serialized.
+  Exclusion is based on a bucket or on an object.  A bucket can be
+  removed while operations on objects are in progress.
 
 ## Upload ID
 
@@ -91,7 +105,7 @@ AWS-S3 only manages timestamps of objects in mtime.  Only buckets
 needs ctime and mtime.  An object's mtime is amended when it is
 created with multipart upload.
 
-## Checksum
+## Checksums
 
 Baby-server can only handle "types.ChecksumTypeFullObject".  A request
 of a checksum is ignored when it is not the case.  A returned checksum
@@ -101,3 +115,9 @@ Baby-server records minimal metadata.  It discards metadata except for
 explicitly provided tags and headers.  Especially, it does not record
 checksums or checksum algorithms, too.  It returns checksums of
 CRC64NVME in spite of an algorithm specified at "PutObject".
+
+Baby-server ignores checking with "x-amz-sdk-checksum-algorithm" (note
+it is with "sdk").  This header is used to check the algorithm matches
+the stored one.  Baby-server does not store the checksum algorithm.
+Note "x-amz-sdk-checksum-algorithm" is used in DeleteObjects,
+PutObject, PutObjectTagging, and UploadPart.

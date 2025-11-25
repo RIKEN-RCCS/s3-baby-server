@@ -29,7 +29,7 @@ import (
 // Calculates two checksum, md5 and one requested.  It skips one when
 // algorithm="".  An algorithm key is types.ChecksumAlgorithm, and one
 // of {"CRC32", "CRC32C", "SHA1", "SHA256", "CRC64NVME"}.
-func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object string, scratch string) ([]byte, []byte, error) {
+func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object string, scratch string) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var name = bbs.make_path_of_object(object, scratch)
 
