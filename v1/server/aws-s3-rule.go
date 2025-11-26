@@ -104,6 +104,6 @@ func check_object_naming(name string) bool {
 // 50.  AWS-S3's limit of length is in Unicode characters, while EC2'
 // limit is in utf-8.
 
-const limit_of_number_of_tags_1 = 10
-const limit_of_tag_key_length_ = 128
-const limit_of_tag_value_length_ = 256
+const limit_of_number_of_tags = 10
+const limit_of_tag_key_length = 128
+const limit_of_tag_value_length = 256

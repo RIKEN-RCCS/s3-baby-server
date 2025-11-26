@@ -26,6 +26,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+// Generator polynomial of NVME.  The value is defined as
+// 0xad93d23594c93659 in "NVM Express; NVM Command Set Specification".
+// Note the poly in Golang hash/crc64 is bit reversed.
+
+const poly_nvme = 0x9a6c9329ac4bc9b5
+
 // Calculates two checksum, md5 and one requested.  It skips one when
 // algorithm="".  An algorithm key is types.ChecksumAlgorithm, and one
 // of {"CRC32", "CRC32C", "SHA1", "SHA256", "CRC64NVME"}.
@@ -71,7 +77,6 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 		hash2 = sha256.New()
 	case types.ChecksumAlgorithmCrc64nvme:
 		//strings.EqualFold(algorithm, "CRC64NVME"):
-		const poly_nvme = 0x9a6c9329ac4bc9b5
 		hash2 = crc64.New(crc64.MakeTable(poly_nvme))
 	default:
 		log.Fatalf("Bad s3/types.ChecksumAlgorithm: %s", algorithm)
@@ -111,12 +116,30 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 	}
 }
 
-// ETags are strong always.
-func make_etag_from_md5(csum []byte) *string {
-	if len(csum) == 0 {
-		return nil
-	} else {
-		var s = "\"" + base64.StdEncoding.EncodeToString(csum) + "\""
-		return &s
+func make_checksum_record(algorithm types.ChecksumAlgorithm, csum []byte) *types.Checksum {
+	var csum1 = base64.StdEncoding.EncodeToString(csum)
+	var cs = types.Checksum{
+		ChecksumType: types.ChecksumTypeFullObject,
 	}
+	switch algorithm {
+	case types.ChecksumAlgorithmCrc32:
+		cs.ChecksumCRC32 = &csum1
+	case types.ChecksumAlgorithmCrc32c:
+		cs.ChecksumCRC32C = &csum1
+	case types.ChecksumAlgorithmSha1:
+		cs.ChecksumSHA1 = &csum1
+	case types.ChecksumAlgorithmSha256:
+		cs.ChecksumSHA256 = &csum1
+	case types.ChecksumAlgorithmCrc64nvme:
+		cs.ChecksumCRC64NVME = &csum1
+	}
+	return &cs
+}
+
+// ETags are strong always.
+func make_etag_from_md5(csum []byte) string {
+	if len(csum) == 0 {
+		log.Fatal("BAD-IMPL: md5 never nil")
+	}
+	return "\"" + base64.StdEncoding.EncodeToString(csum) + "\""
 }

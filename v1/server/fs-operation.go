@@ -38,17 +38,19 @@ type Meta_info struct {
 
 type Mpul_info struct {
 	Upload_id string
-	Timestamp time.Time
+	Mtime time.Time
 	Checksum_type types.ChecksumType
 	Checksum_algorithm types.ChecksumAlgorithm
 	Meta_info *Meta_info
 }
 
+// (MultipartUpload)
 type Mpul_catalog struct {
 	Checksum_algorithm types.ChecksumAlgorithm
 	Parts []Mpul_part
 }
 
+// (types.CopyObjectResult, CopyPartResult)
 type Mpul_part struct {
 	Size int64
 	ETag string
@@ -160,7 +162,7 @@ func make_part_object_name(object string, part int32) string {
 }
 
 func make_part_name(part int32) string {
-	return fmt.Sprintf("part05d", part)
+	return fmt.Sprintf("part%05d", part)
 }
 
 func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket string) error {
@@ -396,7 +398,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 
 	cleanup_needed = false
 
-	var err5 = os.Chtimes(path, time.Time{}, mpul.Timestamp)
+	var err5 = os.Chtimes(path, time.Time{}, mpul.Mtime)
 	if err5 != nil {
 		bbs.Logger.Warn("op.Chtimes() failed", "file", path,
 			"error", err5)
@@ -716,8 +718,7 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 	return &info, nil
 }
 
-// Stores a meta-info file.  The object path includes its bucket.
-// Passing nil deletes a meta-info file.
+// Stores a meta-info file.  Passing nil deletes a meta-info file.
 func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "meta")

@@ -1,4 +1,4 @@
-// api-action.go (2025-10-01)
+// api-action.go
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -35,6 +35,7 @@ import (
 )
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
+	var action = "AbortMultipartUpload"
 	fmt.Printf("*AbortMultipartUpload*\n")
 	var o = s3.AbortMultipartUploadOutput{}
 
@@ -49,9 +50,9 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	{
 		var unsupported = unsupported_checks {
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			// i.RequestPayer types.RequestPayer
+			RequestPayer: i.RequestPayer,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -79,7 +80,8 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	}
 
 	if i.IfMatchInitiatedTime != nil {
-		if !mpul.Timestamp.Equal(*i.IfMatchInitiatedTime) {
+		var itime = *i.IfMatchInitiatedTime
+		if !mpul.Mtime.Equal(itime) {
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Resource: location}
 			return nil, errz
@@ -121,21 +123,21 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
+	// Error Code: EntityTooSmall
+	// Error Code: InvalidPart
+	// Error Code: InvalidPartOrder
+	// Error Code: NoSuchUpload
+
 	{
 		var unsupported = unsupported_checks {
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			// i.RequestPayer types.RequestPayer
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
 	}
-
-	// Error Code: EntityTooSmall
-	// Error Code: InvalidPart
-	// Error Code: InvalidPartOrder
-	// Error Code: NoSuchUpload
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err2 != nil {
@@ -171,7 +173,6 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	var sorted = slices.IsSortedFunc(partlist.Parts,
 		func(a, b types.CompletedPart) int {
 			if a.PartNumber == nil || b.PartNumber == nil {
-				// x_assert(error_in_sorting == nil)
 				error_in_sorting = &Aws_s3_error{Code: InvalidArgument,
 					Message:  "PartNumber missing.",
 					Resource: location}
@@ -336,7 +337,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	var etag = make_etag_from_md5(md5)
 
-	var _, err7 = bbs.check_conditions(ctx, etag, nil,
+	var _, err7 = bbs.check_conditions(ctx, &etag, nil,
 		i.IfMatch, i.IfNoneMatch,
 		nil, nil)
 	if err7 != nil {
@@ -365,7 +366,19 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		// Ignore errors.
 	}
 
-	o.ETag = make_etag_from_md5(md5)
+	o.ETag = &etag
+
+	var address string
+	if bbs.config.Site_base_url != nil {
+		var a, err1 = url.JoinPath(*bbs.config.Site_base_url, location)
+		if err1 != nil {
+			// Ignore errors.
+			address = location
+		} else {
+			address = a
+		}
+	}
+	o.Location = &address
 
 	if checksum != "" {
 		var csum1 = base64.StdEncoding.EncodeToString(csum)
@@ -386,20 +399,11 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	{
 		o.Bucket = i.Bucket
+		o.Key = i.Key
 	}
 
-	// o.Bucket *string
 	// o.BucketKeyEnabled *bool
-	// o.ChecksumCRC32 *string
-	// o.ChecksumCRC32C *string
-	// o.ChecksumCRC64NVME *string
-	// o.ChecksumSHA1 *string
-	// o.ChecksumSHA256 *string
-	// o.ChecksumType types.ChecksumType
-	// o.ETag *string
 	// o.Expiration *string
-	// o.Key *string
-	// o.Location *string
 	// o.RequestCharged types.RequestCharged
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
@@ -409,6 +413,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 }
 
 func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
+	var action = "CopyObject"
 	fmt.Printf("*CopyObject*\n")
 	var o = s3.CopyObjectOutput{}
 
@@ -483,7 +488,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			// i.TaggingDirective types.TaggingDirective
 			// i.WebsiteRedirectLocation *string
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -536,7 +541,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var s_mtime = s_stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err5 = bbs.check_conditions(ctx, etag, &s_mtime,
+	var _, err5 = bbs.check_conditions(ctx, &etag, &s_mtime,
 		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
 		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
 	if err5 != nil {
@@ -588,13 +593,16 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var d_mtime = d_stat.ModTime()
 
 	o.CopyObjectResult = &types.CopyObjectResult {
-		// ChecksumCRC32 *string
-		// ChecksumCRC32C *string
-		// ChecksumCRC64NVME *string
-		// ChecksumSHA1 *string
-		// ChecksumSHA256 *string
-		// ChecksumType ChecksumType
-		ETag: etag,
+		// types.CopyObjectResult:
+		// - ChecksumCRC32 *string
+		// - ChecksumCRC32C *string
+		// - ChecksumCRC64NVME *string
+		// - ChecksumSHA1 *string
+		// - ChecksumSHA256 *string
+		// - ChecksumType ChecksumType
+		// - ETag: *string
+		// - LastModified *time.Time
+		ETag: &etag,
 		LastModified: &d_mtime,
 	}
 
@@ -613,6 +621,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 }
 
 func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
+	var action = "CreateBucket"
 	fmt.Printf("*CreateBucket*\n")
 	var o = s3.CreateBucketOutput{}
 
@@ -633,7 +642,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 			// expectedbucketowner: i.ExpectedBucketOwner
 			// i.RequestPayer types.RequestPayer
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -688,7 +697,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 }
 
 func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, error) {
-	//var action = "CreateMultipartUpload"
+	var action = "CreateMultipartUpload"
 	fmt.Printf("*CreateMultipartUpload*\n")
 	var o = s3.CreateMultipartUploadOutput{}
 
@@ -729,7 +738,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		var unsupported = unsupported_checks {
 			StorageClass: i.StorageClass,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -817,6 +826,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 }
 
 func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, error) {
+	var action = "DeleteBucket"
 	fmt.Printf("*DeleteBucket*\n")
 	var o = s3.DeleteBucketOutput{}
 
@@ -828,7 +838,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 		var unsupported = unsupported_checks {
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -891,6 +901,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 }
 
 func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+	var action = "DeleteObject"
 	fmt.Printf("*DeleteObject*\n")
 	var o = s3.DeleteObjectOutput{}
 
@@ -912,7 +923,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			VersionId: i.VersionId,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -934,7 +945,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	}
 	var etag = make_etag_from_md5(md5)
 
-	var _, err5 = bbs.check_conditions(ctx, etag, nil,
+	var _, err5 = bbs.check_conditions(ctx, &etag, nil,
 		i.IfMatch, nil,
 		nil, nil)
 	if err5 != nil {
@@ -972,6 +983,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 }
 
 func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+	var action = "DeleteObjects"
 	fmt.Printf("*DeleteObjects*\n")
 	var o = s3.DeleteObjectsOutput{}
 
@@ -994,7 +1006,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 			MFA: i.MFA,
 			RequestPayer: i.RequestPayer,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1097,7 +1109,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 					continue loop1
 				}
 				var etag = make_etag_from_md5(md5)
-				if *etag != *e.ETag {
+				if etag != *e.ETag {
 					var errz = &Aws_s3_error{Code: PreconditionFailed,
 						Message: "ETag does not match."}
 					deletestate[i].error.Code = &errz.Code
@@ -1114,7 +1126,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 
 	// Deleting files and checking conditions are slack.  It
 	// serializes on a bucket.  Also, ETag calculation takes time and
-	// it is placed out size of serialization.
+	// it is placed outside of serialization.
 
 	{
 		var timeout = bbs.serialize_access(ctx, bucket, rid)
@@ -1195,7 +1207,8 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, params *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, error) {
+func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, error) {
+	var action = "DeleteObjectTagging"
 	fmt.Printf("*DeleteObjectTagging*\n")
 	var o = s3.DeleteObjectTaggingOutput{}
 
@@ -1204,16 +1217,58 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, params *s3.Delete
 	// i.Key *string
 	// i.ExpectedBucketOwner *string
 	// i.VersionId *string
-	// i.noSmithyDocumentSerde
+
+	{
+		var unsupported = unsupported_checks {
+			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			VersionId: i.VersionId,
+		}
+		var err1 = check_unsupported_options(action, &unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
+	}
+
+	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err2 != nil {
+		return nil, err2
+	}
+	//var location = "/" + object
+	var rid int64 = get_request_id(ctx)
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var _, info, err3 = bbs.check_object_status(object)
+	if err3 != nil {
+		return nil, err3
+	}
+
+	// Modify meta-info, and remove the file when it become nothing.
+
+	if info != nil && info.Tags != nil {
+		info.Tags = nil
+		if info.Headers == nil {
+			info = nil
+		}
+		var err7 = bbs.store_metainfo(object, info)
+		if err7 != nil {
+			return nil, err7
+		}
+	}
 
 	// o.VersionId *string
-	// o.ResultMetadata middleware.Metadata
-	// o.noSmithyDocumentSerde
 
 	return &o, nil
 }
 
 func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	var action = "GetObject"
 	fmt.Printf("*GetObject*\n")
 	var o = s3.GetObjectOutput{}
 
@@ -1243,9 +1298,10 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	{
 		var unsupported = unsupported_checks {
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			PartNumber: i.PartNumber,
 			VersionId: i.VersionId,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1276,7 +1332,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var mtime = stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err6 = bbs.check_conditions(ctx, etag, &mtime,
+	var _, err6 = bbs.check_conditions(ctx, &etag, &mtime,
 		i.IfMatch, i.IfNoneMatch,
 		i.IfModifiedSince, i.IfUnmodifiedSince)
 	if err6 != nil {
@@ -1298,7 +1354,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	}
 
 	o.LastModified = &mtime
-	o.ETag = etag
+	o.ETag = &etag
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		o.ChecksumType = types.ChecksumTypeFullObject
@@ -1339,7 +1395,8 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, params *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, error) {
+func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, error) {
+	var action = "GetObjectAttributes"
 	fmt.Printf("*GetObjectAttributes*\n")
 	var o = s3.GetObjectAttributesOutput{}
 
@@ -1356,6 +1413,81 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, params *s3.GetObj
 	// i.SSECustomerKeyMD5 *string
 	// i.VersionId *string
 
+	{
+		var unsupported = unsupported_checks {
+			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			VersionId: i.VersionId,
+		}
+		var err1 = check_unsupported_options(action, &unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
+	}
+
+	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err2 != nil {
+		return nil, err2
+	}
+	//var location = "/" + object
+	var stat, info, err3 = bbs.check_object_status(object)
+	if err3 != nil {
+		return nil, err3
+	}
+	var _ = stat
+	var _ = info
+
+	/*
+	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesEtag) {
+		o.ETag *string
+	}
+
+	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesChecksum) {
+		var csum = types.Checksum{
+			ChecksumType: types.ChecksumTypeFullObject,
+		}
+		switch checksum {
+		case types.ChecksumAlgorithmCrc32:
+			csum.ChecksumCRC32 = &csum1
+		case types.ChecksumAlgorithmCrc32c:
+			csum.ChecksumCRC32C = &csum1
+		case types.ChecksumAlgorithmSha1:
+			csum.ChecksumSHA1 = &csum1
+		case types.ChecksumAlgorithmSha256:
+			csum.ChecksumSHA256 = &csum1
+		case types.ChecksumAlgorithmCrc64nvme:
+			csum.ChecksumCRC64NVME = &csum1
+		}
+		o.Checksum = &csum
+	}
+
+	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesObjectParts) {
+		o.ObjectParts = nil
+	}
+	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesStorageClass) {
+		o.StorageClass = types.StorageClassStandard
+	}
+	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesObjectSize) {
+		o.ObjectSize *int64
+	}
+	o.LastModified *time.Time
+	*/
+
+	// parts : types.GetObjectAttributesParts
+	// - IsTruncated *bool
+	// - MaxParts *int32
+	// - NextPartNumberMarker *string
+	// - PartNumberMarker *string
+	// - Parts []types.ObjectPart
+	// - TotalPartsCount *int32
+	// types.ObjectPart:
+	// - ChecksumCRC32 *string
+	// - ChecksumCRC32C *string
+	// - ChecksumCRC64NVME *string
+	// - ChecksumSHA1 *string
+	// - ChecksumSHA256 *string
+	// - PartNumber *int32
+	// - Size *int64
+
 	// o.Checksum *types.Checksum
 	// o.DeleteMarker *bool
 	// o.ETag *string
@@ -1369,7 +1501,8 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, params *s3.GetObj
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObjectTagging(ctx context.Context, params *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, error) {
+func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, error) {
+	var action = "GetObjectTagging"
 	fmt.Printf("*GetObjectTagging*\n")
 	var o = s3.GetObjectTaggingOutput{}
 
@@ -1380,6 +1513,17 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, params *s3.GetObject
 	// i.RequestPayer types.RequestPayer
 	// i.VersionId *string
 
+	{
+		var unsupported = unsupported_checks {
+			ExpectedBucketOwner: i.ExpectedBucketOwner,
+		}
+		var err1 = check_unsupported_options(action, &unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
+	}
+
+
 	// o.TagSet []types.Tag
 	// o.VersionId *string
 	// o.ResultMetadata middleware.Metadata
@@ -1388,6 +1532,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, params *s3.GetObject
 }
 
 func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
+	var action = "HeadBucket"
 	fmt.Printf("*HeadBucket*\n")
 	var o = s3.HeadBucketOutput{}
 
@@ -1399,7 +1544,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 		var unsupported = unsupported_checks {
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1420,6 +1565,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 }
 
 func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	var action = "HeadObject"
 	fmt.Printf("*HeadObject*\n")
 	var o = s3.HeadObjectOutput{}
 
@@ -1451,7 +1597,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 			PartNumber: i.PartNumber,
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1482,7 +1628,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	var mtime = stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err6 = bbs.check_conditions(ctx, etag, &mtime,
+	var _, err6 = bbs.check_conditions(ctx, &etag, &mtime,
 		i.IfMatch, i.IfNoneMatch,
 		i.IfModifiedSince, i.IfUnmodifiedSince)
 	if err6 != nil {
@@ -1507,7 +1653,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		var crc = base64.StdEncoding.EncodeToString(csum)
 		o.ChecksumCRC64NVME = &crc
 	}
-	o.ETag = make_etag_from_md5(md5)
+
+	o.ETag = &etag
 
 	if info != nil {
 		// Always leave "MissingMeta" nil for zero.
@@ -1558,6 +1705,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 }
 
 func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+	var action = "ListBuckets"
 	fmt.Printf("*ListBuckets*\n")
 	var o = s3.ListBucketsOutput{}
 
@@ -1570,7 +1718,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	{
 		var unsupported = unsupported_checks {
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1726,6 +1874,7 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListM
 }
 
 func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, error) {
+	var action = "ListObjects"
 	fmt.Printf("*ListObjects*\n")
 	var o = s3.ListObjectsOutput{}
 
@@ -1746,7 +1895,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 			OptionalObjectAttributes: i.OptionalObjectAttributes,
 			RequestPayer: i.RequestPayer,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1818,6 +1967,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 }
 
 func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	var action = "ListObjectsV2"
 	fmt.Printf("*ListObjectsV2*\n")
 	var o = s3.ListObjectsV2Output{}
 
@@ -1840,7 +1990,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 			OptionalObjectAttributes: i.OptionalObjectAttributes,
 			RequestPayer: i.RequestPayer,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1941,6 +2091,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 }
 
 func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, error) {
+	var action = "ListParts"
 	fmt.Printf("*ListParts*\n")
 	var o = s3.ListPartsOutput{}
 
@@ -1964,7 +2115,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 			// i.SSECustomerKey *string
 			// i.SSECustomerKeyMD5 *string
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2026,6 +2177,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		// Part is counted by base one.
 		var no = int32(i + 1)
 		var p = types.Part{
+			// p : types.Part
 			// - ChecksumCRC32 *string
 			// - ChecksumCRC32C *string
 			// - ChecksumCRC64NVME *string
@@ -2064,7 +2216,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		o.UploadId = i.UploadId
 		if endindex != -1 {
 			var truncated = true
-			var n string = fmt.Sprint("%d", endindex)
+			var n string = fmt.Sprintf("%d", endindex)
 			o.IsTruncated = &truncated
 			o.NextPartNumberMarker = &n
 		}
@@ -2095,6 +2247,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 }
 
 func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	var action = "PutObject"
 	fmt.Printf("*PutObject*\n")
 	var o = s3.PutObjectOutput{}
 
@@ -2146,7 +2299,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			StorageClass: i.StorageClass,
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2264,9 +2417,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		o.ChecksumType = types.ChecksumTypeFullObject
 	}
 
-	{
-		o.ETag = make_etag_from_md5(md5)
-	}
+	var etag = make_etag_from_md5(md5)
+	o.ETag = &etag
 
 	// o.BucketKeyEnabled *bool
 	// o.Expiration *string
@@ -2282,7 +2434,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) PutObjectTagging(ctx context.Context, params *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, error) {
+func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, error) {
+	var action = "PutObjectTagging"
 	fmt.Printf("*PutObjectTagging*\n")
 	var o = s3.PutObjectTaggingOutput{}
 
@@ -2296,6 +2449,18 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, params *s3.PutObject
 	// i.RequestPayer types.RequestPayer
 	// i.VersionId *string
 
+	{
+		var unsupported = unsupported_checks {
+			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			RequestPayer: i.RequestPayer,
+			// i.SSECustomerAlgorithm *string
+		}
+		var err1 = check_unsupported_options(action, &unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
+	}
+
 	// o.VersionId *string
 	// o.ResultMetadata middleware.Metadata
 
@@ -2303,6 +2468,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, params *s3.PutObject
 }
 
 func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, error) {
+	var action = "UploadPart"
 	fmt.Printf("*UploadPart*\n")
 	var o = s3.UploadPartOutput{}
 
@@ -2332,7 +2498,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 			RequestPayer: i.RequestPayer,
 			// i.SSECustomerAlgorithm *string
 		}
-		var err1 = check_unsupported_options("", &unsupported)
+		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2467,9 +2633,11 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 			catalog.Parts = append(catalog.Parts, adds...)
 		}
 
+		var etag = make_etag_from_md5(md5)
+
 		catalog.Parts[part - 1] = Mpul_part{
 			Size: size,
-			ETag: *make_etag_from_md5(md5),
+			ETag: etag,
 			Checksum: base64.StdEncoding.EncodeToString(csum),
 			Mtime: stat.ModTime(),
 		}
@@ -2479,6 +2647,9 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 			return nil, err8
 		}
 	}
+
+	var etag = make_etag_from_md5(md5)
+	o.ETag = &etag
 
 	if checksum != "" {
 		var csum1 = base64.StdEncoding.EncodeToString(csum)
@@ -2497,10 +2668,6 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		//o.ChecksumType = types.ChecksumTypeFullObject
 	}
 
-	{
-		o.ETag = make_etag_from_md5(md5)
-	}
-
 	// o.BucketKeyEnabled *bool
 	// o.RequestCharged types.RequestCharged
 	// o.SSECustomerAlgorithm *string
@@ -2511,7 +2678,8 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) UploadPartCopy(ctx context.Context, params *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, error) {
+func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, error) {
+	var action = "UploadPartCopy"
 	fmt.Printf("*UploadPartCopy*\n")
 	var o = s3.UploadPartCopyOutput{}
 
@@ -2535,6 +2703,18 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, params *s3.UploadPartC
 	// i.SSECustomerAlgorithm *string
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
+
+	{
+		var unsupported = unsupported_checks {
+			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			RequestPayer: i.RequestPayer,
+			// i.SSECustomerAlgorithm *string
+		}
+		var err1 = check_unsupported_options(action, &unsupported)
+		if err1 != nil {
+			return nil, err1
+		}
+	}
 
 	// o.BucketKeyEnabled *bool
 	// o.CopyPartResult *types.CopyPartResult

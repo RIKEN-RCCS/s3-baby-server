@@ -1,10 +1,10 @@
 package server
 
 import (
-    "testing"
-    "fmt"
-    "time"
+	"fmt"
 	"sync"
+	"testing"
+	"time"
 )
 
 func enter(m *monitor, id int64, duration int64, wg *sync.WaitGroup) {

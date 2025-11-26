@@ -222,11 +222,12 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 		var commonpart = check_common_prefix(e.key, delimiter, prefix)
 		if commonpart == "" {
 			var md5, _, err3 = bbs.calculate_csum2("", object, "")
-			var etag *string
+			var etag string
 			if err3 != nil {
+				// AHO
 				bbs.Logger.Warn("MD5 calculation failed",
 					"file", object, "error", err3)
-				etag = nil
+				etag = ""
 			} else {
 				etag = make_etag_from_md5(md5)
 			}
@@ -239,6 +240,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 			var size int64 = e.stat.Size()
 			var mtime = e.stat.ModTime()
 			var s = types.Object{
+				// s : types.Object
 				// - ChecksumAlgorithm []ChecksumAlgorithm
 				// - ChecksumType ChecksumType
 				// - ETag *string
@@ -249,7 +251,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 				// - Size *int64
 				// - StorageClass ObjectStorageClass
 				Key:          &key,
-				ETag:         etag,
+				ETag:         &etag,
 				Size:         &size,
 				LastModified: &mtime,
 				StorageClass: types.ObjectStorageClassStandard}

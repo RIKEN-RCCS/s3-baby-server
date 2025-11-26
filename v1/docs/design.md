@@ -87,10 +87,15 @@ document string in "s3.json".  They are in "shapes" /
 Uniqueness of upload-id is not guaranteed.  Baby-server does not
 record upload-id for restarting the server.
 
-## Multipart Upload (MPUL)
+## Multipart-Upload (MPUL)
 
 It creates a temporary directory (named "."+filename+"@mpul") and
 stores files "info", "list", "partNNNNN".
+
+GetObject with "?partNumber=" is an error in Baby-server.  An object
+uploaded by multipart-upload is concatenated at completion and its
+parts are lost.  Note it is not allowed in AWS-S3 to download a part
+while multipart-upload is in-progres.
 
 ## ???
 
