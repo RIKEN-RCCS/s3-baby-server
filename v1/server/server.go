@@ -25,7 +25,7 @@ type Bb_configuration struct {
 	Server_control_path     string
 
 	// Anonymize_ower            bool
-	// Verify_fs_write           bool
+	Verify_fs_write           bool
 	// File_follow_link   bool
 
 	request_processing_timeout time.Duration
@@ -40,7 +40,7 @@ type Bb_server struct {
 	Logger    *slog.Logger
 	AuthKey   string
 
-	config Bb_configuration
+	conf Bb_configuration
 
 	rid      int64
 	suffixes map[string]suffix_record

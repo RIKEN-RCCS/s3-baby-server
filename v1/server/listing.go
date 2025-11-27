@@ -20,7 +20,7 @@ import (
 	"net/url"
 	"os"
 	"path"
-	//"path/filepath"
+	"path/filepath"
 	"strings"
 )
 
@@ -30,6 +30,8 @@ type object_list_entry struct {
 }
 
 const always_use_flat_lister = true
+
+var mpul_scratch_pattern = ".*@mpul"
 
 // LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
 // works with regard to a directory hierarchy.  A start-index and a
@@ -60,17 +62,23 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 		return nil, 0, "", map_os_error(location, err1, nil)
 	}
 
-	// Filter entries by a prefix.
+	// Filter entries by name.  This skips directories for MPUL.
 
 	var entries2 []os.DirEntry
-	if fileprefix != "" {
+	{
 		for _, e := range entries1 {
-			if strings.HasPrefix(e.Name(), fileprefix) {
+			var name = e.Name()
+			if strings.HasPrefix(name, ".") {
+				continue
+			}
+			if fileprefix != "" {
+				if strings.HasPrefix(name, fileprefix) {
+					entries2 = append(entries2, e)
+				}
+			} else {
 				entries2 = append(entries2, e)
 			}
 		}
-	} else {
-		entries2 = entries1
 	}
 
 	// Find a position of a start-marker, or use a start-index.
@@ -122,11 +130,10 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 // LIST_OBJECTS_FLAT makes listing for general delimiter case (it
 // works for both slash and non-slash delimiter).  It scans all the
 // files in the bucket.  It uses fs.WalkDir() in "io/fs" as it returns
-// slash-paths (not OS-specific).  In the scanning loop, it does not
+// slash-paths (not os-specific).  In the scanning loop, it does not
 // count directory entries.  COUNT counts files visited and it is used
 // to check a start-index.  MEMO: A prefix should not have a
-// preceeding delimiter.  A common-prefix will have a trailing
-// delimiter.
+// preceeding delimiter.  A common-prefix has a trailing delimiter.
 func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
 	var location = "/" + bucket
 	var pool_path = bbs.pool_path
@@ -136,46 +143,36 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 	var nextindex int = 0
 	var nextmarker string = ""
 	var count int = 0
-	var collecting bool = false
+	var hitmarker bool = false
 	var commonprefix string = ""
 
 	var bucket1 = os.DirFS(name)
 	var err1 = fs.WalkDir(bucket1, "", func(path1 string, e fs.DirEntry, err1 error) error {
-		// Skip errors or directories. (Don't count directories).
+		// Skip errors.
 
 		if err1 != nil {
 			bbs.Logger.Info("os.DirFS() callbacks with error",
 				"bucket", name, "path", path1, "error", err1)
 			return nil
 		}
+
+		// Skip directories, including directories for MPUL.
+
 		if e.IsDir() {
-			return nil
-		}
-
-		defer func() {
-			count++
-		}()
-
-		// Check the start-marker first, then check the start-index.
-
-		if marker != "" && !collecting {
-			if marker == path1 {
-				collecting = true
+			if check_mpul_scratch_name(e.Name()) {
+				return fs.SkipDir
 			} else {
 				return nil
 			}
 		}
-		if count < index {
-			return nil
-		}
 
-		// Check the prefix.
+		// Skip unless the prefix matches.
 
 		if !strings.HasPrefix(path1, prefix) {
 			return nil
 		}
 
-		// Check a common prefix, and already encountered.
+		// Skip a common prefix when it is already encountered.
 
 		var commonpart = check_common_prefix(path1, delimiter, prefix)
 		if commonpart != "" {
@@ -184,6 +181,23 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 				return nil
 			}
 			commonprefix = commonpart
+		}
+
+		defer func() {
+			count++
+		}()
+
+		// Check the start-marker first, then check the start-index.
+
+		if marker != "" && !hitmarker {
+			if marker == path1 {
+				hitmarker = true
+			} else {
+				return nil
+			}
+		}
+		if count < index {
+			return nil
 		}
 
 		// Don't finish when fully collected.  It needs one extra
@@ -212,8 +226,8 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 	return entries, nextindex, nextmarker, nil
 }
 
-// make_list_objects_entries converts a list to response data.  It
-// calculates MD5.
+// MAKE_LIST_OBJECTS_ENTRIES converts a list of objects to response
+// data.  It calculates MD5.
 func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
 	var contents []types.Object
 	var commonprefixes []types.CommonPrefix
@@ -240,7 +254,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 			var size int64 = e.stat.Size()
 			var mtime = e.stat.ModTime()
 			var s = types.Object{
-				// s : types.Object
+				// s : types.Object.
 				// - ChecksumAlgorithm []ChecksumAlgorithm
 				// - ChecksumType ChecksumType
 				// - ETag *string
@@ -264,4 +278,164 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 		}
 	}
 	return contents, commonprefixes, nil
+}
+
+func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, string, error) {
+	var location = "/" + bucket
+	var pool_path = bbs.pool_path
+	var name = path.Join(pool_path, bucket)
+
+	var entries []object_list_entry
+	var nextmarker string = ""
+	var count int = 0
+	var collecting bool = false
+	var commonprefix string = ""
+
+	var bucket1 = os.DirFS(name)
+	var err1 = fs.WalkDir(bucket1, "", func(path1 string, e fs.DirEntry, err1 error) error {
+		// Skip errors.
+
+		if err1 != nil {
+			bbs.Logger.Info("os.DirFS() callbacks with error",
+				"bucket", name, "path", path1, "error", err1)
+			return nil
+		}
+
+		// Skip non-directories as a store of MPUL is a directory.
+
+		if !e.IsDir() {
+			return nil
+		}
+		if !check_mpul_scratch_name(e.Name()) {
+			return nil
+		}
+
+		{
+			var _, name = path.Split(path1)
+			if name != e.Name() {
+				log.Fatal("fs.WalkDir() returns an unexpected entry")
+			}
+		}
+
+		// Fix the path: A scratch directory name to an object name.
+
+		var path2 = adjust_mpul_scratch_to_object_name(path1)
+
+		// Check the prefix.
+
+		if !strings.HasPrefix(path2, prefix) {
+			return nil
+		}
+
+		// Check a common prefix, and already encountered.
+
+		var commonpart = check_common_prefix(path2, delimiter, prefix)
+		if commonpart != "" {
+			if commonprefix == commonpart {
+				// Skip if it is the one encountered.
+				return nil
+			}
+			commonprefix = commonpart
+		}
+
+		defer func() {
+			count++
+		}()
+
+		// Check the start-marker.
+
+		if marker != "" && !collecting {
+			if marker == path2 {
+				collecting = true
+			} else {
+				return nil
+			}
+		}
+
+		// Don't finish when fully collected.  It needs one extra
+		// entry to check truncation.
+
+		if len(entries) < maxkeys {
+			var key = path2
+			var stat, err2 = e.Info()
+			if err2 != nil {
+				bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
+					"direntry", e, "error", err2)
+				return nil
+			}
+			entries = append(entries, object_list_entry{key, stat})
+			return nil
+		} else {
+			nextmarker = path2
+			return fs.SkipAll
+		}
+	})
+	if err1 != nil {
+		return nil, "", map_os_error(location, err1, nil)
+	}
+
+	return entries, nextmarker, nil
+}
+
+// CHECK_BUCKET_EMPTY makes sure the emptiness of a bucket for
+// deleting it.  It concerns only regular files, but excludes scratch
+// files whose name begins with a dot.  Note a MPUL directory is named
+// ".objectname@mpul".
+func (bbs *Bb_server) check_bucket_empty(bucket string) error {
+	var path1 = bbs.make_path_of_bucket(bucket)
+	var err1 = bbs.check_directory_empty(bucket, path1)
+	return err1
+}
+
+func (bbs *Bb_server) check_directory_empty (bucket string, path1 string) error {
+	var location = "/" + bucket
+	var filelist, err1 = os.ReadDir(path1)
+	if err1 != nil {
+		//if errors.Is(err1, fs.ErrNotExist)
+		bbs.Logger.Info("os.ReadDir() in a bucket failed",
+			"path", path1, "error", err1)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message: "Listing in a bucket failed.",
+			Resource: location}
+		return errz
+	}
+	for _, e := range filelist {
+		var name = e.Name()
+		if e.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		var errz = &Aws_s3_error{Code: BucketNotEmpty,
+			Resource: location}
+		return errz
+	}
+	for _, e := range filelist {
+		if e.IsDir() {
+			var name = e.Name()
+			if name == "." || name == ".." {
+				continue
+			}
+			if check_mpul_scratch_name(name) {
+				var errz = &Aws_s3_error{Code: BucketNotEmpty,
+					Resource: location}
+				return errz
+			}
+			var path2 = filepath.Join(path1, name)
+			var err3 = bbs.check_directory_empty(bucket, path2)
+			if err3 != nil {
+				return err3
+			}
+		}
+	}
+	return nil
+}
+
+func check_mpul_scratch_name(name string) bool {
+	var m, err1 = path.Match(mpul_scratch_pattern, name)
+	if err1 != nil {
+		log.Fatalf("BAD-IMPL: mpul_scratch_pattern")
+	}
+	return m
 }

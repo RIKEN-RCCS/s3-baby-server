@@ -28,7 +28,8 @@ import (
 
 // Generator polynomial of NVME.  The value is defined as
 // 0xad93d23594c93659 in "NVM Express; NVM Command Set Specification".
-// Note the poly in Golang hash/crc64 is bit reversed.
+// Note polynomials in Golang hash/crc64 are bit reversed (in
+// little-endian).
 
 const poly_nvme = 0x9a6c9329ac4bc9b5
 
@@ -116,22 +117,22 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 	}
 }
 
-func make_checksum_record(algorithm types.ChecksumAlgorithm, csum []byte) *types.Checksum {
-	var csum1 = base64.StdEncoding.EncodeToString(csum)
+func fill_checksum_record(algorithm types.ChecksumAlgorithm, csum []byte) *types.Checksum {
 	var cs = types.Checksum{
 		ChecksumType: types.ChecksumTypeFullObject,
 	}
+	var csum1 = base64.StdEncoding.EncodeToString(csum)
 	switch algorithm {
 	case types.ChecksumAlgorithmCrc32:
 		cs.ChecksumCRC32 = &csum1
 	case types.ChecksumAlgorithmCrc32c:
 		cs.ChecksumCRC32C = &csum1
+	case types.ChecksumAlgorithmCrc64nvme:
+		cs.ChecksumCRC64NVME = &csum1
 	case types.ChecksumAlgorithmSha1:
 		cs.ChecksumSHA1 = &csum1
 	case types.ChecksumAlgorithmSha256:
 		cs.ChecksumSHA256 = &csum1
-	case types.ChecksumAlgorithmCrc64nvme:
-		cs.ChecksumCRC64NVME = &csum1
 	}
 	return &cs
 }

@@ -68,6 +68,8 @@ type upload_checks struct {
 	etag_condition [2]*string
 }
 
+const copy_file_by_linking = true
+
 func os_error_name(err error) string {
 	if errors.Is(err, fs.ErrInvalid) {
 		return "ErrInvalid"
@@ -152,9 +154,9 @@ func (bbs *Bb_server) make_path_of_object(object string, scratchkey string) stri
 	return path
 }
 
-func make_part_object_name(object string, part int32) string {
+func make_mpul_part_name(object string, part int32) string {
 	var prefix = "."
-	var suffix = "@meta"
+	var suffix = "@mpul"
 	var partname = make_part_name(part)
 	var dir, file = path.Split(object)
 	var name = path.Join(dir, (prefix + file + suffix), partname)
@@ -163,6 +165,21 @@ func make_part_object_name(object string, part int32) string {
 
 func make_part_name(part int32) string {
 	return fmt.Sprintf("part%05d", part)
+}
+
+func make_mpul_scratch_name(name string) string {
+	var prefix = "."
+	var suffix = "@mpul"
+	return (prefix + name + suffix)
+}
+
+func adjust_mpul_scratch_to_object_name(path1 string) string {
+	var prefix = "."
+	var suffix = "@" + "mpul"
+	var dir, name1 = path.Split(path1)
+	var name2 = strings.TrimSuffix(strings.TrimPrefix(name1, prefix), suffix)
+	var s2 = path.Join(dir, name2)
+	return s2
 }
 
 func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket string) error {

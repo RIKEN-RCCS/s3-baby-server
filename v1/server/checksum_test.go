@@ -14,7 +14,7 @@ import (
 func TestCRC64NVME(t *testing.T) {
 	fmt.Printf("Check CRC64NVME with known value...\n")
 
-	var data1 = make([]byte, 4096)
+	var data1 = bytes.Repeat([]byte{0x00}, 4096)
 	var crc1 = []byte{0x64, 0x82, 0xd3, 0x67, 0xeb, 0x22, 0xb6, 0x4e}
 	var data2 = bytes.Repeat([]byte{0xff}, 4096)
 	var crc2 = []byte{0xc0, 0xdd, 0xba, 0x73, 0x02, 0xec, 0xa3, 0xac}

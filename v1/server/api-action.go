@@ -2,8 +2,7 @@
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// API-STUB.  Handler templates. They should be replaced by
-// actual implementations.
+// This contains implementations of actions.
 
 package server
 
@@ -145,7 +144,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 	var location = "/" + object
 
-	var mpul, err3 = bbs.check_upload_going(object, i.UploadId)
+	var mpul1, err3 = bbs.check_upload_going(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -270,7 +269,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
-	var err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul)
+	var err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul1)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -285,9 +284,20 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// The checksum of the input is ignored when it is not the case.
 	// The returned checksum is always for full object.
 
+	var csum_given = types.Checksum {
+		//ChecksumType: types.ChecksumTypeFullObject,
+		ChecksumType: i.ChecksumType,
+		ChecksumCRC32: i.ChecksumCRC32,
+		ChecksumCRC32C: i.ChecksumCRC32C,
+		ChecksumSHA1: i.ChecksumCRC64NVME,
+		ChecksumSHA256: i.ChecksumSHA1,
+		ChecksumCRC64NVME: i.ChecksumSHA256,
+	}
+	var _ = csum_given
+
 	var checksum = types.ChecksumAlgorithmCrc64nvme
 	if i.ChecksumType != types.ChecksumTypeFullObject {
-		bbs.Logger.Info("Checksum (non-full-object) unsuppored, ignored",
+		bbs.Logger.Info("Checksum by not full-object unsuppored, ignored",
 			"checksum-type", i.ChecksumType)
 		checksum = ""
 	}
@@ -299,7 +309,6 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	if checksum != "" {
 		var csum1 *string
-		var checksum = catalog.Checksum_algorithm
 		switch checksum {
 		case types.ChecksumAlgorithmCrc32:
 			csum1 = i.ChecksumCRC32
@@ -344,8 +353,6 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err7
 	}
 
-	var info = mpul.Meta_info
-
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
 		if timeout != nil {
@@ -354,29 +361,41 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var err9 = bbs.place_scratch_file(object, scratchkey, info)
-	if err9 != nil {
-		return nil, err9
-	}
+	{
+		// Check the upload-id again after exclusion.
 
-	cleanup_needed = false
+		var mpul2, err3 = bbs.check_upload_going(object, i.UploadId)
+		if err3 != nil {
+			return nil, err3
+		}
+		var info = mpul2.Meta_info
 
-	var err10 = bbs.discard_mpul_directory(object)
-	if err10 != nil {
-		// Ignore errors.
+		var err1 = bbs.place_scratch_file(object, scratchkey, info)
+		if err1 != nil {
+			return nil, err1
+		}
+
+		cleanup_needed = false
+
+		var err2 = bbs.discard_mpul_directory(object)
+		if err2 != nil {
+			// IGNORE ERRORS.
+		}
 	}
 
 	o.ETag = &etag
 
 	var address string
-	if bbs.config.Site_base_url != nil {
-		var a, err1 = url.JoinPath(*bbs.config.Site_base_url, location)
+	if bbs.conf.Site_base_url != nil {
+		var a, err1 = url.JoinPath(*bbs.conf.Site_base_url, location)
 		if err1 != nil {
 			// Ignore errors.
 			address = location
 		} else {
 			address = a
 		}
+	} else {
+		address = location
 	}
 	o.Location = &address
 
@@ -465,7 +484,6 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			// i.ACL types.ObjectCannedACL
 			// i.BucketKeyEnabled *bool
 			// i.CacheControl *string
-			// i.ChecksumAlgorithm types.ChecksumAlgorithm
 			// i.ContentDisposition *string
 			// i.ContentEncoding *string
 			// i.ContentLanguage *string
@@ -498,6 +516,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err2 != nil {
 		return nil, err2
 	}
+	var location = "/" + object
 
 	if i.CopySource == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -529,14 +548,17 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		}
 	}
 
+	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
+
 	var s_stat, info, err3 = bbs.check_object_status(source)
 	if err3 != nil {
 		return nil, err3
 	}
-	var md5, _, err4 = bbs.calculate_csum2("", source, "")
+	var md5, csum, err4 = bbs.calculate_csum2(checksum, source, "")
 	if err4 != nil {
 		return nil, err4
 	}
+	var csum_calculated = fill_checksum_record(checksum, csum)
 
 	var s_mtime = s_stat.ModTime()
 	var etag = make_etag_from_md5(md5)
@@ -548,49 +570,97 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		return nil, err5
 	}
 
-	var rid int64 = get_request_id(ctx)
-	var scratchkey = bbs.make_scratch_suffix(rid)
-	defer bbs.discharge_scratch_suffix(rid)
+	var t_mtime time.Time
+	if !copy_file_by_linking {
+		var rid int64 = get_request_id(ctx)
+		var scratchkey = bbs.make_scratch_suffix(rid)
+		defer bbs.discharge_scratch_suffix(rid)
 
-	var err6 = bbs.copy_file_as_scratch(ctx, object, scratchkey, source)
-	if err6 != nil {
-		return nil, err6
-	}
-	var cleanup_needed = true
-	defer func() {
-		if cleanup_needed {
-			bbs.discard_scratch_file(object, scratchkey)
+		var err6 = bbs.copy_file_as_scratch(ctx, object, scratchkey, source)
+		if err6 != nil {
+			return nil, err6
 		}
-	}()
+		var cleanup_needed = true
+		defer func() {
+			if cleanup_needed {
+				bbs.discard_scratch_file(object, scratchkey)
+			}
+		}()
 
-	{
-		var timeout = bbs.serialize_access(ctx, object, rid)
-		if timeout != nil {
-			return nil, timeout
+		if bbs.conf.Verify_fs_write {
+			var md5x, _, err1 = bbs.calculate_csum2("", object, scratchkey)
+			if err1 != nil {
+				return nil, err1
+			}
+			if bytes.Compare(md5, md5x) != 0 {
+				bbs.Logger.Warn("Copying file failed, MD5 values differ",
+					"source", hex.EncodeToString(md5),
+					"target", hex.EncodeToString(md5x))
+				var errz = &Aws_s3_error{
+					Code: InternalError,
+					Message: "Copying file failed",
+					Resource: location}
+				return nil, errz
+			}
 		}
-		defer bbs.release_access(ctx, object, rid)
+
+		{
+			var timeout = bbs.serialize_access(ctx, object, rid)
+			if timeout != nil {
+				return nil, timeout
+			}
+			defer bbs.release_access(ctx, object, rid)
+		}
+
+		{
+			var err1 = bbs.place_scratch_file(object, scratchkey, info)
+			if err1 != nil {
+				return nil, err1
+			}
+		}
+
+		var t_stat, err9 = bbs.fetch_object_status(object)
+		if err9 != nil {
+			return nil, err9
+		}
+		t_mtime = t_stat.ModTime()
+		cleanup_needed = false
+	} else {
+		// copy_file_by_linking = true.
+
+		var rid int64 = get_request_id(ctx)
+		// var scratchkey = bbs.make_scratch_suffix(rid)
+		// defer bbs.discharge_scratch_suffix(rid)
+
+		{
+			var timeout = bbs.serialize_access(ctx, object, rid)
+			if timeout != nil {
+				return nil, timeout
+			}
+			defer bbs.release_access(ctx, object, rid)
+		}
+
+		var err1 = bbs.store_metainfo(object, info)
+		if err1 != nil {
+			return nil, err1
+		}
+
+		var s_path = bbs.make_path_of_object(source, "")
+		var t_path = bbs.make_path_of_object(object, "")
+
+		var err2 = os.Link(s_path, t_path)
+		if err2 != nil {
+			bbs.Logger.Warn("os.Link() failed on an object",
+				"source", s_path, "object", t_path, "error", err2)
+			return nil, map_os_error(location, err2, nil)
+		}
+
+		var t_stat, err9 = bbs.fetch_object_status(object)
+		if err9 != nil {
+			return nil, err9
+		}
+		t_mtime = t_stat.ModTime()
 	}
-
-	/*
-	var md5, _, err7 = bbs.calculate_csum2("", object, scratchkey)
-	if err7 != nil {
-		return nil, err7
-	}
-	*/
-
-	var err9 = bbs.place_scratch_file(object, scratchkey, info)
-	if err9 != nil {
-		return nil, err9
-	}
-
-	var d_stat, err10 = bbs.fetch_object_status(object)
-	if err10 != nil {
-		return nil, err10
-	}
-
-	cleanup_needed = false
-
-	var d_mtime = d_stat.ModTime()
 
 	o.CopyObjectResult = &types.CopyObjectResult {
 		// types.CopyObjectResult:
@@ -602,8 +672,14 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		// - ChecksumType ChecksumType
 		// - ETag: *string
 		// - LastModified *time.Time
+		ChecksumCRC32: csum_calculated.ChecksumCRC32,
+		ChecksumCRC32C: csum_calculated.ChecksumCRC32C,
+		ChecksumCRC64NVME: csum_calculated.ChecksumCRC64NVME,
+		ChecksumSHA1: csum_calculated.ChecksumSHA1,
+		ChecksumSHA256: csum_calculated.ChecksumSHA256,
+		ChecksumType: csum_calculated.ChecksumType,
 		ETag: &etag,
-		LastModified: &d_mtime,
+		LastModified: &t_mtime,
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -786,30 +862,35 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var err6 = bbs.create_mpul_directory(ctx, object, mpul)
-	if err6 != nil {
-		return nil, err6
-	}
-	var cleanup_needed = true
-	defer func() {
-		if cleanup_needed {
-			bbs.discard_mpul_directory(object)
+	{
+		var err6 = bbs.create_mpul_directory(ctx, object, mpul)
+		if err6 != nil {
+			return nil, err6
 		}
-	}()
+		var cleanup_needed = true
+		defer func() {
+			if cleanup_needed {
+				bbs.discard_mpul_directory(object)
+			}
+		}()
 
-	var err7 = bbs.store_metainfo(object, info)
-	if err7 != nil {
-		return nil, err7
+		var catalog = &Mpul_catalog{
+			Checksum_algorithm: checksum,
+		}
+		var err7 = bbs.store_mpul_catalog(object, catalog)
+		if err7 != nil {
+			return nil, err7
+		}
+
+		cleanup_needed = false
 	}
-
-	cleanup_needed = false
 
 	{
 		o.Bucket = i.Bucket
 		o.Key = i.Key
 		o.UploadId = &uploadid
 		o.ChecksumType = checksumtype
-		o.ChecksumAlgorithm = i.ChecksumAlgorithm
+		o.ChecksumAlgorithm = checksum
 	}
 
 	// o.AbortDate *time.Time
@@ -866,6 +947,12 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	// Check some objects remain, when removing has failed.
 
 	if err3 != nil {
+		var err4 = bbs.check_bucket_empty(path)
+		if err4 != nil {
+			return nil, err4
+		}
+
+		/*
 		var filelist, err4 = os.ReadDir(path)
 		if err4 != nil {
 			//if errors.Is(err4, fs.ErrNotExist)
@@ -884,8 +971,12 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 				Resource: location}
 			return nil, errz
 		}
+		*/
 
-		// Nothing but files start with a dot.  Remove them.
+		// Only files remain that start with a dot.  Remove them.
+
+		bbs.Logger.Info(("Try os.RemoveAll() after removing a bucket failed"),
+			"path", path)
 
 		var err5 = os.RemoveAll(path)
 		if err5 != nil {
@@ -962,17 +1053,18 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var err6 = bbs.store_metainfo(object, nil)
-	if err6 != nil {
-		return nil, err6
-	}
-	var path = bbs.make_path_of_object(object, "")
-	var err7 = os.Remove(path)
-	if err7 != nil {
-		bbs.Logger.Warn("os.Remove() failed on an object",
-			"file", path, "error", err7)
-		var errz = map_os_error(location, err7, nil)
-		return nil, errz
+	{
+		var err1 = bbs.store_metainfo(object, nil)
+		if err1 != nil {
+			// IGNORE ERRORS.
+		}
+		var path = bbs.make_path_of_object(object, "")
+		var err2 = os.Remove(path)
+		if err2 != nil {
+			bbs.Logger.Warn("os.Remove() failed on an object",
+				"file", path, "error", err2)
+			return nil, map_os_error(location, err2, nil)
+		}
 	}
 
 	// o.DeleteMarker *bool
@@ -1034,7 +1126,6 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 
 	var deletestate = make([]struct {
 		object string
-		//error *Aws_s3_error
 		error types.Error
 	}, len(i.Delete.Objects))
 
@@ -1093,6 +1184,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				deletestate[i].error.Message = &errz.Message
 				continue loop1
 			}
+
 			var size = stat.Size()
 			if e.Size != nil && size != *e.Size {
 				var errz = &Aws_s3_error{Code: PreconditionFailed,
@@ -1101,6 +1193,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				deletestate[i].error.Message = &errz.Message
 				continue loop1
 			}
+
 			if e.ETag != nil {
 				var md5, _, err4 = bbs.calculate_csum2("", object, "")
 				if err4 != nil {
@@ -1136,6 +1229,8 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 		defer bbs.release_access(ctx, bucket, rid)
 	}
 
+	// Perform deletes.
+
 	{
 	loop2:
 		for i, e := range deletestate {
@@ -1143,9 +1238,10 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				var object = e.object
 				var err6 = bbs.store_metainfo(object, nil)
 				if err6 != nil {
-					deletestate[i].error.Code = &err6.Code
-					deletestate[i].error.Message = &err6.Message
-					continue loop2
+					// IGNORE ERRORS.
+					// deletestate[i].error.Code = &err6.Code
+					// deletestate[i].error.Message = &err6.Message
+					// continue loop2
 				}
 				var path = bbs.make_path_of_object(object, "")
 				var err7 = os.Remove(path)
@@ -1172,6 +1268,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 					log.Fatal("BAD-IMPL")
 				}
 				var d = types.DeletedObject{
+					// d : types.DeletedObject.
 					// - DeleteMarker *bool
 					// - DeleteMarkerVersionId *string
 					// - Key *string
@@ -1181,6 +1278,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				deletelist = append(deletelist, d)
 			} else {
 				var d = types.Error {
+					// d : types.Error.
 					// - Code *string
 					// - Key *string
 					// - Message *string
@@ -1339,6 +1437,8 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err6
 	}
 
+	// NO SERIALIZATION.
+
 	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
 	if err7 != nil {
 		return nil, err7
@@ -1362,7 +1462,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		o.ChecksumCRC64NVME = &crc
 	}
 
-	if info != nil {
+	if info != nil && info.Headers != nil {
 		// Always leave "MissingMeta" nil for zero.
 		o.Metadata = info.Headers
 		o.MissingMeta = nil
@@ -1373,8 +1473,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 			o.TagCount = &count
 		}
 	}
-
-	// NO SERIALIZATION.
 
 	o.Body = f1
 
@@ -1433,44 +1531,42 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	if err3 != nil {
 		return nil, err3
 	}
-	var _ = stat
 	var _ = info
 
-	/*
-	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesEtag) {
-		o.ETag *string
+	var rid int64 = get_request_id(ctx)
+	var scratchkey = bbs.make_scratch_suffix(rid)
+	defer bbs.discharge_scratch_suffix(rid)
+
+	// NO SERIALIZATION.
+
+	var checksum = types.ChecksumAlgorithmCrc64nvme
+	var md5, csum, err6 = bbs.calculate_csum2(checksum, object, scratchkey)
+	if err6 != nil {
+		return nil, err6
 	}
 
-	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesChecksum) {
-		var csum = types.Checksum{
-			ChecksumType: types.ChecksumTypeFullObject,
-		}
-		switch checksum {
-		case types.ChecksumAlgorithmCrc32:
-			csum.ChecksumCRC32 = &csum1
-		case types.ChecksumAlgorithmCrc32c:
-			csum.ChecksumCRC32C = &csum1
-		case types.ChecksumAlgorithmSha1:
-			csum.ChecksumSHA1 = &csum1
-		case types.ChecksumAlgorithmSha256:
-			csum.ChecksumSHA256 = &csum1
-		case types.ChecksumAlgorithmCrc64nvme:
-			csum.ChecksumCRC64NVME = &csum1
-		}
-		o.Checksum = &csum
-	}
+	var attributes = i.ObjectAttributes
 
-	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesObjectParts) {
+	if slices.Contains(attributes, types.ObjectAttributesEtag) {
+		var etag = make_etag_from_md5(md5)
+		o.ETag = &etag
+	}
+	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
+		var csum_calculated = fill_checksum_record(checksum, csum)
+		o.Checksum = csum_calculated
+	}
+	if slices.Contains(attributes, types.ObjectAttributesObjectParts) {
 		o.ObjectParts = nil
 	}
-	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesStorageClass) {
+	if slices.Contains(attributes, types.ObjectAttributesStorageClass) {
 		o.StorageClass = types.StorageClassStandard
 	}
-	if slices.Contains(i.ObjectAttributes, types.ObjectAttributesObjectSize) {
-		o.ObjectSize *int64
+	if slices.Contains(attributes, types.ObjectAttributesObjectSize) {
+		var size = stat.Size()
+		o.ObjectSize = &size
 	}
-	o.LastModified *time.Time
-	*/
+	var mtime = stat.ModTime()
+	o.LastModified = &mtime
 
 	// parts : types.GetObjectAttributesParts
 	// - IsTruncated *bool
@@ -1516,6 +1612,8 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 	{
 		var unsupported = unsupported_checks {
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			RequestPayer: i.RequestPayer,
+			VersionId: i.VersionId,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1523,10 +1621,21 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		}
 	}
 
+	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err2 != nil {
+		return nil, err2
+	}
+	//var location = "/" + object
+	var _, info, err3 = bbs.check_object_status(object)
+	if err3 != nil {
+		return nil, err3
+	}
 
-	// o.TagSet []types.Tag
+	// NO SERIALIZATION.
+
+	o.TagSet = info.Tags.TagSet
+
 	// o.VersionId *string
-	// o.ResultMetadata middleware.Metadata
 
 	return &o, nil
 }
@@ -1824,13 +1933,14 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		var scontinuation = strconv.FormatInt(int64(continuation), 10)
 		o.ContinuationToken = &scontinuation
 	}
-	// o.Owner = &s3.Owner{DisplayName:, ID:}
 	o.Prefix = i.Prefix
+
+	// o.Owner
 
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, error) {
+func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, error) {
 	var action = "ListMultipartUploads"
 	fmt.Printf("*ListMultipartUploads*\n")
 	var o = s3.ListMultipartUploadsOutput{}
@@ -1848,6 +1958,8 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListM
 
 	{
 		var unsupported = unsupported_checks {
+			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			RequestPayer: i.RequestPayer,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1855,20 +1967,42 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, params *s3.ListM
 		}
 	}
 
-	// o.Bucket *string
+	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	if err2 != nil {
+		return nil, err2
+	}
+	var location = "/" + bucket
+	var _ = location
+
+	/*NOTYET*/
+
+	// Uploads : types.MultipartUpload
+	// - ChecksumAlgorithm ChecksumAlgorithm
+	// - ChecksumType ChecksumType
+	// - Initiated *time.Time
+	// - Initiator *Initiator
+	// - Key *string
+	// - Owner *Owner
+	// - StorageClass StorageClass
+	// - UploadId *string
+
 	// o.CommonPrefixes []types.CommonPrefix
-	// o.Delimiter *string
-	// o.EncodingType types.EncodingType
 	// o.IsTruncated *bool
-	// o.KeyMarker *string
-	// o.MaxUploads *int32
 	// o.NextKeyMarker *string
 	// o.NextUploadIdMarker *string
-	// o.Prefix *string
-	// o.RequestCharged types.RequestCharged
-	// o.UploadIdMarker *string
 	// o.Uploads []types.MultipartUpload
-	// o.ResultMetadata middleware.Metadata
+
+	{
+		o.Bucket = i.Bucket
+		o.Delimiter = i.Delimiter
+		o.EncodingType = i.EncodingType
+		o.KeyMarker = i.KeyMarker
+		o.MaxUploads = i.MaxUploads
+		o.Prefix = i.Prefix
+		o.UploadIdMarker = i.UploadIdMarker
+	}
+
+	// o.RequestCharged types.RequestCharged
 
 	return &o, nil
 }
@@ -2461,6 +2595,8 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 		}
 	}
 
+	/*NOTYET*/
+
 	// o.VersionId *string
 	// o.ResultMetadata middleware.Metadata
 
@@ -2599,7 +2735,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
-	var partobject = make_part_object_name(object, part)
+	var partobject = make_mpul_part_name(object, part)
 
 	var check = upload_checks{
 		location:      location,
@@ -2715,6 +2851,8 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 			return nil, err1
 		}
 	}
+
+	/*NOTYET*/
 
 	// o.BucketKeyEnabled *bool
 	// o.CopyPartResult *types.CopyPartResult

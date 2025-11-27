@@ -65,7 +65,10 @@ document string in "s3.json".  They are in "shapes" /
 ## Serialization (Criticals)
 
 - Accesses to an object file and a meta-info file are serialized by an
-  object name.  It keeps correspondence between an object and its
+  object name.  It is needed to keep correspondence between an object
+  and its meta-info.  Deletion of an object and its meta-info is not
+  atomic.  Baby-server performs a deletion of a meta-info first and a
+  failure of a deletion of an object may leave an object without
   meta-info.
 
 - Downloading of an object is not excluded by other operations such as
@@ -82,10 +85,11 @@ document string in "s3.json".  They are in "shapes" /
   Exclusion is based on a bucket or on an object.  A bucket can be
   removed while operations on objects are in progress.
 
-## Upload ID
+## Upload-ID
 
-Uniqueness of upload-id is not guaranteed.  Baby-server does not
-record upload-id for restarting the server.
+Uniqueness of an upload-id is not guaranteed.  Baby-server does not
+check the records of currently on-going MPUL's, although they are
+stored in files.  It is guaranteed by probability.
 
 ## Multipart-Upload (MPUL)
 
@@ -94,8 +98,18 @@ stores files "info", "list", "partNNNNN".
 
 GetObject with "?partNumber=" is an error in Baby-server.  An object
 uploaded by multipart-upload is concatenated at completion and its
-parts are lost.  Note it is not allowed in AWS-S3 to download a part
-while multipart-upload is in-progres.
+parts are lost.  Note it is not a legal operation in AWS-S3 to
+download a part while multipart-upload is in-progress.
+
+(* DeleteBucket does not remove a bucket in existences of some MPUL's
+that are in-progress. *)
+
+ListMultipartUploads never returns NextUploadIdMarker in the output.
+
+## Copying a file
+
+Baby-server copies a file by linking a file.  The mtime of a new file
+is not updated.  Note AWS-S3 never updates files and linking is safe.
 
 ## ???
 
@@ -104,7 +118,7 @@ v1.1.1 code allowed nested tagging in values in the format
 tagging).
 
 
-## Timestamp of objects
+## Timestamps of objects
 
 AWS-S3 only manages timestamps of objects in mtime.  Only buckets
 needs ctime and mtime.  An object's mtime is amended when it is
@@ -124,5 +138,8 @@ CRC64NVME in spite of an algorithm specified at "PutObject".
 Baby-server ignores checking with "x-amz-sdk-checksum-algorithm" (note
 it is with "sdk").  This header is used to check the algorithm matches
 the stored one.  Baby-server does not store the checksum algorithm.
-Note "x-amz-sdk-checksum-algorithm" is used in DeleteObjects,
-PutObject, PutObjectTagging, and UploadPart.
+Note "x-amz-sdk-checksum-algorithm" is used in {DeleteObjects,
+PutObject, PutObjectTagging, UploadPart}.
+
+Note multiple checksum algorithms can be specified in internally
+defined types in: types.Object and types.ObjectVersion.
