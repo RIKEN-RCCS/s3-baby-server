@@ -10,7 +10,7 @@
 // [Error]
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_Error.html
 
-// Aws_s3_error_code is an enumeration of string type.
+// Aws_s3_error_code is (an enumeration) of string type.
 // Aws_s3_error_to_message is a map from error-code to a pair of an
 // http status-code and a message.  Some of the messages that are
 // rather long are shortened by hand.  Entries may have -1 for http
@@ -19,8 +19,8 @@
 package server
 
 import (
-	"fmt"
 	"encoding/xml"
+	"fmt"
 	smithy "github.com/aws/smithy-go"
 )
 
@@ -32,9 +32,9 @@ import (
 type Aws_s3_error struct {
 	XMLName xml.Name `xml:"Error"`
 	//Code Aws_s3_error_code
-	Code string
-	Message string
-	Resource string
+	Code      string
+	Message   string
+	Resource  string
 	RequestId string
 }
 
@@ -62,7 +62,7 @@ func (e *Aws_s3_error) ErrorFault() smithy.ErrorFault {
 
 type Aws_s3_error_code string
 
-// Errors extending smithy.APIError type defined in types.
+// Errors extending smithy.APIError type defined in types (N=14).
 //  - types.BucketAlreadyExists
 //  - types.BucketAlreadyOwnedByYou
 //  - types.EncryptionTypeMismatch
@@ -77,6 +77,15 @@ type Aws_s3_error_code string
 //  - types.ObjectAlreadyInActiveTierError
 //  - types.ObjectNotInActiveTierError
 //  - types.TooManyParts
+
+// Information on errors.  It is a pair of an http status-code and a
+// message.
+type Aws_s3_error_message struct {
+	Status  int
+	Message string
+}
+
+// [List of error codes]
 
 const (
 	AccessDenied                            = "AccessDenied"
@@ -161,14 +170,21 @@ const (
 	UserKeyMustBeSpecified                  = "UserKeyMustBeSpecified"
 )
 
-// Information on errors.  It is a pair of an http status-code and a
-// message.
-type Aws_s3_error_message struct {
-	Status    int
-	Message string
-}
+// [List of Tagging-related error codes]
+
+const (
+	// InvalidRequest = "InvalidRequest"
+	InvalidTag         = "InvalidTag"
+	NoSuchResource     = "NoSuchResource"
+	TagPolicyException = "TagPolicyException"
+	TooManyTags        = "TooManyTags"
+)
 
 var Aws_s3_error_to_message = map[string]Aws_s3_error_message{
+	//
+	// [List of error codes]
+	//
+
 	AccessDenied:                            {403, "Access Denied"},
 	AccountProblem:                          {403, "There is a problem with your Amazon Web Services account."},
 	AllAccessDisabled:                       {403, "All access to this Amazon S3 resource has been disabled."},
@@ -202,7 +218,7 @@ var Aws_s3_error_to_message = map[string]Aws_s3_error_message{
 	InvalidPayer:                            {403, "All access to this object has been disabled."},
 	InvalidPolicyDocument:                   {400, "The content of the form does not meet the conditions specified in the policy document."},
 	InvalidRange:                            {416, "The requested range cannot be satisfied."},
-	InvalidRequest:                          {400, "???"},
+	InvalidRequest:                          {400, "Bad Request."},
 	/*
 		InvalidRequest: {400, "Please use AWS4-HMAC-SHA256."},
 		InvalidRequest: {400, "SOAP requests must be made over an HTTPS connection."},
@@ -260,4 +276,14 @@ var Aws_s3_error_to_message = map[string]Aws_s3_error_message{
 	UnexpectedContent:                 {400, "This request does not support content."},
 	UnresolvableGrantByEmailAddress:   {400, "The email address you provided does not match any account on record."},
 	UserKeyMustBeSpecified:            {400, "The bucket POST must contain the specified field name. If it is specified, check the order of the fields."},
+
+	//
+	// [List of Tagging-related error codes]
+	//
+
+	// InvalidRequest
+	InvalidTag:         {400, "Tag key or value isn't valid."},
+	NoSuchResource:     {404, "The specified resource doesn't exist."},
+	TagPolicyException: {400, "The tag policy does not allow the specified value for the following tag key."},
+	TooManyTags:        {400, "The number of tags exceeds the limit of 50 tags."},
 }

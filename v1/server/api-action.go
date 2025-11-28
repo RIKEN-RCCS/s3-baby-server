@@ -577,7 +577,8 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		var scratchkey = bbs.make_scratch_suffix(rid)
 		defer bbs.discharge_scratch_suffix(rid)
 
-		var err6 = bbs.copy_file_as_scratch(ctx, object, scratchkey, source)
+		var err6 = bbs.copy_file_as_scratch(ctx, object, scratchkey,
+			source, nil)
 		if err6 != nil {
 			return nil, err6
 		}
@@ -2581,7 +2582,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, error) {
+func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, *Aws_s3_error) {
 	var action = "PutObjectTagging"
 	fmt.Printf("*PutObjectTagging*\n")
 	var o = s3.PutObjectTaggingOutput{}
@@ -2596,11 +2597,19 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	// i.RequestPayer types.RequestPayer
 	// i.VersionId *string
 
+	// ERRORS:
+	// - InvalidTag
+	// - MalformedXML
+	// - OperationAborted
+	// - InternalError
+
+	// IGNORE i.ContentMD5.
+
 	{
 		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			RequestPayer:        i.RequestPayer,
-			// i.SSECustomerAlgorithm *string
+			VersionId: i.VersionId,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -2608,10 +2617,43 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 		}
 	}
 
-	/*NOTYET*/
+	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err2 != nil {
+		return nil, err2
+	}
+	//var location = "/" + object
+
+	var rid int64 = get_request_id(ctx)
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	{
+		var _, info, err3 = bbs.check_object_status(object)
+		if err3 != nil {
+			return nil, err3
+		}
+
+		if info == nil {
+			info = &Meta_info{
+				Headers: nil,
+				Tags: nil,
+			}
+		}
+
+		info.Tags = i.Tagging
+		var err7 = bbs.store_metainfo(object, info)
+		if err7 != nil {
+			return nil, err7
+		}
+	}
 
 	// o.VersionId *string
-	// o.ResultMetadata middleware.Metadata
 
 	return &o, nil
 }
@@ -2856,8 +2898,9 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	{
 		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			ExpectedSourceBucketOwner: i.ExpectedSourceBucketOwner,
 			RequestPayer:        i.RequestPayer,
-			// i.SSECustomerAlgorithm *string
+			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -2865,17 +2908,142 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		}
 	}
 
+	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	if err2 != nil {
+		return nil, err2
+	}
+	var location = "/" + object
+
+	var mpul1, err3 = bbs.check_upload_going(object, i.UploadId)
+	if err3 != nil {
+		return nil, err3
+	}
+	var part, err4 = bbs.check_part_number(object, i.PartNumber)
+	if err4 != nil {
+		return nil, err4
+	}
+
+	var _ = mpul1
+
+	var source string
+	{
+		if i.CopySource == nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "No x-amz-copy-source supplied."}
+			return nil, errz
+		}
+
+		var u, err3 = url.Parse(*i.CopySource)
+		if err3 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad x-amz-copy-source."}
+			return nil, errz
+		}
+		source = u.Path
+
+		if check_object_naming(source) {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad x-amz-copy-source."}
+			return nil, errz
+		}
+		var d1 = strings.Split(object, "/")
+		var s1 = strings.Split(source, "/")
+		if !(len(d1) >= 2 && len(s1) >= 2 && d1[0] == s1[0]) {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "x-amz-copy-source must be in the same bucket."}
+			return nil, errz
+		}
+	}
+
+	var s_stat, info, err13 = bbs.check_object_status(source)
+	if err13 != nil {
+		return nil, err13
+	}
+	var md5, _, err14 = bbs.calculate_csum2("", source, "")
+	if err14 != nil {
+		return nil, err14
+	}
+	//var csum_calculated = fill_checksum_record(checksum, csum)
+
+	var s_mtime = s_stat.ModTime()
+	var s_etag = make_etag_from_md5(md5)
+
+	var _, err15 = bbs.check_conditions(ctx, &s_etag, &s_mtime,
+		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
+		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
+	if err15 != nil {
+		return nil, err15
+	}
+
+	var size = s_stat.Size()
+	var extent, err24 = scan_range(i.CopySourceRange, size, location)
+	if err24 != nil {
+		return nil, err24
+	}
+
+	var rid int64 = get_request_id(ctx)
+	var scratchkey = bbs.make_scratch_suffix(rid)
+	defer bbs.discharge_scratch_suffix(rid)
+
+	var partobject = make_mpul_part_name(object, part)
+
+	var err6 = bbs.copy_file_as_scratch(ctx, partobject, scratchkey,
+		source, extent)
+	if err6 != nil {
+		return nil, err6
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(partobject, scratchkey)
+		}
+	}()
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var t_mtime time.Time
+
+	{
+		var err1 = bbs.place_scratch_file(object, scratchkey, info)
+		if err1 != nil {
+			return nil, err1
+		}
+
+		var t_stat, err9 = bbs.fetch_object_status(object)
+		if err9 != nil {
+			return nil, err9
+		}
+		t_mtime = t_stat.ModTime()
+		cleanup_needed = false
+	}
+
+	o.CopyPartResult = &types.CopyPartResult{
+		// - ChecksumCRC32 *string
+		// - ChecksumCRC32C *string
+		// - ChecksumCRC64NVME *string
+		// - ChecksumSHA1 *string
+		// - ChecksumSHA256 *string
+		// - ETag *string
+		// - LastModified *time.Time
+
+		LastModified: &t_mtime,
+	}
+
 	/*NOTYET*/
 
 	// o.BucketKeyEnabled *bool
-	// o.CopyPartResult *types.CopyPartResult
 	// o.CopySourceVersionId *string
 	// o.RequestCharged types.RequestCharged
 	// o.SSECustomerAlgorithm *string
 	// o.SSECustomerKeyMD5 *string
 	// o.SSEKMSKeyId *string
 	// o.ServerSideEncryption types.ServerSideEncryption
-	// o.ResultMetadata middleware.Metadata
 
 	return &o, nil
 }

@@ -182,7 +182,7 @@ func adjust_mpul_scratch_to_object_name(path1 string) string {
 	return s2
 }
 
-func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket string) error {
+func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket string) *Aws_s3_error {
 	var location = "/" + bucket
 	var path = bbs.make_path_of_bucket(bucket)
 	var stat, err2 = os.Lstat(path)
@@ -425,11 +425,9 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 	return nil
 }
 
-func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchkey string, source string) error {
+func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchkey string, source string, extent *[2]int64) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
-
-	bbs.Logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")
 
 	// Copy data to a temporary file.
 
@@ -452,22 +450,28 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 
 	{
 		var sourcepath = bbs.make_path_of_object(source, "")
-		var f2, err1 = os.Create(sourcepath)
+		var f2, err1 = os.Open(sourcepath)
 		if err1 != nil {
 			bbs.Logger.Warn("os.Open() failed for CopyObject",
 				"file", sourcepath, "error", err1)
 			return map_os_error(location, err1, nil)
 		}
-		var _, err2 = io.Copy(f1, f2)
+		var f3, err2 = New_range_reader(f2, extent)
 		if err2 != nil {
-			bbs.Logger.Warn("io.Copy() failed for CopyObject",
+			bbs.Logger.Warn("New_range_reader() failed for CopyObject",
 				"file", sourcepath, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
-		var err3 = f1.Close()
+		var _, err3 = io.Copy(f1, f3)
 		if err3 != nil {
+			bbs.Logger.Warn("io.Copy() failed for CopyObject",
+				"file", sourcepath, "error", err3)
+			return map_os_error(location, err3, nil)
+		}
+		var err4 = f1.Close()
+		if err4 != nil {
 			bbs.Logger.Warn("op.Close() failed", "file", path,
-				"error", err3)
+				"error", err4)
 			// Ignore an error.
 		}
 	}
@@ -476,7 +480,7 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 	if err4 != nil {
 		bbs.Logger.Warn("op.Close() failed", "file", path,
 			"error", err4)
-		// Ignore an error.
+		// IGNORE ERRORS.
 	}
 
 	cleanup_needed = false
@@ -736,9 +740,14 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 }
 
 // Stores a meta-info file.  Passing nil deletes a meta-info file.
+// Also, deletes a meta-info file all elements are nil.
 func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "meta")
+
+	if info != nil && (info.Headers == nil && info.Tags == nil) {
+		info = nil
+	}
 
 	if info == nil {
 		// Remove a info file if exists.
@@ -944,7 +953,7 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 		fmt.Printf("extent==nil\n")
 		return f1, nil
 	} else {
-		var f2, err3 = New_range_reader(f1, [2]int64(extent[0:2]))
+		var f2, err3 = New_range_reader(f1, extent)
 		return f2, err3
 	}
 }

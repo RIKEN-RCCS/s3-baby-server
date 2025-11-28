@@ -1,4 +1,5 @@
 // hodgepodge.go
+
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -118,7 +119,7 @@ func (bbs *Bb_server) discharge_scratch_suffix(rid int64) {
 	}
 }
 
-func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) error {
+func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) *Aws_s3_error {
 	var ok = bbs.monitor1.enter(object, rid, (10 * time.Millisecond))
 	if !ok {
 		return &Aws_s3_error{Code: RequestTimeout}
@@ -126,7 +127,7 @@ func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid i
 	return nil
 }
 
-func (bbs *Bb_server) release_access(ctx context.Context, object string, rid int64) error {
+func (bbs *Bb_server) release_access(ctx context.Context, object string, rid int64) *Aws_s3_error {
 	bbs.monitor1.exit(object, rid)
 	return nil
 }
@@ -179,7 +180,7 @@ func (bbs *Bb_server) cope_write_error(ctx context.Context, w http.ResponseWrite
 	panic(e)
 }
 
-func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *string, key1 *string) (string, error) {
+func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
@@ -210,7 +211,7 @@ func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return object, nil
 }
 
-func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *string) (string, error) {
+func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
@@ -368,25 +369,27 @@ func check_unsupported_options(action string, i *unsupported_checks) *Aws_s3_err
 	return nil
 }
 
-// SCAN_RANGE scans ranges in rfc9110.  Ranges exceeding file size are
-// rejected.
-func scan_range(rangestring *string, size int64, location string) (*[2]int64, error) {
-	var extent *[2]int64
-	if rangestring != nil {
-		var r, err3 = httpaide.Scan_rfc9110_range(*rangestring)
+// SCAN_RANGE parses ranges in rfc9110.  It returns a single range.
+// Ranges exceeding file size are rejected.
+func scan_range(rangestring *string, size int64, location string) (*[2]int64, *Aws_s3_error) {
+	if rangestring == nil {
+		return nil, nil
+	} else {
+		var r, err3 = httpaide.Scan_rfc9110_ranges(*rangestring)
 		if err3 != nil {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Resource: location,
-				Message:  "Range format is illegal."}
+				Message:  "Range format is illegal.",
+				Resource: location}
 			return nil, errz
 		}
 		if len(r) != 1 {
 			var errz = &Aws_s3_error{Code: InvalidRange,
-				Resource: location,
-				Message:  "Range is not more than one."}
+				Message:  "Range is not more than one.",
+				Resource: location}
 			return nil, errz
 		}
-		if extent[1] > size {
+
+		if r[0][1] > size {
 			var errz = &Aws_s3_error{Code: InvalidRange,
 				Resource: location}
 			return nil, errz
@@ -394,16 +397,17 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, er
 
 		// Fix an unspecified upper bound.
 
+		var extent *[2]int64
 		if r[0][1] == -1 {
 			extent = &[2]int64{r[0][0], size}
 		} else {
 			extent = &r[0]
 		}
+		return extent, nil
 	}
-	return extent, nil
 }
 
-func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime *time.Time, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, error) {
+func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime *time.Time, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, *Aws_s3_error) {
 	if match != nil || none_match != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "if-match and if-none-match are unsupported"}
@@ -418,7 +422,7 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime 
 }
 
 // MAKE_META_INFO makes a meta-info from i.Metadata and i.Tagging.
-func make_meta_info(headers map[string]string, tagging *string, location string) (*Meta_info, error) {
+func make_meta_info(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
 	var tags *types.Tagging
 	if tagging != nil {
 		var tags1, err1 = parse_tags(*tagging)
@@ -462,5 +466,23 @@ func parse_tags(s string) (*types.Tagging, error) {
 	} else {
 		var tagging = types.Tagging{TagSet: tags}
 		return &tagging, nil
+	}
+}
+
+func (bbs *Bb_server) check_part_number(object string, partnumber *int32) (int32, *Aws_s3_error) {
+	var location = "/" + object
+	if partnumber == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "PartNumber missing.",
+			Resource: location}
+		return 0, errz
+	} else {
+		var part = *partnumber
+		if part < 1 || max_part_number < part {
+			var errz = &Aws_s3_error{Code: InvalidPart,
+				Resource: location}
+			return 0, errz
+		}
+		return part, nil
 	}
 }

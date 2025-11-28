@@ -1,4 +1,5 @@
 // scanner.go
+
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -13,7 +14,7 @@
 // MEMO: Http servers in Golang's stdlib (such as
 // "net/http.ServeContent") has parsers for http headers.  But they
 // are not public.  Parsing "if-match" or "if-none-match" used for
-// Etags are rather not trivial.
+// Etags are rather non-trivial.
 
 package httpaide
 
@@ -27,11 +28,11 @@ import (
 var rfc9110_range_unit_re = regexp.MustCompile(`^bytes *=`)
 var rfc9110_range_spec_re = regexp.MustCompile(`^([0-9]+)? *- *([0-9]+)?$`)
 
-// Scan_rfc9110_range scans a string of ranges in RFC-9110.  A missing
-// upper bound is -1.  Ranges are defined as "1#range-spec".  Note
-// that '#' in BNF means a comma-separated list.  It only parses
+// SCAN_RFC9110_RANGES scans a string of ranges in RFC-9110.  A
+// missing upper bound is -1.  Ranges are defined as "1#range-spec".
+// Note that '#' in BNF means a comma-separated list.  It only parses
 // simple ones like "_bytes_=_0_-_,_4500_-_5499_,_-_1000_".
-func Scan_rfc9110_range(s string) ([][2]int64, error) {
+func Scan_rfc9110_ranges(s string) ([][2]int64, error) {
 	var s1 = strings.TrimSpace(s)
 	var m1 = rfc9110_range_unit_re.FindStringSubmatch(s1)
 	if len(m1) != 1 {
