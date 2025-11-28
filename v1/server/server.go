@@ -1,4 +1,5 @@
 // server.go
+
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -58,31 +59,12 @@ type prior_handler struct {
 // PRIOR_HANDLER checks an authorization header in a request before
 // passing it to actual handlers.
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	//var logger = bbs.Logger
-	//var authKey = bbs.AuthKey
-
-	//option := newHTTPS3Options(r, logger)
-	//if !option.checkAuthorization(r, authKey) {
-	//if !option.CheckErrorHeader() {
-	//if !option.CheckKeyPath(s3.RootPath, option.GetPath()) {
-
 	fmt.Printf("prior_handler does nothing.\n")
-	sv.sx.ServeHTTP(w, r)
-
-	//option.Logger.Error(err.Message, "status code", err.Status)
-	//w.Header().Set("Content-Type", "application/xml")
-	//w.WriteHeader(err.Status)
-	//if err := xml.NewEncoder(w).Encode(err); err != nil {
-}
-
-// SERVER_CONTROL handles requests to shutdown.  It is hooked at the
-// url "/bbs.ctl".
-func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
-	var q = r.URL.Query()
-	var delete = q.Has("delete")
-	if delete {
-		log.Fatal("SHUTDOWN")
+	var err1 = sv.bbs.check_authorization_header(w, r)
+	if err1 != nil {
+		return
 	}
+	sv.sx.ServeHTTP(w, r)
 }
 
 func Start_server(pool_directory, addr, logPath, authKey string) {
@@ -119,6 +101,20 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	var sv = &prior_handler{bbs, sx}
 	var err2 = http.ListenAndServe(addr, sv)
 	if err2 != nil {
-		logger.Info("http.ListenAndServe() returns", "error", err2)
+		bbs.Logger.Info("http.ListenAndServe() returns", "error", err2)
 	}
+}
+
+// SERVER_CONTROL handles requests to shutdown.  It is hooked at
+// "POST_/bbs.ctl/".
+func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
+	var q = r.URL.Query()
+	if q.Has("shutdown") {
+		log.Fatal("SHUTDOWN")
+	}
+}
+
+func (bbs *Bb_server) check_authorization_header(w http.ResponseWriter, r *http.Request) error {
+	http.Error(w, "msg", 401)
+	return nil
 }

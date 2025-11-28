@@ -1,79 +1,37 @@
 // range-reader.go
+
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 // Range_reader is a reader of a file in the given range.  It is type
 // io.ReadCloser.  io.ReadCloser extends io.Reader and io.Closer.
-// io.LimitedReader is similar but it cannot directly be used because
-// it is not io.Closer.
-//
-// type ReadCloser interface {Reader; Closer}
-// - Read(p []byte) (n int, err error)
-// - Close() error
+// io.LimitedReader and io.SectionReader are similar but they cannot
+// directly be used because it is not io.Closer.
 
 package server
 
 import (
 	"io"
-	"log"
+	//"log"
 	"os"
 )
 
 type Range_reader struct {
-	f      *os.File
-	extent [2]int64
-	pos    int64
+	*io.SectionReader
+	f *os.File
 }
 
-func (s *Range_reader) Read(p []byte) (n int, err error) {
-	if s.pos < s.extent[0] {
-		// The file is in an unexpected state.
-		return 0, io.ErrUnexpectedEOF
-	}
-	var lim int64 = min(s.extent[1]-s.pos, int64(len(p)))
-	if lim <= 0 {
-		return 0, io.EOF
-	}
-	var n1, err1 = s.f.Read(p)
-	if err1 != nil {
-		return n1, err1
-	}
-	s.pos += int64(n1)
-	return n1, nil
-}
-
-func (s *Range_reader) Close() error {
-	var err1 = s.f.Close()
-	return err1
+func (r *Range_reader) Close() error {
+	return r.f.Close()
 }
 
 // NEW_RANGE_READER makes a range reader.  A range should be within
 // the file size.  It does not close the underlying os.File on errors.
-func New_range_reader(f *os.File, extent *[2]int64) (io.ReadCloser, error) {
+func New_range_reader(f *os.File, extent *[2]int64) io.ReadCloser {
 	if extent == nil {
-		return f, nil
+		return f
 	} else {
-		var pos, err1 = f.Seek(extent[0], 0)
-		if err1 != nil {
-			return nil, err1
-		}
-		if pos < extent[0] {
-			// log.Fatalf("os.Seek returned incomplete")
-			return nil, io.ErrUnexpectedEOF
-		}
-		return &Range_reader{f, *extent, pos}, nil
+		var r = io.NewSectionReader(f, extent[0], extent[1]-extent[0])
+		return &Range_reader{SectionReader: r, f: f}
 	}
-}
-
-func New_range_reader_unused(f1 *os.File, extent [2]int64) (*io.LimitedReader, error) {
-	var pos, err1 = f1.Seek(extent[0], 0)
-	if err1 != nil {
-		return nil, err1
-	}
-	if pos < extent[0] {
-		log.Fatalf("os.Seek returned incomplete")
-		return nil, io.ErrUnexpectedEOF
-	}
-	var f2 = &io.LimitedReader{R: f1, N: extent[1] - extent[0]}
-	return f2, nil
 }

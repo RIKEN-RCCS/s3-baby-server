@@ -519,34 +519,9 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	}
 	var location = "/" + object
 
-	if i.CopySource == nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message: "No x-amz-copy-source supplied."}
-		return nil, errz
-	}
-
-	var source string
-	{
-		var u, err3 = url.Parse(*i.CopySource)
-		if err3 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "Bad x-amz-copy-source."}
-			return nil, errz
-		}
-		source = u.Path
-
-		if check_object_naming(source) {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "Bad x-amz-copy-source."}
-			return nil, errz
-		}
-		var d1 = strings.Split(object, "/")
-		var s1 = strings.Split(source, "/")
-		if !(len(d1) >= 2 && len(s1) >= 2 && d1[0] == s1[0]) {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "x-amz-copy-source must be in the same bucket."}
-			return nil, errz
-		}
+	var source, err15 = bbs.lookat_copy_source(object, i.CopySource)
+	if err15 != nil {
+		return nil, err15
 	}
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
@@ -2716,20 +2691,9 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	if err3 != nil {
 		return nil, err3
 	}
-
-	var part int32
-	if i.PartNumber == nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "PartNumber missing.",
-			Resource: location}
-		return nil, errz
-	} else {
-		part = *i.PartNumber
-		if part < 1 || max_part_number < part {
-			var errz = &Aws_s3_error{Code: InvalidPart,
-				Resource: location}
-			return nil, errz
-		}
+	var part, err4 = bbs.lookat_part_number(object, i.PartNumber)
+	if err4 != nil {
+		return nil, err4
 	}
 
 	var size int64
@@ -2897,6 +2861,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 
 	{
 		var unsupported = unsupported_checks{
+			CopySourceSSECustomerAlgorithm: i.CopySourceSSECustomerAlgorithm,
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			ExpectedSourceBucketOwner: i.ExpectedSourceBucketOwner,
 			RequestPayer:        i.RequestPayer,
@@ -2914,65 +2879,40 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	}
 	var location = "/" + object
 
-	var mpul1, err3 = bbs.check_upload_going(object, i.UploadId)
+	var _, err3 = bbs.check_upload_going(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
-	var part, err4 = bbs.check_part_number(object, i.PartNumber)
+	var part, err4 = bbs.lookat_part_number(object, i.PartNumber)
 	if err4 != nil {
 		return nil, err4
 	}
 
-	var _ = mpul1
-
-	var source string
-	{
-		if i.CopySource == nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "No x-amz-copy-source supplied."}
-			return nil, errz
-		}
-
-		var u, err3 = url.Parse(*i.CopySource)
-		if err3 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "Bad x-amz-copy-source."}
-			return nil, errz
-		}
-		source = u.Path
-
-		if check_object_naming(source) {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "Bad x-amz-copy-source."}
-			return nil, errz
-		}
-		var d1 = strings.Split(object, "/")
-		var s1 = strings.Split(source, "/")
-		if !(len(d1) >= 2 && len(s1) >= 2 && d1[0] == s1[0]) {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "x-amz-copy-source must be in the same bucket."}
-			return nil, errz
-		}
+	var source, err5 = bbs.lookat_copy_source(object, i.CopySource)
+	if err5 != nil {
+		return nil, err5
 	}
-
-	var s_stat, info, err13 = bbs.check_object_status(source)
+	var s_stat, _, err13 = bbs.check_object_status(source)
 	if err13 != nil {
 		return nil, err13
 	}
-	var md5, _, err14 = bbs.calculate_csum2("", source, "")
-	if err14 != nil {
-		return nil, err14
-	}
-	//var csum_calculated = fill_checksum_record(checksum, csum)
 
-	var s_mtime = s_stat.ModTime()
-	var s_etag = make_etag_from_md5(md5)
+	{
+		var md5, _, err14 = bbs.calculate_csum2("", source, "")
+		if err14 != nil {
+			return nil, err14
+		}
+		//var csum_calculated = fill_checksum_record(checksum, csum)
 
-	var _, err15 = bbs.check_conditions(ctx, &s_etag, &s_mtime,
-		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
-		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
-	if err15 != nil {
-		return nil, err15
+		var s_mtime = s_stat.ModTime()
+		var s_etag = make_etag_from_md5(md5)
+
+		var _, err15 = bbs.check_conditions(ctx, &s_etag, &s_mtime,
+			i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
+			i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
+		if err15 != nil {
+			return nil, err15
+		}
 	}
 
 	var size = s_stat.Size()
@@ -3008,9 +2948,8 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	}
 
 	var t_mtime time.Time
-
 	{
-		var err1 = bbs.place_scratch_file(object, scratchkey, info)
+		var err1 = bbs.place_scratch_file(object, scratchkey, nil)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -3020,6 +2959,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 			return nil, err9
 		}
 		t_mtime = t_stat.ModTime()
+
 		cleanup_needed = false
 	}
 
@@ -3034,8 +2974,6 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 
 		LastModified: &t_mtime,
 	}
-
-	/*NOTYET*/
 
 	// o.BucketKeyEnabled *bool
 	// o.CopySourceVersionId *string

@@ -1,4 +1,5 @@
 // fs-operation.go
+
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -456,12 +457,14 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 				"file", sourcepath, "error", err1)
 			return map_os_error(location, err1, nil)
 		}
-		var f3, err2 = New_range_reader(f2, extent)
+		var f3 = New_range_reader(f2, extent)
+		/*
 		if err2 != nil {
 			bbs.Logger.Warn("New_range_reader() failed for CopyObject",
 				"file", sourcepath, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
+		*/
 		var _, err3 = io.Copy(f1, f3)
 		if err3 != nil {
 			bbs.Logger.Warn("io.Copy() failed for CopyObject",
@@ -953,8 +956,8 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 		fmt.Printf("extent==nil\n")
 		return f1, nil
 	} else {
-		var f2, err3 = New_range_reader(f1, extent)
-		return f2, err3
+		var f2 = New_range_reader(f1, extent)
+		return f2, nil
 	}
 }
 

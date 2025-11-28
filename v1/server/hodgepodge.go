@@ -469,7 +469,7 @@ func parse_tags(s string) (*types.Tagging, error) {
 	}
 }
 
-func (bbs *Bb_server) check_part_number(object string, partnumber *int32) (int32, *Aws_s3_error) {
+func (bbs *Bb_server) lookat_part_number(object string, partnumber *int32) (int32, *Aws_s3_error) {
 	var location = "/" + object
 	if partnumber == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -485,4 +485,32 @@ func (bbs *Bb_server) check_part_number(object string, partnumber *int32) (int32
 		}
 		return part, nil
 	}
+}
+
+func (bbs *Bb_server) lookat_copy_source(object string, copysource *string) (string, *Aws_s3_error) {
+	if copysource == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "No x-amz-copy-source supplied."}
+		return "", errz
+	}
+	var u, err3 = url.Parse(*copysource)
+	if err3 != nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "Bad x-amz-copy-source."}
+		return "", errz
+	}
+	var source = u.Path
+	if check_object_naming(source) {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "Bad x-amz-copy-source."}
+		return "", errz
+	}
+	var d1 = strings.Split(object, "/")
+	var s1 = strings.Split(source, "/")
+	if !(len(d1) >= 2 && len(s1) >= 2 && d1[0] == s1[0]) {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "x-amz-copy-source must be in the same bucket."}
+		return "", errz
+	}
+	return source, nil
 }
