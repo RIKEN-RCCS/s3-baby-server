@@ -1,4 +1,5 @@
 // api-action.go
+
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -47,9 +48,9 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	// i.RequestPayer types.RequestPayer
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:        i.RequestPayer,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -128,7 +129,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// Error Code: NoSuchUpload
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			// i.RequestPayer types.RequestPayer
 		}
@@ -284,13 +285,13 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// The checksum of the input is ignored when it is not the case.
 	// The returned checksum is always for full object.
 
-	var csum_given = types.Checksum {
+	var csum_given = types.Checksum{
 		//ChecksumType: types.ChecksumTypeFullObject,
-		ChecksumType: i.ChecksumType,
-		ChecksumCRC32: i.ChecksumCRC32,
-		ChecksumCRC32C: i.ChecksumCRC32C,
-		ChecksumSHA1: i.ChecksumCRC64NVME,
-		ChecksumSHA256: i.ChecksumSHA1,
+		ChecksumType:      i.ChecksumType,
+		ChecksumCRC32:     i.ChecksumCRC32,
+		ChecksumCRC32C:    i.ChecksumCRC32C,
+		ChecksumSHA1:      i.ChecksumCRC64NVME,
+		ChecksumSHA256:    i.ChecksumSHA1,
 		ChecksumCRC64NVME: i.ChecksumSHA256,
 	}
 	var _ = csum_given
@@ -480,7 +481,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	// i.WebsiteRedirectLocation *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			// i.ACL types.ObjectCannedACL
 			// i.BucketKeyEnabled *bool
 			// i.CacheControl *string
@@ -597,8 +598,8 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 					"source", hex.EncodeToString(md5),
 					"target", hex.EncodeToString(md5x))
 				var errz = &Aws_s3_error{
-					Code: InternalError,
-					Message: "Copying file failed",
+					Code:     InternalError,
+					Message:  "Copying file failed",
 					Resource: location}
 				return nil, errz
 			}
@@ -662,7 +663,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		t_mtime = t_stat.ModTime()
 	}
 
-	o.CopyObjectResult = &types.CopyObjectResult {
+	o.CopyObjectResult = &types.CopyObjectResult{
 		// types.CopyObjectResult:
 		// - ChecksumCRC32 *string
 		// - ChecksumCRC32C *string
@@ -672,14 +673,14 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		// - ChecksumType ChecksumType
 		// - ETag: *string
 		// - LastModified *time.Time
-		ChecksumCRC32: csum_calculated.ChecksumCRC32,
-		ChecksumCRC32C: csum_calculated.ChecksumCRC32C,
+		ChecksumCRC32:     csum_calculated.ChecksumCRC32,
+		ChecksumCRC32C:    csum_calculated.ChecksumCRC32C,
 		ChecksumCRC64NVME: csum_calculated.ChecksumCRC64NVME,
-		ChecksumSHA1: csum_calculated.ChecksumSHA1,
-		ChecksumSHA256: csum_calculated.ChecksumSHA256,
-		ChecksumType: csum_calculated.ChecksumType,
-		ETag: &etag,
-		LastModified: &t_mtime,
+		ChecksumSHA1:      csum_calculated.ChecksumSHA1,
+		ChecksumSHA256:    csum_calculated.ChecksumSHA256,
+		ChecksumType:      csum_calculated.ChecksumType,
+		ETag:              &etag,
+		LastModified:      &t_mtime,
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -714,7 +715,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	// i.ObjectOwnership types.ObjectOwnership
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			// expectedbucketowner: i.ExpectedBucketOwner
 			// i.RequestPayer types.RequestPayer
 		}
@@ -811,7 +812,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	// i.WebsiteRedirectLocation *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			StorageClass: i.StorageClass,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
@@ -916,7 +917,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	// i.ExpectedBucketOwner *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
@@ -953,24 +954,24 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 		}
 
 		/*
-		var filelist, err4 = os.ReadDir(path)
-		if err4 != nil {
-			//if errors.Is(err4, fs.ErrNotExist)
-			bbs.Logger.Info("Reading in a bucket failed",
-				"path", path, "error", err4)
-			var errz = &Aws_s3_error{Code: InternalError,
-				Message: "Listing in a bucket failed.",
-				Resource: location}
-			return nil, errz
-		}
-		for _, e := range filelist {
-			if strings.HasPrefix(e.Name(), ".") {
-				continue
+			var filelist, err4 = os.ReadDir(path)
+			if err4 != nil {
+				//if errors.Is(err4, fs.ErrNotExist)
+				bbs.Logger.Info("Reading in a bucket failed",
+					"path", path, "error", err4)
+				var errz = &Aws_s3_error{Code: InternalError,
+					Message: "Listing in a bucket failed.",
+					Resource: location}
+				return nil, errz
 			}
-			var errz = &Aws_s3_error{Code: BucketNotEmpty,
-				Resource: location}
-			return nil, errz
-		}
+			for _, e := range filelist {
+				if strings.HasPrefix(e.Name(), ".") {
+					continue
+				}
+				var errz = &Aws_s3_error{Code: BucketNotEmpty,
+					Resource: location}
+				return nil, errz
+			}
 		*/
 
 		// Only files remain that start with a dot.  Remove them.
@@ -1009,10 +1010,10 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	// i.VersionId *string
 
 	{
-		var unsupported = unsupported_checks {
-			MFA: i.MFA,
+		var unsupported = unsupported_checks{
+			MFA:                 i.MFA,
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			VersionId: i.VersionId,
+			VersionId:           i.VersionId,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1091,12 +1092,12 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	// "x-amz-sdk-checksum-algorithm" ("sdk" with it).
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			BypassGovernanceRetention: i.BypassGovernanceRetention,
-			ChecksumAlgorithm: i.ChecksumAlgorithm,
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			MFA: i.MFA,
-			RequestPayer: i.RequestPayer,
+			ChecksumAlgorithm:         i.ChecksumAlgorithm,
+			ExpectedBucketOwner:       i.ExpectedBucketOwner,
+			MFA:                       i.MFA,
+			RequestPayer:              i.RequestPayer,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1126,10 +1127,10 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 
 	var deletestate = make([]struct {
 		object string
-		error types.Error
+		error  types.Error
 	}, len(i.Delete.Objects))
 
- 	// Check conditions of objects.
+	// Check conditions of objects.
 
 	{
 	loop1:
@@ -1277,14 +1278,14 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				}
 				deletelist = append(deletelist, d)
 			} else {
-				var d = types.Error {
+				var d = types.Error{
 					// d : types.Error.
 					// - Code *string
 					// - Key *string
 					// - Message *string
 					// - VersionId *string
-					Key: e.error.Key,
-					Code: e.error.Code,
+					Key:     e.error.Key,
+					Code:    e.error.Code,
 					Message: e.error.Message,
 				}
 				errorlist = append(errorlist, d)
@@ -1317,9 +1318,9 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 	// i.VersionId *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			VersionId: i.VersionId,
+			VersionId:           i.VersionId,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1394,10 +1395,10 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	// i.VersionId *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			PartNumber: i.PartNumber,
-			VersionId: i.VersionId,
+			PartNumber:          i.PartNumber,
+			VersionId:           i.VersionId,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1512,9 +1513,9 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	// i.VersionId *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			VersionId: i.VersionId,
+			VersionId:           i.VersionId,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1610,10 +1611,10 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 	// i.VersionId *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
-			VersionId: i.VersionId,
+			RequestPayer:        i.RequestPayer,
+			VersionId:           i.VersionId,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1650,7 +1651,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 	// i.ExpectedBucketOwner *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
@@ -1702,8 +1703,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	// i.VersionId *string
 
 	{
-		var unsupported = unsupported_checks {
-			PartNumber: i.PartNumber,
+		var unsupported = unsupported_checks{
+			PartNumber:          i.PartNumber,
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
@@ -1813,7 +1814,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, *Aws_s3_error) {
 	var action = "ListBuckets"
 	fmt.Printf("*ListBuckets*\n")
 	var o = s3.ListBucketsOutput{}
@@ -1825,8 +1826,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	// i.Prefix *string
 
 	{
-		var unsupported = unsupported_checks {
-		}
+		var unsupported = unsupported_checks{}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
@@ -1957,9 +1957,9 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 	// i.UploadIdMarker *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:        i.RequestPayer,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -1974,29 +1974,48 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 	var location = "/" + bucket
 	var _ = location
 
-	/*NOTYET*/
+	var marker string
+	var maxkeys int
+	var delimiter string
+	var prefix string
+	var urlencode bool
 
-	// Uploads : types.MultipartUpload
-	// - ChecksumAlgorithm ChecksumAlgorithm
-	// - ChecksumType ChecksumType
-	// - Initiated *time.Time
-	// - Initiator *Initiator
-	// - Key *string
-	// - Owner *Owner
-	// - StorageClass StorageClass
-	// - UploadId *string
+	if i.KeyMarker != nil {
+		marker = *i.KeyMarker
+	}
+	if i.MaxUploads != nil {
+		maxkeys = int(min(list_objects_limit, *i.MaxUploads))
+	} else {
+		maxkeys = list_objects_limit
+	}
+	if i.Delimiter != nil {
+		delimiter = *i.Delimiter
+	}
+	if i.Prefix != nil {
+		prefix = *i.Prefix
+	}
+	if i.EncodingType == types.EncodingTypeUrl {
+		urlencode = true
+	}
 
-	// o.CommonPrefixes []types.CommonPrefix
-	// o.IsTruncated *bool
-	// o.NextKeyMarker *string
-	// o.NextUploadIdMarker *string
-	// o.Uploads []types.MultipartUpload
+	var objects, commons, nextmarker, err5 = bbs.list_mpuls_flat(
+		bucket, marker, maxkeys, delimiter, prefix, urlencode)
+	if err5 != nil {
+		return nil, err5
+	}
+
+	var istruncated = (nextmarker != "")
+
+	o.Uploads = objects
+	o.CommonPrefixes = commons
+	o.IsTruncated = &istruncated
+	o.KeyMarker = &nextmarker
+	o.NextUploadIdMarker = nil
 
 	{
 		o.Bucket = i.Bucket
 		o.Delimiter = i.Delimiter
 		o.EncodingType = i.EncodingType
-		o.KeyMarker = i.KeyMarker
 		o.MaxUploads = i.MaxUploads
 		o.Prefix = i.Prefix
 		o.UploadIdMarker = i.UploadIdMarker
@@ -2024,10 +2043,10 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	// i.RequestPayer types.RequestPayer
 
 	{
-		var unsupported = unsupported_checks {
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
+		var unsupported = unsupported_checks{
+			ExpectedBucketOwner:      i.ExpectedBucketOwner,
 			OptionalObjectAttributes: i.OptionalObjectAttributes,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:             i.RequestPayer,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -2119,10 +2138,11 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	// i.StartAfter *string
 
 	{
-		var unsupported = unsupported_checks {
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
+		var unsupported = unsupported_checks{
+			ExpectedBucketOwner:      i.ExpectedBucketOwner,
+			FetchOwner:               i.FetchOwner,
 			OptionalObjectAttributes: i.OptionalObjectAttributes,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:             i.RequestPayer,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -2133,13 +2153,6 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
 	if err2 != nil {
 		return nil, err2
-	}
-
-	if i.ExpectedBucketOwner != nil {
-		return nil, &Aws_s3_error{Code: AccessDenied}
-	}
-	if i.FetchOwner != nil && *i.FetchOwner == true {
-		return nil, &Aws_s3_error{Code: AccessDenied}
 	}
 
 	var index int
@@ -2242,9 +2255,9 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	// i.SSECustomerKeyMD5 *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:        i.RequestPayer,
 			// i.SSECustomerAlgorithm *string
 			// i.SSECustomerKey *string
 			// i.SSECustomerKeyMD5 *string
@@ -2262,10 +2275,10 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	//var location = "/" + object
 
 	/*
-	var mpul, err3 = bbs.check_upload_going(object, i.UploadId)
-	if err3 != nil {
-		return nil, err3
-	}
+		var mpul, err3 = bbs.check_upload_going(object, i.UploadId)
+		if err3 != nil {
+			return nil, err3
+		}
 	*/
 
 	var count int32 = -1
@@ -2297,7 +2310,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	var endindex int32
 	if count != -1 {
 		var start = min(index, int32(len(parts)))
-		var end = min(index + count, int32(len(parts)))
+		var end = min(index+count, int32(len(parts)))
 		//truncated = (end >= int32(len(parts)))
 		parts = parts[start:end]
 		endindex = end
@@ -2322,10 +2335,10 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 			// - PartNumber *int32
 			// - Size *int64
 
-			ETag: &e.ETag,
+			ETag:         &e.ETag,
 			LastModified: &e.Mtime,
-			PartNumber: &no,
-			Size: &e.Size,
+			PartNumber:   &no,
+			Size:         &e.Size,
 		}
 		var csum1 = &e.Checksum
 		switch checksum {
@@ -2429,9 +2442,9 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// i.WriteOffsetBytes *int64
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			StorageClass: i.StorageClass,
+			StorageClass:        i.StorageClass,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -2521,7 +2534,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	var check = upload_checks{
 		location:       location,
-		uploadid:	    "",
+		uploadid:       "",
 		size:           size,
 		checksum:       checksum,
 		md5_to_check:   md5_to_check,
@@ -2584,9 +2597,9 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	// i.VersionId *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:        i.RequestPayer,
 			// i.SSECustomerAlgorithm *string
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
@@ -2629,9 +2642,9 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	// i.SSECustomerKeyMD5 *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:        i.RequestPayer,
 			// i.SSECustomerAlgorithm *string
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
@@ -2738,12 +2751,12 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	var partobject = make_mpul_part_name(object, part)
 
 	var check = upload_checks{
-		location:      location,
-		uploadid:	   mpul.Upload_id,
-		size:          size,
-		checksum:      checksum,
-		md5_to_check:  md5_to_check,
-		csum_to_check: csum_to_check,
+		location:       location,
+		uploadid:       mpul.Upload_id,
+		size:           size,
+		checksum:       checksum,
+		md5_to_check:   md5_to_check,
+		csum_to_check:  csum_to_check,
 		etag_condition: [2]*string{nil, nil},
 	}
 	var md5, csum, err6 = bbs.upload_file(ctx, partobject, scratchkey, nil,
@@ -2771,11 +2784,11 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 		var etag = make_etag_from_md5(md5)
 
-		catalog.Parts[part - 1] = Mpul_part{
-			Size: size,
-			ETag: etag,
+		catalog.Parts[part-1] = Mpul_part{
+			Size:     size,
+			ETag:     etag,
 			Checksum: base64.StdEncoding.EncodeToString(csum),
-			Mtime: stat.ModTime(),
+			Mtime:    stat.ModTime(),
 		}
 
 		var err8 = bbs.store_mpul_catalog(object, catalog)
@@ -2841,9 +2854,9 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	// i.SSECustomerKeyMD5 *string
 
 	{
-		var unsupported = unsupported_checks {
+		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			RequestPayer:        i.RequestPayer,
 			// i.SSECustomerAlgorithm *string
 		}
 		var err1 = check_unsupported_options(action, &unsupported)

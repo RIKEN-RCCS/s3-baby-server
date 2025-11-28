@@ -1,8 +1,12 @@
 // listing.go
+
 // Copyright 2025-2025 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// MEMO: It avoids using "filepath" that is OS dependent.
+// Listing.  This is for {ListBuckets, ListMultipartUploads,
+// ListObjects, ListObjectsV2, ListParts}.  It prefers libraries
+// "io/fs" that is mostly os-independent (slash-delimited) over "os"
+// and "filepath".
 
 package server
 
@@ -136,23 +140,22 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 // preceeding delimiter.  A common-prefix has a trailing delimiter.
 func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
 	var location = "/" + bucket
-	var pool_path = bbs.pool_path
-	var name = path.Join(pool_path, bucket)
+	var b = path.Join(bbs.pool_path, bucket)
+	var bucket1 = os.DirFS(b)
 
 	var entries []object_list_entry
 	var nextindex int = 0
 	var nextmarker string = ""
 	var count int = 0
-	var hitmarker bool = false
+	var markerhit bool = false
 	var commonprefix string = ""
 
-	var bucket1 = os.DirFS(name)
 	var err1 = fs.WalkDir(bucket1, "", func(path1 string, e fs.DirEntry, err1 error) error {
 		// Skip errors.
 
 		if err1 != nil {
 			bbs.Logger.Info("os.DirFS() callbacks with error",
-				"bucket", name, "path", path1, "error", err1)
+				"bucket", bucket, "path", path1, "error", err1)
 			return nil
 		}
 
@@ -189,9 +192,9 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 
 		// Check the start-marker first, then check the start-index.
 
-		if marker != "" && !hitmarker {
+		if marker != "" && !markerhit {
 			if marker == path1 {
-				hitmarker = true
+				markerhit = true
 			} else {
 				return nil
 			}
@@ -204,14 +207,13 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 		// entry to check truncation.
 
 		if len(entries) < maxkeys {
-			var key = path1
 			var stat, err2 = e.Info()
 			if err2 != nil {
 				bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
 					"direntry", e, "error", err2)
 				return nil
 			}
-			entries = append(entries, object_list_entry{key, stat})
+			entries = append(entries, object_list_entry{path1, stat})
 			return nil
 		} else {
 			nextindex = count
@@ -227,7 +229,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 }
 
 // MAKE_LIST_OBJECTS_ENTRIES converts a list of objects to response
-// data.  It calculates MD5.
+// entries.  It calculates MD5.
 func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
 	var contents []types.Object
 	var commonprefixes []types.CommonPrefix
@@ -238,7 +240,6 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 			var md5, _, err3 = bbs.calculate_csum2("", object, "")
 			var etag string
 			if err3 != nil {
-				// AHO
 				bbs.Logger.Warn("MD5 calculation failed",
 					"file", object, "error", err3)
 				etag = ""
@@ -280,24 +281,24 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 	return contents, commonprefixes, nil
 }
 
-func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, string, error) {
+func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, error) {
 	var location = "/" + bucket
-	var pool_path = bbs.pool_path
-	var name = path.Join(pool_path, bucket)
+	var b = path.Join(bbs.pool_path, bucket)
+	var bucket1 = os.DirFS(b)
 
-	var entries []object_list_entry
+	var objects []types.MultipartUpload
+	var commons []types.CommonPrefix
 	var nextmarker string = ""
 	var count int = 0
-	var collecting bool = false
+	var markerhit bool = false
 	var commonprefix string = ""
 
-	var bucket1 = os.DirFS(name)
-	var err1 = fs.WalkDir(bucket1, "", func(path1 string, e fs.DirEntry, err1 error) error {
+	var err1 = fs.WalkDir(bucket1, "", func(key1 string, e fs.DirEntry, err1 error) error {
 		// Skip errors.
 
 		if err1 != nil {
 			bbs.Logger.Info("os.DirFS() callbacks with error",
-				"bucket", name, "path", path1, "error", err1)
+				"bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
 
@@ -311,25 +312,25 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 		}
 
 		{
-			var _, name = path.Split(path1)
-			if name != e.Name() {
+			var _, n = path.Split(key1)
+			if n != e.Name() {
 				log.Fatal("fs.WalkDir() returns an unexpected entry")
 			}
 		}
 
-		// Fix the path: A scratch directory name to an object name.
+		// Fix the object-key: A scratch directory to an object name.
 
-		var path2 = adjust_mpul_scratch_to_object_name(path1)
+		var key2 = adjust_mpul_scratch_to_object_name(key1)
 
 		// Check the prefix.
 
-		if !strings.HasPrefix(path2, prefix) {
+		if !strings.HasPrefix(key2, prefix) {
 			return nil
 		}
 
-		// Check a common prefix, and already encountered.
+		// Check a common prefix, and check if already encountered.
 
-		var commonpart = check_common_prefix(path2, delimiter, prefix)
+		var commonpart = check_common_prefix(key2, delimiter, prefix)
 		if commonpart != "" {
 			if commonprefix == commonpart {
 				// Skip if it is the one encountered.
@@ -344,9 +345,9 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 
 		// Check the start-marker.
 
-		if marker != "" && !collecting {
-			if marker == path2 {
-				collecting = true
+		if marker != "" && !markerhit {
+			if marker == key2 {
+				markerhit = true
 			} else {
 				return nil
 			}
@@ -355,26 +356,61 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 		// Don't finish when fully collected.  It needs one extra
 		// entry to check truncation.
 
-		if len(entries) < maxkeys {
-			var key = path2
-			var stat, err2 = e.Info()
-			if err2 != nil {
-				bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
-					"direntry", e, "error", err2)
-				return nil
+		if len(objects) < maxkeys {
+			if commonpart != "" {
+				var object = path.Join(bucket, key2)
+				var mpul, err4 = bbs.fetch_mpul_info(object)
+				if err4 != nil {
+					// IGNORE ERRORS.
+					// Race among listing and others.
+					bbs.Logger.Info("Race in accessing MPUL,"+
+						" listing and others",
+						"func", "fetch_mpul_info", "error", err4)
+					return nil
+				}
+				var fixedkey string
+				if urlencode {
+					fixedkey = url.QueryEscape(key2)
+				} else {
+					fixedkey = key2
+				}
+				var s = types.MultipartUpload{
+					// s : types.MultipartUpload.
+					// - ChecksumAlgorithm ChecksumAlgorithm
+					// - ChecksumType ChecksumType
+					// - Initiated *time.Time
+					// - Initiator *Initiator
+					// - Key *string
+					// - Owner *Owner
+					// - StorageClass StorageClass
+					// - UploadId *string
+					Key:               &fixedkey,
+					UploadId:          &mpul.Upload_id,
+					Initiated:         &mpul.Mtime,
+					StorageClass:      types.StorageClassStandard,
+					ChecksumAlgorithm: mpul.Checksum_algorithm,
+					ChecksumType:      mpul.Checksum_type,
+				}
+				objects = append(objects, s)
+			} else {
+				var s = types.CommonPrefix{
+					// s : types.CommonPrefix.
+					// - Prefix *string
+					Prefix: &commonpart,
+				}
+				commons = append(commons, s)
 			}
-			entries = append(entries, object_list_entry{key, stat})
 			return nil
 		} else {
-			nextmarker = path2
+			nextmarker = key2
 			return fs.SkipAll
 		}
 	})
 	if err1 != nil {
-		return nil, "", map_os_error(location, err1, nil)
+		return nil, nil, "", map_os_error(location, err1, nil)
 	}
 
-	return entries, nextmarker, nil
+	return objects, commons, nextmarker, nil
 }
 
 // CHECK_BUCKET_EMPTY makes sure the emptiness of a bucket for
@@ -387,7 +423,7 @@ func (bbs *Bb_server) check_bucket_empty(bucket string) error {
 	return err1
 }
 
-func (bbs *Bb_server) check_directory_empty (bucket string, path1 string) error {
+func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) error {
 	var location = "/" + bucket
 	var filelist, err1 = os.ReadDir(path1)
 	if err1 != nil {
@@ -395,7 +431,7 @@ func (bbs *Bb_server) check_directory_empty (bucket string, path1 string) error 
 		bbs.Logger.Info("os.ReadDir() in a bucket failed",
 			"path", path1, "error", err1)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message: "Listing in a bucket failed.",
+			Message:  "Listing in a bucket failed.",
 			Resource: location}
 		return errz
 	}

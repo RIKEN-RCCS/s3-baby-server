@@ -70,15 +70,15 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 	case types.ChecksumAlgorithmCrc32c:
 		//strings.EqualFold(algorithm, "CRC32C"):
 		hash2 = crc32.New(crc32.MakeTable(crc32.Castagnoli))
+	case types.ChecksumAlgorithmCrc64nvme:
+		//strings.EqualFold(algorithm, "CRC64NVME"):
+		hash2 = crc64.New(crc64.MakeTable(poly_nvme))
 	case types.ChecksumAlgorithmSha1:
 		//strings.EqualFold(algorithm, "SHA1"):
 		hash2 = sha1.New()
 	case types.ChecksumAlgorithmSha256:
 		//strings.EqualFold(algorithm, "SHA256"):
 		hash2 = sha256.New()
-	case types.ChecksumAlgorithmCrc64nvme:
-		//strings.EqualFold(algorithm, "CRC64NVME"):
-		hash2 = crc64.New(crc64.MakeTable(poly_nvme))
 	default:
 		log.Fatalf("Bad s3/types.ChecksumAlgorithm: %s", algorithm)
 	}
@@ -96,7 +96,7 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 	if count != stat.Size() {
 		bbs.Logger.Info("io.Copy() failed, bad copy size")
 		var err5 = &Aws_s3_error{Code: InternalError,
-			Message: "io.Copy() failed, incomplete copy",
+			Message:  "io.Copy() failed, incomplete copy",
 			Resource: location}
 		return nil, nil, err5
 	}

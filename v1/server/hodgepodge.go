@@ -54,103 +54,6 @@ type suffix_record struct {
 	timestamp time.Time
 }
 
-type unsupported_checks struct {
-	ACL_bucket_canned types.BucketCannedACL
-	ACL_object_canned types.ObjectCannedACL
-	BucketKeyEnabled *bool
-	BucketRegion *string
-	BypassGovernanceRetention *bool
-	CacheControl *string
-	ChecksumAlgorithm types.ChecksumAlgorithm
-	ChecksumCRC32 *string
-	ChecksumCRC32C *string
-	ChecksumCRC64NVME *string
-	ChecksumMode types.ChecksumMode
-	ChecksumSHA1 *string
-	ChecksumSHA256 *string
-	ChecksumType types.ChecksumType
-	ContentDisposition *string
-	ContentEncoding *string
-	ContentLanguage *string
-	ContentLength *int64
-	ContentMD5 *string
-	ContentType *string
-	ContinuationToken *string
-	CopySourceIfMatch *string
-	CopySourceIfModifiedSince *time.Time
-	CopySourceIfNoneMatch *string
-	CopySourceIfUnmodifiedSince *time.Time
-	CopySourceRange *string
-	CopySourceSSECustomerAlgorithm *string
-	CopySourceSSECustomerKey *string
-	CopySourceSSECustomerKeyMD5 *string
-	CreateBucketConfiguration *types.CreateBucketConfiguration
-	Delete *types.Delete
-	Delimiter *string
-	EncodingType types.EncodingType
-	ExpectedBucketOwner *string
-	ExpectedSourceBucketOwner *string
-	Expires *time.Time
-	FetchOwner *bool
-	GrantFullControl *string
-	GrantRead *string
-	GrantReadACP *string
-	GrantWrite *string
-	GrantWriteACP *string
-	IfMatch *string
-	IfMatchInitiatedTime *time.Time
-	IfMatchLastModifiedTime *time.Time
-	IfMatchSize *int64
-	IfModifiedSince *time.Time
-	IfNoneMatch *string
-	IfUnmodifiedSince *time.Time
-	KeyMarker *string
-	MFA *string
-	Marker *string
-	MaxBuckets *int32
-	MaxKeys *int32
-	MaxParts *int32
-	MaxUploads *int32
-	Metadata map[string]string
-	MetadataDirective types.MetadataDirective
-	MpuObjectSize *int64
-	MultipartUpload *types.CompletedMultipartUpload
-	ObjectAttributes []types.ObjectAttributes
-	ObjectLockEnabledForBucket *bool
-	ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
-	ObjectLockMode types.ObjectLockMode
-	ObjectLockRetainUntilDate *time.Time
-	ObjectOwnership types.ObjectOwnership
-	OptionalObjectAttributes []types.OptionalObjectAttributes
-	PartNumber *int32
-	PartNumberMarker *string
-	Prefix *string
-	Range *string
-	RequestPayer types.RequestPayer
-	ResponseCacheControl *string
-	ResponseContentDisposition *string
-	ResponseContentEncoding *string
-	ResponseContentLanguage *string
-	ResponseContentType *string
-	ResponseExpires *time.Time
-	SSECustomerAlgorithm *string
-	SSECustomerKey *string
-	SSECustomerKeyMD5 *string
-	SSEKMSEncryptionContext *string
-	SSEKMSKeyId *string
-	ServerSideEncryption types.ServerSideEncryption
-	StartAfter *string
-	StorageClass types.StorageClass
-	Tagging_string *string
-	Tagging_tagging *types.Tagging
-	TaggingDirective types.TaggingDirective
-	UploadId *string
-	UploadIdMarker *string
-	VersionId *string
-	WebsiteRedirectLocation *string
-	WriteOffsetBytes *int64
-}
-
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
@@ -325,34 +228,139 @@ func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return bucket, nil
 }
 
-func check_unsupported_options(action string, checks *unsupported_checks) error {
-	if checks.ExpectedBucketOwner != nil {
+type unsupported_checks struct {
+	ACL_bucket_canned              types.BucketCannedACL
+	ACL_object_canned              types.ObjectCannedACL
+	BucketKeyEnabled               *bool
+	BucketRegion                   *string
+	BypassGovernanceRetention      *bool
+	CacheControl                   *string
+	ChecksumAlgorithm              types.ChecksumAlgorithm
+	ChecksumCRC32                  *string
+	ChecksumCRC32C                 *string
+	ChecksumCRC64NVME              *string
+	ChecksumMode                   types.ChecksumMode
+	ChecksumSHA1                   *string
+	ChecksumSHA256                 *string
+	ChecksumType                   types.ChecksumType
+	ContentDisposition             *string
+	ContentEncoding                *string
+	ContentLanguage                *string
+	ContentLength                  *int64
+	ContentMD5                     *string
+	ContentType                    *string
+	ContinuationToken              *string
+	CopySourceIfMatch              *string
+	CopySourceIfModifiedSince      *time.Time
+	CopySourceIfNoneMatch          *string
+	CopySourceIfUnmodifiedSince    *time.Time
+	CopySourceRange                *string
+	CopySourceSSECustomerAlgorithm *string
+	CopySourceSSECustomerKey       *string
+	CopySourceSSECustomerKeyMD5    *string
+	CreateBucketConfiguration      *types.CreateBucketConfiguration
+	Delete                         *types.Delete
+	Delimiter                      *string
+	EncodingType                   types.EncodingType
+	ExpectedBucketOwner            *string
+	ExpectedSourceBucketOwner      *string
+	Expires                        *time.Time
+	FetchOwner                     *bool
+	GrantFullControl               *string
+	GrantRead                      *string
+	GrantReadACP                   *string
+	GrantWrite                     *string
+	GrantWriteACP                  *string
+	IfMatch                        *string
+	IfMatchInitiatedTime           *time.Time
+	IfMatchLastModifiedTime        *time.Time
+	IfMatchSize                    *int64
+	IfModifiedSince                *time.Time
+	IfNoneMatch                    *string
+	IfUnmodifiedSince              *time.Time
+	KeyMarker                      *string
+	MFA                            *string
+	Marker                         *string
+	MaxBuckets                     *int32
+	MaxKeys                        *int32
+	MaxParts                       *int32
+	MaxUploads                     *int32
+	Metadata                       map[string]string
+	MetadataDirective              types.MetadataDirective
+	MpuObjectSize                  *int64
+	MultipartUpload                *types.CompletedMultipartUpload
+	ObjectAttributes               []types.ObjectAttributes
+	ObjectLockEnabledForBucket     *bool
+	ObjectLockLegalHoldStatus      types.ObjectLockLegalHoldStatus
+	ObjectLockMode                 types.ObjectLockMode
+	ObjectLockRetainUntilDate      *time.Time
+	ObjectOwnership                types.ObjectOwnership
+	OptionalObjectAttributes       []types.OptionalObjectAttributes
+	PartNumber                     *int32
+	PartNumberMarker               *string
+	Prefix                         *string
+	Range                          *string
+	RequestPayer                   types.RequestPayer
+	ResponseCacheControl           *string
+	ResponseContentDisposition     *string
+	ResponseContentEncoding        *string
+	ResponseContentLanguage        *string
+	ResponseContentType            *string
+	ResponseExpires                *time.Time
+	SSECustomerAlgorithm           *string
+	SSECustomerKey                 *string
+	SSECustomerKeyMD5              *string
+	SSEKMSEncryptionContext        *string
+	SSEKMSKeyId                    *string
+	ServerSideEncryption           types.ServerSideEncryption
+	StartAfter                     *string
+	StorageClass                   types.StorageClass
+	Tagging_string                 *string
+	Tagging_tagging                *types.Tagging
+	TaggingDirective               types.TaggingDirective
+	UploadId                       *string
+	UploadIdMarker                 *string
+	VersionId                      *string
+	WebsiteRedirectLocation        *string
+	WriteOffsetBytes               *int64
+}
+
+func check_unsupported_options(action string, i *unsupported_checks) *Aws_s3_error {
+	if i.ExpectedBucketOwner != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "expected-bucket-owner is not supported."}
 		return errz
 	}
-	if checks.MFA != nil {
+	if i.MFA != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "MFA is not supported."}
 		return errz
 	}
-	if checks.PartNumber != nil {
+	if i.PartNumber != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "PartNumber is not supported."}
 		return errz
 	}
-	if checks.VersionId != nil {
+	if i.VersionId != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "Version-ID is not supported."}
 		return errz
 	}
 
+	if i.ExpectedBucketOwner != nil {
+		return &Aws_s3_error{Code: AccessDenied}
+	}
+
+	if i.FetchOwner != nil && *i.FetchOwner == true {
+		return &Aws_s3_error{Code: AccessDenied}
+	}
+
 	// Options that support only the restricted set.
 
-	if checks.StorageClass != "" {
-		if checks.StorageClass != types.StorageClassStandard {
+	if i.StorageClass != "" {
+		if i.StorageClass != types.StorageClassStandard {
 			var errz = &Aws_s3_error{Code: InvalidStorageClass,
-				Message:  "Bad x-amz-storage-class."}
+				Message: "Bad x-amz-storage-class."}
 			return errz
 		}
 	}
