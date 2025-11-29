@@ -1,4 +1,4 @@
-// dispatcher.go (2025-11-17)
+// dispatcher.go (2025-11-29)
 // API-STUB.  Dispatcher for net/http.ServeMux.  It
 // switches handlers with regard to method-path patterns
 // and required parameters in request API.
@@ -18,7 +18,7 @@ var attributes = q.Has("attributes")
 var tagging = q.Has("tagging")
 var uploadid = q.Has("uploadId")
 var h = r.Header
-var x_amz_object_attributes = (len(h.Values("x-amz-object-attributes")) == 0)
+var x_amz_object_attributes = (len(h.Values("x-amz-object-attributes")) != 0)
 if attributes && x_amz_object_attributes {h_GetObjectAttributes(bbs, w, r)} else if uploadid {h_ListParts(bbs, w, r)} else if tagging {h_GetObjectTagging(bbs, w, r)} else if true {h_GetObject(bbs, w, r)} else {http.NotFound(w, r); return}})
 sx.HandleFunc("GET /{bucket}", func(w http.ResponseWriter, r *http.Request) {
 var q = r.URL.Query()
@@ -33,7 +33,7 @@ var partnumber = q.Has("partNumber")
 var tagging = q.Has("tagging")
 var uploadid = q.Has("uploadId")
 var h = r.Header
-var x_amz_copy_source = (len(h.Values("x-amz-copy-source")) == 0)
+var x_amz_copy_source = (len(h.Values("x-amz-copy-source")) != 0)
 if partnumber && uploadid && x_amz_copy_source {h_UploadPartCopy(bbs, w, r)} else if partnumber && uploadid {h_UploadPart(bbs, w, r)} else if tagging {h_PutObjectTagging(bbs, w, r)} else if x_amz_copy_source {h_CopyObject(bbs, w, r)} else if true {h_PutObject(bbs, w, r)} else {http.NotFound(w, r); return}})
 sx.HandleFunc("PUT /{bucket}", func(w http.ResponseWriter, r *http.Request) {
 if true {h_CreateBucket(bbs, w, r)} else {http.NotFound(w, r); return}})

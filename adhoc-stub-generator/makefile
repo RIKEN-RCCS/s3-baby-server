@@ -1,6 +1,6 @@
 # makefile
 
-DUMPCOMMAND='(dump-dispatcher "dispatcher.go") (dump-handlers "handlers.go") (dump-marshalers "marshalers.go") (dump-template "api-template.go")'
+DUMPCOMMAND='(dump-dispatcher "dispatcher.go") (dump-handlers "handler.go") (dump-marshalers "marshaler.go") (dump-template "api-template.go")'
 
 all::
 	@echo "Usage: make stub"

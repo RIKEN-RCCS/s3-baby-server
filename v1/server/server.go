@@ -3,10 +3,12 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
+// S3-Baby-Server main.  Call Start_server().
+
 package server
 
 import (
-	"fmt"
+	//"fmt"
 	"io/fs"
 	"log"
 	"log/slog"
@@ -62,7 +64,6 @@ type prior_handler struct {
 }
 
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("prior_handler does nothing.\n")
 	var err1 = sv.bbs.check_authorization_header(w, r)
 	if err1 != nil {
 		return

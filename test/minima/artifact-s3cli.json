@@ -75,7 +75,7 @@
   "step": "Delete a previously copied file in 'mybucket'.",
   "name": "RM",
   "kind": null,
-  "operation": "aws s3 rm --no-progresss3 ://mybucket/data-001.txt",
+  "operation": "aws s3 rm s3://mybucket/data-001.txt",
   "status": 0,
   "outcome1": null,
   "outcome2": ["delete: s3://mybucket/data-001.txt"]
@@ -85,7 +85,7 @@
   "step": "Remove 'mybucket', while five files remains in the bucket.",
   "name": "RB",
   "kind": null,
-  "operation": "aws s3 rb --no-progresss3 --force s3://mybucket",
+  "operation": "aws s3 rb --no-progress --force s3://mybucket",
   "status": 0,
   "outcome1": null,
   "outcome2": ["delete: s3://mybucket/data-...\\.txt",

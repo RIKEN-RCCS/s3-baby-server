@@ -862,7 +862,7 @@
 	   (cond ((string=? source "q")
 		  (format #f "var ~a = q.Has(~s)" var key))
 		 ((string=? source "h")
-		  (format #f "var ~a = (len(h.Values(~s)) == 0)" var key))
+		  (format #f "var ~a = (len(h.Values(~s)) != 0)" var key))
 		 (else
 		  (error "never")))))))
 
