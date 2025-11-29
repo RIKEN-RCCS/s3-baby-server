@@ -1,6 +1,6 @@
 //go:build unix && !linux
 
-// Copyright 2025-2025 RIKEN R-CCS
+// Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 // Name "_unix.go" is not a proper build constrant on file names.

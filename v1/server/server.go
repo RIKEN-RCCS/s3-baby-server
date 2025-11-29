@@ -1,21 +1,22 @@
 // server.go
 
-// Copyright 2025-2025 RIKEN R-CCS
+// Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 package server
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"log/slog"
 	"net/http"
-	"io/fs"
 	"os"
 	"path"
-	//"path/filepath"
-	"time"
+	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
+	"strings"
 	"sync"
+	"time"
 )
 
 const Bb_version = "v1.2.1"
@@ -23,10 +24,10 @@ const Bb_version = "v1.2.1"
 type Bb_configuration struct {
 	Access_logging            bool
 	Pending_upload_expiration time.Duration
-	Server_control_path     string
+	Server_control_path       string
 
 	// Anonymize_ower            bool
-	Verify_fs_write           bool
+	Verify_fs_write bool
 	// File_follow_link   bool
 
 	request_processing_timeout time.Duration
@@ -40,6 +41,7 @@ type Bb_server struct {
 	pool_path string
 	Logger    *slog.Logger
 	AuthKey   string
+	keypair   [2]string
 
 	conf Bb_configuration
 
@@ -51,13 +53,14 @@ type Bb_server struct {
 	server_quit chan struct{}
 }
 
+// PRIOR_HANDLER is an http.Handler and it checks an authorization
+// header in a request before passing it to actual handlers.  See its
+// ServeHTTP() method.
 type prior_handler struct {
 	bbs *Bb_server
-	sx *http.ServeMux
+	sx  *http.ServeMux
 }
 
-// PRIOR_HANDLER checks an authorization header in a request before
-// passing it to actual handlers.
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("prior_handler does nothing.\n")
 	var err1 = sv.bbs.check_authorization_header(w, r)
@@ -75,6 +78,13 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 
 	logger.Info("Starting server", "address", addr)
 
+	var access, secret, ok = strings.Cut(authKey, ",")
+	if !ok || len(access) == 0 || len(secret) == 0 {
+		logger.Info("Bad authentication key pair", "pair", authKey)
+		return
+	}
+	var keypair = [2]string{access, secret}
+
 	// Change working directory to the pool-directory.  It is to avoid
 	// accidentally disclose the full path (it may include a user or
 	// project name)
@@ -86,7 +96,7 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 		return
 	}
 
-	var bbs = &Bb_server{pool_path: ".", Logger: logger, AuthKey: authKey}
+	var bbs = &Bb_server{pool_path: ".", Logger: logger, keypair: keypair}
 	bbs.suffixes = make(map[string]suffix_record)
 	bbs.server_quit = make(chan struct{})
 	bbs.monitor1 = new_monitor()
@@ -115,6 +125,11 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 }
 
 func (bbs *Bb_server) check_authorization_header(w http.ResponseWriter, r *http.Request) error {
-	http.Error(w, "msg", 401)
+	var keypair = bbs.keypair
+	var ok, _ = awss3aide.Check_credential_is_okay(r, keypair)
+	if !ok {
+		time.Sleep(1 * time.Second)
+		http.Error(w, "msg", 401)
+	}
 	return nil
 }

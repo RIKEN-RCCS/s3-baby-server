@@ -3,6 +3,8 @@
 // Copyright 2022-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
+// This verifies a sign by AWS-S3 signing.
+
 // An AWS-S3 V4 authorization-header ("Authorization=") starts with a
 // keyword "AWS4-HMAC-SHA256", and consists of three subentries
 // separated by "," with zero or more blanks.  A "Credential="
@@ -48,7 +50,7 @@ type Signing_credential struct {
 
 // AUTHORIZATION_S3V4 lists entries of an authorization-header.  That
 // is the slots of "Credential=", "SignedHeaders=", and Signature=".
-// Keys in "signedheaders" are canonicalized.
+// Keys in signed headers are canonicalized.
 type Authorization_s3v4 struct {
 	credential    [5]string
 	signedheaders []string
@@ -65,8 +67,8 @@ var required_headers = [3]string{
 	"Host", "X-Amz-Content-Sha256", "X-Amz-Date",
 }
 
-const s3_region_default = "us-east-1"
-const s3v4_authorization_method = "AWS4-HMAC-SHA256"
+const aws_s3v4_authorization = "AWS4-HMAC-SHA256"
+const aws_s3_region_default = "us-east-1"
 const x_amz_date_layout = "20060102T150405Z"
 const (
 	empty_payload_hash_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -94,11 +96,12 @@ func signing_verbose(msg ...any) {
 	fmt.Println(msg...)
 }
 
-// CHECK_CREDENTIAL_IS_GOOD checks the sign in an http request.  It
+// CHECK_CREDENTIAL_IS_OKAY checks the sign in an http request.  It
 // returns OK/NG and a simple reason.  It once signs a request by
-// itself using AWS-SDK, and compares it with the given one.  It
-// substitutes "Host" by "X-Forwarded-Host" if it is missing.
-func Check_credential_is_good(rqst1 *http.Request, keypair [2]string) (bool, string) {
+// itself using AWS-SDK, and compares it with the one in the request.
+// It substitutes "Host" by "X-Forwarded-Host" if it is missing.  It
+// copies a request before modifing it.
+func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (bool, string) {
 	var header1 = rqst1.Header.Get("Authorization")
 	signing_verbose("*** authorization=", header1)
 	if header1 == "" {
@@ -113,9 +116,9 @@ func Check_credential_is_good(rqst1 *http.Request, keypair [2]string) (bool, str
 
 	var service = auth_passed.credential[3]
 	var region = auth_passed.credential[2]
-	var datestring = fix_x_amz_date(rqst1.Header.Get("X-Amz-Date"))
-	var date, errx = time.Parse(time.RFC3339, datestring)
-	if errx != nil {
+	var datestring = adjust_x_amz_date(rqst1.Header.Get("X-Amz-Date"))
+	var date, err1 = time.Parse(time.RFC3339, datestring)
+	if err1 != nil {
 		signing_verbose("*** bad date=", auth_passed)
 		return false, "bad-date"
 	}
@@ -150,16 +153,17 @@ func Check_credential_is_good(rqst1 *http.Request, keypair [2]string) (bool, str
 		// It is a bad idea to use a hash for an empty payload.
 		hash = empty_payload_hash_sha256
 	}
-	var sign = signer.NewSigner(func(s *signer.SignerOptions) {
-		// No options.
+	var sign1 = signer.NewSigner(func(s *signer.SignerOptions) {
+		s.DisableHeaderHoisting = true
+		s.DisableURIPathEscaping = true
 	})
 	var timeout = time.Duration(10 * time.Second)
 	var ctx, cancel = context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	var err1 = sign.SignHTTP(ctx, credentials, &rqst2,
+	var err2 = sign1.SignHTTP(ctx, credentials, &rqst2,
 		hash, service, region, date)
-	if err1 != nil {
-		slog.Error("Mux() signer/SignHTTP() failed", "err", err1)
+	if err2 != nil {
+		slog.Error("Mux() signer/SignHTTP() failed", "err", err2)
 		return false, "cannot-sign"
 	}
 
@@ -212,15 +216,16 @@ func Sign_by_given_credential(r *http.Request, keys *Signing_credential) error {
 		hash = empty_payload_hash_sha256
 	}
 	var service = "s3"
-	var region = s3_region_default
+	var region = aws_s3_region_default
 	var date = time.Now()
-	var sign = signer.NewSigner(func(s *signer.SignerOptions) {
-		// No options.
+	var sign1 = signer.NewSigner(func(s *signer.SignerOptions) {
+		s.DisableHeaderHoisting = true
+		s.DisableURIPathEscaping = true
 	})
 	var timeout = time.Duration(10 * time.Second)
 	var ctx, cancel = context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	var err1 = sign.SignHTTP(ctx, credentials, r,
+	var err1 = sign1.SignHTTP(ctx, credentials, r,
 		hash, service, region, date)
 
 	if false {
@@ -233,15 +238,15 @@ func Sign_by_given_credential(r *http.Request, keys *Signing_credential) error {
 }
 
 // SCAN_AWS_AUTHORIZATION extracts slots in an "Authorization" header.
-// It only extracts with regard to the format and does not check the
-// contents.  On failure, it returns nil.  It accepts an emtpy string
-// and returns nil.
+// It does not check the semantics but only extracts slots with regard
+// to the format.  On failure, it returns nil.  It accepts an empty
+// string and returns nil.
 func Scan_aws_authorization(auth string) *Authorization_s3v4 {
-	if !strings.HasPrefix(auth, s3v4_authorization_method) {
+	if !strings.HasPrefix(auth, aws_s3v4_authorization) {
 		signing_verbose("*** bad auth method", auth)
 		return nil
 	}
-	var auth2 = strings.TrimPrefix(auth, s3v4_authorization_method)
+	var auth2 = strings.TrimPrefix(auth, aws_s3v4_authorization)
 	var auth3 = strings.TrimSpace(auth2)
 	var entries [][2]string
 	for _, s1 := range strings.Split(auth3, ",") {
@@ -313,11 +318,12 @@ func check_all_digits(s string) bool {
 	return check_all_digits_re.MatchString(s)
 }
 
-// Converts an X-Amz-Date string to be parsable in RFC3339.  It
-// returns "" if a string is ill formed.  It should use the date
-// format for X-Amz-Date.  See x_amz_date_layout="20060102T150405Z".
-// (X-Amz-Date is an acceptable string by ISO-8601).
-func fix_x_amz_date(d string) string {
+// ADJUST_X_AMZ_DATE converts an X-Amz-Date string to be parsable in
+// RFC3339.  It returns "" if a string is ill formed.  It should use
+// the date format for X-Amz-Date.  See
+// x_amz_date_layout="20060102T150405Z".  (* Note X-Amz-Date is an
+// acceptable string by ISO-8601 *).
+func adjust_x_amz_date(d string) string {
 	if len(d) != 16 {
 		return ""
 	}

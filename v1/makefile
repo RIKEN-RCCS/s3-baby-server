@@ -4,9 +4,10 @@ s3-baby-server::
 	go build ./cmd/s3-baby-server
 
 get::
-	go get github.com/riken-rccs/s3-baby-server/pkg/httpaide
 	go get github.com/aws/aws-sdk-go-v2/aws
 	go get github.com/aws/aws-sdk-go-v2/service/s3
+	go get github.com/riken-rccs/s3-baby-server/pkg/awss3aide
+	go get github.com/riken-rccs/s3-baby-server/pkg/httpaide
 
 check-linux-build::
 	GOOS=linux GOARCH=386 go build
