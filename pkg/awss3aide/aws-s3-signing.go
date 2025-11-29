@@ -93,7 +93,9 @@ var proxy_attached_headers = []string{
 }
 
 func signing_verbose(msg ...any) {
-	fmt.Println(msg...)
+	if false {
+		fmt.Println(msg...)
+	}
 }
 
 // CHECK_CREDENTIAL_IS_OKAY checks the sign in an http request.  It
