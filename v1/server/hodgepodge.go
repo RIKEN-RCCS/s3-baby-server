@@ -62,11 +62,11 @@ func (bbs *Bb_server) make_request_id() *int64 {
 	var t int64 = time.Now().UnixMicro()
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
-	if bbs.rid < t {
-		bbs.rid = t
+	if bbs.rid_gone < t {
+		bbs.rid_gone = t
 	} else {
-		t = bbs.rid + 1
-		bbs.rid = t
+		t = bbs.rid_gone + 1
+		bbs.rid_gone = t
 	}
 	//return strconv.FormatInt(t, 16)
 	//return fmt.Sprintf("%016x", t)
@@ -139,7 +139,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
-	bbs.Logger.Info(string(e1.Code), "error", e1)
+	bbs.logger.Info(string(e1.Code), "error", e1)
 
 	var rid int64 = get_request_id(ctx)
 
@@ -154,7 +154,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	var w1 = http.NewResponseController(w)
 	var err1 = xml.NewEncoder(w).Encode(e1)
 	if err1 != nil {
-		bbs.Logger.Error("xml-encoder failure", "error", err1)
+		bbs.logger.Error("xml-encoder failure", "error", err1)
 		panic(fmt.Errorf("xml-encoder failure: %w", err1))
 	}
 	w1.Flush()

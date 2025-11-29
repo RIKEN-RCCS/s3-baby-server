@@ -11,11 +11,6 @@
 package server
 
 import (
-	//"context"
-	//"encoding/json"
-	//"bytes"
-	//"encoding/hex"
-	//"errors"
 	//"fmt"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	//"io"
@@ -26,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type object_list_entry struct {
@@ -36,6 +32,74 @@ type object_list_entry struct {
 const always_use_flat_lister = true
 
 var mpul_scratch_pattern = ".*@mpul"
+
+// LIST_BUCKETS makes a list of buckets.
+func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types.Bucket, int, *Aws_s3_error) {
+	var pool_path = "."
+	var entries1, err1 = os.ReadDir(pool_path)
+	if err1 != nil {
+		bbs.logger.Info("os.ReadDir() failed in ListBuckets", "error", err1)
+		var errz = map_os_error("/", err1, nil)
+		return nil, 0, errz
+	}
+
+	// Filter and keep only directories that satisfy bucket naming.
+	// Checking a dot is redundant, because check_bucket_naming()
+	// filters them out.  HasPrefix() is true when prefix="".
+
+	var entries2 = []fs.DirEntry{}
+	for _, e := range entries1 {
+		var name = e.Name()
+		if e.IsDir() &&
+			check_bucket_naming(name) &&
+			!strings.HasPrefix(name, ".") &&
+			strings.HasPrefix(name, prefix) {
+			entries2 = append(entries2, e)
+		}
+	}
+
+	var entries3 []fs.DirEntry
+	var continuation int
+	if start < len(entries2) {
+		var end = min(start+count, len(entries2))
+		entries3 = entries2[start:end]
+		if end < len(entries2) {
+			continuation = end
+		} else {
+			continuation = 0
+		}
+	} else {
+		entries3 = []fs.DirEntry{}
+		continuation = 0
+	}
+
+	var buckets = []types.Bucket{}
+	for _, e := range entries3 {
+		var stat, err2 = e.Info()
+		if err2 != nil {
+			// Skip the entry because it may be removed after scanning
+			// directory.  SHOULD CHECK errors.Is(err, ErrNotExist).
+			continue
+		}
+		var times, ok = file_time(stat)
+		if !ok {
+			var t0 = stat.ModTime()
+			times = [3]time.Time{t0, t0, t0}
+		}
+		var name = e.Name()
+		var b = types.Bucket{
+			// b : types.Bucket.
+			// - BucketArn *string
+			// - BucketRegion *string
+			// - CreationDate *time.Time
+			// - Name *string
+			CreationDate: &times[1],
+			Name:         &name,
+		}
+		buckets = append(buckets, b)
+	}
+	return buckets, continuation, nil
+}
 
 // LIST_OBJECTS_DELIMITED makes listing for "/"-delimiter case.  It
 // works with regard to a directory hierarchy.  A start-index and a
@@ -50,27 +114,40 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 
 	var location = "/" + bucket
 	var dir1, fileprefix = path.Split(path.Clean(prefix))
-	var pool_path = bbs.pool_path
-	var name = path.Join(pool_path, bucket, dir1)
-
 	var dir2, filemarker = path.Split(path.Clean(marker))
+
 	if marker != "" {
 		if dir1 != dir2 {
-			// Nothing matches to the start-marker, return empty.
+			// Nothing won't match the start-marker, return empty.
 			return nil, 0, "", nil
 		}
 	}
 
-	var entries1, err1 = os.ReadDir(name)
+	var pool_path = "."
+	var directory = filepath.Join(pool_path, bucket, dir1)
+	var entries1, err1 = os.ReadDir(directory)
 	if err1 != nil {
+		bbs.logger.Info("os.ReadDir() failed",
+			"path", directory, "error", err1)
 		return nil, 0, "", map_os_error(location, err1, nil)
 	}
 
 	// Filter entries by name.  This skips directories for MPUL.
 
-	var entries2 []os.DirEntry
+	var entries2 []fs.DirEntry
 	{
 		for _, e := range entries1 {
+			var stat, err2 = e.Info()
+			if err2 != nil {
+				bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+					"direntry", e, "error", err2)
+				// IGNORE ERRORS.
+				continue
+			}
+			if check_special_file(stat) {
+				continue
+			}
+
 			var name = e.Name()
 			if strings.HasPrefix(name, ".") {
 				continue
@@ -121,7 +198,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 		var key = path.Join(dir1, e.Name())
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
+			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
 			continue
 		}
@@ -140,7 +217,8 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 // preceeding delimiter.  A common-prefix has a trailing delimiter.
 func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
 	var location = "/" + bucket
-	var b = path.Join(bbs.pool_path, bucket)
+	var pool_path = "."
+	var b = path.Join(pool_path, bucket)
 	var bucket1 = os.DirFS(b)
 
 	var entries []object_list_entry
@@ -150,16 +228,16 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 	var markerhit bool = false
 	var commonprefix string = ""
 
-	var err1 = fs.WalkDir(bucket1, "", func(path1 string, e fs.DirEntry, err1 error) error {
+	var err1 = fs.WalkDir(bucket1, ".", func(key1 string, e fs.DirEntry, err1 error) error {
 		// Skip errors.
 
 		if err1 != nil {
-			bbs.Logger.Info("os.DirFS() callbacks with error",
-				"bucket", bucket, "path", path1, "error", err1)
+			bbs.logger.Info("os.DirFS() callbacks with error",
+				"bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
 
-		// Skip directories, including directories for MPUL.
+		// Skip directories.  DON'T VISIT directories for MPUL.
 
 		if e.IsDir() {
 			if check_mpul_scratch_name(e.Name()) {
@@ -169,15 +247,28 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 			}
 		}
 
+		// Skip non-regular.  THIS SHOULD BE AFTER CHECKING DIRECTORIES.
+
+		var stat, err2 = e.Info()
+		if err2 != nil {
+			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+				"direntry", e, "error", err2)
+			// IGNORE ERRORS.
+			return nil
+		}
+		if check_special_file(stat) {
+			return nil
+		}
+
 		// Skip unless the prefix matches.
 
-		if !strings.HasPrefix(path1, prefix) {
+		if !strings.HasPrefix(key1, prefix) {
 			return nil
 		}
 
 		// Skip a common prefix when it is already encountered.
 
-		var commonpart = check_common_prefix(path1, delimiter, prefix)
+		var commonpart = check_common_prefix(key1, delimiter, prefix)
 		if commonpart != "" {
 			if commonprefix == commonpart {
 				// Skip if it is the one encountered.
@@ -193,7 +284,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 		// Check the start-marker first, then check the start-index.
 
 		if marker != "" && !markerhit {
-			if marker == path1 {
+			if marker == key1 {
 				markerhit = true
 			} else {
 				return nil
@@ -207,17 +298,11 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 		// entry to check truncation.
 
 		if len(entries) < maxkeys {
-			var stat, err2 = e.Info()
-			if err2 != nil {
-				bbs.Logger.Info("os.Lstat() failed on os.DirEntry",
-					"direntry", e, "error", err2)
-				return nil
-			}
-			entries = append(entries, object_list_entry{path1, stat})
+			entries = append(entries, object_list_entry{key1, stat})
 			return nil
 		} else {
 			nextindex = count
-			nextmarker = path1
+			nextmarker = key1
 			return fs.SkipAll
 		}
 	})
@@ -240,7 +325,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 			var md5, _, err3 = bbs.calculate_csum2("", object, "")
 			var etag string
 			if err3 != nil {
-				bbs.Logger.Warn("MD5 calculation failed",
+				bbs.logger.Warn("MD5 calculation failed",
 					"file", object, "error", err3)
 				etag = ""
 			} else {
@@ -283,7 +368,8 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 
 func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, error) {
 	var location = "/" + bucket
-	var b = path.Join(bbs.pool_path, bucket)
+	var pool_path = "."
+	var b = path.Join(pool_path, bucket)
 	var bucket1 = os.DirFS(b)
 
 	var objects []types.MultipartUpload
@@ -293,11 +379,11 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 	var markerhit bool = false
 	var commonprefix string = ""
 
-	var err1 = fs.WalkDir(bucket1, "", func(key1 string, e fs.DirEntry, err1 error) error {
+	var err1 = fs.WalkDir(bucket1, ".", func(key1 string, e fs.DirEntry, err1 error) error {
 		// Skip errors.
 
 		if err1 != nil {
-			bbs.Logger.Info("os.DirFS() callbacks with error",
+			bbs.logger.Info("os.DirFS() callbacks with error",
 				"bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
@@ -363,7 +449,7 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 				if err4 != nil {
 					// IGNORE ERRORS.
 					// Race among listing and others.
-					bbs.Logger.Info("Race in accessing MPUL,"+
+					bbs.logger.Info("Race in accessing MPUL,"+
 						" listing and others",
 						"func", "fetch_mpul_info", "error", err4)
 					return nil
@@ -428,7 +514,7 @@ func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) error {
 	var filelist, err1 = os.ReadDir(path1)
 	if err1 != nil {
 		//if errors.Is(err1, fs.ErrNotExist)
-		bbs.Logger.Info("os.ReadDir() in a bucket failed",
+		bbs.logger.Info("os.ReadDir() in a bucket failed",
 			"path", path1, "error", err1)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message:  "Listing in a bucket failed.",
@@ -466,6 +552,13 @@ func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) error {
 		}
 	}
 	return nil
+}
+
+func check_special_file(stat fs.FileInfo) bool {
+	var dir = stat.IsDir()
+	var mode = stat.Mode()
+	var reg = (mode & fs.ModeType) == 0
+	return !(dir || reg)
 }
 
 func check_mpul_scratch_name(name string) bool {

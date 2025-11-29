@@ -43,19 +43,19 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 
 	var stat, err1 = os.Lstat(name)
 	if err1 != nil {
-		bbs.Logger.Info("os.Lstat() failed in calculate_csum2",
+		bbs.logger.Info("os.Lstat() failed in calculate_csum2",
 			"file", name, "error", err1)
 		return nil, nil, map_os_error(location, err1, nil)
 	}
 	var f1, err2 = os.Open(name)
 	if err2 != nil {
-		bbs.Logger.Warn("os.Open() failed", "file", name, "error", err2)
+		bbs.logger.Warn("os.Open() failed", "file", name, "error", err2)
 		return nil, nil, map_os_error(location, err2, nil)
 	}
 	defer func() {
 		var err3 = f1.Close()
 		if err3 != nil {
-			bbs.Logger.Warn("os.Close() failed", "file", name, "error", err3)
+			bbs.logger.Warn("os.Close() failed", "file", name, "error", err3)
 		}
 	}()
 
@@ -95,7 +95,7 @@ func (bbs *Bb_server) calculate_csum2(algorithm types.ChecksumAlgorithm, object 
 		return nil, nil, map_os_error(location, err4, nil)
 	}
 	if count != stat.Size() {
-		bbs.Logger.Info("io.Copy() failed, bad copy size")
+		bbs.logger.Info("io.Copy() failed, bad copy size")
 		var err5 = &Aws_s3_error{Code: InternalError,
 			Message:  "io.Copy() failed, incomplete copy",
 			Resource: location}

@@ -132,7 +132,7 @@ func map_path_error(ctx context.Context, location string, err1 error, m map[erro
 // MAKE_PATH_OF_BUCKET makes an OS-path to a bucket, by appending a
 // pool-directory and a bucket.  Note Join() calls Clean().
 func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
-	var pool_path = bbs.pool_path
+	var pool_path = "."
 	var path = filepath.Join(pool_path, bucket)
 	return path
 }
@@ -150,7 +150,7 @@ func (bbs *Bb_server) make_path_of_object(object string, scratchkey string) stri
 		suffix = "@" + scratchkey
 	}
 	var dir, file = path.Split(object)
-	var pool_path = bbs.pool_path
+	var pool_path = "."
 	var path = filepath.Join(pool_path, dir, (prefix + file + suffix))
 	return path
 }
@@ -235,7 +235,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 
 	var md5_to_check = check.md5_to_check
 	if len(md5_to_check) != 0 && bytes.Compare(md5_to_check, md5) != 0 {
-		bbs.Logger.Info("Digests mismatch",
+		bbs.logger.Info("Digests mismatch",
 			"algorithm", "MD5",
 			"passed", hex.EncodeToString(md5_to_check),
 			"calculated", hex.EncodeToString(md5))
@@ -246,7 +246,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 
 	var csum_to_check = check.csum_to_check
 	if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
-		bbs.Logger.Info("Checksums mismatch",
+		bbs.logger.Info("Checksums mismatch",
 			"algorithm", checksum,
 			"passed", hex.EncodeToString(csum_to_check),
 			"calculated", hex.EncodeToString(csum))
@@ -306,14 +306,14 @@ func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int
 
 	var f1, err4 = os.Create(path)
 	if err4 != nil {
-		bbs.Logger.Info("os.Create() failed", "file", path, "error", err4)
+		bbs.logger.Info("os.Create() failed", "file", path, "error", err4)
 		return map_os_error(location, err4, nil)
 	}
 	var cleanup_needed = true
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
+			bbs.logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
 		}
 		if cleanup_needed {
@@ -323,14 +323,14 @@ func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int
 
 	var cc, err5 = io.Copy(f1, body)
 	if err5 != nil {
-		bbs.Logger.Info("io.Copy() failed", "file", path, "error", err5)
+		bbs.logger.Info("io.Copy() failed", "file", path, "error", err5)
 		var m = map[error]Aws_s3_error_code{}
 		var errz = map_os_error(location, err5, m)
 		return errz
 	}
 	var err6 = f1.Close()
 	if err6 != nil {
-		bbs.Logger.Info("os.Close() failed", "file", path, "error", err6)
+		bbs.logger.Info("os.Close() failed", "file", path, "error", err6)
 		var m = map[error]Aws_s3_error_code{}
 		var errz = map_os_error(location, err6, m)
 		return errz
@@ -338,7 +338,7 @@ func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int
 	if cc != size {
 		var msg = fmt.Sprintf("Body expected size=%d but received size=%d.",
 			size, cc)
-		bbs.Logger.Info("Transfer failed", "message", msg)
+		bbs.logger.Info("Transfer failed", "message", msg)
 		var errz = &Aws_s3_error{Code: IncompleteBody,
 			Resource: location}
 		return errz
@@ -352,20 +352,20 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
-	bbs.Logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")
+	bbs.logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")
 
 	// Copy data to a temporary file.
 
 	var f1, err1 = os.Create(path)
 	if err1 != nil {
-		bbs.Logger.Info("os.Create() failed", "file", path, "error", err1)
+		bbs.logger.Info("os.Create() failed", "file", path, "error", err1)
 		return map_os_error(location, err1, nil)
 	}
 	var cleanup_needed = true
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
+			bbs.logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
 		}
 		if cleanup_needed {
@@ -389,19 +389,19 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 		var partpath = filepath.Join(mpulpath, partname)
 		var f2, err1 = os.Open(partpath)
 		if err1 != nil {
-			bbs.Logger.Warn("os.Open() failed for MPUL data",
+			bbs.logger.Warn("os.Open() failed for MPUL data",
 				"file", partpath, "error", err1)
 			return map_os_error(location, err1, nil)
 		}
 		var _, err2 = io.Copy(f1, f2)
 		if err2 != nil {
-			bbs.Logger.Warn("io.Copy() failed for MPUL data",
+			bbs.logger.Warn("io.Copy() failed for MPUL data",
 				"file", partpath, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
 		var err3 = f2.Close()
 		if err3 != nil {
-			bbs.Logger.Warn("op.Close() failed", "file", partpath,
+			bbs.logger.Warn("op.Close() failed", "file", partpath,
 				"error", err3)
 			// Ignore an error.
 		}
@@ -409,7 +409,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 
 	var err4 = f1.Close()
 	if err4 != nil {
-		bbs.Logger.Warn("op.Close() failed", "file", path,
+		bbs.logger.Warn("op.Close() failed", "file", path,
 			"error", err4)
 		// Ignore an error.
 	}
@@ -418,7 +418,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 
 	var err5 = os.Chtimes(path, time.Time{}, mpul.Mtime)
 	if err5 != nil {
-		bbs.Logger.Warn("op.Chtimes() failed", "file", path,
+		bbs.logger.Warn("op.Chtimes() failed", "file", path,
 			"error", err5)
 		// Ignore an error.
 	}
@@ -434,14 +434,14 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 
 	var f1, err1 = os.Create(path)
 	if err1 != nil {
-		bbs.Logger.Info("os.Create() failed", "file", path, "error", err1)
+		bbs.logger.Info("os.Create() failed", "file", path, "error", err1)
 		return map_os_error(location, err1, nil)
 	}
 	var cleanup_needed = true
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
+			bbs.logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
 		}
 		if cleanup_needed {
@@ -453,27 +453,27 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 		var sourcepath = bbs.make_path_of_object(source, "")
 		var f2, err1 = os.Open(sourcepath)
 		if err1 != nil {
-			bbs.Logger.Warn("os.Open() failed for CopyObject",
+			bbs.logger.Warn("os.Open() failed for CopyObject",
 				"file", sourcepath, "error", err1)
 			return map_os_error(location, err1, nil)
 		}
 		var f3 = New_range_reader(f2, extent)
 		/*
 		if err2 != nil {
-			bbs.Logger.Warn("New_range_reader() failed for CopyObject",
+			bbs.logger.Warn("New_range_reader() failed for CopyObject",
 				"file", sourcepath, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
 		*/
 		var _, err3 = io.Copy(f1, f3)
 		if err3 != nil {
-			bbs.Logger.Warn("io.Copy() failed for CopyObject",
+			bbs.logger.Warn("io.Copy() failed for CopyObject",
 				"file", sourcepath, "error", err3)
 			return map_os_error(location, err3, nil)
 		}
 		var err4 = f1.Close()
 		if err4 != nil {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
+			bbs.logger.Warn("op.Close() failed", "file", path,
 				"error", err4)
 			// Ignore an error.
 		}
@@ -481,7 +481,7 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 
 	var err4 = f1.Close()
 	if err4 != nil {
-		bbs.Logger.Warn("op.Close() failed", "file", path,
+		bbs.logger.Warn("op.Close() failed", "file", path,
 			"error", err4)
 		// IGNORE ERRORS.
 	}
@@ -510,7 +510,7 @@ func (bbs *Bb_server) place_scratch_file(object, scratchkey string, info *Meta_i
 
 	var err8 = os.Rename(path1, path2)
 	if err8 != nil {
-		bbs.Logger.Info("io.Rename() failed", "error", err8)
+		bbs.logger.Info("io.Rename() failed", "error", err8)
 		var errz = map_os_error(location, err8, nil)
 		return errz
 	}
@@ -525,7 +525,7 @@ func (bbs *Bb_server) discard_scratch_file(object, scratchkey string) error {
 	var path1 = bbs.make_path_of_object(object, scratchkey)
 	var err1 = os.Remove(path1)
 	if err1 != nil {
-		bbs.Logger.Warn("os.Remove() failed on a scratch file",
+		bbs.logger.Warn("os.Remove() failed on a scratch file",
 			"file", path1, "error", err1)
 		// Ignore an error.
 	}
@@ -535,7 +535,7 @@ func (bbs *Bb_server) discard_scratch_file(object, scratchkey string) error {
 	if err2 == nil || !errors.Is(err2, fs.ErrNotExist) {
 		var err3 = os.Remove(path2)
 		if err3 != nil {
-			bbs.Logger.Warn("os.Remove() failed on a metainfo file",
+			bbs.logger.Warn("os.Remove() failed on a metainfo file",
 				"file", path2, "error", err3)
 			// Ignore an error.
 		}
@@ -553,7 +553,7 @@ func (bbs *Bb_server) delete_file(object string) error {
 	var path = bbs.make_path_of_object(object, "")
 	var err7 = os.Remove(path)
 	if err7 != nil {
-		bbs.Logger.Warn("os.Remove() failed on an object",
+		bbs.logger.Warn("os.Remove() failed on an object",
 			"file", path, "error", err7)
 		var errz = map_os_error(location, err7, nil)
 		return errz
@@ -582,13 +582,13 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
 		} else {
-			bbs.Logger.Warn("os.Lstat() failed on MPUL path",
+			bbs.logger.Warn("os.Lstat() failed on MPUL path",
 				"path", path, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
 	}
 	if !stat.IsDir() {
-		bbs.Logger.Warn("A MPUL path is not a directory", "path", path)
+		bbs.logger.Warn("A MPUL path is not a directory", "path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message: "A MPUL path is not a directory",
 			Resource: location}
@@ -597,11 +597,11 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 	if err2 != nil {
 		// Overtake an existing directory
 		// assert(errors.Is(err2, fs.ErrNotExist))
-		bbs.Logger.Debug("Overtaking an existing MPUL directory", "path", path)
+		bbs.logger.Debug("Overtaking an existing MPUL directory", "path", path)
 	} else {
 		var err3 = os.Mkdir(path, 0755)
 		if err3 != nil {
-			bbs.Logger.Info("os.Mkdir() failed", "path", path,
+			bbs.logger.Info("os.Mkdir() failed", "path", path,
 				"error", err3)
 			return map_os_error(location, err3, nil)
 		}
@@ -612,7 +612,7 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 		if cleanup_needed {
 			var err4 = os.RemoveAll(path)
 			if err4 != nil {
-				bbs.Logger.Info("os.RemoveAll() failed", "path", path,
+				bbs.logger.Info("os.RemoveAll() failed", "path", path,
 					"error", err4)
 			}
 		}
@@ -642,11 +642,11 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 			return nil
 		} else {
 			// Ignore an error in taking stat.
-			bbs.Logger.Warn("os.Lstat() failed on a MPUL directory",
+			bbs.logger.Warn("os.Lstat() failed on a MPUL directory",
 				"path", path, "error", err2)
 		}
 	} else if !stat.IsDir() {
-		bbs.Logger.Warn("A MPUL path is not a directory", "path", path)
+		bbs.logger.Warn("A MPUL path is not a directory", "path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message: "A MPUL path is not a directory",
 			Resource: location}
@@ -657,12 +657,12 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 	var err3 = os.Remove(infopath)
 	if err3 != nil {
 		// Ignore an error.
-		bbs.Logger.Warn("os.Remove() failed on a MPUL info file",
+		bbs.logger.Warn("os.Remove() failed on a MPUL info file",
 			"file", infopath, "error", err3)
 	}
 	var err4 = os.RemoveAll(path)
 	if err4 != nil {
-		bbs.Logger.Info("os.RemoveAll() failed on a MPUL directory",
+		bbs.logger.Info("os.RemoveAll() failed on a MPUL directory",
 			"path", path, "error", err4)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message: "Removing a MPUL scratch directory failed.",
@@ -683,13 +683,13 @@ func (bbs *Bb_server) make_intermediate_directories(object string) error {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
 		} else {
-			bbs.Logger.Info("os.Lstat() failed in making directories",
+			bbs.logger.Info("os.Lstat() failed in making directories",
 				"path", dir, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
 	}
 	if !stat.IsDir() {
-		bbs.Logger.Warn("Path is not a directory", "path", dir)
+		bbs.logger.Warn("Path is not a directory", "path", dir)
 		var errz = &Aws_s3_error{Code: AccessDenied,
 			Resource: location}
 		return errz
@@ -698,7 +698,7 @@ func (bbs *Bb_server) make_intermediate_directories(object string) error {
 		// assert(errors.Is(err2, fs.ErrNotExist))
 		var err3 = os.MkdirAll(dir, 0755)
 		if err3 != nil {
-			bbs.Logger.Info("os.Mkdir() failed", "path", dir,
+			bbs.logger.Info("os.Mkdir() failed", "path", dir,
 				"error", err3)
 			return map_os_error(location, err3, nil)
 		}
@@ -718,7 +718,7 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 			// OK.
 			return nil, nil
 		} else {
-			bbs.Logger.Warn("os.Open() failed", "file", path,
+			bbs.logger.Warn("os.Open() failed", "file", path,
 				"error", err2)
 			return nil, map_os_error(location, err2, nil)
 		}
@@ -726,7 +726,7 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
+			bbs.logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
 		}
 	}()
@@ -735,7 +735,7 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 	var info Meta_info
 	var err4 = dec.Decode(&info)
 	if err4 != nil {
-		bbs.Logger.Warn("BAD META-INFO FILE: The content broken",
+		bbs.logger.Warn("BAD META-INFO FILE: The content broken",
 			"file", path, "error", err4)
 		return nil, map_os_error(location, err4, nil)
 	}
@@ -760,14 +760,14 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 				// OK.
 				return nil
 			} else {
-				bbs.Logger.Warn("os.Lstat() failed in store_metainfo",
+				bbs.logger.Warn("os.Lstat() failed in store_metainfo",
 					"file", path, "error", err2)
 				return map_os_error(location, err2, nil)
 			}
 		}
 		var err3 = os.Remove(path)
 		if err3 != nil {
-			bbs.Logger.Warn("os.Remove() failed", "file", path, "error", err3)
+			bbs.logger.Warn("os.Remove() failed", "file", path, "error", err3)
 			return map_os_error(location, err3, nil)
 		}
 		return nil
@@ -775,13 +775,13 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 		// Make a info file.
 		var f1, err1 = os.Create(path)
 		if err1 != nil {
-			bbs.Logger.Warn("os.Create() failed", "file", path, "error", err1)
+			bbs.logger.Warn("os.Create() failed", "file", path, "error", err1)
 			return map_os_error(location, err1, nil)
 		}
 		defer func() {
 			var err2 = f1.Close()
 			if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-				bbs.Logger.Warn("op.Close() failed", "file", path,
+				bbs.logger.Warn("op.Close() failed", "file", path,
 					"error", err2)
 			}
 		}()
@@ -789,15 +789,15 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 		var enc = json.NewEncoder(f1)
 		var err4 = enc.Encode(info)
 		if err4 != nil {
-			bbs.Logger.Info("json.Encode() failed", "error", err4)
+			bbs.logger.Info("json.Encode() failed", "error", err4)
 			var err5 = f1.Close()
 			if err5 != nil {
-				bbs.Logger.Warn("op.Close() failed", "file", path,
+				bbs.logger.Warn("op.Close() failed", "file", path,
 					"error", err5)
 			}
 			var err6 = os.Remove(path)
 			if err6 != nil {
-				bbs.Logger.Warn("op.Remove() failed", "file", path,
+				bbs.logger.Warn("op.Remove() failed", "file", path,
 					"error", err6)
 			}
 			return map_os_error(location, err4, nil)
@@ -856,14 +856,14 @@ func (bbs *Bb_server) fetch_json_data(object, path string, data any) error {
 	var location = "/" + object
 	var f1, err1 = os.Open(path)
 	if err1 != nil {
-		bbs.Logger.Warn("os.Open() failed", "file", path,
+		bbs.logger.Warn("os.Open() failed", "file", path,
 			"error", err1)
 		return map_os_error(location, err1, nil)
 	}
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
+			bbs.logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
 		}
 	}()
@@ -872,7 +872,7 @@ func (bbs *Bb_server) fetch_json_data(object, path string, data any) error {
 	var err4 = d.Decode(&data)
 	if err4 != nil {
 		var datatype = fmt.Sprintf("%T", data)
-		bbs.Logger.Warn("json.Decode() failed",
+		bbs.logger.Warn("json.Decode() failed",
 			"file", path, "type", datatype, "error", err4)
 		return map_os_error(location, err4, nil)
 	}
@@ -883,20 +883,20 @@ func (bbs *Bb_server) store_json_data(object, path string, data any) error {
 	var location = "/" + object
 	var f1, err1 = os.Create(path)
 	if err1 != nil {
-		bbs.Logger.Warn("os.Create() failed", "file", path, "error", err1)
+		bbs.logger.Warn("os.Create() failed", "file", path, "error", err1)
 		return map_os_error(location, err1, nil)
 	}
 	var cleanup_needed = true
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.Logger.Warn("op.Close() failed", "file", path,
+			bbs.logger.Warn("op.Close() failed", "file", path,
 				"error", err2)
 		}
 		if cleanup_needed {
 			var err3 = os.Remove(path)
 			if err3 != nil {
-				bbs.Logger.Warn("os.Remove() failed",
+				bbs.logger.Warn("os.Remove() failed",
 					"file", path, "error", err3)
 			}
 		}
@@ -906,7 +906,7 @@ func (bbs *Bb_server) store_json_data(object, path string, data any) error {
 	var err4 = e.Encode(data)
 	if err4 != nil {
 		var datatype = fmt.Sprintf("%T", data)
-		bbs.Logger.Info("json.Encode() failed",
+		bbs.logger.Info("json.Encode() failed",
 			"file", path, "type", datatype, "error", err4)
 		return map_os_error(location, err4, nil)
 	}
@@ -941,13 +941,13 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
-			bbs.Logger.Info("os.Open() failed", "file", path,
+			bbs.logger.Info("os.Open() failed", "file", path,
 				"error", err2)
 			var errz = &Aws_s3_error{Code: NoSuchKey,
 				Resource: location}
 			return nil, errz
 		} else {
-			bbs.Logger.Warn("os.Open() failed", "file", path,
+			bbs.logger.Warn("os.Open() failed", "file", path,
 				"error", err2)
 			return nil, map_os_error(location, err2, nil)
 		}
@@ -982,7 +982,7 @@ func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, *Aws_s3_e
 
 	var stat, err1 = os.Lstat(path)
 	if err1 != nil {
-		bbs.Logger.Info("os.Lstat() failed on an object",
+		bbs.logger.Info("os.Lstat() failed on an object",
 			"file", path, "error", err1)
 		if errors.Is(err1, fs.ErrNotExist) {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -1000,7 +1000,7 @@ func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, *Aws_s3_e
 	case mode&fs.ModeSymlink != 0:
 		fallthrough
 	default:
-		bbs.Logger.Info("An object path is not a regular file",
+		bbs.logger.Info("An object path is not a regular file",
 			"file", path, "mode", mode)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message: "No object as named.",
@@ -1029,12 +1029,12 @@ func (bbs *Bb_server) create_empty_file(object, path string) error {
 	var location = "/" + object
 	var f1, err6 = os.Create(path)
 	if err6 != nil {
-		bbs.Logger.Warn("os.Create() failed", "file", path, "error", err6)
+		bbs.logger.Warn("os.Create() failed", "file", path, "error", err6)
 		return map_os_error(location, err6, nil)
 	}
 	var err7 = f1.Close()
 	if err7 != nil {
-		bbs.Logger.Warn("op.Close() failed", "file", path, "error", err7)
+		bbs.logger.Warn("op.Close() failed", "file", path, "error", err7)
 		// Ignore.
 	}
 	return nil

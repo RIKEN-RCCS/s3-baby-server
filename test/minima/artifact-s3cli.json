@@ -29,7 +29,7 @@
 },
 {
   "ID": 3,
-  "step": "Displays a list of buckets.  There is one 'mybucket'.",
+  "step": "Display a list of buckets.  There is one 'mybucket'.",
   "name": "LS",
   "kind": "s3 command",
   "operation": "aws s3 ls --no-cli-pager --page-size 10",
@@ -69,6 +69,16 @@
 	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
 	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
 	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt"]
+},
+{
+  "ID": 6.5,
+  "step": "Display a list of objects.",
+  "name": "LS",
+  "kind": "s3 command",
+  "operation": "aws s3 ls --no-cli-pager --page-size 10 s3://mybucket",
+  "status": 0,
+  "outcome1": null,
+  "outcome2": ["#|date| #|time| mybucket"]
 },
 {
   "ID": 7,

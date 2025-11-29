@@ -32,27 +32,31 @@ type Bb_configuration struct {
 	Verify_fs_write bool
 	// File_follow_link   bool
 
-	request_processing_timeout time.Duration
-
 	File_creation_mode fs.FileMode
 
 	Site_base_url *string
+
+	request_processing_timeout time.Duration
 }
 
 type Bb_server struct {
-	pool_path string
-	Logger    *slog.Logger
-	AuthKey   string
+	server *http.Server
 	keypair   [2]string
+	logger    *slog.Logger
 
 	conf Bb_configuration
 
-	rid      int64
+	rid_gone      int64
 	suffixes map[string]suffix_record
 	monitor1 *monitor
 	mutex    sync.Mutex
 
 	server_quit chan struct{}
+
+	// POOL_PATH is a path passed to the server command.  Baby-server
+	// changes working directory to that path, and this is only a
+	// record.
+	pool_path string
 }
 
 // PRIOR_HANDLER is an http.Handler and it checks an authorization
@@ -97,7 +101,7 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 		return
 	}
 
-	var bbs = &Bb_server{pool_path: ".", Logger: logger, keypair: keypair}
+	var bbs = &Bb_server{pool_path: wd, logger: logger, keypair: keypair}
 	bbs.suffixes = make(map[string]suffix_record)
 	bbs.server_quit = make(chan struct{})
 	bbs.monitor1 = new_monitor()
@@ -107,30 +111,39 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	sx.HandleFunc("POST /bbs.ctl/{$}", func(w http.ResponseWriter, r *http.Request) {
 		bbs.server_control(w, r)
 	})
-
 	register_dispatcher(bbs, sx)
 	var sv = &prior_handler{bbs, sx}
-	var err2 = http.ListenAndServe(addr, sv)
+
+	bbs.server = &http.Server{Addr: addr, Handler: sv}
+	//var err2 = http.ListenAndServe(addr, sv)
+	var err2 = bbs.server.ListenAndServe()
 	if err2 != nil {
-		bbs.Logger.Info("http.ListenAndServe() returns", "error", err2)
+		bbs.logger.Info("http.ListenAndServe() returns", "error", err2)
 	}
 }
 
 // SERVER_CONTROL handles requests to shutdown.  It is hooked at
 // "POST_/bbs.ctl/".
 func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
+	var ctx = r.Context()
 	var q = r.URL.Query()
-	if q.Has("shutdown") {
-		log.Fatal("SHUTDOWN")
+	if q.Has("quit") {
+		bbs.logger.Info("Shutdown requested")
+		var err1 = bbs.server.Shutdown(ctx)
+		if err1 != nil {
+			bbs.logger.Info("Shutdown failed", "error", err1)
+			log.Fatal("SHUTDOWN FORCED")
+		}
 	}
 }
 
 func (bbs *Bb_server) check_authorization_header(w http.ResponseWriter, r *http.Request) error {
 	var keypair = bbs.keypair
-	var ok, _ = awss3aide.Check_credential_is_okay(r, keypair)
+	var ok, reason = awss3aide.Check_credential_is_okay(r, keypair)
 	if !ok {
+		bbs.logger.Info("Fail to check authorization", "reason", reason)
 		time.Sleep(1 * time.Second)
-		http.Error(w, "msg", 401)
+		http.Error(w, "Bad authorization", 401)
 	}
 	return nil
 }

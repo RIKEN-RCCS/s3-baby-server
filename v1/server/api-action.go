@@ -210,7 +210,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			var part = *e.PartNumber
 			var etag = *e.ETag
 			if part >= int32(len(catalog.Parts)) {
-				bbs.Logger.Info("Part not uploaded",
+				bbs.logger.Info("Part not uploaded",
 					"action", action)
 				error_in_checking = &Aws_s3_error{Code: NoSuchUpload,
 					Resource: location}
@@ -218,7 +218,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				return true
 			}
 			if catalog.Parts[part].ETag != etag {
-				bbs.Logger.Info("ETags mismatch",
+				bbs.logger.Info("ETags mismatch",
 					"action", action)
 				error_in_checking = &Aws_s3_error{Code: InvalidPart,
 					Resource: location}
@@ -248,7 +248,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 					return true
 				}
 				if catalog.Parts[part].Checksum != *csum {
-					bbs.Logger.Info("Checksums mismatch",
+					bbs.logger.Info("Checksums mismatch",
 						"action", action)
 					error_in_checking = &Aws_s3_error{Code: InvalidPart,
 						Resource: location}
@@ -298,7 +298,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	var checksum = types.ChecksumAlgorithmCrc64nvme
 	if i.ChecksumType != types.ChecksumTypeFullObject {
-		bbs.Logger.Info("Checksum by not full-object unsuppored, ignored",
+		bbs.logger.Info("Checksum by not full-object unsuppored, ignored",
 			"checksum-type", i.ChecksumType)
 		checksum = ""
 	}
@@ -334,7 +334,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			csum_to_check = csum2
 		}
 		if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
-			bbs.Logger.Info("Checksums mismatch",
+			bbs.logger.Info("Checksums mismatch",
 				"algorithm", checksum,
 				"passed", hex.EncodeToString(csum_to_check),
 				"calculated", hex.EncodeToString(csum))
@@ -570,7 +570,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 				return nil, err1
 			}
 			if bytes.Compare(md5, md5x) != 0 {
-				bbs.Logger.Warn("Copying file failed, MD5 values differ",
+				bbs.logger.Warn("Copying file failed, MD5 values differ",
 					"source", hex.EncodeToString(md5),
 					"target", hex.EncodeToString(md5x))
 				var errz = &Aws_s3_error{
@@ -627,7 +627,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 
 		var err2 = os.Link(s_path, t_path)
 		if err2 != nil {
-			bbs.Logger.Warn("os.Link() failed on an object",
+			bbs.logger.Warn("os.Link() failed on an object",
 				"source", s_path, "object", t_path, "error", err2)
 			return nil, map_os_error(location, err2, nil)
 		}
@@ -735,7 +735,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 		/*if !errors.Is(err2, fs.ErrExist) {*/
 		/*var err4, ok = err3.Err.(syscall.Errno)*/
 
-		bbs.Logger.Debug("os.Mkdir() failed", "path", path, "error", err3)
+		bbs.logger.Debug("os.Mkdir() failed", "path", path, "error", err3)
 		var m = map[error]Aws_s3_error_code{
 			fs.ErrExist: BucketAlreadyOwnedByYou}
 		var errz = map_os_error(location, err3, m)
@@ -812,7 +812,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	var checksum = i.ChecksumAlgorithm
 	var checksumtype = i.ChecksumType
 	if checksumtype != types.ChecksumTypeFullObject {
-		bbs.Logger.Info("Change checksum-type",
+		bbs.logger.Info("Change checksum-type",
 			"requested", checksumtype,
 			"employed", types.ChecksumTypeFullObject)
 		checksumtype = types.ChecksumTypeFullObject
@@ -929,35 +929,14 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 			return nil, err4
 		}
 
-		/*
-			var filelist, err4 = os.ReadDir(path)
-			if err4 != nil {
-				//if errors.Is(err4, fs.ErrNotExist)
-				bbs.Logger.Info("Reading in a bucket failed",
-					"path", path, "error", err4)
-				var errz = &Aws_s3_error{Code: InternalError,
-					Message: "Listing in a bucket failed.",
-					Resource: location}
-				return nil, errz
-			}
-			for _, e := range filelist {
-				if strings.HasPrefix(e.Name(), ".") {
-					continue
-				}
-				var errz = &Aws_s3_error{Code: BucketNotEmpty,
-					Resource: location}
-				return nil, errz
-			}
-		*/
-
 		// Only files remain that start with a dot.  Remove them.
 
-		bbs.Logger.Info(("Try os.RemoveAll() after removing a bucket failed"),
+		bbs.logger.Info(("Try os.RemoveAll() after removing a bucket failed"),
 			"path", path)
 
 		var err5 = os.RemoveAll(path)
 		if err5 != nil {
-			bbs.Logger.Info("os.RemoveAll() failed", "path", path,
+			bbs.logger.Info("os.RemoveAll() failed", "path", path,
 				"error", err5)
 			var errz = &Aws_s3_error{Code: BucketNotEmpty,
 				Resource: location}
@@ -1038,7 +1017,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 		var path = bbs.make_path_of_object(object, "")
 		var err2 = os.Remove(path)
 		if err2 != nil {
-			bbs.Logger.Warn("os.Remove() failed on an object",
+			bbs.logger.Warn("os.Remove() failed on an object",
 				"file", path, "error", err2)
 			return nil, map_os_error(location, err2, nil)
 		}
@@ -1223,7 +1202,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				var path = bbs.make_path_of_object(object, "")
 				var err7 = os.Remove(path)
 				if err7 != nil {
-					bbs.Logger.Warn("os.Remove() failed on an object",
+					bbs.logger.Warn("os.Remove() failed on an object",
 						"file", path, "error", err7)
 					var errz = map_os_error(location, err7, nil)
 					deletestate[i].error.Code = &errz.Code
@@ -1836,72 +1815,17 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		max_buckets = list_buckets_limit
 	}
 
-	var pool_path = bbs.pool_path
-	var entries1, err3 = os.ReadDir(pool_path)
-	if err3 != nil {
-		bbs.Logger.Info("os.ReadDir() failed in ListBuckets", "error", err3)
-		var m = map[error]Aws_s3_error_code{}
-		var err5 = map_os_error("/", err3, m)
-		return nil, err5
-	}
-
+	var prefix string
 	if i.Prefix != nil {
-		var prefix = *i.Prefix
-		var dirs2 = []fs.DirEntry{}
-		for _, e := range entries1 {
-			if strings.HasPrefix(e.Name(), prefix) {
-				dirs2 = append(dirs2, e)
-			}
-		}
-	}
-
-	// Filter only directories that satisfies bucket naming.
-	// check_bucket_naming implies !strings.HasPrefix(name, ".").
-
-	var dirs2 = []os.DirEntry{}
-	for _, e := range entries1 {
-		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") &&
-			check_bucket_naming(e.Name()) {
-			dirs2 = append(dirs2, e)
-		}
-	}
-
-	var dirs3 []os.DirEntry
-	var continuation int
-	if start < len(dirs2) {
-		var end = min(start+max_buckets, len(dirs2))
-		dirs3 = dirs2[start:end]
-		if end < len(dirs2) {
-			continuation = end
-		} else {
-			continuation = 0
-		}
+		prefix = *i.Prefix
 	} else {
-		dirs3 = []os.DirEntry{}
-		continuation = 0
+		prefix = ""
 	}
 
-	var buckets = []types.Bucket{}
-	for _, e := range dirs3 {
-		var stat, err4 = e.Info()
-		if err4 != nil {
-			// Skip the entry because it may be removed after scanning
-			// directory.  SHOULD CHECK errors.Is(err, ErrNotExist).
-			continue
-		}
-		var times, ok = file_time(stat)
-		if !ok {
-			var t0 = stat.ModTime()
-			times = [3]time.Time{t0, t0, t0}
-		}
-		var name = e.Name()
-		var b = types.Bucket{
-			// BucketArn:,
-			// BucketRegion:,
-			CreationDate: &times[1],
-			Name:         &name,
-		}
-		buckets = append(buckets, b)
+	var buckets, continuation, err3 = bbs.list_buckets(start, max_buckets,
+		prefix)
+	if err3 != nil {
+		return nil, err3
 	}
 
 	o.Buckets = buckets
@@ -1909,7 +1833,10 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		var scontinuation = strconv.FormatInt(int64(continuation), 10)
 		o.ContinuationToken = &scontinuation
 	}
-	o.Prefix = i.Prefix
+
+	{
+		o.Prefix = i.Prefix
+	}
 
 	// o.Owner
 
