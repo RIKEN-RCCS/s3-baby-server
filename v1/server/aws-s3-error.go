@@ -180,6 +180,12 @@ const (
 	TooManyTags        = "TooManyTags"
 )
 
+// [Others needed by http]
+
+const (
+	NotModified = "NotModified"
+)
+
 var Aws_s3_error_to_message = map[string]Aws_s3_error_message{
 	//
 	// [List of error codes]
@@ -286,4 +292,10 @@ var Aws_s3_error_to_message = map[string]Aws_s3_error_message{
 	NoSuchResource:     {404, "The specified resource doesn't exist."},
 	TagPolicyException: {400, "The tag policy does not allow the specified value for the following tag key."},
 	TooManyTags:        {400, "The number of tags exceeds the limit of 50 tags."},
+
+	//
+	// [Others needed by http]
+	//
+
+	NotModified:         {304, "Not Modified."},
 }

@@ -3,25 +3,6 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// SPECIAL CONDITIONS OF HANDLING RFC7232.
-//
-// The rule described in the AWS-S3 API document:
-// If-Match ∧ ¬If-Unmodified-Since → 200 OK
-// ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
-//
-// https://datatracker.ietf.org/doc/html/rfc7232
-//
-// The order of condition evaluation:
-// If-Match < If-Unmodified-Since (skip if If-Match exists)
-// < If-None-Match < If-Modified-Since (skip if If-None-Match exists)
-//
-// Status code to be returned on failure:
-// ¬If-Match → 412 Precondition Failed
-// ¬If-Unmodified-Since → 412 Precondition Failed
-// ¬If-None-Match (GET/HEAD) → 304 Not Modified
-// ¬If-None-Match (other) → 412 Precondition Failed
-// ¬If-Modified-Since → 304 Not Modified
-
 package server
 
 import (
@@ -45,6 +26,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"slices"
 	//"strconv"
 	"strings"
 	//"sync"
@@ -370,7 +352,7 @@ func check_unsupported_options(action string, i *unsupported_checks) *Aws_s3_err
 }
 
 // SCAN_RANGE parses ranges in rfc9110.  It returns a single range.
-// Ranges exceeding file size are rejected.
+// Ranges exceeding the file size are rejected.
 func scan_range(rangestring *string, size int64, location string) (*[2]int64, *Aws_s3_error) {
 	if rangestring == nil {
 		return nil, nil
@@ -407,17 +389,92 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, *A
 	}
 }
 
+// Special conditions of handling RFC-7232.
+//
+// The rule described in the AWS-S3 API document:
+// If-Match ∧ ¬If-Unmodified-Since → 200 OK
+// ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
+//
+// https://datatracker.ietf.org/doc/html/rfc7232
+//
+// The order of condition evaluation:
+// If-Match < If-Unmodified-Since (skip if If-Match exists)
+// < If-None-Match < If-Modified-Since (skip if If-None-Match exists)
+//
+// Status code to be returned on failure:
+// ¬If-Match → 412 Precondition Failed
+// ¬If-Unmodified-Since → 412 Precondition Failed
+// ¬If-None-Match (GET/HEAD) → 304 Not Modified
+// ¬If-None-Match (other) → 412 Precondition Failed
+// ¬If-Modified-Since → 304 Not Modified
+
+// CHECK_CONDITIONS checks conditions of "if-match", "if-none-match",
+// "if-modified-since", and "if-unmodified-since".  It conciders the
+// equal time as included.
 func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime *time.Time, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, *Aws_s3_error) {
-	if match != nil || none_match != nil {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "if-match and if-none-match are unsupported"}
-		return false, errz
+	var etags_incl []string
+	var etags_excl []string
+	var modified_after *time.Time
+	var modified_before *time.Time
+	if match != nil {
+		var m1, err1 = httpaide.Scan_rfc7232_etags(*match)
+		if err1 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad if-match."}
+			return false, errz
+		}
+		etags_incl = m1
 	}
-	if modified_since != nil || unmodified_since != nil {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "if-modified-since and if-unmodified-since are unsupported"}
-		return false, errz
+	if none_match != nil {
+		var m2, err2 = httpaide.Scan_rfc7232_etags(*none_match)
+		if err2 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad if-none-match."}
+			return false, errz
+		}
+		etags_excl = m2
 	}
+	if modified_since != nil {
+		modified_after = modified_since
+	}
+	if unmodified_since != nil {
+		modified_before = unmodified_since
+	}
+
+	// Evaluate conditions in the order specified in RFC-7232.
+
+	if etags_incl != nil {
+		// "if-match"
+		if !slices.Contains(etags_incl, *etag) {
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "Condition if-match fails."}
+			return false, errz
+		}
+	} else if modified_before != nil {
+		// "if-unmodified-since"
+		if !(mtime.Compare(*modified_before) <= 0) {
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "Condition if-unmodified-since fails."}
+			return false, errz
+		}
+	}
+
+	if etags_excl != nil {
+		// "if-none-match",
+		if slices.Contains(etags_excl, *etag) {
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "Condition if-none-match fails."}
+			return false, errz
+		}
+	} else if modified_after != nil {
+		// "if-modified-since"
+		if !(modified_after.Compare(*mtime) <= 0) {
+			var errz = &Aws_s3_error{Code: NotModified,
+				Message: "Condition if-modified-since fails."}
+			return false, errz
+		}
+	}
+
 	return true, nil
 }
 
