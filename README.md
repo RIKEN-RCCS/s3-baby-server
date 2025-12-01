@@ -36,6 +36,11 @@ than "application/octet-stream".
 
 - Copying by "CopyObject" is only inside a single bucket.
 
+- Baby-server returns an error on bad format of http-date.  It should
+  be ignored in "if-modified-since" and "if-unmodified-since".
+
+- ETags of Baby-server is always strong.
+
 ## Terse Error Messages
 
 - Errors returned to a client do not contain information from OS such

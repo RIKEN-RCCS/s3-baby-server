@@ -347,7 +347,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	var etag = make_etag_from_md5(md5)
 
-	var _, err7 = bbs.check_conditions(ctx, &etag, nil,
+	var _, err7 = bbs.check_request_conditions(&etag, nil, "POST",
 		i.IfMatch, i.IfNoneMatch,
 		nil, nil)
 	if err7 != nil {
@@ -539,7 +539,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var s_mtime = s_stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err5 = bbs.check_conditions(ctx, &etag, &s_mtime,
+	var _, err5 = bbs.check_request_conditions(&etag, &s_mtime, "PUT",
 		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
 		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
 	if err5 != nil {
@@ -992,7 +992,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	}
 	var etag = make_etag_from_md5(md5)
 
-	var _, err5 = bbs.check_conditions(ctx, &etag, nil,
+	var _, err5 = bbs.check_request_conditions(&etag, nil, "POST",
 		i.IfMatch, nil,
 		nil, nil)
 	if err5 != nil {
@@ -1386,7 +1386,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var mtime = stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err6 = bbs.check_conditions(ctx, &etag, &mtime,
+	var _, err6 = bbs.check_request_conditions(&etag, &mtime, "GET",
 		i.IfMatch, i.IfNoneMatch,
 		i.IfModifiedSince, i.IfUnmodifiedSince)
 	if err6 != nil {
@@ -1693,7 +1693,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	var mtime = stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err6 = bbs.check_conditions(ctx, &etag, &mtime,
+	var _, err6 = bbs.check_request_conditions(&etag, &mtime, "HEAD",
 		i.IfMatch, i.IfNoneMatch,
 		i.IfModifiedSince, i.IfUnmodifiedSince)
 	if err6 != nil {
@@ -2834,7 +2834,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		var s_mtime = s_stat.ModTime()
 		var s_etag = make_etag_from_md5(md5)
 
-		var _, err15 = bbs.check_conditions(ctx, &s_etag, &s_mtime,
+		var _, err15 = bbs.check_request_conditions(&s_etag, &s_mtime, "PUT",
 			i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
 			i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
 		if err15 != nil {

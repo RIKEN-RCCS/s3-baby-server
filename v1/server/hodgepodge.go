@@ -389,29 +389,30 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, *A
 	}
 }
 
-// Special conditions of handling RFC-7232.
-//
-// The rule described in the AWS-S3 API document:
-// If-Match ∧ ¬If-Unmodified-Since → 200 OK
-// ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
+// Request condition handling described in RFC-7232.
 //
 // https://datatracker.ietf.org/doc/html/rfc7232
 //
-// The order of condition evaluation:
+// The order of evaluating conditions:
 // If-Match < If-Unmodified-Since (skip if If-Match exists)
 // < If-None-Match < If-Modified-Since (skip if If-None-Match exists)
 //
 // Status code to be returned on failure:
-// ¬If-Match → 412 Precondition Failed
-// ¬If-Unmodified-Since → 412 Precondition Failed
-// ¬If-None-Match (GET/HEAD) → 304 Not Modified
-// ¬If-None-Match (other) → 412 Precondition Failed
-// ¬If-Modified-Since → 304 Not Modified
+//   - ¬If-Match → 412 Precondition Failed
+//   - ¬If-Unmodified-Since → 412 Precondition Failed
+//   - ¬If-None-Match (GET/HEAD) → 304 Not Modified
+//   - ¬If-None-Match (other) → 412 Precondition Failed
+//   - ¬If-Modified-Since → 304 Not Modified
+//
+// The simplified rule described in the AWS-S3 API document is below.
+// It somewhat differs from RFC-7232:
+//   - If-Match ∧ ¬If-Unmodified-Since → 200 OK
+//   - ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
 
-// CHECK_CONDITIONS checks conditions of "if-match", "if-none-match",
-// "if-modified-since", and "if-unmodified-since".  It conciders the
-// equal time as included.
-func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime *time.Time, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, *Aws_s3_error) {
+// CHECK_REQUEST_CONDITIONS checks conditions of "if-match",
+// "if-none-match", "if-modified-since", and "if-unmodified-since".
+// It conciders the equal time as included.
+func (bbs *Bb_server) check_request_conditions(etag *string, mtime *time.Time, method string, match, none_match *string, modified_since, unmodified_since *time.Time, ) (bool, *Aws_s3_error) {
 	var etags_incl []string
 	var etags_excl []string
 	var modified_after *time.Time
@@ -435,9 +436,11 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime 
 		etags_excl = m2
 	}
 	if modified_since != nil {
+		// (* It should ignore a bad format of http-date. *)
 		modified_after = modified_since
 	}
 	if unmodified_since != nil {
+		// (* It should ignore a bad format of http-date. *)
 		modified_before = unmodified_since
 	}
 
@@ -445,7 +448,9 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime 
 
 	if etags_incl != nil {
 		// "if-match"
-		if !slices.Contains(etags_incl, *etag) {
+		if match_etags_is_star(etags_incl) {
+			// Always matches.
+		} else if !slices.Contains(etags_incl, *etag) {
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition if-match fails."}
 			return false, errz
@@ -461,8 +466,18 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime 
 
 	if etags_excl != nil {
 		// "if-none-match",
-		if slices.Contains(etags_excl, *etag) {
-			var errz = &Aws_s3_error{Code: PreconditionFailed,
+		var errorcode string
+		if method == "GET" || method == "HEAD" {
+			errorcode = NotModified
+		} else {
+			errorcode = PreconditionFailed
+		}
+		if match_etags_is_star(etags_incl) {
+			var errz = &Aws_s3_error{Code: errorcode,
+				Message: "Condition if-none-match fails."}
+			return false, errz
+		} else if slices.Contains(etags_excl, *etag) {
+			var errz = &Aws_s3_error{Code: errorcode,
 				Message: "Condition if-none-match fails."}
 			return false, errz
 		}
@@ -476,6 +491,10 @@ func (bbs *Bb_server) check_conditions(ctx context.Context, etag *string, mtime 
 	}
 
 	return true, nil
+}
+
+func match_etags_is_star(etags []string) bool {
+	return len(etags) == 1 && etags[0] == "*"
 }
 
 // MAKE_META_INFO makes a meta-info from i.Metadata and i.Tagging.
