@@ -14,9 +14,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"fmt"
 	"path"
 	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
+	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 	"strings"
+	//"strconv"
 	"sync"
 	"time"
 )
@@ -46,7 +49,7 @@ type Bb_server struct {
 
 	conf Bb_configuration
 
-	rid_gone      int64
+	rid_past      int64
 	suffixes map[string]suffix_record
 	monitor1 *monitor
 	mutex    sync.Mutex
@@ -72,7 +75,15 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err1 != nil {
 		return
 	}
-	sv.sx.ServeHTTP(w, r)
+	var w2 = &httpaide.ResponseWriter2{ResponseWriter: w}
+	sv.sx.ServeHTTP(w2, r)
+
+	{
+		var code = w2.Status_code
+		var length = w2.Content_length
+		var m = httpaide.Log_access(r, code, length, "???")
+		fmt.Printf("%s\n", m)
+	}
 }
 
 func Start_server(pool_directory, addr, logPath, authKey string) {

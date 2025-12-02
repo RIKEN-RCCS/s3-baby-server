@@ -22,6 +22,7 @@ package httpaide
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -123,11 +124,14 @@ func Scan_rfc7232_etags(s string) ([]string, error) {
 	return etags, nil
 }
 
+// MEMO:
+//   - time.RFC1123="Mon,_02_Jan_2006_15:04:05_MST"
+//   - net/http.TimeFormat="Mon,_02_Jan_2006_15:04:05_GMT"
+
 // SCAN_RFC5322_DATE scans a http-date of "if-modified-since" and
 // "if-unmodified-since" headers.  IMF-fixdate is like
-// "Sun,_06_Nov_1994_08:49:37_GMT", which can be parsed by rfc3339.
-
+// "Sun,_06_Nov_1994_08:49:37_GMT".
 func Scan_rfc5322_date(s string) (time.Time, error) {
-	var t1, err1 = time.Parse(time.RFC3339, s)
+	var t1, err1 = time.Parse(http.TimeFormat, s)
 	return t1, err1
 }

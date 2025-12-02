@@ -44,11 +44,11 @@ func (bbs *Bb_server) make_request_id() *int64 {
 	var t int64 = time.Now().UnixMicro()
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
-	if bbs.rid_gone < t {
-		bbs.rid_gone = t
+	if bbs.rid_past < t {
+		bbs.rid_past = t
 	} else {
-		t = bbs.rid_gone + 1
-		bbs.rid_gone = t
+		t = bbs.rid_past + 1
+		bbs.rid_past = t
 	}
 	//return strconv.FormatInt(t, 16)
 	//return fmt.Sprintf("%016x", t)
