@@ -682,6 +682,13 @@ func (bbs *Bb_server) make_intermediate_directories(object string) error {
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
+			var err3 = os.MkdirAll(dir, 0755)
+			if err3 != nil {
+				bbs.logger.Info("os.MkdirAll() failed in making directories",
+					"path", dir, "error", err3)
+				return map_os_error(location, err3, nil)
+			}
+			return nil
 		} else {
 			bbs.logger.Info("os.Lstat() failed in making directories",
 				"path", dir, "error", err2)
@@ -693,15 +700,6 @@ func (bbs *Bb_server) make_intermediate_directories(object string) error {
 		var errz = &Aws_s3_error{Code: AccessDenied,
 			Resource: location}
 		return errz
-	}
-	if err2 != nil {
-		// assert(errors.Is(err2, fs.ErrNotExist))
-		var err3 = os.MkdirAll(dir, 0755)
-		if err3 != nil {
-			bbs.logger.Info("os.Mkdir() failed", "path", dir,
-				"error", err3)
-			return map_os_error(location, err3, nil)
-		}
 	}
 	return nil
 }

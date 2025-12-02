@@ -123,15 +123,14 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
-	// Error Code: EntityTooSmall
-	// Error Code: InvalidPart
-	// Error Code: InvalidPartOrder
-	// Error Code: NoSuchUpload
+	// Errors: EntityTooSmall, InvalidPart, InvalidPartOrder,
+	// NoSuchUpload
 
 	{
 		var unsupported = unsupported_checks{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			// i.RequestPayer types.RequestPayer
+			RequestPayer: i.RequestPayer,
+			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
