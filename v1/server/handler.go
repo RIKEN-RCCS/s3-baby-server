@@ -1,6 +1,7 @@
-// handler.go (2025-11-16)
+// handler.go (2025-12-03)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
+
 package server
 import (
 "context"
@@ -148,12 +149,15 @@ ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*o.
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_CompleteMultipartUploadResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_CopyObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -312,8 +316,10 @@ var ox, err6 = xml.MarshalIndent(o.CopyObjectResult, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_CreateBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -499,12 +505,15 @@ ho.Add("x-amz-checksum-algorithm", string(o.ChecksumAlgorithm))}
 if o.ChecksumType != "" {
 ho.Add("x-amz-checksum-type", string(o.ChecksumType))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_CreateMultipartUploadResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_DeleteBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -631,12 +640,15 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_DeleteObjectsResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_DeleteObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -882,12 +894,15 @@ ho.Add("x-amz-version-id", string(*o.VersionId))}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_GetObjectAttributesResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_GetObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -922,12 +937,15 @@ return}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_GetObjectTaggingResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_HeadBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1146,12 +1164,15 @@ if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_ListBucketsResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_ListMultipartUploads(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1199,12 +1220,15 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_ListMultipartUploadsResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_ListObjects(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1258,12 +1282,15 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_ListObjectsResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_ListObjectsV2(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1323,12 +1350,15 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_ListObjectsV2Response(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_ListParts(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1380,12 +1410,15 @@ ho.Add("x-amz-abort-rule-id", string(*o.AbortRuleId))}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o, " ", "  ")
+var s = h_ListPartsResponse(*o)
+var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func h_PutObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1771,8 +1804,10 @@ var ox, err6 = xml.MarshalIndent(o.CopyPartResult, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
-var _, err7 = w.Write(ox)
+var _, err7 = w.Write([]byte(xml.Header))
 if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+var _, err8 = w.Write(ox)
+if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
 }
 func intern_BucketCannedACL(s string) (types.BucketCannedACL, error) {
 switch s {

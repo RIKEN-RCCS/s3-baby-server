@@ -941,13 +941,15 @@
 (define (generate-dispatcher list-of-dispatches)
   ;; Prints pseudo code for "ServeMux" handler patterns.
   (append
+   (list (format #f "// dispatcher.go (~a)" generation-date)
+	 "// API-STUB.  A dispatcher for net/http.ServeMux.  It"
+	 "// switches handlers with regard to method-path patterns"
+	 "// and parameters marked as required in API."
+	 ;; A blank line is added to break from a package comment.
+	 "")
    (delete
     ""
-    (list (format #f "// dispatcher.go (~a)" generation-date)
-	  "// API-STUB.  Dispatcher for net/http.ServeMux.  It"
-	  "// switches handlers with regard to method-path patterns"
-	  "// and required parameters in request API."
-	  (format #f "package ~a" bb-dispatcher-package)
+    (list (format #f "package ~a" bb-dispatcher-package)
 	  "import ("
 	  ;; "\"context\""
 	  "\"net/http\""
@@ -1363,66 +1365,72 @@
   (list (format #f "var status int = ~a" code)
 	"w.WriteHeader(status)"))
 
-(define (make-payload-response code output-type slot-property)
-  ;; Makes a return of a payload.  Payload is an output record itself
-  ;; or a designated slot.  It uses an output record when
+(define (make-payload-response http-status response-type slot-property)
+  ;; Makes a response of a payload.  Payload is an output record
+  ;; itself or a designated slot.  It uses an output record when
   ;; slot-property=#f.
   (cond
    ((eqv? #f slot-property)
-    ;; Payload is an output record (or nothing).
-    (match-let* ((definition (assoc output-type list-of-types))
+    ;; (1) Payload is an output record (including unit case).
+    (match-let* ((output-type (adjust-output-structure-name response-type))
+		 (definition (assoc output-type list-of-types))
 		 ((type-name type-kind tag . slot-properties) definition))
       (cond
        ((eqv? #f tag)
 	(format #t ";; No payload response: ~s~%" output-type)
-	(list (format #f "var status int = ~a" code)
+	(list (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"))
        (else
+	;; Marshaling errors are implementation errors.
 	(list "ho.Set(\"Content-Type\", \"application/xml\")"
-	      ;; Marshaling errors means implementation errors.
+	      (format #f "var s = h_~a(*o)" response-type)
 	      (string-append
 	       "var ox, err6 = xml.MarshalIndent"
-	       (format #f "(o, \" \", \"  \")"))
+	       (format #f "(s, \" \", \"  \")"))
 	      "if err6 != nil {log.Fatal(err6)}"
-	      (format #f "var status int = ~a" code)
+	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
-	      "var _, err7 = w.Write(ox)"
-	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}")))))
+	      "var _, err7 = w.Write([]byte(xml.Header))"
+	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}"
+	      "var _, err8 = w.Write(ox)"
+	      "if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}")))))
    (else
-    ;; Payload is described by a slot-property.
+    ;; (2) Payload is described by a slot-property.
     (match-let* (((slot tag type locus required) slot-property)
 		 (return-binary? (string=? type "StreamingBlob")))
       (cond
        (return-binary?
 	(list "ho.Set(\"Content-Type\", \"application/octet-stream\")"
-	      (format #f "var status int = ~a" code)
+	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
 	      (format #f "var _, err7 = io.Copy(w, o.~a)" slot)
 	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}"))
        (else
+	;; Marshaling errors means implementation errors.
 	(list "ho.Set(\"Content-Type\", \"application/xml\")"
-	      ;; Marshaling errors means implementation errors.
 	      (string-append
 	       "var ox, err6 = xml.MarshalIndent"
 	       (format #f "(o.~a, \" \", \"  \")" slot))
 	      "if err6 != nil {log.Fatal(err6)}"
-	      (format #f "var status int = ~a" code)
+	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
-	      "var _, err7 = w.Write(ox)"
-	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}")))))))
+	      "var _, err7 = w.Write([]byte(xml.Header))"
+	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}"
+	      "var _, err8 = w.Write(ox)"
+	      "if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}")))))))
 
 (define (make-handler-function action)
   (match-let*
       (((name signature action-property request-properties response-properties)
 	action)
-       ((request-name response-name) signature)
-       (input-name (adjust-input-structure-name request-name))
-       (output-name (adjust-output-structure-name response-name))
+       ((request-type response-type) signature)
+       (input-type (adjust-input-structure-name request-type))
+       (output-type (adjust-output-structure-name response-type))
        ((payload-import-property import-properties)
 	(split-payload-properties request-properties))
        ((payload-export-property export-properties)
 	(split-payload-properties response-properties))
-       ((_ _ code) action-property))
+       ((_ _ http-status) action-property))
     (when tr? (format #t ";; make-handler-function ~s~%" name))
     (append
      ;; Start of function declaration:
@@ -1444,7 +1452,7 @@
 	    "var ctx = context.WithValue(ctx2, \"input-errors\","
 	    " input_errors)"))
      ;; Input accessors:
-     (list (format #f "var i = s3.~a{}" input-name))
+     (list (format #f "var i = s3.~a{}" input-type))
      (apply-append (map make-input-import import-properties))
      (if payload-import-property
 	 (make-input-import payload-import-property)
@@ -1453,7 +1461,7 @@
 	   "bbs.respond_on_input_error(ctx, w, r, input_errors)"
 	   "return}")
      ;; Hander invocation:
-     (list (if (string=? output-name "Unit")
+     (list (if (string=? output-type "Unit")
 	       (format #f "var _, err5 = bbs.~a(ctx, &i)" name)
 	       (format #f "var o, err5 = bbs.~a(ctx, &i)" name))
 	   "if err5 != nil {"
@@ -1461,14 +1469,15 @@
 	   "return}")
      ;; Output accessors:
      (cond
-      ((string=? output-name "Unit")
+      ((string=? output-type "Unit")
        ;; Note DeleteBucket has "Unit" output.
        (assert (eqv? #f payload-export-property))
-       (make-unit-response code))
+       (make-unit-response http-status))
       (else
        (append
 	(apply-append (map make-output-export export-properties))
-	(make-payload-response code output-name payload-export-property))))
+	(make-payload-response http-status response-type
+			       payload-export-property))))
      ;; Function end:
      (list "}"))))
 
@@ -1488,12 +1497,14 @@
 
 (define (make-handler-file list-of-actions)
   (append
+   (list (format #f "// handler.go (~a)" generation-date)
+	 "// API-STUB.  Handler functions (h_XXXX) called from the"
+	 "// dispatcher."
+	 ;; A blank line is added to break from a package comment.
+	 "")
    (delete
     ""
-    (list (format #f "// handler.go (~a)" generation-date)
-	  "// API-STUB.  Handler functions (h_XXXX) called from the"
-	  "// dispatcher."
-	  (format #f "package ~a" bb-dispatcher-package)
+    (list (format #f "package ~a" bb-dispatcher-package)
 	  "import ("
 	  "\"context\""
 	  "\"encoding/xml\""
@@ -1585,12 +1596,14 @@
     (any check-output-whole-payload1 response-properties)))
 
 (define (make-slot-marshaler property)
-  ;; Returns marshaler lines of code for an response element.  It
-  ;; specially treats arrays (kind="list"), as "EncodeElement" tags
-  ;; arrays not by the type name but by the passed start tag.
+  ;; Returns lines of marshaler for an response element.  (* FALSE
+  ;; STATEMENT: It specially treats arrays (kind="list"), as
+  ;; "EncodeElement" puts a tag on an array not by the type name but
+  ;; by the passed start tag. *)
   (match-let* (((slot tag type locus required) property)
 	       (definition (assoc type list-of-types))
-	       ((type-name type-kind _ . slot-properties) definition))
+	       ((type-name type-kind _ . slot-properties) definition)
+	       (null-value (if (string=? type-kind "enum") "\"\"" "nil")))
     ;;(format #t ";; make-slot-marshaler ~s ~s~%" property definition)
     (case locus
       ((PATH QUERY)
@@ -1606,19 +1619,21 @@
        '())
       ((ELEMENT)
        (cond
-	((string=? type-kind "list")
-	 (list
-	  (format #f "{var tag2 = h_make_tag(\"~a\")" tag)
-	  "var err2 = e.EncodeToken(tag2)"
-	  "if err2 != nil {return err2}"
-	  (format #f "var err3 = e.Encode(s.~a)" slot)
-	  "if err3 != nil {return err3}"
-	  "var err4 = e.EncodeToken(tag2.End())"
-	  "if err4 != nil {return err4}}"))
+	;; ((string=? type-kind "list")
+	;;  (list
+	;;   (format #f "if s.~a != ~a {" slot null-value)
+	;;   (format #f "var tag2 = h_make_tag(\"~a\")" tag)
+	;;   "var err2 = e.EncodeToken(tag2)"
+	;;   "if err2 != nil {return err2}"
+	;;   (format #f "var err3 = e.Encode(s.~a)" slot)
+	;;   "if err3 != nil {return err3}"
+	;;   "var err4 = e.EncodeToken(tag2.End())"
+	;;   "if err4 != nil {return err4}}"))
 	(else
 	 (list
+	  (format #f "if s.~a != ~a {" slot null-value)
 	  (string-append
-	   (format #f "{var err2 = e.EncodeElement")
+	   (format #f "var err2 = e.EncodeElement")
 	   (format #f "(s.~a, h_make_tag(\"~a\"))" slot tag))
 	  (format #f "if err2 != nil {return err2}}")))))
       (else
@@ -1628,40 +1643,42 @@
 (define (make-marshaler-function action)
   ;; Returns lines of a response marshaler for "XXXXResponse".
   (match-let*
-      (((name (request-name response-name) _ _ response-properties) action)
-       (type-name (adjust-output-structure-name response-name))
+      (((name (request-type response-type) _ _ response-properties) action)
+       (output-type (adjust-output-structure-name response-type))
        (encoders (delete '() (map make-slot-marshaler response-properties)))
        (whole-payload (check-output-whole-payload response-properties)))
     (assert (or (not whole-payload) (= (length encoders) 1)))
-    (if (string=? type-name "Unit")
-	'()
-	(match-let*
-	    ((definition (assoc type-name list-of-types))
-	     ((type-name type-kind tag . slot-properties) definition))
-	  (cond
-	   ((and (= (length encoders) 0) (eqv? #f tag))
-	    (format #t ";; Skip making marshaler: ~s~%" name)
-	    '())
-	   (else
-	    (append
-	     (list
-	      (format #f "type h_~a s3.~a" response-name type-name)
-	      (string-append
-	       (format #f "func (s h_~a) MarshalXML" response-name)
-	       (format #f "(e *xml.Encoder, _ xml.StartElement) error {")))
-	     (cond
-	      ((not (eqv? #f tag))
-	       (append
-		(list (format #f "var tag1 = h_make_tag(~s)" tag)
-		      "var err1 = e.EncodeToken(tag1)"
-		      "if err1 != nil {return err1}")
-		(apply-append encoders)
-		(list "var err9 = e.EncodeToken(tag1.End())"
-		      "if err9 != nil {return err9}")))
-	      ((not (= (length encoders) 0))
-	       (apply-append encoders)))
-	     (list
-	      (format #f "return nil}")))))))))
+    (cond
+     ((string=? output-type "Unit")
+      '())
+     (else
+      (match-let*
+	  ((definition (assoc output-type list-of-types))
+	   ((type-name1 type-kind tag . slot-properties) definition))
+	(cond
+	 ((and (= (length encoders) 0) (eqv? #f tag))
+	  (format #t ";; Skip making marshaler: ~s~%" name)
+	  '())
+	 (else
+	  (append
+	   (list
+	    (format #f "type h_~a s3.~a" response-type output-type)
+	    (string-append
+	     (format #f "func (s h_~a) MarshalXML" response-type)
+	     (format #f "(e *xml.Encoder, _ xml.StartElement) error {")))
+	   (cond
+	    ((not (eqv? #f tag))
+	     (append
+	      (list (format #f "var tag1 = h_make_tag(~s)" tag)
+		    "var err1 = e.EncodeToken(tag1)"
+		    "if err1 != nil {return err1}")
+	      (apply-append encoders)
+	      (list "var err9 = e.EncodeToken(tag1.End())"
+		    "if err9 != nil {return err9}")))
+	    ((not (null? encoders))
+	     (apply-append encoders)))
+	   (list
+	    (format #f "return nil}"))))))))))
 
 (define (make-marshaler-file list-of-actions)
   (append
@@ -1670,7 +1687,9 @@
 	 "// structures need custom marshalers, because they have"
 	 "// some slots that need to be renamed and also have an"
 	 "// extra slot that should be suppressed."
-	 (format #f "package ~a" bb-dispatcher-package)
+	 ;; A blank line is added to break from a package comment.
+	 "")
+   (list (format #f "package ~a" bb-dispatcher-package)
 	 "import ("
 	 ;; "\"context\""
 	 "\"encoding/xml\""
@@ -1723,14 +1742,14 @@
 
 (define (make-api-template-file list-of-actions)
   (append
+   (list (format #f "// api-template.go (~a)" generation-date)
+	 "// API-STUB.  Handler templates. They should be replaced by"
+	 "// actual implementations."
+	 ;; A blank line is added to break from a package comment.
+	 "")
    (delete
     ""
-    (list (format #f "// api-template.go (~a)" generation-date)
-	  "// API-STUB.  Handler templates. They should be replaced by"
-	  "// actual implementations."
-	  (if (not (string=? bb-server-package bb-dispatcher-package))
-	      (format #f "package ~a" bb-server-package)
-	      "")
+    (list (format #f "package ~a" bb-server-package)
 	  "import ("
 	  "\"context\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
