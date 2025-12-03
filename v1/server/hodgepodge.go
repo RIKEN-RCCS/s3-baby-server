@@ -114,6 +114,10 @@ func (bbs *Bb_server) release_access(ctx context.Context, object string, rid int
 	return nil
 }
 
+func make_parameter_error(name string, err error) error {
+	return fmt.Errorf(("Parameter \"" + name + "\" error: %w"), err)
+}
+
 // RESPOND_ON_ACTION_ERROR is an action error and makes a
 // response for it.
 func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {

@@ -99,22 +99,27 @@ func signing_verbose(msg ...any) {
 }
 
 // CHECK_CREDENTIAL_IS_OKAY checks the sign in an http request.  It
-// returns OK/NG and a simple reason.  It once signs a request by
-// itself using AWS-SDK, and compares it with the one in the request.
-// It substitutes "Host" by "X-Forwarded-Host" if it is missing.  It
-// copies a request before modifing it.
-func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (bool, string) {
+// returns an access-key or a simple failure reason (an error).  It
+// once signs a request by using AWS-SDK, and compares it with the one
+// in the request.  Note it does not calculate the message digest and
+// uses the given one.  It substitutes "Host" by "X-Forwarded-Host" if
+// it is missing.  It copies a request before modifying it.  Returned
+// errors are one of {"bad-auth", "bad-date", "bad-sign",
+// "cannot-sign", "no-auth"}.
+func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, error) {
 	var header1 = rqst1.Header.Get("Authorization")
 	signing_verbose("*** authorization=", header1)
 	if header1 == "" {
 		signing_verbose("*** empty authorization=", header1)
-		return false, "no-auth"
+		return "anon", fmt.Errorf("no-auth")
 	}
 	var auth_passed = Scan_aws_authorization(header1)
 	if auth_passed == nil {
 		signing_verbose("*** bad auth=", header1)
-		return false, "bad-auth"
+		return "anon", fmt.Errorf("bad-auth")
 	}
+
+	var access_key = auth_passed.credential[0]
 
 	var service = auth_passed.credential[3]
 	var region = auth_passed.credential[2]
@@ -122,7 +127,7 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (bool, str
 	var date, err1 = time.Parse(time.RFC3339, datestring)
 	if err1 != nil {
 		signing_verbose("*** bad date=", auth_passed)
-		return false, "bad-date"
+		return access_key, fmt.Errorf("bad-date")
 	}
 
 	// Copy the request.  Note that Golang's copy is shallow.
@@ -166,14 +171,14 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (bool, str
 		hash, service, region, date)
 	if err2 != nil {
 		slog.Error("Mux() signer/SignHTTP() failed", "err", err2)
-		return false, "cannot-sign"
+		return access_key, fmt.Errorf("cannot-sign")
 	}
 
 	var header2 = rqst2.Header.Get("Authorization")
 	var auth_forged = Scan_aws_authorization(header2)
 	if auth_forged == nil {
 		signing_verbose("*** bad auth=", header2)
-		return false, "bad-auth"
+		return access_key, fmt.Errorf("bad-auth")
 	}
 	var ok = auth_passed.signature == auth_forged.signature
 	if !ok {
@@ -181,9 +186,9 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (bool, str
 			"access-key1", auth_passed.credential[0])
 		slog.Debug("Mux() Bad authorization, signs unmatch",
 			"auth1", auth_passed, "auth2", auth_forged)
-		return false, "bad-sign"
+		return access_key, fmt.Errorf("bad-sign")
 	}
-	return true, ""
+	return access_key, nil
 }
 
 // SIGN_BY_GIVEN_CREDENTIAL replaces an authorization header in a
@@ -322,7 +327,7 @@ func check_all_digits(s string) bool {
 
 // ADJUST_X_AMZ_DATE converts an X-Amz-Date string to be parsable in
 // RFC3339.  It returns "" if a string is ill formed.  It should use
-// the date format for X-Amz-Date.  See
+// the date format for X-Amz-Date.  It is
 // x_amz_date_layout="20060102T150405Z".  (* Note X-Amz-Date is an
 // acceptable string by ISO-8601 *).
 func adjust_x_amz_date(d string) string {

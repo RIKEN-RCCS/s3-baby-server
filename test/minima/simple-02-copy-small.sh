@@ -4,12 +4,11 @@
 
 # Start with an empty pool.
 
+export AWS_EC2_METADATA_DISABLED=true
+
 set -e
 
 alias ECHO=:
-
-export AWS_EC2_METADATA_DISABLED=true
-bucket=mybucket1
 
 set -x
 
@@ -83,5 +82,7 @@ aws s3 rm --recursive s3://mybucket1/dog/
 # OUTPUT: delete: s3://mybucket1/dog/eurasier.txt
 
 aws s3 ls s3://mybucket1
+
+aws s3 rb --no-cli-pager s3://mybucket1
 
 ECHO "Done."

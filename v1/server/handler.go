@@ -25,14 +25,6 @@ Name string
 }
 func (e *Bb_enum_intern_error) Error() string {
 return "Enum " + e.Enum + " unknown key: " + strconv.Quote(e.Name)}
-// BB_INPUT_ERROR is recorded in a context when an error
-// occurs on interning a parameter.
-type Bb_input_error struct {
-Key string
-Err error
-}
-func (e *Bb_input_error) Error() string {
-return "Parameter " + e.Key + " error: " + e.Err.Error()}
 func h_AbortMultipartUpload(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
@@ -53,13 +45,13 @@ i.UploadId = h_thing_pointer(qi.Get("uploadId"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-if-match-initiated-time")) != 0 {
 var s = hi.Get("x-amz-if-match-initiated-time")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-if-match-initiated-time"] = &Bb_input_error{"x-amz-if-match-initiated-time", err2}} else {i.IfMatchInitiatedTime = &x}}
+if err2 != nil {input_errors["x-amz-if-match-initiated-time"] = err2} else {i.IfMatchInitiatedTime = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -102,15 +94,15 @@ i.ChecksumSHA256 = h_thing_pointer(hi.Get("x-amz-checksum-sha256"))}
 if len(hi.Values("x-amz-checksum-type")) != 0 {
 var s = hi.Get("x-amz-checksum-type")
 var x, err2 = intern_ChecksumType(s)
-if err2 != nil {input_errors["x-amz-checksum-type"] = &Bb_input_error{"x-amz-checksum-type", err2}} else {i.ChecksumType = x}}
+if err2 != nil {input_errors["x-amz-checksum-type"] = err2} else {i.ChecksumType = x}}
 if len(hi.Values("x-amz-mp-object-size")) != 0 {
 var s = hi.Get("x-amz-mp-object-size")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {input_errors["x-amz-mp-object-size"] = &Bb_input_error{"x-amz-mp-object-size", err2}} else {i.MpuObjectSize = &x}}
+if err2 != nil {input_errors["x-amz-mp-object-size"] = err2} else {i.MpuObjectSize = &x}}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("If-Match")) != 0 {
@@ -124,11 +116,10 @@ i.SSECustomerKey = h_thing_pointer(hi.Get("x-amz-server-side-encryption-customer
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
 {var x types.CompletedMultipartUpload
-var bs, err1 = io.ReadAll(r.Body)
-if err1 != nil {panic(fmt.Errorf("No http body for types.CompletedMultipartUpload: %w", err1))}
-var err2 = xml.Unmarshal(bs, &x)
-if err2 != nil {panic(fmt.Errorf("Invalid http body for types.CompletedMultipartUpload: %w", err2))}
-i.MultipartUpload = &x}
+var err1 = xml.NewDecoder(r.Body).Decode(&x)
+if err1 != nil {
+if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.CompletedMultipartUpload: %w", err1)}
+} else {i.MultipartUpload = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -173,7 +164,7 @@ var i = s3.CopyObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_ObjectCannedACL(s)
-if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+if err2 != nil {input_errors["x-amz-acl"] = err2} else {i.ACL = x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("Cache-Control")) != 0 {
@@ -181,7 +172,7 @@ i.CacheControl = h_thing_pointer(hi.Get("Cache-Control"))}
 if len(hi.Values("x-amz-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
-if err2 != nil {input_errors["x-amz-checksum-algorithm"] = &Bb_input_error{"x-amz-checksum-algorithm", err2}} else {i.ChecksumAlgorithm = x}}
+if err2 != nil {input_errors["x-amz-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("Content-Disposition")) != 0 {
 i.ContentDisposition = h_thing_pointer(hi.Get("Content-Disposition"))}
 if len(hi.Values("Content-Encoding")) != 0 {
@@ -197,17 +188,17 @@ i.CopySourceIfMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-match"))}
 if len(hi.Values("x-amz-copy-source-if-modified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-modified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-copy-source-if-modified-since"] = &Bb_input_error{"x-amz-copy-source-if-modified-since", err2}} else {i.CopySourceIfModifiedSince = &x}}
+if err2 != nil {input_errors["x-amz-copy-source-if-modified-since"] = err2} else {i.CopySourceIfModifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-none-match")) != 0 {
 i.CopySourceIfNoneMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-none-match"))}
 if len(hi.Values("x-amz-copy-source-if-unmodified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-unmodified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-copy-source-if-unmodified-since"] = &Bb_input_error{"x-amz-copy-source-if-unmodified-since", err2}} else {i.CopySourceIfUnmodifiedSince = &x}}
+if err2 != nil {input_errors["x-amz-copy-source-if-unmodified-since"] = err2} else {i.CopySourceIfUnmodifiedSince = &x}}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["Expires"] = &Bb_input_error{"Expires", err2}} else {i.Expires = &x}}
+if err2 != nil {input_errors["Expires"] = err2} else {i.Expires = &x}}
 if len(hi.Values("x-amz-grant-full-control")) != 0 {
 i.GrantFullControl = h_thing_pointer(hi.Get("x-amz-grant-full-control"))}
 if len(hi.Values("x-amz-grant-read")) != 0 {
@@ -227,19 +218,19 @@ i.Metadata = bin}
 if len(hi.Values("x-amz-metadata-directive")) != 0 {
 var s = hi.Get("x-amz-metadata-directive")
 var x, err2 = intern_MetadataDirective(s)
-if err2 != nil {input_errors["x-amz-metadata-directive"] = &Bb_input_error{"x-amz-metadata-directive", err2}} else {i.MetadataDirective = x}}
+if err2 != nil {input_errors["x-amz-metadata-directive"] = err2} else {i.MetadataDirective = x}}
 if len(hi.Values("x-amz-tagging-directive")) != 0 {
 var s = hi.Get("x-amz-tagging-directive")
 var x, err2 = intern_TaggingDirective(s)
-if err2 != nil {input_errors["x-amz-tagging-directive"] = &Bb_input_error{"x-amz-tagging-directive", err2}} else {i.TaggingDirective = x}}
+if err2 != nil {input_errors["x-amz-tagging-directive"] = err2} else {i.TaggingDirective = x}}
 if len(hi.Values("x-amz-server-side-encryption")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption")
 var x, err2 = intern_ServerSideEncryption(s)
-if err2 != nil {input_errors["x-amz-server-side-encryption"] = &Bb_input_error{"x-amz-server-side-encryption", err2}} else {i.ServerSideEncryption = x}}
+if err2 != nil {input_errors["x-amz-server-side-encryption"] = err2} else {i.ServerSideEncryption = x}}
 if len(hi.Values("x-amz-storage-class")) != 0 {
 var s = hi.Get("x-amz-storage-class")
 var x, err2 = intern_StorageClass(s)
-if err2 != nil {input_errors["x-amz-storage-class"] = &Bb_input_error{"x-amz-storage-class", err2}} else {i.StorageClass = x}}
+if err2 != nil {input_errors["x-amz-storage-class"] = err2} else {i.StorageClass = x}}
 if len(hi.Values("x-amz-website-redirect-location")) != 0 {
 i.WebsiteRedirectLocation = h_thing_pointer(hi.Get("x-amz-website-redirect-location"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -255,7 +246,7 @@ i.SSEKMSEncryptionContext = h_thing_pointer(hi.Get("x-amz-server-side-encryption
 if len(hi.Values("x-amz-server-side-encryption-bucket-key-enabled")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption-bucket-key-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {input_errors["x-amz-server-side-encryption-bucket-key-enabled"] = &Bb_input_error{"x-amz-server-side-encryption-bucket-key-enabled", err2}} else {i.BucketKeyEnabled = &x}}
+if err2 != nil {input_errors["x-amz-server-side-encryption-bucket-key-enabled"] = err2} else {i.BucketKeyEnabled = &x}}
 if len(hi.Values("x-amz-copy-source-server-side-encryption-customer-algorithm")) != 0 {
 i.CopySourceSSECustomerAlgorithm = h_thing_pointer(hi.Get("x-amz-copy-source-server-side-encryption-customer-algorithm"))}
 if len(hi.Values("x-amz-copy-source-server-side-encryption-customer-key")) != 0 {
@@ -265,21 +256,21 @@ i.CopySourceSSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-copy-source-server
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-tagging")) != 0 {
 i.Tagging = h_thing_pointer(hi.Get("x-amz-tagging"))}
 if len(hi.Values("x-amz-object-lock-mode")) != 0 {
 var s = hi.Get("x-amz-object-lock-mode")
 var x, err2 = intern_ObjectLockMode(s)
-if err2 != nil {input_errors["x-amz-object-lock-mode"] = &Bb_input_error{"x-amz-object-lock-mode", err2}} else {i.ObjectLockMode = x}}
+if err2 != nil {input_errors["x-amz-object-lock-mode"] = err2} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = &Bb_input_error{"x-amz-object-lock-retain-until-date", err2}} else {i.ObjectLockRetainUntilDate = &x}}
+if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = err2} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
 var x, err2 = intern_ObjectLockLegalHoldStatus(s)
-if err2 != nil {input_errors["x-amz-object-lock-legal-hold"] = &Bb_input_error{"x-amz-object-lock-legal-hold", err2}} else {i.ObjectLockLegalHoldStatus = x}}
+if err2 != nil {input_errors["x-amz-object-lock-legal-hold"] = err2} else {i.ObjectLockLegalHoldStatus = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-source-expected-bucket-owner")) != 0 {
@@ -335,7 +326,7 @@ var i = s3.CreateBucketInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_BucketCannedACL(s)
-if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+if err2 != nil {input_errors["x-amz-acl"] = err2} else {i.ACL = x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("x-amz-grant-full-control")) != 0 {
@@ -351,17 +342,16 @@ i.GrantWriteACP = h_thing_pointer(hi.Get("x-amz-grant-write-acp"))}
 if len(hi.Values("x-amz-bucket-object-lock-enabled")) != 0 {
 var s = hi.Get("x-amz-bucket-object-lock-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {input_errors["x-amz-bucket-object-lock-enabled"] = &Bb_input_error{"x-amz-bucket-object-lock-enabled", err2}} else {i.ObjectLockEnabledForBucket = &x}}
+if err2 != nil {input_errors["x-amz-bucket-object-lock-enabled"] = err2} else {i.ObjectLockEnabledForBucket = &x}}
 if len(hi.Values("x-amz-object-ownership")) != 0 {
 var s = hi.Get("x-amz-object-ownership")
 var x, err2 = intern_ObjectOwnership(s)
-if err2 != nil {input_errors["x-amz-object-ownership"] = &Bb_input_error{"x-amz-object-ownership", err2}} else {i.ObjectOwnership = x}}
+if err2 != nil {input_errors["x-amz-object-ownership"] = err2} else {i.ObjectOwnership = x}}
 {var x types.CreateBucketConfiguration
-var bs, err1 = io.ReadAll(r.Body)
-if err1 != nil {panic(fmt.Errorf("No http body for types.CreateBucketConfiguration: %w", err1))}
-var err2 = xml.Unmarshal(bs, &x)
-if err2 != nil {panic(fmt.Errorf("Invalid http body for types.CreateBucketConfiguration: %w", err2))}
-i.CreateBucketConfiguration = &x}
+var err1 = xml.NewDecoder(r.Body).Decode(&x)
+if err1 != nil {
+if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.CreateBucketConfiguration: %w", err1)}
+} else {i.CreateBucketConfiguration = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -390,7 +380,7 @@ var i = s3.CreateMultipartUploadInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_ObjectCannedACL(s)
-if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+if err2 != nil {input_errors["x-amz-acl"] = err2} else {i.ACL = x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("Cache-Control")) != 0 {
@@ -406,7 +396,7 @@ i.ContentType = h_thing_pointer(hi.Get("Content-Type"))}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["Expires"] = &Bb_input_error{"Expires", err2}} else {i.Expires = &x}}
+if err2 != nil {input_errors["Expires"] = err2} else {i.Expires = &x}}
 if len(hi.Values("x-amz-grant-full-control")) != 0 {
 i.GrantFullControl = h_thing_pointer(hi.Get("x-amz-grant-full-control"))}
 if len(hi.Values("x-amz-grant-read")) != 0 {
@@ -426,11 +416,11 @@ i.Metadata = bin}
 if len(hi.Values("x-amz-server-side-encryption")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption")
 var x, err2 = intern_ServerSideEncryption(s)
-if err2 != nil {input_errors["x-amz-server-side-encryption"] = &Bb_input_error{"x-amz-server-side-encryption", err2}} else {i.ServerSideEncryption = x}}
+if err2 != nil {input_errors["x-amz-server-side-encryption"] = err2} else {i.ServerSideEncryption = x}}
 if len(hi.Values("x-amz-storage-class")) != 0 {
 var s = hi.Get("x-amz-storage-class")
 var x, err2 = intern_StorageClass(s)
-if err2 != nil {input_errors["x-amz-storage-class"] = &Bb_input_error{"x-amz-storage-class", err2}} else {i.StorageClass = x}}
+if err2 != nil {input_errors["x-amz-storage-class"] = err2} else {i.StorageClass = x}}
 if len(hi.Values("x-amz-website-redirect-location")) != 0 {
 i.WebsiteRedirectLocation = h_thing_pointer(hi.Get("x-amz-website-redirect-location"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -446,35 +436,35 @@ i.SSEKMSEncryptionContext = h_thing_pointer(hi.Get("x-amz-server-side-encryption
 if len(hi.Values("x-amz-server-side-encryption-bucket-key-enabled")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption-bucket-key-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {input_errors["x-amz-server-side-encryption-bucket-key-enabled"] = &Bb_input_error{"x-amz-server-side-encryption-bucket-key-enabled", err2}} else {i.BucketKeyEnabled = &x}}
+if err2 != nil {input_errors["x-amz-server-side-encryption-bucket-key-enabled"] = err2} else {i.BucketKeyEnabled = &x}}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-tagging")) != 0 {
 i.Tagging = h_thing_pointer(hi.Get("x-amz-tagging"))}
 if len(hi.Values("x-amz-object-lock-mode")) != 0 {
 var s = hi.Get("x-amz-object-lock-mode")
 var x, err2 = intern_ObjectLockMode(s)
-if err2 != nil {input_errors["x-amz-object-lock-mode"] = &Bb_input_error{"x-amz-object-lock-mode", err2}} else {i.ObjectLockMode = x}}
+if err2 != nil {input_errors["x-amz-object-lock-mode"] = err2} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = &Bb_input_error{"x-amz-object-lock-retain-until-date", err2}} else {i.ObjectLockRetainUntilDate = &x}}
+if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = err2} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
 var x, err2 = intern_ObjectLockLegalHoldStatus(s)
-if err2 != nil {input_errors["x-amz-object-lock-legal-hold"] = &Bb_input_error{"x-amz-object-lock-legal-hold", err2}} else {i.ObjectLockLegalHoldStatus = x}}
+if err2 != nil {input_errors["x-amz-object-lock-legal-hold"] = err2} else {i.ObjectLockLegalHoldStatus = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
-if err2 != nil {input_errors["x-amz-checksum-algorithm"] = &Bb_input_error{"x-amz-checksum-algorithm", err2}} else {i.ChecksumAlgorithm = x}}
+if err2 != nil {input_errors["x-amz-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("x-amz-checksum-type")) != 0 {
 var s = hi.Get("x-amz-checksum-type")
 var x, err2 = intern_ChecksumType(s)
-if err2 != nil {input_errors["x-amz-checksum-type"] = &Bb_input_error{"x-amz-checksum-type", err2}} else {i.ChecksumType = x}}
+if err2 != nil {input_errors["x-amz-checksum-type"] = err2} else {i.ChecksumType = x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -562,11 +552,11 @@ i.VersionId = h_thing_pointer(qi.Get("versionId"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-bypass-governance-retention")) != 0 {
 var s = hi.Get("x-amz-bypass-governance-retention")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {input_errors["x-amz-bypass-governance-retention"] = &Bb_input_error{"x-amz-bypass-governance-retention", err2}} else {i.BypassGovernanceRetention = &x}}
+if err2 != nil {input_errors["x-amz-bypass-governance-retention"] = err2} else {i.BypassGovernanceRetention = &x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("If-Match")) != 0 {
@@ -574,11 +564,11 @@ i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("x-amz-if-match-last-modified-time")) != 0 {
 var s = hi.Get("x-amz-if-match-last-modified-time")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-if-match-last-modified-time"] = &Bb_input_error{"x-amz-if-match-last-modified-time", err2}} else {i.IfMatchLastModifiedTime = &x}}
+if err2 != nil {input_errors["x-amz-if-match-last-modified-time"] = err2} else {i.IfMatchLastModifiedTime = &x}}
 if len(hi.Values("x-amz-if-match-size")) != 0 {
 var s = hi.Get("x-amz-if-match-size")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {input_errors["x-amz-if-match-size"] = &Bb_input_error{"x-amz-if-match-size", err2}} else {i.IfMatchSize = &x}}
+if err2 != nil {input_errors["x-amz-if-match-size"] = err2} else {i.IfMatchSize = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -613,23 +603,22 @@ i.MFA = h_thing_pointer(hi.Get("x-amz-mfa"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-bypass-governance-retention")) != 0 {
 var s = hi.Get("x-amz-bypass-governance-retention")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {input_errors["x-amz-bypass-governance-retention"] = &Bb_input_error{"x-amz-bypass-governance-retention", err2}} else {i.BypassGovernanceRetention = &x}}
+if err2 != nil {input_errors["x-amz-bypass-governance-retention"] = err2} else {i.BypassGovernanceRetention = &x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
-if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = &Bb_input_error{"x-amz-sdk-checksum-algorithm", err2}} else {i.ChecksumAlgorithm = x}}
+if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
 {var x types.Delete
-var bs, err1 = io.ReadAll(r.Body)
-if err1 != nil {panic(fmt.Errorf("No http body for types.Delete: %w", err1))}
-var err2 = xml.Unmarshal(bs, &x)
-if err2 != nil {panic(fmt.Errorf("Invalid http body for types.Delete: %w", err2))}
-i.Delete = &x}
+var err1 = xml.NewDecoder(r.Body).Decode(&x)
+if err1 != nil {
+if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.Delete: %w", err1)}
+} else {i.Delete = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -699,13 +688,13 @@ i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("If-Modified-Since")) != 0 {
 var s = hi.Get("If-Modified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["If-Modified-Since"] = &Bb_input_error{"If-Modified-Since", err2}} else {i.IfModifiedSince = &x}}
+if err2 != nil {input_errors["If-Modified-Since"] = err2} else {i.IfModifiedSince = &x}}
 if len(hi.Values("If-None-Match")) != 0 {
 i.IfNoneMatch = h_thing_pointer(hi.Get("If-None-Match"))}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var s = hi.Get("If-Unmodified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["If-Unmodified-Since"] = &Bb_input_error{"If-Unmodified-Since", err2}} else {i.IfUnmodifiedSince = &x}}
+if err2 != nil {input_errors["If-Unmodified-Since"] = err2} else {i.IfUnmodifiedSince = &x}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
 if len(hi.Values("Range")) != 0 {
@@ -723,7 +712,7 @@ i.ResponseContentType = h_thing_pointer(qi.Get("response-content-type"))}
 if qi.Has("response-expires") {
 var s = qi.Get("response-expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["response-expires"] = &Bb_input_error{"response-expires", err2}} else {i.ResponseExpires = &x}}
+if err2 != nil {input_errors["response-expires"] = err2} else {i.ResponseExpires = &x}}
 if qi.Has("versionId") {
 i.VersionId = h_thing_pointer(qi.Get("versionId"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -735,18 +724,18 @@ i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-custo
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["partNumber"] = &Bb_input_error{"partNumber", err2}} else {i.PartNumber = &x2}}
+if err2 != nil {input_errors["partNumber"] = err2} else {i.PartNumber = &x2}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-checksum-mode")) != 0 {
 var s = hi.Get("x-amz-checksum-mode")
 var x, err2 = intern_ChecksumMode(s)
-if err2 != nil {input_errors["x-amz-checksum-mode"] = &Bb_input_error{"x-amz-checksum-mode", err2}} else {i.ChecksumMode = x}}
+if err2 != nil {input_errors["x-amz-checksum-mode"] = err2} else {i.ChecksumMode = x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -855,7 +844,7 @@ if len(hi.Values("x-amz-max-parts")) != 0 {
 var s = hi.Get("x-amz-max-parts")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["x-amz-max-parts"] = &Bb_input_error{"x-amz-max-parts", err2}} else {i.MaxParts = &x2}}
+if err2 != nil {input_errors["x-amz-max-parts"] = err2} else {i.MaxParts = &x2}}
 if len(hi.Values("x-amz-part-number-marker")) != 0 {
 i.PartNumberMarker = h_thing_pointer(hi.Get("x-amz-part-number-marker"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -867,7 +856,7 @@ i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-custo
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-object-attributes")) != 0 {
@@ -876,7 +865,7 @@ var bin []types.ObjectAttributes
 for _, v := range slices.All(rhs) {
 var s = v
 var x, err2 = intern_ObjectAttributes(s)
-if err2 != nil {input_errors["x-amz-object-attributes"] = &Bb_input_error{"x-amz-object-attributes", err2}} else {bin = append(bin, x)}}
+if err2 != nil {input_errors["x-amz-object-attributes"] = err2} else {bin = append(bin, x)}}
 i.ObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
@@ -926,7 +915,7 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -1000,13 +989,13 @@ i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("If-Modified-Since")) != 0 {
 var s = hi.Get("If-Modified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["If-Modified-Since"] = &Bb_input_error{"If-Modified-Since", err2}} else {i.IfModifiedSince = &x}}
+if err2 != nil {input_errors["If-Modified-Since"] = err2} else {i.IfModifiedSince = &x}}
 if len(hi.Values("If-None-Match")) != 0 {
 i.IfNoneMatch = h_thing_pointer(hi.Get("If-None-Match"))}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var s = hi.Get("If-Unmodified-Since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["If-Unmodified-Since"] = &Bb_input_error{"If-Unmodified-Since", err2}} else {i.IfUnmodifiedSince = &x}}
+if err2 != nil {input_errors["If-Unmodified-Since"] = err2} else {i.IfUnmodifiedSince = &x}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
 if len(hi.Values("Range")) != 0 {
@@ -1024,7 +1013,7 @@ i.ResponseContentType = h_thing_pointer(qi.Get("response-content-type"))}
 if qi.Has("response-expires") {
 var s = qi.Get("response-expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["response-expires"] = &Bb_input_error{"response-expires", err2}} else {i.ResponseExpires = &x}}
+if err2 != nil {input_errors["response-expires"] = err2} else {i.ResponseExpires = &x}}
 if qi.Has("versionId") {
 i.VersionId = h_thing_pointer(qi.Get("versionId"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -1036,18 +1025,18 @@ i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-custo
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["partNumber"] = &Bb_input_error{"partNumber", err2}} else {i.PartNumber = &x2}}
+if err2 != nil {input_errors["partNumber"] = err2} else {i.PartNumber = &x2}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-checksum-mode")) != 0 {
 var s = hi.Get("x-amz-checksum-mode")
 var x, err2 = intern_ChecksumMode(s)
-if err2 != nil {input_errors["x-amz-checksum-mode"] = &Bb_input_error{"x-amz-checksum-mode", err2}} else {i.ChecksumMode = x}}
+if err2 != nil {input_errors["x-amz-checksum-mode"] = err2} else {i.ChecksumMode = x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -1149,7 +1138,7 @@ if qi.Has("max-buckets") {
 var s = qi.Get("max-buckets")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["max-buckets"] = &Bb_input_error{"max-buckets", err2}} else {i.MaxBuckets = &x2}}
+if err2 != nil {input_errors["max-buckets"] = err2} else {i.MaxBuckets = &x2}}
 if qi.Has("continuation-token") {
 i.ContinuationToken = h_thing_pointer(qi.Get("continuation-token"))}
 if qi.Has("prefix") {
@@ -1192,14 +1181,14 @@ i.Delimiter = h_thing_pointer(qi.Get("delimiter"))}
 if qi.Has("encoding-type") {
 var s = qi.Get("encoding-type")
 var x, err2 = intern_EncodingType(s)
-if err2 != nil {input_errors["encoding-type"] = &Bb_input_error{"encoding-type", err2}} else {i.EncodingType = x}}
+if err2 != nil {input_errors["encoding-type"] = err2} else {i.EncodingType = x}}
 if qi.Has("key-marker") {
 i.KeyMarker = h_thing_pointer(qi.Get("key-marker"))}
 if qi.Has("max-uploads") {
 var s = qi.Get("max-uploads")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["max-uploads"] = &Bb_input_error{"max-uploads", err2}} else {i.MaxUploads = &x2}}
+if err2 != nil {input_errors["max-uploads"] = err2} else {i.MaxUploads = &x2}}
 if qi.Has("prefix") {
 i.Prefix = h_thing_pointer(qi.Get("prefix"))}
 if qi.Has("upload-id-marker") {
@@ -1209,7 +1198,7 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -1248,20 +1237,20 @@ i.Delimiter = h_thing_pointer(qi.Get("delimiter"))}
 if qi.Has("encoding-type") {
 var s = qi.Get("encoding-type")
 var x, err2 = intern_EncodingType(s)
-if err2 != nil {input_errors["encoding-type"] = &Bb_input_error{"encoding-type", err2}} else {i.EncodingType = x}}
+if err2 != nil {input_errors["encoding-type"] = err2} else {i.EncodingType = x}}
 if qi.Has("marker") {
 i.Marker = h_thing_pointer(qi.Get("marker"))}
 if qi.Has("max-keys") {
 var s = qi.Get("max-keys")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["max-keys"] = &Bb_input_error{"max-keys", err2}} else {i.MaxKeys = &x2}}
+if err2 != nil {input_errors["max-keys"] = err2} else {i.MaxKeys = &x2}}
 if qi.Has("prefix") {
 i.Prefix = h_thing_pointer(qi.Get("prefix"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-optional-object-attributes")) != 0 {
@@ -1270,7 +1259,7 @@ var bin []types.OptionalObjectAttributes
 for _, v := range slices.All(rhs) {
 var s = v
 var x, err2 = intern_OptionalObjectAttributes(s)
-if err2 != nil {input_errors["x-amz-optional-object-attributes"] = &Bb_input_error{"x-amz-optional-object-attributes", err2}} else {bin = append(bin, x)}}
+if err2 != nil {input_errors["x-amz-optional-object-attributes"] = err2} else {bin = append(bin, x)}}
 i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
@@ -1310,12 +1299,12 @@ i.Delimiter = h_thing_pointer(qi.Get("delimiter"))}
 if qi.Has("encoding-type") {
 var s = qi.Get("encoding-type")
 var x, err2 = intern_EncodingType(s)
-if err2 != nil {input_errors["encoding-type"] = &Bb_input_error{"encoding-type", err2}} else {i.EncodingType = x}}
+if err2 != nil {input_errors["encoding-type"] = err2} else {i.EncodingType = x}}
 if qi.Has("max-keys") {
 var s = qi.Get("max-keys")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["max-keys"] = &Bb_input_error{"max-keys", err2}} else {i.MaxKeys = &x2}}
+if err2 != nil {input_errors["max-keys"] = err2} else {i.MaxKeys = &x2}}
 if qi.Has("prefix") {
 i.Prefix = h_thing_pointer(qi.Get("prefix"))}
 if qi.Has("continuation-token") {
@@ -1323,13 +1312,13 @@ i.ContinuationToken = h_thing_pointer(qi.Get("continuation-token"))}
 if qi.Has("fetch-owner") {
 var s = qi.Get("fetch-owner")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {input_errors["fetch-owner"] = &Bb_input_error{"fetch-owner", err2}} else {i.FetchOwner = &x}}
+if err2 != nil {input_errors["fetch-owner"] = err2} else {i.FetchOwner = &x}}
 if qi.Has("start-after") {
 i.StartAfter = h_thing_pointer(qi.Get("start-after"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-optional-object-attributes")) != 0 {
@@ -1338,7 +1327,7 @@ var bin []types.OptionalObjectAttributes
 for _, v := range slices.All(rhs) {
 var s = v
 var x, err2 = intern_OptionalObjectAttributes(s)
-if err2 != nil {input_errors["x-amz-optional-object-attributes"] = &Bb_input_error{"x-amz-optional-object-attributes", err2}} else {bin = append(bin, x)}}
+if err2 != nil {input_errors["x-amz-optional-object-attributes"] = err2} else {bin = append(bin, x)}}
 i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
@@ -1379,7 +1368,7 @@ if qi.Has("max-parts") {
 var s = qi.Get("max-parts")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["max-parts"] = &Bb_input_error{"max-parts", err2}} else {i.MaxParts = &x2}}
+if err2 != nil {input_errors["max-parts"] = err2} else {i.MaxParts = &x2}}
 if qi.Has("part-number-marker") {
 i.PartNumberMarker = h_thing_pointer(qi.Get("part-number-marker"))}
 if qi.Has("uploadId") {
@@ -1387,7 +1376,7 @@ i.UploadId = h_thing_pointer(qi.Get("uploadId"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -1434,7 +1423,7 @@ var i = s3.PutObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
 var x, err2 = intern_ObjectCannedACL(s)
-if err2 != nil {input_errors["x-amz-acl"] = &Bb_input_error{"x-amz-acl", err2}} else {i.ACL = x}}
+if err2 != nil {input_errors["x-amz-acl"] = err2} else {i.ACL = x}}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
 if len(hi.Values("Cache-Control")) != 0 {
@@ -1448,7 +1437,7 @@ i.ContentLanguage = h_thing_pointer(hi.Get("Content-Language"))}
 if len(hi.Values("Content-Length")) != 0 {
 var s = hi.Get("Content-Length")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {input_errors["Content-Length"] = &Bb_input_error{"Content-Length", err2}} else {i.ContentLength = &x}}
+if err2 != nil {input_errors["Content-Length"] = err2} else {i.ContentLength = &x}}
 if len(hi.Values("Content-MD5")) != 0 {
 i.ContentMD5 = h_thing_pointer(hi.Get("Content-MD5"))}
 if len(hi.Values("Content-Type")) != 0 {
@@ -1456,7 +1445,7 @@ i.ContentType = h_thing_pointer(hi.Get("Content-Type"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
-if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = &Bb_input_error{"x-amz-sdk-checksum-algorithm", err2}} else {i.ChecksumAlgorithm = x}}
+if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("x-amz-checksum-crc32")) != 0 {
 i.ChecksumCRC32 = h_thing_pointer(hi.Get("x-amz-checksum-crc32"))}
 if len(hi.Values("x-amz-checksum-crc32c")) != 0 {
@@ -1470,7 +1459,7 @@ i.ChecksumSHA256 = h_thing_pointer(hi.Get("x-amz-checksum-sha256"))}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["Expires"] = &Bb_input_error{"Expires", err2}} else {i.Expires = &x}}
+if err2 != nil {input_errors["Expires"] = err2} else {i.Expires = &x}}
 if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("If-None-Match")) != 0 {
@@ -1488,7 +1477,7 @@ if x != "" {i.Key = &x}}
 if len(hi.Values("x-amz-write-offset-bytes")) != 0 {
 var s = hi.Get("x-amz-write-offset-bytes")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {input_errors["x-amz-write-offset-bytes"] = &Bb_input_error{"x-amz-write-offset-bytes", err2}} else {i.WriteOffsetBytes = &x}}
+if err2 != nil {input_errors["x-amz-write-offset-bytes"] = err2} else {i.WriteOffsetBytes = &x}}
 if len(hi.Values("x-amz-meta-")) != 0 {
 var prefix = http.CanonicalHeaderKey("x-amz-meta-")
 var bin map[string]string
@@ -1498,11 +1487,11 @@ i.Metadata = bin}
 if len(hi.Values("x-amz-server-side-encryption")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption")
 var x, err2 = intern_ServerSideEncryption(s)
-if err2 != nil {input_errors["x-amz-server-side-encryption"] = &Bb_input_error{"x-amz-server-side-encryption", err2}} else {i.ServerSideEncryption = x}}
+if err2 != nil {input_errors["x-amz-server-side-encryption"] = err2} else {i.ServerSideEncryption = x}}
 if len(hi.Values("x-amz-storage-class")) != 0 {
 var s = hi.Get("x-amz-storage-class")
 var x, err2 = intern_StorageClass(s)
-if err2 != nil {input_errors["x-amz-storage-class"] = &Bb_input_error{"x-amz-storage-class", err2}} else {i.StorageClass = x}}
+if err2 != nil {input_errors["x-amz-storage-class"] = err2} else {i.StorageClass = x}}
 if len(hi.Values("x-amz-website-redirect-location")) != 0 {
 i.WebsiteRedirectLocation = h_thing_pointer(hi.Get("x-amz-website-redirect-location"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -1518,25 +1507,25 @@ i.SSEKMSEncryptionContext = h_thing_pointer(hi.Get("x-amz-server-side-encryption
 if len(hi.Values("x-amz-server-side-encryption-bucket-key-enabled")) != 0 {
 var s = hi.Get("x-amz-server-side-encryption-bucket-key-enabled")
 var x, err2 = strconv.ParseBool(s)
-if err2 != nil {input_errors["x-amz-server-side-encryption-bucket-key-enabled"] = &Bb_input_error{"x-amz-server-side-encryption-bucket-key-enabled", err2}} else {i.BucketKeyEnabled = &x}}
+if err2 != nil {input_errors["x-amz-server-side-encryption-bucket-key-enabled"] = err2} else {i.BucketKeyEnabled = &x}}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-tagging")) != 0 {
 i.Tagging = h_thing_pointer(hi.Get("x-amz-tagging"))}
 if len(hi.Values("x-amz-object-lock-mode")) != 0 {
 var s = hi.Get("x-amz-object-lock-mode")
 var x, err2 = intern_ObjectLockMode(s)
-if err2 != nil {input_errors["x-amz-object-lock-mode"] = &Bb_input_error{"x-amz-object-lock-mode", err2}} else {i.ObjectLockMode = x}}
+if err2 != nil {input_errors["x-amz-object-lock-mode"] = err2} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = &Bb_input_error{"x-amz-object-lock-retain-until-date", err2}} else {i.ObjectLockRetainUntilDate = &x}}
+if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = err2} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
 var x, err2 = intern_ObjectLockLegalHoldStatus(s)
-if err2 != nil {input_errors["x-amz-object-lock-legal-hold"] = &Bb_input_error{"x-amz-object-lock-legal-hold", err2}} else {i.ObjectLockLegalHoldStatus = x}}
+if err2 != nil {input_errors["x-amz-object-lock-legal-hold"] = err2} else {i.ObjectLockLegalHoldStatus = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 {i.Body = r.Body}
@@ -1606,19 +1595,18 @@ i.ContentMD5 = h_thing_pointer(hi.Get("Content-MD5"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
-if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = &Bb_input_error{"x-amz-sdk-checksum-algorithm", err2}} else {i.ChecksumAlgorithm = x}}
+if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 {var x types.Tagging
-var bs, err1 = io.ReadAll(r.Body)
-if err1 != nil {panic(fmt.Errorf("No http body for types.Tagging: %w", err1))}
-var err2 = xml.Unmarshal(bs, &x)
-if err2 != nil {panic(fmt.Errorf("Invalid http body for types.Tagging: %w", err2))}
-i.Tagging = &x}
+var err1 = xml.NewDecoder(r.Body).Decode(&x)
+if err1 != nil {
+if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.Tagging: %w", err1)}
+} else {i.Tagging = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -1647,13 +1635,13 @@ if x != "" {i.Bucket = &x}}
 if len(hi.Values("Content-Length")) != 0 {
 var s = hi.Get("Content-Length")
 var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {input_errors["Content-Length"] = &Bb_input_error{"Content-Length", err2}} else {i.ContentLength = &x}}
+if err2 != nil {input_errors["Content-Length"] = err2} else {i.ContentLength = &x}}
 if len(hi.Values("Content-MD5")) != 0 {
 i.ContentMD5 = h_thing_pointer(hi.Get("Content-MD5"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
-if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = &Bb_input_error{"x-amz-sdk-checksum-algorithm", err2}} else {i.ChecksumAlgorithm = x}}
+if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
 if len(hi.Values("x-amz-checksum-crc32")) != 0 {
 i.ChecksumCRC32 = h_thing_pointer(hi.Get("x-amz-checksum-crc32"))}
 if len(hi.Values("x-amz-checksum-crc32c")) != 0 {
@@ -1670,7 +1658,7 @@ if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["partNumber"] = &Bb_input_error{"partNumber", err2}} else {i.PartNumber = &x2}}
+if err2 != nil {input_errors["partNumber"] = err2} else {i.PartNumber = &x2}}
 if qi.Has("uploadId") {
 i.UploadId = h_thing_pointer(qi.Get("uploadId"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -1682,7 +1670,7 @@ i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-custo
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 {i.Body = r.Body}
@@ -1740,13 +1728,13 @@ i.CopySourceIfMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-match"))}
 if len(hi.Values("x-amz-copy-source-if-modified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-modified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-copy-source-if-modified-since"] = &Bb_input_error{"x-amz-copy-source-if-modified-since", err2}} else {i.CopySourceIfModifiedSince = &x}}
+if err2 != nil {input_errors["x-amz-copy-source-if-modified-since"] = err2} else {i.CopySourceIfModifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-none-match")) != 0 {
 i.CopySourceIfNoneMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-none-match"))}
 if len(hi.Values("x-amz-copy-source-if-unmodified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-unmodified-since")
 var x, err2 = time.Parse(time.RFC3339, s)
-if err2 != nil {input_errors["x-amz-copy-source-if-unmodified-since"] = &Bb_input_error{"x-amz-copy-source-if-unmodified-since", err2}} else {i.CopySourceIfUnmodifiedSince = &x}}
+if err2 != nil {input_errors["x-amz-copy-source-if-unmodified-since"] = err2} else {i.CopySourceIfUnmodifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-range")) != 0 {
 i.CopySourceRange = h_thing_pointer(hi.Get("x-amz-copy-source-range"))}
 {var x = r.PathValue("key")
@@ -1755,7 +1743,7 @@ if qi.Has("partNumber") {
 var s = qi.Get("partNumber")
 var x1, err2 = strconv.ParseInt(s, 10, 32)
 var x2 = int32(x1)
-if err2 != nil {input_errors["partNumber"] = &Bb_input_error{"partNumber", err2}} else {i.PartNumber = &x2}}
+if err2 != nil {input_errors["partNumber"] = err2} else {i.PartNumber = &x2}}
 if qi.Has("uploadId") {
 i.UploadId = h_thing_pointer(qi.Get("uploadId"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-algorithm")) != 0 {
@@ -1773,7 +1761,7 @@ i.CopySourceSSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-copy-source-server
 if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
-if err2 != nil {input_errors["x-amz-request-payer"] = &Bb_input_error{"x-amz-request-payer", err2}} else {i.RequestPayer = x}}
+if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
 if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-source-expected-bucket-owner")) != 0 {

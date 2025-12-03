@@ -1070,11 +1070,8 @@
 	       ((type-name type-kind tag . slot-properties) definition))
     (let ((error-record-clause
 	   (string-append
-	    ;;"if err2 != nil {h_record_input_error"
-	    ;;(format #f "(ctx, ~s, err2)}" name)
 	    "if err2 != nil {"
-	    (format #f "input_errors[~s] = &Bb_input_error{~s, err2}"
-		    name name)
+	    (format #f "input_errors[~s] = err2" name)
 	    "}")))
       (cond
        ;; Primitive-types:
@@ -1286,16 +1283,16 @@
 	 ;; Records for a payload slot are: {CompletedMultipartUpload,
 	 ;; CreateBucketConfiguration, Delete, Tagging}.
 	 (list
+	  ;; xml.Unmarshal() = xml.NewDecoder().Decode().
 	  (format #f "{var x types.~a" type)
-	  "var bs, err1 = io.ReadAll(r.Body)"
-	  (string-append
-	   "if err1 != nil {panic(fmt.Errorf"
-	   (format #f "(\"No http body for types.~a: %w\", err1))}" type))
-	  "var err2 = xml.Unmarshal(bs, &x)"
-	  (string-append
-	   "if err2 != nil {panic(fmt.Errorf"
-	   (format #f "(\"Invalid http body for types.~a: %w\", err2))}" type))
-	  (format #f "i.~a = &x}" slot)))))
+	  "var err1 = xml.NewDecoder(r.Body).Decode(&x)"
+	   "if err1 != nil {"
+	   (string-append
+	    "if err1 != io.EOF {"
+	    (format #f "input_errors[~s] = fmt.Errorf" "_payload_")
+	    (format #f "(\"Malformed http body for types.~a: %w\", err1)}"
+		    type))
+	   (format #f "} else {i.~a = &x}}" slot)))))
       ((ELEMENT)
        (error "make-input-import; bad locus ELEMENT" request-property))
       (else
@@ -1508,7 +1505,6 @@
 	  "import ("
 	  "\"context\""
 	  "\"encoding/xml\""
-	  ;;"\"errors\""
 	  "\"fmt\""
 	  "\"io\""
 	  "\"log\""
@@ -1532,15 +1528,15 @@
 	 "func (e *Bb_enum_intern_error) Error() string {"
 	 (string-append
 	  "return \"Enum \" + e.Enum + \" unknown key: \""
-	  " + strconv.Quote(e.Name)}")
-	 "// BB_INPUT_ERROR is recorded in a context when an error"
+	  " + strconv.Quote(e.Name)}"))
+   #|(list "// BB_INPUT_ERROR is recorded in a context when an error"
 	 "// occurs on interning a parameter."
 	 "type Bb_input_error struct {"
 	 "Key string"
 	 "Err error"
 	 "}"
 	 "func (e *Bb_input_error) Error() string {"
-	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}")
+	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}")|#
    ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
    ;;"// parameter to record it in the context."
    ;;(string-append

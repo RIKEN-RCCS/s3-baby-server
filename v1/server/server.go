@@ -71,7 +71,7 @@ type prior_handler struct {
 }
 
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var err1 = sv.bbs.check_authorization_header(w, r)
+	var auth, err1 = sv.bbs.check_authorization_header(w, r)
 	if err1 != nil {
 		return
 	}
@@ -79,9 +79,10 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sv.sx.ServeHTTP(w2, r)
 
 	{
+		var user = auth[:min(len(auth), 16)]
 		var code = w2.Status_code
 		var length = w2.Content_length
-		var m = httpaide.Log_access(r, code, length, "???")
+		var m = httpaide.Log_access(r, code, length, user)
 		fmt.Printf("%s\n", m)
 	}
 }
@@ -148,13 +149,13 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (bbs *Bb_server) check_authorization_header(w http.ResponseWriter, r *http.Request) error {
+func (bbs *Bb_server) check_authorization_header(w http.ResponseWriter, r *http.Request) (string, error) {
 	var keypair = bbs.keypair
-	var ok, reason = awss3aide.Check_credential_is_okay(r, keypair)
-	if !ok {
+	var auth, reason = awss3aide.Check_credential_is_okay(r, keypair)
+	if reason != nil {
 		bbs.logger.Info("Fail to check authorization", "reason", reason)
 		time.Sleep(1 * time.Second)
 		http.Error(w, "Bad authorization", 401)
 	}
-	return nil
+	return auth, reason
 }

@@ -691,8 +691,12 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 	{
 		var unsupported = unsupported_checks{
-			// expectedbucketowner: i.ExpectedBucketOwner
-			// i.RequestPayer types.RequestPayer
+			GrantFullControl: i.GrantFullControl,
+			GrantRead: i.GrantRead,
+			GrantReadACP: i.GrantReadACP,
+			GrantWrite: i.GrantWrite,
+			GrantWriteACP: i.GrantWriteACP,
+			ObjectLockEnabledForBucket: i.ObjectLockEnabledForBucket,
 		}
 		var err1 = check_unsupported_options(action, &unsupported)
 		if err1 != nil {
@@ -709,6 +713,21 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 		return nil, err2
 	}
 	var location = "/" + bucket
+
+	{
+		if i.CreateBucketConfiguration != nil {
+			bbs.logger.Debug("CreateBucketConfiguration ignored",
+				"action", action, "bucket", bucket)
+		}
+		if i.ACL != "" {
+			bbs.logger.Debug("x-amz-acl ignored",
+				"action", action, "bucket", bucket)
+		}
+		if i.ObjectOwnership != types.ObjectOwnershipBucketOwnerEnforced {
+			bbs.logger.Debug("x-amz-object-ownership ignored",
+				"action", action, "bucket", bucket)
+		}
+	}
 
 	var rid int64 = get_request_id(ctx)
 	// var scratchkey = bbs.make_scratch_suffix(rid)
@@ -1791,7 +1810,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	if i.ContinuationToken != nil {
 		var n, err1 = strconv.ParseInt(*i.ContinuationToken, 10, 32)
 		if err1 != nil {
-			var err2 = Bb_input_error{"continuation-token", err1}
+			var err2 = make_parameter_error("continuation-token", err1)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: err2.Error()}
 			return nil, errz
@@ -2067,7 +2086,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	if i.ContinuationToken != nil {
 		var n, err3 = strconv.ParseInt(*i.ContinuationToken, 10, 32)
 		if err3 != nil {
-			var err4 = Bb_input_error{"continuation-token", err3}
+			var err4 = make_parameter_error("continuation-token", err3)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: err4.Error()}
 			return nil, errz
@@ -2191,7 +2210,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	if i.PartNumberMarker != nil {
 		var n, err3 = strconv.ParseInt(*i.PartNumberMarker, 10, 32)
 		if err3 != nil {
-			var err4 = Bb_input_error{"part-number-marker", err3}
+			var err4 = make_parameter_error("part-number-marker", err3)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: err4.Error()}
 			return nil, errz
