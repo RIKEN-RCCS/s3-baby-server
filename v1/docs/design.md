@@ -143,3 +143,13 @@ PutObject, PutObjectTagging, UploadPart}.
 
 Note multiple checksum algorithms can be specified in internally
 defined types in: types.Object and types.ObjectVersion.
+
+## Responses
+
+Baby-server does not add "xmlns".  It should be something like:
+  <XXXX xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+
+Following lines are needed to add "xmlns", in type definition,
+  Xmlns string `xml:"xmlns,attr"`
+and in data,
+  Xmlns: "http://s3.amazonaws.com/doc/2006-03-01/"
