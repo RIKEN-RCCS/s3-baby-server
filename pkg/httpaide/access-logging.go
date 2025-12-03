@@ -62,11 +62,11 @@ func (w *ResponseWriter2) Write(s []byte) (int, error) {
     return w.ResponseWriter.Write(s)
 }
 
-// LOG_ACCESS makes an access log entry.  The AUTH is an access-key.
-func Log_access(request *http.Request, code int, length int64, auth string) string {
+// LOG_ACCESS makes an access log entry.  USER may be an access-key.
+func Log_access(request *http.Request, code int, length int64, user string) string {
 	var uid string
-	if auth != "" {
-		uid = auth
+	if user != "" {
+		uid = user
 	} else {
 		uid = "-"
 	}
