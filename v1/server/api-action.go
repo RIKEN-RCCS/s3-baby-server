@@ -2013,6 +2013,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	var maxkeys int
 	var delimiter string
 	var prefix string
+	var urlencode bool
 
 	if i.Marker != nil {
 		marker = *i.Marker
@@ -2028,6 +2029,11 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	if i.Prefix != nil {
 		prefix = *i.Prefix
 	}
+	if i.EncodingType == types.EncodingTypeUrl {
+		urlencode = true
+	}
+
+	// NO SERIALIZE-ACCESS.
 
 	var entries []object_list_entry
 	var nextindex int
@@ -2044,10 +2050,8 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 		return nil, err3
 	}
 
-	// NO SERIALIZE-ACCESS.
-
 	var contents, commonprefixes, err4 = bbs.make_list_objects_entries(
-		entries, bucket, delimiter, prefix, false)
+		entries, bucket, delimiter, prefix, urlencode)
 	var _ = err4
 	var istruncated = (nextindex != 0)
 
