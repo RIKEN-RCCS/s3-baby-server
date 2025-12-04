@@ -125,7 +125,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
-	bbs.logger.Info(string(e1.Code), "error", e1)
+	bbs.logger.Info("Error in action", "code", string(e1.Code), "error", e1)
 
 	var rid int64 = get_request_id(ctx)
 
@@ -215,7 +215,7 @@ func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return bucket, nil
 }
 
-type unsupported_checks struct {
+type option_check_list struct {
 	ACL_bucket_canned              types.BucketCannedACL
 	ACL_object_canned              types.ObjectCannedACL
 	BucketKeyEnabled               *bool
@@ -312,7 +312,7 @@ type unsupported_checks struct {
 	WriteOffsetBytes               *int64
 }
 
-func check_unsupported_options(action string, i *unsupported_checks) *Aws_s3_error {
+func check_options_unsupported(action string, i *option_check_list) *Aws_s3_error {
 	if i.ExpectedBucketOwner != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "expected-bucket-owner is not supported."}
@@ -350,6 +350,23 @@ func check_unsupported_options(action string, i *unsupported_checks) *Aws_s3_err
 				Message: "Bad x-amz-storage-class."}
 			return errz
 		}
+	}
+
+	return nil
+}
+
+func (bbs *Bb_server) check_options_ignored(action, resource string, i *option_check_list) *Aws_s3_error {
+	if i.ACL_bucket_canned != "" {
+		bbs.logger.Debug("x-amz-acl ignored",
+			"action", action, "resource", resource)
+	}
+	if i.CreateBucketConfiguration != nil {
+		bbs.logger.Debug("CreateBucketConfiguration ignored",
+			"action", action, "resource", resource)
+	}
+	if i.ObjectOwnership != types.ObjectOwnershipBucketOwnerEnforced {
+		bbs.logger.Debug("x-amz-object-ownership ignored",
+			"action", action, "resource", resource)
 	}
 
 	return nil
@@ -501,8 +518,8 @@ func match_etags_is_star(etags []string) bool {
 	return len(etags) == 1 && etags[0] == "*"
 }
 
-// MAKE_META_INFO makes a meta-info from i.Metadata and i.Tagging.
-func make_meta_info(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
+// MAKE_METAINFO makes a meta-info from i.Metadata and i.Tagging.
+func make_metainfo(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
 	var tags *types.Tagging
 	if tagging != nil {
 		var tags1, err1 = parse_tags(*tagging)

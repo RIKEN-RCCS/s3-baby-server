@@ -3,7 +3,8 @@
 // Copyright 2022-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// httpd-like logging.  An access-key is used as the user part.
+// httpd-like logging.  It makes a common access-log entry.  It is
+// without a newline.
 
 // MEMO: Apache httpd access log format:
 //
@@ -32,14 +33,16 @@ import (
 
 const common_log_time_layout = "02/Jan/2006:15:04:05 -0700"
 
-// MEMO: Golang's ResponseWriter typically is type "response" defined
-// in "net/http/server.go" and it implements:
-//  - Flush()
-//  - FlushError() error // alternative Flush returning an error
-//  - Hijack() (net.Conn, *bufio.ReadWriter, error)
-//  - SetReadDeadline(deadline time.Time) error
-//  - SetWriteDeadline(deadline time.Time) error
-//  - EnableFullDuplex() error
+// MEMO: Golang's ResponseWriter typically is an instance of
+// "response" defined in "net/http/server.go".  It and implements
+// Flusher, Hijacker and methods:
+//
+//   - Flush()
+//   - FlushError() error // alternative Flush returning an error
+//   - Hijack() (net.Conn, *bufio.ReadWriter, error)
+//   - SetReadDeadline(deadline time.Time) error
+//   - SetWriteDeadline(deadline time.Time) error
+//   - EnableFullDuplex() error
 
 // ResponseWriter2 is ResponseWriter but records status-code.  It is
 // described in https://stackoverflow.com/questions/66528234/.  The
@@ -87,7 +90,7 @@ func Log_access(request *http.Request, code int, length int64, user string) stri
 
 	var msg1 string
 	msg1 = fmt.Sprintf(
-		("%s %s %s [%s] %q" + " %s %s %q %q" + "\n"),
+		("%s %s %s [%s] %q" + " %s %s %q %q"),
 		h, l, u, t, r,
 		s, b, rf, ua)
 	return msg1

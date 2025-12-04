@@ -85,7 +85,7 @@ func os_error_name(err error) string {
 	} else {
 		// os.ErrNoDeadline
 		// os.ErrDeadlineExceeded
-		return "ErrUnknown"
+		return "os-error-unknown"
 	}
 }
 
@@ -120,7 +120,7 @@ func map_os_error(location string, err1 error, m map[error]Aws_s3_error_code) *A
 		return err5
 	} else {
 		var err5 = &Aws_s3_error{Code: string(code1), Resource: location,
-			Message: os_error_name(kind)}
+			Message: err1.Error()}
 		return err5
 	}
 }
@@ -199,6 +199,8 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 		}
 	}
 	if !stat.IsDir() {
+		bbs.logger.Info("Bucket name inhabited by non-directory",
+			"path", path)
 		var err5 = &Aws_s3_error{Code: NoSuchBucket,
 			Resource: location}
 		return err5

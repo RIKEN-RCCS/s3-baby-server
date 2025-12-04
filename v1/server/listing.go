@@ -32,6 +32,7 @@ type object_list_entry struct {
 const always_use_flat_lister = true
 
 var mpul_scratch_pattern = ".*@mpul"
+var scratch_file_pattern = ".*"
 
 // LIST_BUCKETS makes a list of buckets.
 func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types.Bucket, int, *Aws_s3_error) {
@@ -50,12 +51,31 @@ func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types
 	var entries2 = []fs.DirEntry{}
 	for _, e := range entries1 {
 		var name = e.Name()
-		if e.IsDir() &&
-			check_bucket_naming(name) &&
-			!strings.HasPrefix(name, ".") &&
-			strings.HasPrefix(name, prefix) {
-			entries2 = append(entries2, e)
+		var stat, err2 = e.Info()
+		if err2 != nil {
+			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+				"direntry", e, "error", err2)
+			// IGNORE ERRORS.
+			continue
 		}
+
+		if !e.IsDir() {
+			continue
+		}
+		if check_special_file(stat) {
+			continue
+		}
+		if check_metainfo_name(name) {
+			continue
+		}
+
+		if !check_bucket_naming(name) {
+			continue
+		}
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		entries2 = append(entries2, e)
 	}
 
 	var entries3 []fs.DirEntry
@@ -137,6 +157,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 	var entries2 []fs.DirEntry
 	{
 		for _, e := range entries1 {
+			var name = e.Name()
 			var stat, err2 = e.Info()
 			if err2 != nil {
 				bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
@@ -144,14 +165,14 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 				// IGNORE ERRORS.
 				continue
 			}
+
 			if check_special_file(stat) {
 				continue
 			}
-
-			var name = e.Name()
-			if strings.HasPrefix(name, ".") {
+			if check_metainfo_name(name) {
 				continue
 			}
+
 			if fileprefix != "" {
 				if strings.HasPrefix(name, fileprefix) {
 					entries2 = append(entries2, e)
@@ -237,18 +258,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 			return nil
 		}
 
-		// Skip directories.  DON'T VISIT directories for MPUL.
-
-		if e.IsDir() {
-			if check_mpul_scratch_name(e.Name()) {
-				return fs.SkipDir
-			} else {
-				return nil
-			}
-		}
-
-		// Skip non-regular.  THIS SHOULD BE AFTER CHECKING DIRECTORIES.
-
+		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
 			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
@@ -256,8 +266,25 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 			// IGNORE ERRORS.
 			return nil
 		}
-		if check_special_file(stat) {
-			return nil
+
+		{
+			// Skip directories.  It totally skips contents of MPUL.
+			// This should be before checking non-regular files.
+
+			if e.IsDir() {
+				if check_mpul_scratch_name(name) {
+					return fs.SkipDir
+				} else {
+					return nil
+				}
+			}
+
+			if check_special_file(stat) {
+				return nil
+			}
+			if check_metainfo_name(name) {
+				return nil
+			}
 		}
 
 		// Skip unless the prefix matches.
@@ -388,13 +415,15 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 			return nil
 		}
 
-		// Skip non-directories as a store of MPUL is a directory.
+		{
+			// Skip non-directories as a store of MPUL is a directory.
 
-		if !e.IsDir() {
-			return nil
-		}
-		if !check_mpul_scratch_name(e.Name()) {
-			return nil
+			if !e.IsDir() {
+				return nil
+			}
+			if !check_mpul_scratch_name(e.Name()) {
+				return nil
+			}
 		}
 
 		{
@@ -523,10 +552,21 @@ func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) error {
 	}
 	for _, e := range filelist {
 		var name = e.Name()
+		var stat, err2 = e.Info()
+		if err2 != nil {
+			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+				"direntry", e, "error", err2)
+			// IGNORE ERRORS.
+			continue
+		}
+
 		if e.IsDir() {
 			continue
 		}
-		if strings.HasPrefix(name, ".") {
+		if check_special_file(stat) {
+			return nil
+		}
+		if check_metainfo_name(name) {
 			continue
 		}
 		var errz = &Aws_s3_error{Code: BucketNotEmpty,
@@ -559,6 +599,11 @@ func check_special_file(stat fs.FileInfo) bool {
 	var mode = stat.Mode()
 	var reg = (mode & fs.ModeType) == 0
 	return !(dir || reg)
+}
+
+func check_metainfo_name(name string) bool {
+	// Checks metainfo or scratch file name.
+	return strings.HasPrefix(name, ".")
 }
 
 func check_mpul_scratch_name(name string) bool {

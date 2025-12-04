@@ -105,3 +105,6 @@ func check_object_naming(name string) bool {
 const limit_of_number_of_tags = 10
 const limit_of_tag_key_length = 128
 const limit_of_tag_value_length = 256
+
+const region_name_min_length = 0
+const region_name_max_length = 20
