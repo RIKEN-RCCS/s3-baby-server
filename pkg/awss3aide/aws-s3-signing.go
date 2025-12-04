@@ -7,7 +7,7 @@
 
 // An AWS-S3 V4 authorization-header ("Authorization=") starts with a
 // keyword "AWS4-HMAC-SHA256", and consists of three subentries
-// separated by "," with zero or more blanks.  A "Credential="
+// separated by "," with zero or more whitespaces.  A "Credential="
 // subentry is a five fields separated by "/" as
 // KEY/DATE/REGION/SERVICE/USAGE, with DATE="yyyymmdd", SERVICE="s3",
 // and USAGE="aws4_request".  A "SignedHeaders=" subentry is a list of
@@ -41,12 +41,6 @@ import (
 	"strings"
 	"time"
 )
-
-type Signing_credential struct {
-	Host       string
-	Access_key string
-	Secret_key string
-}
 
 // AUTHORIZATION_S3V4 lists entries of an authorization-header.  That
 // is the slots of "Credential=", "SignedHeaders=", and Signature=".
@@ -99,12 +93,13 @@ func signing_verbose(msg ...any) {
 }
 
 // CHECK_CREDENTIAL_IS_OKAY checks the sign in an http request.  It
-// returns an access-key or a simple failure reason (an error).  It
-// once signs a request by using AWS-SDK, and compares it with the one
-// in the request.  Note it does not calculate the message digest and
-// uses the given one.  It substitutes "Host" by "X-Forwarded-Host" if
-// it is missing.  It copies a request before modifying it.  Returned
-// errors are one of {"bad-auth", "bad-date", "bad-sign",
+// returns an access-key and a simple failure reason.  It once signs a
+// request by using AWS-SDK, and compares it with the one in the
+// request.  Note it does not calculate the message digest and uses
+// the given one.  It returns "anon" as an access-key when nothing is
+// found.  It substitutes "Host" by "X-Forwarded-Host" if it is
+// missing.  It copies a request before modifying it.  Returned errors
+// are one of {"bad-auth", "bad-date", "bad-key", "bad-sign",
 // "cannot-sign", "no-auth"}.
 func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, error) {
 	var header1 = rqst1.Header.Get("Authorization")
@@ -120,17 +115,12 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, e
 	}
 
 	var access_key = auth_passed.credential[0]
-
-	var service = auth_passed.credential[3]
-	var region = auth_passed.credential[2]
-	var datestring = adjust_x_amz_date(rqst1.Header.Get("X-Amz-Date"))
-	var date, err1 = time.Parse(time.RFC3339, datestring)
-	if err1 != nil {
-		signing_verbose("*** bad date=", auth_passed)
-		return access_key, fmt.Errorf("bad-date")
+	if access_key != keypair[0] {
+		signing_verbose("*** bad key=", access_key)
+		return access_key, fmt.Errorf("bad-key")
 	}
 
-	// Copy the request.  Note that Golang's copy is shallow.
+	// Copy the request.  Note Golang's copy is shallow.
 
 	var rqst2 = *rqst1
 	rqst2.Header = maps.Clone(rqst1.Header)
@@ -145,6 +135,15 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, e
 	}
 	if rqst2.Host == "" {
 		rqst2.Host = rqst1.Header.Get("X-Forwarded-Host")
+	}
+
+	var service = auth_passed.credential[3]
+	var region = auth_passed.credential[2]
+	var datestring = adjust_x_amz_date(rqst1.Header.Get("X-Amz-Date"))
+	var date, err1 = time.Parse(time.RFC3339, datestring)
+	if err1 != nil {
+		signing_verbose("*** bad date=", auth_passed)
+		return access_key, fmt.Errorf("bad-date")
 	}
 
 	var credentials = aws.Credentials{
@@ -180,6 +179,7 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, e
 		signing_verbose("*** bad auth=", header2)
 		return access_key, fmt.Errorf("bad-auth")
 	}
+
 	var ok = auth_passed.signature == auth_forged.signature
 	if !ok {
 		slog.Info("Mux() Bad authorization, signs unmatch",
@@ -189,59 +189,6 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, e
 		return access_key, fmt.Errorf("bad-sign")
 	}
 	return access_key, nil
-}
-
-// SIGN_BY_GIVEN_CREDENTIAL replaces an authorization header in a
-// request for the given key-pair.  It returns an error from
-// Signer.SignHTTP().  Note that it drops the headers attached by a
-// proxy, which would confuse the signer.
-func Sign_by_given_credential(r *http.Request, keys *Signing_credential) error {
-	if false {
-		fmt.Printf("*** r.Host(1)=%v\n", r.Host)
-		fmt.Printf("*** Authorization(1)=%v\n", r.Header.Get("Authorization"))
-		fmt.Printf("*** r.Header(1)=%v\n", r.Header)
-	}
-
-	signing_verbose("*** new host=", keys.Host)
-
-	for _, h := range proxy_attached_headers {
-		r.Header.Del(h)
-	}
-
-	r.Host = keys.Host
-	var credentials = aws.Credentials{
-		AccessKeyID:     keys.Access_key,
-		SecretAccessKey: keys.Secret_key,
-		//SessionToken string
-		//Source string
-		//CanExpire bool
-		//Expires time.Time
-	}
-	var hash = r.Header.Get("X-Amz-Content-Sha256")
-	if hash == "" {
-		// It is a bad idea to use a hash for an empty payload.
-		hash = empty_payload_hash_sha256
-	}
-	var service = "s3"
-	var region = aws_s3_region_default
-	var date = time.Now()
-	var sign1 = signer.NewSigner(func(s *signer.SignerOptions) {
-		s.DisableHeaderHoisting = true
-		s.DisableURIPathEscaping = true
-	})
-	var timeout = time.Duration(10 * time.Second)
-	var ctx, cancel = context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	var err1 = sign1.SignHTTP(ctx, credentials, r,
-		hash, service, region, date)
-
-	if false {
-		fmt.Printf("*** r.Host(2)=%v\n", r.Host)
-		fmt.Printf("*** Authorization(2)=%#v\n", r.Header.Get("Authorization"))
-		fmt.Printf("*** r.Header(2)=%v\n", r.Header)
-	}
-
-	return err1
 }
 
 // SCAN_AWS_AUTHORIZATION extracts slots in an "Authorization" header.
@@ -339,4 +286,63 @@ func adjust_x_amz_date(d string) string {
 		d[6:11] + ":" +
 		d[11:13] + ":" +
 		d[13:])
+}
+
+type Signing_credential struct {
+	Host       string
+	Access_key string
+	Secret_key string
+}
+
+// SIGN_BY_GIVEN_CREDENTIAL replaces an authorization header in a
+// request for the given key-pair.  It returns an error from
+// Signer.SignHTTP().  Note that it drops the headers attached by a
+// proxy, which would confuse the signer.
+func Sign_by_given_credential(r *http.Request, keys *Signing_credential) error {
+	if false {
+		fmt.Printf("*** r.Host(1)=%v\n", r.Host)
+		fmt.Printf("*** Authorization(1)=%v\n", r.Header.Get("Authorization"))
+		fmt.Printf("*** r.Header(1)=%v\n", r.Header)
+	}
+
+	signing_verbose("*** new host=", keys.Host)
+
+	for _, h := range proxy_attached_headers {
+		r.Header.Del(h)
+	}
+
+	r.Host = keys.Host
+	var credentials = aws.Credentials{
+		AccessKeyID:     keys.Access_key,
+		SecretAccessKey: keys.Secret_key,
+		//SessionToken string
+		//Source string
+		//CanExpire bool
+		//Expires time.Time
+	}
+	var hash = r.Header.Get("X-Amz-Content-Sha256")
+	if hash == "" {
+		// It is a bad idea to use a hash for an empty payload.
+		hash = empty_payload_hash_sha256
+	}
+	var service = "s3"
+	var region = aws_s3_region_default
+	var date = time.Now()
+	var sign1 = signer.NewSigner(func(s *signer.SignerOptions) {
+		s.DisableHeaderHoisting = true
+		s.DisableURIPathEscaping = true
+	})
+	var timeout = time.Duration(10 * time.Second)
+	var ctx, cancel = context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	var err1 = sign1.SignHTTP(ctx, credentials, r,
+		hash, service, region, date)
+
+	if false {
+		fmt.Printf("*** r.Host(2)=%v\n", r.Host)
+		fmt.Printf("*** Authorization(2)=%#v\n", r.Header.Get("Authorization"))
+		fmt.Printf("*** r.Header(2)=%v\n", r.Header)
+	}
+
+	return err1
 }

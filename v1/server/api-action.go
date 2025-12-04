@@ -66,6 +66,8 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 
 	var rid int64 = get_request_id(ctx)
 
+	// SERIALIZE ACCESS.
+
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
 		if timeout != nil {
@@ -353,6 +355,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err7
 	}
 
+	// SERIALIZE ACCESS.
+
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
 		if timeout != nil {
@@ -580,6 +584,8 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			}
 		}
 
+		// SERIALIZE ACCESS.
+
 		{
 			var timeout = bbs.serialize_access(ctx, object, rid)
 			if timeout != nil {
@@ -607,6 +613,8 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		var rid int64 = get_request_id(ctx)
 		// var scratchkey = bbs.make_scratch_suffix(rid)
 		// defer bbs.discharge_scratch_suffix(rid)
+
+		// SERIALIZE ACCESS.
 
 		{
 			var timeout = bbs.serialize_access(ctx, object, rid)
@@ -735,6 +743,8 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 	// Note serialization may not be necessary as mkdir() is atomic.
 
+	// SERIALIZE ACCESS.
+
 	{
 		var timeout = bbs.serialize_access(ctx, bucket, rid)
 		if timeout != nil {
@@ -849,6 +859,8 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		Meta_info:          info,
 	}
 
+	// SERIALIZE ACCESS.
+
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
 		if timeout != nil {
@@ -927,6 +939,8 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	var location = "/" + bucket
 
 	var rid int64 = get_request_id(ctx)
+
+	// SERIALIZE ACCESS.
 
 	{
 		var timeout = bbs.serialize_access(ctx, bucket, rid)
@@ -1018,6 +1032,8 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	}
 
 	var rid int64 = get_request_id(ctx)
+
+	// SERIALIZE ACCESS.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -1195,6 +1211,8 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	// serializes on a bucket.  Also, ETag calculation takes time and
 	// it is placed outside of serialization.
 
+	// SERIALIZE ACCESS.
+
 	{
 		var timeout = bbs.serialize_access(ctx, bucket, rid)
 		if timeout != nil {
@@ -1308,6 +1326,8 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 	//var location = "/" + object
 	var rid int64 = get_request_id(ctx)
 
+	// SERIALIZE ACCESS.
+
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
 		if timeout != nil {
@@ -1411,7 +1431,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err6
 	}
 
-	// NO SERIALIZATION.
+	// NO SERIALIZE-ACCESS.
 
 	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
 	if err7 != nil {
@@ -1511,7 +1531,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
-	// NO SERIALIZATION.
+	// NO SERIALIZE-ACCESS.
 
 	var checksum = types.ChecksumAlgorithmCrc64nvme
 	var md5, csum, err6 = bbs.calculate_csum2(checksum, object, scratchkey)
@@ -1605,7 +1625,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		return nil, err3
 	}
 
-	// NO SERIALIZATION.
+	// NO SERIALIZE-ACCESS.
 
 	o.TagSet = info.Tags.TagSet
 
@@ -1637,6 +1657,8 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 	if err2 != nil {
 		return nil, err2
 	}
+
+	// NO SERIALIZE-ACCESS.
 
 	// o.AccessPointAlias *bool
 	// o.BucketArn *string
@@ -1717,6 +1739,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	if err6 != nil {
 		return nil, err6
 	}
+
+	// NO SERIALIZE-ACCESS.
 
 	o.LastModified = &mtime
 
@@ -1840,6 +1864,8 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		prefix = ""
 	}
 
+	// NO SERIALIZE-ACCESS.
+
 	var buckets, continuation, err3 = bbs.list_buckets(start, max_buckets,
 		prefix)
 	if err3 != nil {
@@ -1918,6 +1944,8 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 	if i.EncodingType == types.EncodingTypeUrl {
 		urlencode = true
 	}
+
+	// NO SERIALIZE-ACCESS.
 
 	var objects, commons, nextmarker, err5 = bbs.list_mpuls_flat(
 		bucket, marker, maxkeys, delimiter, prefix, urlencode)
@@ -2016,6 +2044,8 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 		return nil, err3
 	}
 
+	// NO SERIALIZE-ACCESS.
+
 	var contents, commonprefixes, err4 = bbs.make_list_objects_entries(
 		entries, bucket, delimiter, prefix, false)
 	var _ = err4
@@ -2110,6 +2140,8 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	if i.EncodingType == types.EncodingTypeUrl {
 		urlencode = true
 	}
+
+	// NO SERIALIZE-ACCESS.
 
 	var entries []object_list_entry
 	var nextindex int
@@ -2222,6 +2254,8 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	if err4 != nil {
 		return nil, err4
 	}
+
+	// NO SERIALIZE-ACCESS.
 
 	// Copy MPUL catalog to a result record.
 
@@ -2453,6 +2487,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
+	// SERIALIZE ACCESS (in the uploading routine).
+
 	var check = upload_checks{
 		location:       location,
 		uploadid:       "",
@@ -2544,6 +2580,8 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	//var location = "/" + object
 
 	var rid int64 = get_request_id(ctx)
+
+	// SERIALIZE ACCESS.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -2700,6 +2738,8 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	defer bbs.discharge_scratch_suffix(rid)
 
 	var partobject = make_mpul_part_name(object, part)
+
+	// SERIALIZE ACCESS (in the uploading routine).
 
 	var check = upload_checks{
 		location:       location,
@@ -2883,6 +2923,8 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 			bbs.discard_scratch_file(partobject, scratchkey)
 		}
 	}()
+
+	// SERIALIZE ACCESS.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)

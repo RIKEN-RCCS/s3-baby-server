@@ -71,7 +71,7 @@ type prior_handler struct {
 }
 
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var auth, err1 = sv.bbs.check_authorization_header(w, r)
+	var auth, err1 = sv.bbs.attest_authorization(w, r)
 	if err1 != nil {
 		return
 	}
@@ -93,7 +93,7 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	time.Local = time.UTC
 	var logger = slog.Default()
 
-	logger.Info("Starting server", "address", addr)
+	logger.Info("Starting baby-server", "address", addr)
 
 	var access, secret, ok = strings.Cut(authKey, ",")
 	if !ok || len(access) == 0 || len(secret) == 0 {
@@ -149,13 +149,13 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (bbs *Bb_server) check_authorization_header(w http.ResponseWriter, r *http.Request) (string, error) {
+func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Request) (string, error) {
 	var keypair = bbs.keypair
-	var auth, reason = awss3aide.Check_credential_is_okay(r, keypair)
+	var key, reason = awss3aide.Check_credential_is_okay(r, keypair)
 	if reason != nil {
-		bbs.logger.Info("Fail to check authorization", "reason", reason)
+		bbs.logger.Info("Bad authorization", "key", key, "reason", reason)
 		time.Sleep(1 * time.Second)
 		http.Error(w, "Bad authorization", 401)
 	}
-	return auth, reason
+	return key, reason
 }
