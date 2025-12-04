@@ -91,7 +91,12 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	// Run in UTC time zone instead of local time zone.
 
 	time.Local = time.UTC
-	var logger = slog.Default()
+
+	//var logger = slog.Default()
+	var loglevel = new(slog.LevelVar)
+	loglevel.Set(slog.LevelDebug)
+	var logger = slog.New(slog.NewTextHandler(os.Stdout,
+		&slog.HandlerOptions{Level: loglevel}))
 
 	logger.Info("Starting baby-server", "address", addr)
 

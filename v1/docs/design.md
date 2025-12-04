@@ -111,13 +111,6 @@ ListMultipartUploads never returns NextUploadIdMarker in the output.
 Baby-server copies a file by linking a file.  The mtime of a new file
 is not updated.  Note AWS-S3 never updates files and linking is safe.
 
-## ???
-
-v1.1.1 code allowed nested tagging in values in the format
-'TagSet=[{Key=<key>,Value=<value>}]'.  (I cannot find about nested
-tagging).
-
-
 ## Timestamps of objects
 
 AWS-S3 only manages timestamps of objects in mtime.  Only buckets

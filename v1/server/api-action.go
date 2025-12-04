@@ -2585,6 +2585,8 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 		}
 	}
 
+	bbs.logger.Debug("Tagging", "action", action, "tagging", i.Tagging)
+
 	var rid int64 = get_request_id(ctx)
 
 	// SERIALIZE ACCESS.
