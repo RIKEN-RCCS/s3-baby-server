@@ -120,8 +120,10 @@ Entries marked by (+) are handled (somewhat) in stub-generator.
 
 Some definitions of "types" in AWS-SDK does not generate API-defined
 XML.  An example is "types.Tagging".  AWS-SDK has specific routines to
-marshal/unmarshal for types.  See the following description for the
-difference of the generated XML.
+marshal/unmarshal for types.  One for "Tagging" is
+"awsRestxml_serializeDocumentTagging()" in
+"aws-sdk-go-v2/service/s3/serializers.go".  See the following
+description for the difference of the generated XML.
 
 Thus, we prepared separate type definitions for the ad-hoc
 stub-generator.  They are in "auxiliary.go".  They are hand-coded
