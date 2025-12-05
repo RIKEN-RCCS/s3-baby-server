@@ -112,51 +112,71 @@ Entries marked by (+) are handled (somewhat) in stub-generator.
 - "xmlName" (+)
 - "xmlNamespace"
 
-----------------------------------------------------------------
+## XML Marshaling/Unmarshaling
 
-    "com.amazonaws.s3#AmazonS3": {...
-        "smithy.rules#endpointRuleSet": {
-	(* long, ~9k lines *)
-        "smithy.rules#endpointTests": {
-	(* long, too, ~9k lines *)
+;; This part is related to AWS-SDK-defined types
+;; {CompletedMultipartUpload, CreateBucketConfiguration, Delete,
+;; Tagging}.
 
+Some definitions of "types" in AWS-SDK does not generate API-defined
+XML.  An example is "types.Tagging".  AWS-SDK has specific routines to
+marshal/unmarshal for types.  See the following description for the
+difference of the generated XML.
 
-----------------------------------------------------------------
+Thus, we prepared separate type definitions for the ad-hoc
+stub-generator.  They are in "auxiliary.go".  They are hand-coded
+because the ad-hoc stub-generator is not cleaver enough to generate
+needed types from the Smithy definition.
 
-    "com.amazonaws.s3#Body": {
-      "type": "blob"
-    },
+Tagging type shall be marshaled in XML something like following.
 
-    "com.amazonaws.s3#Bucket": {
-      "type": "structure",
-      "members": {
-        "Name": {...},
-        "CreationDate": {...},
-        "BucketRegion": {...}
-      },
-    },
+```
+<Tagging>
+  <TagSet>
+    <Tag><Key>mytag1</Key><Value>myvalue1</Value></Tag>
+    <Tag><Key>mytag2</Key><Value>myvalue2</Value></Tag>
+  </TagSet>
+</Tagging>
+```
 
-----------------------------------------------------------------
+First, the type Tag is defined as follows.  This is not a problem.
 
-    "com.amazonaws.s3#UploadPart": {
-      "type": "operation",
-      "input": {
-        "target": "com.amazonaws.s3#UploadPartRequest"
-      },
-      "output": {
-        "target": "com.amazonaws.s3#UploadPartOutput"
-      },
-      "traits": {
-        "aws.protocols#httpChecksum": {
-          "requestAlgorithmMember": "ChecksumAlgorithm"
-        },
-        "smithy.api#documentation": "...",
-        "smithy.api#examples": [],
-        "smithy.api#http": {
-          "method": "PUT",
-          "uri": "/{Bucket}/{Key+}?x-id=UploadPart",
-          "code": 200
-        }
-      }
-    },
+```
+type Tag struct {
+    Key *string
+    Value *string
+}
+```
 
+This is the definition of "types.Tagging" in AWS-SDK.
+
+```
+type Tagging struct {
+    TagSet []Tag
+}
+```
+
+For this definition, xml.Marshal() and xml.Unmarshal() works on an XML
+like following which is not we expected.  Notice the <Tag> is missing.
+This is due to the fact that `Tag` does not appear as a field name.
+
+```
+<Tagging>
+  <TagSet>
+    <Key>mytag1</Key><Value>myvalue1</Value>
+    <Key>mytag2</Key><Value>myvalue2</Value>
+  </TagSet>
+</Tagging>
+```
+
+To get the wanted XML output, the definition should be modified to
+something like following.
+
+```
+type Tagging struct {
+    TagSet TagSet
+}
+type Tagging struct {
+    Tag []Tag
+}
+```
