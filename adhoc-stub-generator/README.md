@@ -180,3 +180,32 @@ type Tagging struct {
     Tag []Tag
 }
 ```
+
+This is the extraction of the Tagging from the Smithy definition (some
+details dropped).  Notice the "xmlName" is attached on "Tag" in the
+"TagSet" definition.  It makes "Tag" appear.
+
+```
+"com.amazonaws.s3#Tagging": {
+    "type": "structure",
+    "members": {
+        "TagSet": {
+            "target": "com.amazonaws.s3#TagSet",
+            }
+        }
+    }
+},
+"com.amazonaws.s3#TagSet": {
+    "type": "list",
+    "member": {
+        "target": "com.amazonaws.s3#Tag",
+        "traits": {
+            "smithy.api#xmlName": "Tag"
+        }
+    }
+},
+"com.amazonaws.s3#Tag": {
+    "type": "structure",
+    "members": { ...... },
+},
+```
