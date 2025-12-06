@@ -118,10 +118,14 @@ Entries marked by (+) are handled (somewhat) in stub-generator.
 ;; {CompletedMultipartUpload, CreateBucketConfiguration, Delete,
 ;; Tagging}.
 
-Some definitions of "types" in AWS-SDK does not generate API-defined
-XML.  An example is "types.Tagging".  AWS-SDK has specific routines to
-marshal/unmarshal for types.  One for "Tagging" is
-"awsRestxml_serializeDocumentTagging()" in
+Some definitions of "types" in AWS-SDK does not work with API-defined
+XML.  AWS-SDK has specific routines to marshal/unmarshal for types.
+
+An example is "types.Tagging" which is used in the "PutObjectTagging"
+action.  In the syntax definition in the API document, Tagging has an
+"<Tag>" entry but it has no definition (without an html-link).
+
+One for "Tagging" is "awsRestxml_serializeDocumentTagging()" in
 "aws-sdk-go-v2/service/s3/serializers.go".  See the following
 description for the difference of the generated XML.
 
@@ -129,6 +133,17 @@ Thus, we prepared separate type definitions for the ad-hoc
 stub-generator.  They are in "auxiliary.go".  They are hand-coded
 because the ad-hoc stub-generator is not cleaver enough to generate
 needed types from the Smithy definition.
+
+This is the list of structure slots with the same issue.
+- `Buckets []Bucket` slot used in the response of ListBuckets and ListDirectoryBuckets.
+- `Grants []Grant` slot in types.AccessControlPolicy.
+- `AccessControlList []Grant` slot in types.S3Location.
+- `OptionalFields []InventoryOptionalField` slot in types.InventoryConfiguration.
+- `RoutingRules []RoutingRule` slot used in GetBucketWebsite and PutBucketWebsite.
+- `Tags []Tag` slot.
+- `TagSet []Tag` slot in types.Tagging.
+- `TargetGrants []TargetGrant` slot in types.LoggingEnabled.
+- `UserMetadata []MetadataEntry` slot in types.S3Location.
 
 Tagging type shall be marshaled in XML something like following.
 
