@@ -29,7 +29,7 @@ func import_Buckets(r io.Reader) ([]types.Bucket, error) {
 	var o H_Buckets
 	var err1 = xml.NewDecoder(r).Decode(&o)
 	if err1 != nil {
-		return nil, xml_import_error("Buckets", err1)
+		return nil, xml_import_error("[]Bucket", err1)
 	}
 	var i = o.Bucket
 	return i, nil
@@ -39,7 +39,7 @@ func export_Buckets(i []types.Bucket, w io.Writer) error {
 	var o = H_Buckets{Bucket: i}
 	var err1 = xml.NewEncoder(w).Encode(&o)
 	if err1 != nil {
-		return xml_import_error("Buckets", err1)
+		return xml_import_error("[]Bucket", err1)
 	}
 	return nil
 }
