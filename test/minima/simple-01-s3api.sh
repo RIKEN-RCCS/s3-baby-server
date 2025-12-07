@@ -68,7 +68,7 @@ aws s3api list-objects-v2 --no-cli-pager --bucket "mybucket1" --prefix "data" --
 
 echo "Call put-object-tagging."
 
-aws s3api put-object-tagging --no-cli-pager --bucket "mybucket1" --key "dataobject2.txt" --tagging 'TagSet=[{Key=mytag3,Value=prominent},{Key=mytag4,Value=distinguished}]'
+aws s3api put-object-tagging --no-cli-pager --bucket "mybucket1" --key "dataobject2.txt" --tagging 'TagSet=[{Key=mytag1,Value=myvalue1},{Key=mytag2,Value=myvalue2},{Key=mytag3,Value=myvalue3}]'
 
 echo "Call get-object-tagging."
 

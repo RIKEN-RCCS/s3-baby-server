@@ -47,6 +47,50 @@ func export_Buckets(e *xml.Encoder, i []types.Bucket) error {
 	return nil
 }
 
+// Marshaler of "types.CreateBucketConfiguration"
+
+type H_CreateBucketConfiguration struct {
+	XMLName            xml.Name `xml:"CreateBucketConfiguration"`
+	Bucket             *types.BucketInfo
+	Location           *types.LocationInfo
+	LocationConstraint types.BucketLocationConstraint
+	Tags               H_Tags
+}
+
+type H_Tags struct {
+	XMLName xml.Name `xml:"Tags"`
+	Tag     []types.Tag
+}
+
+func import_CreateBucketConfiguration(d *xml.Decoder) (*types.CreateBucketConfiguration, error) {
+	var o H_CreateBucketConfiguration
+	var err1 = d.Decode(&o)
+	if err1 != nil {
+		return nil, xml_marshal_error("CreateBucketConfiguration", err1)
+	}
+	var i = types.CreateBucketConfiguration{
+		Bucket:             o.Bucket,
+		Location:           o.Location,
+		LocationConstraint: o.LocationConstraint,
+		Tags:               o.Tags.Tag,
+	}
+	return &i, nil
+}
+
+func export_CreateBucketConfiguration(e *xml.Encoder, i *types.CreateBucketConfiguration) error {
+	var o = H_CreateBucketConfiguration{
+		Bucket:             i.Bucket,
+		Location:           i.Location,
+		LocationConstraint: i.LocationConstraint,
+		Tags:               H_Tags{Tag: i.Tags},
+	}
+	var err1 = e.Encode(&o)
+	if err1 != nil {
+		return xml_marshal_error("CreateBucketConfiguration", err1)
+	}
+	return nil
+}
+
 // Marshaler of "TagSet []Tag" slot.
 //
 // It appears in types.Tagging.  The slot should be rendered as

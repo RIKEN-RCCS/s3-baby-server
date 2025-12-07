@@ -1,4 +1,4 @@
-// handler.go (2025-12-03)
+// handler.go (2025-12-07)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -347,11 +347,11 @@ if len(hi.Values("x-amz-object-ownership")) != 0 {
 var s = hi.Get("x-amz-object-ownership")
 var x, err2 = intern_ObjectOwnership(s)
 if err2 != nil {input_errors["x-amz-object-ownership"] = err2} else {i.ObjectOwnership = x}}
-{var x types.CreateBucketConfiguration
-var err1 = xml.NewDecoder(r.Body).Decode(&x)
+{var d = xml.NewDecoder(r.Body)
+var x, err1 = import_CreateBucketConfiguration(d)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.CreateBucketConfiguration: %w", err1)}
-} else {i.CreateBucketConfiguration = &x}}
+} else {i.CreateBucketConfiguration = x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -1602,11 +1602,11 @@ if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
 if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
-{var x types.Tagging
-var err1 = xml.NewDecoder(r.Body).Decode(&x)
+{var d = xml.NewDecoder(r.Body)
+var x, err1 = import_Tagging(d)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.Tagging: %w", err1)}
-} else {i.Tagging = &x}}
+} else {i.Tagging = x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}

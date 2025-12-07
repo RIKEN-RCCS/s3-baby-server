@@ -41,6 +41,8 @@ than "application/octet-stream".
 
 - ETags of Baby-server is always strong.
 
+- Buckets cannot have tags.
+
 ## Terse Error Messages
 
 - Errors returned to a client do not contain information from OS such

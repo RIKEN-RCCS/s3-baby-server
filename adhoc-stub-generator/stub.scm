@@ -1027,6 +1027,36 @@
 	type-kind
 	(format #f "types.~a" type-name))))
 
+(define (check-xml-tag-needs-correction definition)
+  ;; Checks if the type has an element which needs correction of
+  ;; XML-tag on an array.
+  ;;
+  ;; An example of type definition is "TagSet" in "Tagging" type.  Their
+  ;; definitions are:
+  ;; ("Tagging" "structure" #f ("TagSet" #f "TagSet" ELEMENT #t))
+  ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
+  (match-let* (((type-name type-kind tag . slot-properties) definition))
+    (cond
+     ((or (primitive-type? type-kind)
+	  (string=? type-kind "enum")
+	  (string=? type-kind "union")
+	  (string=? type-kind "map"))
+      #f)
+     ((string=? type-kind "structure")
+      (any check-xml-tag-needs-correction-in-element slot-properties))
+     ((string=? type-kind "list")
+      (match-let ((((slot xml-tag type locus required) . _) slot-properties))
+	(if (not (eqv? xml-tag #f))
+	    #t
+	    (any check-xml-tag-needs-correction-in-element slot-properties))))
+     (else
+      (error "BAD type-kind definition" definition)))))
+
+(define (check-xml-tag-needs-correction-in-element property)
+  (match-let* (((slot tag type locus required) property)
+	       (definition (assoc type list-of-types)))
+    (check-xml-tag-needs-correction definition)))
+
 (define (make-sdk-enumerator type-name enumerator-string)
   ;; Makes an enumerator of an enum of AWS-SDK.
   (format #f "types.~a~a" type-name (camelcase-string enumerator-string)))
@@ -1207,7 +1237,8 @@
   (match-let* (((slot tag type locus required) request-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition)
-	       (slot-name (if (not (eqv? tag #f)) tag slot)))
+	       (slot-name (if (not (eqv? tag #f)) tag slot))
+	       (xml-tag-affix (check-xml-tag-needs-correction definition)))
     (case locus
       ((PATH)
        ;; Path parameters are taken by request.PathValue(key).
@@ -1278,20 +1309,33 @@
        (cond
 	((string=? type-kind "blob")
 	 (list (format #f "{i.~a = r.Body}" slot)))
+	(xml-tag-affix
+	 (format #t ";; XML-TAG AFFIX NEEDED: ~s~%" request-property)
+	 (list
+	  ;; (* xml.Unmarshal() = xml.NewDecoder().Decode() *).
+	  "{var d = xml.NewDecoder(r.Body)"
+	  (format #f "var x, err1 = import_~a(d)" type)
+	  "if err1 != nil {"
+	  (string-append
+	   "if err1 != io.EOF {"
+	   (format #f "input_errors[~s] = fmt.Errorf" "_payload_")
+	   (format #f "(\"Malformed http body for types.~a: %w\", err1)}"
+		   type))
+	  (format #f "} else {i.~a = x}}" slot)))
 	(else
 	 ;; Records for a payload slot are: {CompletedMultipartUpload,
 	 ;; CreateBucketConfiguration, Delete, Tagging}.
 	 (list
-	  ;; xml.Unmarshal() = xml.NewDecoder().Decode().
+	  ;; (* xml.Unmarshal() = xml.NewDecoder().Decode() *).
 	  (format #f "{var x types.~a" type)
 	  "var err1 = xml.NewDecoder(r.Body).Decode(&x)"
-	   "if err1 != nil {"
-	   (string-append
-	    "if err1 != io.EOF {"
-	    (format #f "input_errors[~s] = fmt.Errorf" "_payload_")
-	    (format #f "(\"Malformed http body for types.~a: %w\", err1)}"
-		    type))
-	   (format #f "} else {i.~a = &x}}" slot)))))
+	  "if err1 != nil {"
+	  (string-append
+	   "if err1 != io.EOF {"
+	   (format #f "input_errors[~s] = fmt.Errorf" "_payload_")
+	   (format #f "(\"Malformed http body for types.~a: %w\", err1)}"
+		   type))
+	  (format #f "} else {i.~a = &x}}" slot)))))
       ((ELEMENT)
        (error "make-input-import; bad locus ELEMENT" request-property))
       (else
@@ -1590,36 +1634,6 @@
 	     (eqv? locus 'PAYLOAD)))))
     (any check-output-whole-payload1 response-properties)))
 
-(define (check-xml-tag-needs-correction definition)
-  ;; Checks if the type has an element which needs correction of
-  ;; XML-tag on an array.
-  ;;
-  ;; An example of type definition is "TagSet" in "Tagging" type.  Their
-  ;; definitions are:
-  ;; ("Tagging" "structure" #f ("TagSet" #f "TagSet" ELEMENT #t))
-  ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
-  (match-let* (((type-name type-kind tag . slot-properties) definition))
-    (cond
-     ((or (primitive-type? type-kind)
-	  (string=? type-kind "enum")
-	  (string=? type-kind "union")
-	  (string=? type-kind "map"))
-      #f)
-     ((string=? type-kind "structure")
-      (any check-xml-tag-needs-correction-in-element slot-properties))
-     ((string=? type-kind "list")
-      (match-let ((((slot xml-tag type locus required) . _) slot-properties))
-	(if (not (eqv? xml-tag #f))
-	    #t
-	    (any check-xml-tag-needs-correction-in-element slot-properties))))
-     (else
-      (error "BAD type-kind definition" definition)))))
-
-(define (check-xml-tag-needs-correction-in-element property)
-  (match-let* (((slot tag type locus required) property)
-	       (definition (assoc type list-of-types)))
-    (check-xml-tag-needs-correction definition)))
-
 (define (make-slot-marshaler property)
   ;; Returns lines of marshaler for an response element.  (* FALSE
   ;; STATEMENT: It specially treats arrays (kind="list"), as
@@ -1630,7 +1644,7 @@
 	       ((type-name type-kind _ . slot-properties) definition)
 	       (null-value (if (string=? type-kind "enum") "\"\"" "nil"))
 	       (slot-name (if (not (eqv? tag #f)) tag slot))
-	       (fix-tag (check-xml-tag-needs-correction definition)))
+	       (xml-tag-affix (check-xml-tag-needs-correction definition)))
     ;;(format #t ";; make-slot-marshaler ~s ~s~%" property definition)
     (case locus
       ((PATH QUERY)
@@ -1646,8 +1660,8 @@
        '())
       ((ELEMENT)
        (cond
-	(fix-tag
-	 (format #t ";; TAG CORRECTION NEEDED: ~s~%" definition)
+	(xml-tag-affix
+	 (format #t ";; XML-TAG AFFIX NEEDED: ~s~%" definition)
 	 (list
 	  (format #f "if s.~a != ~a {" slot null-value)
 	  (format #f "var err2 = export_~a(e, s.~a)" type-name slot)
