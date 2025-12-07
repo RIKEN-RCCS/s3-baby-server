@@ -119,9 +119,15 @@ func (s h_GetObjectTaggingResponse) MarshalXML(e *xml.Encoder, _ xml.StartElemen
 var tag1 = h_make_tag("Tagging")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
+// XML-TAG AFFIX.
+var tag2 = h_make_tag("TagSet")
+var err2 = e.EncodeToken(tag2)
+if err2 != nil {return err2}
 if s.TagSet != nil {
-var err2 = export_TagSet(e, s.TagSet)
-if err2 != nil {return err2}}
+var err3 = e.EncodeElement(s.TagSet, h_make_tag("Tag"))
+if err3 != nil {return err3}}
+var err4 = e.EncodeToken(tag2.End())
+if err4 != nil {return err4}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
@@ -130,9 +136,15 @@ func (s h_ListBucketsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) er
 var tag1 = h_make_tag("ListAllMyBucketsResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
+// XML-TAG AFFIX.
+var tag2 = h_make_tag("Buckets")
+var err2 = e.EncodeToken(tag2)
+if err2 != nil {return err2}
 if s.Buckets != nil {
-var err2 = export_Buckets(e, s.Buckets)
-if err2 != nil {return err2}}
+var err3 = e.EncodeElement(s.Buckets, h_make_tag("Bucket"))
+if err3 != nil {return err3}}
+var err4 = e.EncodeToken(tag2.End())
+if err4 != nil {return err4}
 if s.Owner != nil {
 var err2 = e.EncodeElement(s.Owner, h_make_tag("Owner"))
 if err2 != nil {return err2}}

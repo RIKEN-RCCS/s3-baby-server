@@ -1662,20 +1662,27 @@
        (cond
 	(xml-tag-affix
 	 (format #t ";; XML-TAG AFFIX NEEDED: ~s~%" definition)
+	 #|
 	 (list
 	  (format #f "if s.~a != ~a {" slot null-value)
 	  (format #f "var err2 = export_~a(e, s.~a)" type-name slot)
-	  "if err2 != nil {return err2}}"))
-	;; ((string=? type-kind "list")
-	;;  (list
-	;;   (format #f "if s.~a != ~a {" slot null-value)
-	;;   (format #f "var tag2 = h_make_tag(\"~a\")" slot-name)
-	;;   "var err2 = e.EncodeToken(tag2)"
-	;;   "if err2 != nil {return err2}"
-	;;   (format #f "var err3 = e.Encode(s.~a)" slot)
-	;;   "if err3 != nil {return err3}"
-	;;   "var err4 = e.EncodeToken(tag2.End())"
-	;;   "if err4 != nil {return err4}}"))
+	  "if err2 != nil {return err2}}")
+	 |#
+	 (match-let ((((_ xml-tag _ _ _)) slot-properties))
+	   (assert (not (eqv? xml-tag #f)))
+	   (list
+	    "// XML-TAG AFFIX."
+	    (format #f "var tag2 = h_make_tag(\"~a\")" slot-name)
+	    "var err2 = e.EncodeToken(tag2)"
+	    "if err2 != nil {return err2}"
+	    (format #f "if s.~a != ~a {" slot null-value)
+	    (string-append
+	     (format #f "var err3 = e.EncodeElement")
+	     (format #f "(s.~a, h_make_tag(\"~a\"))" slot xml-tag))
+	    ;; (format #f "var err3 = e.Encode(s.~a)" slot)
+	    "if err3 != nil {return err3}}"
+	    "var err4 = e.EncodeToken(tag2.End())"
+	    "if err4 != nil {return err4}")))
 	(else
 	 (list
 	  (format #f "if s.~a != ~a {" slot null-value)
