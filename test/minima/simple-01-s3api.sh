@@ -7,7 +7,7 @@
 # pool.  No "mybucket1" in particular.  It is tested with AWS CLI
 # v2.31.13.
 #
-# It uses a temporary file "zzz.json" and leaves it.
+# It uses a temporary file "zzz.json", "zzz.data1" and leaves them.
 
 set -e
 
@@ -64,11 +64,11 @@ aws s3api copy-object --no-cli-pager --bucket "mybucket1" --key "dataobject2.txt
 
 echo "Call list-objects-v2."
 
-aws s3api list-objects-v2 --no-cli-pager --bucket "mybucket1" --prefix "object" --max-keys 2
+aws s3api list-objects-v2 --no-cli-pager --bucket "mybucket1" --prefix "data" --max-keys 2
 
 echo "Call put-object-tagging."
 
-aws s3api put-object-tagging --no-cli-pager --bucket "mybucket1" --key "dataobject2.txt" --tagging 'TagSet=[{Key=Environment,Value=Dev}, {Key=E,Value=D}]'
+aws s3api put-object-tagging --no-cli-pager --bucket "mybucket1" --key "dataobject2.txt" --tagging 'TagSet=[{Key=mytag3,Value=prominent},{Key=mytag4,Value=distinguished}]'
 
 echo "Call get-object-tagging."
 
