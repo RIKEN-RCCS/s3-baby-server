@@ -1,7 +1,7 @@
 package server
 
 import (
-	//"encoding/xml"
+	"encoding/xml"
 	"fmt"
 	"log"
 	"strings"
@@ -43,7 +43,8 @@ func TestXmlMarshal(t *testing.T) {
 
 	{
 		var r = strings.NewReader(buckets1)
-		var x, err1 = import_Buckets(r)
+		var d = xml.NewDecoder(r)
+		var x, err1 = import_Buckets(d)
 		if err1 != nil {
 			log.Fatalf("Decode() error: %v", err1)
 		}
@@ -51,7 +52,8 @@ func TestXmlMarshal(t *testing.T) {
 		//fmt.Printf("Buckets x=%#v\n", string(bs))
 
 		var bs strings.Builder
-		var err2 = export_Buckets(x, &bs)
+		var e = xml.NewEncoder(&bs)
+		var err2 = export_Buckets(e, x)
 		if err2 != nil {
 			log.Fatalf("Encode() error: %v", err2)
 		}
@@ -63,17 +65,19 @@ func TestXmlMarshal(t *testing.T) {
 			log.Fatalf("results mismatch")
 		}
 	}
+
 	{
 		var r = strings.NewReader(tagging1)
-		var x, err1 = import_Tagging(r)
+		var d = xml.NewDecoder(r)
+		var x, err1 = import_Tagging(d)
 		if err1 != nil {
 			log.Fatalf("Decode() error: %v", err1)
 		}
-		// var bs, _ = xml.MarshalIndent(x, "", "  ")
-		//fmt.Printf("Tagging x=%#v\n", string(bs))
+		//fmt.Printf("Tagging=%#v\n", x)
 
 		var bs strings.Builder
-		var err2 = export_Tagging(x, &bs)
+		var e = xml.NewEncoder(&bs)
+		var err2 = export_Tagging(e, x)
 		if err2 != nil {
 			log.Fatalf("Encode() error: %v", err2)
 		}

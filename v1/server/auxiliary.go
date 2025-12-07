@@ -8,11 +8,14 @@ import (
 	"encoding/xml"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"io"
+	//"io"
 )
 
-func xml_import_error(ty string, e error) error {
-	return fmt.Errorf("Marshal error for type %s with %w", ty, e)
+func xml_marshal_error(ty string, e error) error {
+	var err1 = fmt.Errorf("Marshal error for type %s with %w", ty, e)
+	var errz = &Aws_s3_error{Code: MalformedXML,
+		Message: err1.Error()}
+	return errz
 }
 
 // Marshaler of "Buckets []types.Bucket" slot.
@@ -25,21 +28,21 @@ type H_Buckets struct {
 	Bucket  []types.Bucket
 }
 
-func import_Buckets(r io.Reader) ([]types.Bucket, error) {
+func import_Buckets(d *xml.Decoder) ([]types.Bucket, error) {
 	var o H_Buckets
-	var err1 = xml.NewDecoder(r).Decode(&o)
+	var err1 = d.Decode(&o)
 	if err1 != nil {
-		return nil, xml_import_error("[]Bucket", err1)
+		return nil, xml_marshal_error("[]Bucket", err1)
 	}
 	var i = o.Bucket
 	return i, nil
 }
 
-func export_Buckets(i []types.Bucket, w io.Writer) error {
+func export_Buckets(e *xml.Encoder, i []types.Bucket) error {
 	var o = H_Buckets{Bucket: i}
-	var err1 = xml.NewEncoder(w).Encode(&o)
+	var err1 = e.Encode(&o)
 	if err1 != nil {
-		return xml_import_error("[]Bucket", err1)
+		return xml_marshal_error("[]Bucket", err1)
 	}
 	return nil
 }
@@ -62,24 +65,44 @@ type H_Tagging struct {
 }
 
 type H_TagSet struct {
-	Tag []types.Tag
+	XMLName xml.Name `xml:"TagSet"`
+	Tag     []types.Tag
 }
 
-func import_Tagging(r io.Reader) (*types.Tagging, error) {
+func import_Tagging(d *xml.Decoder) (*types.Tagging, error) {
 	var o H_Tagging
-	var err1 = xml.NewDecoder(r).Decode(&o)
+	var err1 = d.Decode(&o)
 	if err1 != nil {
-		return nil, xml_import_error("Tagging", err1)
+		return nil, xml_marshal_error("Tagging", err1)
 	}
 	var i = types.Tagging{TagSet: o.TagSet.Tag}
 	return &i, nil
 }
 
-func export_Tagging(i *types.Tagging, w io.Writer) error {
-	var o = H_Tagging{TagSet: H_TagSet{i.TagSet}}
-	var err1 = xml.NewEncoder(w).Encode(&o)
+func export_Tagging(e *xml.Encoder, i *types.Tagging) error {
+	var o = H_Tagging{TagSet: H_TagSet{Tag: i.TagSet}}
+	var err1 = e.Encode(&o)
 	if err1 != nil {
-		return xml_import_error("Tagging", err1)
+		return xml_marshal_error("Tagging", err1)
+	}
+	return nil
+}
+
+func import_TagSet(d *xml.Decoder) ([]types.Tag, error) {
+	var o H_TagSet
+	var err1 = d.Decode(&o)
+	if err1 != nil {
+		return nil, xml_marshal_error("TagSet", err1)
+	}
+	var i = o.Tag
+	return i, nil
+}
+
+func export_TagSet(e *xml.Encoder, i []types.Tag) error {
+	var o = H_TagSet{Tag: i}
+	var err1 = e.Encode(&o)
+	if err1 != nil {
+		return xml_marshal_error("TagSet", err1)
 	}
 	return nil
 }

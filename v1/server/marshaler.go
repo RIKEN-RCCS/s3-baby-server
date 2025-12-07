@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-03)
+// marshaler.go (2025-12-07)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -120,7 +120,7 @@ var tag1 = h_make_tag("Tagging")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
 if s.TagSet != nil {
-var err2 = e.EncodeElement(s.TagSet, h_make_tag("TagSet"))
+var err2 = export_TagSet(e, s.TagSet)
 if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
@@ -131,7 +131,7 @@ var tag1 = h_make_tag("ListAllMyBucketsResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
 if s.Buckets != nil {
-var err2 = e.EncodeElement(s.Buckets, h_make_tag("Buckets"))
+var err2 = export_Buckets(e, s.Buckets)
 if err2 != nil {return err2}}
 if s.Owner != nil {
 var err2 = e.EncodeElement(s.Owner, h_make_tag("Owner"))

@@ -124,19 +124,7 @@ at the API document, Tagging's "<Tag>" entry has no html-link, i.e.,
 no definition.  See the following description for the difference of
 the generated XML.
 
-AWS-SDK has its own marshalers for such types.  "Tagging" has
-"awsRestxml_serializeDocumentTagging()" in
-"aws-sdk-go-v2/service/s3/serializers.go".
-"awsRestxml_serializeDocumentTagging()" calls
-"awsRestxml_serializeDocumentTagSet()" and
-"awsRestxml_serializeDocumentTag()".
-
-Thus, we need to prepare separate type definitions for marshaling.
-They are in "auxiliary.go".  They are hand-coded because the ad-hoc
-stub-generator is not cleaver enough to generate needed types from the
-Smithy definition.
-
-This is the list of structure slots with the same issue.
+This is the list of structure slots that require the same encoding.
 
 - **Buckets []Bucket** slot used in the response of ListBuckets and
   ListDirectoryBuckets.
@@ -151,18 +139,31 @@ This is the list of structure slots with the same issue.
 - **TargetGrants []TargetGrant** slot in types.LoggingEnabled.
 - **UserMetadata []MetadataEntry** slot in types.S3Location.
 
-Tagging type shall be marshaled in XML something like following.
+AWS-SDK has its own marshalers for such types.  "Tagging" has
+"awsRestxml_serializeDocumentTagging()" in
+"aws-sdk-go-v2/service/s3/serializers.go".
+"awsRestxml_serializeDocumentTagging()" calls
+"awsRestxml_serializeDocumentTagSet()" and
+"awsRestxml_serializeDocumentTag()".
+
+Thus, we need to prepare separate type definitions for marshaling.
+They are in "auxiliary.go".  They are hand-coded because the ad-hoc
+stub-generator is not cleaver enough to generate needed types from the
+Smithy definition.
+
+The Tagging type shall be marshaled in the API document as follows.
 
 ```
 <Tagging>
   <TagSet>
     <Tag><Key>mytag1</Key><Value>myvalue1</Value></Tag>
     <Tag><Key>mytag2</Key><Value>myvalue2</Value></Tag>
+    <Tag><Key>mytag3</Key><Value>myvalue3</Value></Tag>
   </TagSet>
 </Tagging>
 ```
 
-First, the type Tag is defined as follows.  This is not a problem.
+First, the definition of "types.Tag" is not a problem.
 
 ```
 type Tag struct {
@@ -171,7 +172,7 @@ type Tag struct {
 }
 ```
 
-This is the definition of "types.Tagging" in AWS-SDK.
+The definition of "types.Tagging" in AWS-SDK is as follows.
 
 ```
 type Tagging struct {
@@ -179,21 +180,20 @@ type Tagging struct {
 }
 ```
 
-By this definition, the XML marshaler works on an XML like the
-following which is not we expected.  Notice the <Tag> is missing.
-This is due to the fact that "Tag" does not appear as a name.
+By this definition, Golang's marshaler works on an XML like the
+following.  Notice the <Tag> is missing that is not we expected.  This
+is due to the fact that "Tag" does not appear as a name.
 
 ```
 <Tagging>
-  <TagSet>
-    <Key>mytag1</Key><Value>myvalue1</Value>
-    <Key>mytag2</Key><Value>myvalue2</Value>
-  </TagSet>
+  <TagSet><Key>mytag1</Key><Value>myvalue1</Value></TagSet>
+  <TagSet><Key>mytag2</Key><Value>myvalue2</Value></TagSet>
+  <TagSet><Key>mytag3</Key><Value>myvalue3</Value></TagSet>
 </Tagging>
 ```
 
-To get the wanted XML output, the definition should be modified to
-something like following.
+To get the wanted XML output, the type definitions should be modified
+to the following.
 
 ```
 type Tagging struct {
@@ -204,9 +204,9 @@ type Tagging struct {
 }
 ```
 
-This is the extraction of the Tagging from the Smithy definition (some
-details dropped).  Notice the "xmlName:Tag" is attached on the "Tag"
-type in the "TagSet" type definition.  It instructs "Tag" to appear.
+The extraction of the type definitions in Smithy is shown (details
+dropped).  Notice the "xmlName:Tag" is attached on the "Tag" type in
+the "TagSet" type definition.  It instructs "Tag" to appear.
 
 ```
 "com.amazonaws.s3#Tagging": {

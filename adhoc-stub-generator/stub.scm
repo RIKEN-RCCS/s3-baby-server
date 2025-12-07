@@ -275,13 +275,12 @@
 ;; LIST-OF-TYPES.
 
 ;; A TYPE-DEFINITION is a three-tuple plus a list (type-name type-kind
-;; tag . slot-property ...).  Each SLOT-PROPERTY describes record
-;; slots, when a TYPE-KIND is "enum", "list", "structure", or "union".
-;; An enumeration type has type "Unit" in elements of it.  A list type
-;; has a single "member" slot.  A map type has two "key" and "value"
-;; slots.  A TAG is an xml-tag used when it is marshaled.  It is
-;; either one cited by "smithy.api#xmlName" or "smithy.api#enumValue",
-;; or #f otherwise.
+;; tag . slot-property ...).  A TAG is an xml-tag used in marshaling.
+;; It is one cited by "smithy.api#xmlName" or #f otherwise.  Each
+;; SLOT-PROPERTY describes record slots, when a TYPE-KIND is "enum",
+;; "list", "map", "structure", or "union".  An enumeration type has
+;; type "Unit" in the elements of it.  A list type has a single
+;; "member" slot.  A map type has two "key" and "value" slots.
 
 ;; A SLOT-PROPERTY is a five-tuple: (slot tag type locus required).
 ;; It describes slots of a composite type.  A SLOT is a name of a
@@ -606,7 +605,7 @@
 	       (collect-types-in-slots slot-properties acc+))
 	      (else
 	       (format #t "BAD type-kind ~s~%" type-kind)
-	       (values))))))))
+	       (error "BAD type-kind" type-kind))))))))
 
 (define (collect-types-in-requests request-properties acc)
   (if (null? request-properties)
@@ -734,14 +733,14 @@
 			 (append headers-acc (list tag))))
 		  ((HEADER-PREFIX)
 		   (format #t "BAD httpPrefixHeaders marked required~%")
-		   (values))
+		   (error "BAD httpPrefixHeaders marked required"))
 		  ((PAYLOAD)
 		   (loop (cdr props) queries-acc headers-acc))
 		  ((ELEMENT)
 		   (loop (cdr props) queries-acc headers-acc))
 		  (else
 		   (format #t "BAD properties=~s~%" (car props))
-		   (values)))))))))
+		   (error "BAD properties" (car props))))))))))
 
 (define (make-dispatch-entry action-name)
   (cond ((assoc action-name list-of-actions)
@@ -1591,6 +1590,36 @@
 	     (eqv? locus 'PAYLOAD)))))
     (any check-output-whole-payload1 response-properties)))
 
+(define (check-xml-tag-needs-correction definition)
+  ;; Checks if the type has an element which needs correction of
+  ;; XML-tag on an array.
+  ;;
+  ;; An example of type definition is "TagSet" in "Tagging" type.  Their
+  ;; definitions are:
+  ;; ("Tagging" "structure" #f ("TagSet" #f "TagSet" ELEMENT #t))
+  ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
+  (match-let* (((type-name type-kind tag . slot-properties) definition))
+    (cond
+     ((or (primitive-type? type-kind)
+	  (string=? type-kind "enum")
+	  (string=? type-kind "union")
+	  (string=? type-kind "map"))
+      #f)
+     ((string=? type-kind "structure")
+      (any check-xml-tag-needs-correction-in-element slot-properties))
+     ((string=? type-kind "list")
+      (match-let ((((slot xml-tag type locus required) . _) slot-properties))
+	(if (not (eqv? xml-tag #f))
+	    #t
+	    (any check-xml-tag-needs-correction-in-element slot-properties))))
+     (else
+      (error "BAD type-kind definition" definition)))))
+
+(define (check-xml-tag-needs-correction-in-element property)
+  (match-let* (((slot tag type locus required) property)
+	       (definition (assoc type list-of-types)))
+    (check-xml-tag-needs-correction definition)))
+
 (define (make-slot-marshaler property)
   ;; Returns lines of marshaler for an response element.  (* FALSE
   ;; STATEMENT: It specially treats arrays (kind="list"), as
@@ -1600,7 +1629,8 @@
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition)
 	       (null-value (if (string=? type-kind "enum") "\"\"" "nil"))
-	       (slot-name (if (not (eqv? tag #f)) tag slot)))
+	       (slot-name (if (not (eqv? tag #f)) tag slot))
+	       (fix-tag (check-xml-tag-needs-correction definition)))
     ;;(format #t ";; make-slot-marshaler ~s ~s~%" property definition)
     (case locus
       ((PATH QUERY)
@@ -1616,6 +1646,12 @@
        '())
       ((ELEMENT)
        (cond
+	(fix-tag
+	 (format #t ";; TAG CORRECTION NEEDED: ~s~%" definition)
+	 (list
+	  (format #f "if s.~a != ~a {" slot null-value)
+	  (format #f "var err2 = export_~a(e, s.~a)" type-name slot)
+	  "if err2 != nil {return err2}}"))
 	;; ((string=? type-kind "list")
 	;;  (list
 	;;   (format #f "if s.~a != ~a {" slot null-value)
@@ -1711,8 +1747,8 @@
       (write-marshalers port list-of-actions))))
 
 ;; (make-marshaler-function (assoc "CopyObject" list-of-actions))
-;; (display-repsonse-marshaler)
-;; (display-marshaler-function (assoc "ListParts" list-of-actions))
+;; (make-marshaler-function (assoc "ListParts" list-of-actions))
+;; (display-marshalers)
 
 ;;;
 ;;; SERVER TEMPLATE PRINTER
