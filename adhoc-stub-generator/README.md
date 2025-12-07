@@ -114,36 +114,42 @@ Entries marked by (+) are handled (somewhat) in stub-generator.
 
 ## XML Marshaling/Unmarshaling
 
-;; This part is related to AWS-SDK-defined types
-;; {CompletedMultipartUpload, CreateBucketConfiguration, Delete,
-;; Tagging}.
+Some definitions of "types" in AWS-SDK do not work with API-defined
+XML.  AWS-SDK has specific routines in marshaling for those types.
 
-Some definitions of "types" in AWS-SDK does not work with API-defined
-XML.  AWS-SDK has specific routines to marshal/unmarshal for types.
+An example is "types.Tagging" used in the "PutObjectTagging" action.
+The XML Marshaler of Golang stdlib produces an XML output lacking
+"<Tag>" entry, which appears in the XML in the API document.  Looking
+at the API document, Tagging's "<Tag>" entry has no html-link, i.e.,
+no definition.  See the following description for the difference of
+the generated XML.
 
-An example is "types.Tagging" which is used in the "PutObjectTagging"
-action.  In the syntax definition in the API document, Tagging has an
-"<Tag>" entry but it has no definition (without an html-link).
+AWS-SDK has its own marshalers for such types.  "Tagging" has
+"awsRestxml_serializeDocumentTagging()" in
+"aws-sdk-go-v2/service/s3/serializers.go".
+"awsRestxml_serializeDocumentTagging()" calls
+"awsRestxml_serializeDocumentTagSet()" and
+"awsRestxml_serializeDocumentTag()".
 
-One for "Tagging" is "awsRestxml_serializeDocumentTagging()" in
-"aws-sdk-go-v2/service/s3/serializers.go".  See the following
-description for the difference of the generated XML.
-
-Thus, we prepared separate type definitions for the ad-hoc
-stub-generator.  They are in "auxiliary.go".  They are hand-coded
-because the ad-hoc stub-generator is not cleaver enough to generate
-needed types from the Smithy definition.
+Thus, we need to prepare separate type definitions for marshaling.
+They are in "auxiliary.go".  They are hand-coded because the ad-hoc
+stub-generator is not cleaver enough to generate needed types from the
+Smithy definition.
 
 This is the list of structure slots with the same issue.
-- `Buckets []Bucket` slot used in the response of ListBuckets and ListDirectoryBuckets.
-- `Grants []Grant` slot in types.AccessControlPolicy.
-- `AccessControlList []Grant` slot in types.S3Location.
-- `OptionalFields []InventoryOptionalField` slot in types.InventoryConfiguration.
-- `RoutingRules []RoutingRule` slot used in GetBucketWebsite and PutBucketWebsite.
-- `Tags []Tag` slot.
-- `TagSet []Tag` slot in types.Tagging.
-- `TargetGrants []TargetGrant` slot in types.LoggingEnabled.
-- `UserMetadata []MetadataEntry` slot in types.S3Location.
+
+- **Buckets []Bucket** slot used in the response of ListBuckets and
+  ListDirectoryBuckets.
+- **Grants []Grant** slot in types.AccessControlPolicy.
+- **AccessControlList []Grant** slot in types.S3Location.
+- **OptionalFields []InventoryOptionalField** slot in
+  types.InventoryConfiguration.
+- **RoutingRules []RoutingRule** slot used in GetBucketWebsite and
+  PutBucketWebsite.
+- **Tags []Tag** slot (in several structures).
+- **TagSet []Tag** slot in types.Tagging.
+- **TargetGrants []TargetGrant** slot in types.LoggingEnabled.
+- **UserMetadata []MetadataEntry** slot in types.S3Location.
 
 Tagging type shall be marshaled in XML something like following.
 
@@ -173,9 +179,9 @@ type Tagging struct {
 }
 ```
 
-For this definition, xml.Marshal() and xml.Unmarshal() works on an XML
-like following which is not we expected.  Notice the <Tag> is missing.
-This is due to the fact that `Tag` does not appear as a field name.
+By this definition, the XML marshaler works on an XML like the
+following which is not we expected.  Notice the <Tag> is missing.
+This is due to the fact that "Tag" does not appear as a name.
 
 ```
 <Tagging>
@@ -199,8 +205,8 @@ type Tagging struct {
 ```
 
 This is the extraction of the Tagging from the Smithy definition (some
-details dropped).  Notice the "xmlName" is attached on "Tag" in the
-"TagSet" definition.  It makes "Tag" appear.
+details dropped).  Notice the "xmlName:Tag" is attached on the "Tag"
+type in the "TagSet" type definition.  It instructs "Tag" to appear.
 
 ```
 "com.amazonaws.s3#Tagging": {

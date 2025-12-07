@@ -64,8 +64,8 @@
 ;; value for enumeration types is "".
 
 ;; NOTE: Camelcase conversion makes enumeration "ETag" of
-;; "ObjectAttributes" is converted to "ObjectAttributesEtag" ("t" in
-;; lowercase) in AWS-SDK.
+;; "ObjectAttributes" is converted to "ObjectAttributesEtag" in
+;; AWS-SDK ("ETag" to "Etag", "t" in lowercase).
 
 ;; NOTE: It ignores "smithy.rules#contextParam" which indicates
 ;; "Bucket" name is given by host-name part.
@@ -239,8 +239,8 @@
 		     (string-downcase (substring s 1)))))
 
 (define (camelcase-string s)
-  ;; Makes a string in camelcase, as "BabyIron", "baby_iron", and
-  ;; "BABY_IRON" to "BabyIron".
+  ;; Makes a string in camelcase: "baby_server", "BABY_SERVER", and
+  ;; "BabyServer" to "BabyServer".
   ;;
   ;; PARTICULAR CASES OF CAMELCASE CONVERSION:
   ;; ObjectAttributes + ETag => ObjectAttributesEtag
@@ -368,7 +368,7 @@
   (match-let (((slot-symbol . property) member))
     (let* ((slot (symbol->string slot-symbol))
 	   (traits (assoc-with-default '() 'traits property))
-	   (tag (assoc-tag-of-slot slot property))
+	   (tag (assoc-tag-of-slot #f property))
 	   (type (assoc-type-of-slot slot property))
 	   (required (cond ((assoc '#{smithy.api#required}# traits) #t)
 			   (else #f)))
@@ -1207,28 +1207,28 @@
   ;; the API and Smithy.
   (match-let* (((slot tag type locus required) request-property)
 	       (definition (assoc type list-of-types))
-	       ((type-name type-kind _ . slot-properties) definition))
+	       ((type-name type-kind _ . slot-properties) definition)
+	       (slot-name (if (not (eqv? tag #f)) tag slot)))
     (case locus
       ((PATH)
        ;; Path parameters are taken by request.PathValue(key).
        (let ((key-name
-	      (cond ((string=? tag "Bucket") (string-downcase tag))
-		    ((string=? tag "Key") (string-downcase tag))
+	      (cond ((string=? slot-name "Bucket") (string-downcase slot-name))
+		    ((string=? slot-name "Key") (string-downcase slot-name))
 		    (else
-		     (error "make-input-import: path unknown" tag)))))
+		     (error "make-input-import: path unknown" slot-name)))))
 	 (list (format #f "{var x = r.PathValue(~s)" key-name)
 	       (format #f "if x != \"\" {i.~a = &x}}" slot))))
       ((QUERY)
-       ;; (format #f "i.~a = qi.Get(~s)" slot tag)
-       (let ((rhs (format #f "qi.Get(~s)" tag))
+       (let ((rhs (format #f "qi.Get(~s)" slot-name))
 	     (assigner (lambda (rhs)
 			 (format #f "i.~a = ~a" slot rhs))))
 	 (append
-	  (list (format #f "if qi.Has(~s) {" tag))
+	  (list (format #f "if qi.Has(~s) {" slot-name))
 	  (string-append-on-tail
-	   (make-coercing-intern tag type assigner rhs) "}"))))
+	   (make-coercing-intern slot-name type assigner rhs) "}"))))
       ((HEADER)
-       ;; (format #f "i.~a = hi.Get(~s)" slot tag)
+       ;; (format #f "i.~a = hi.Get(~s)" slot slot-name)
        (cond
 	((string=? type-kind "list")
 	 ;; List's slot-properties is (("member" "member" type2 . _))
@@ -1237,12 +1237,12 @@
 		  (assigner (lambda (rhs)
 			      (format #f "bin = append(bin, ~a)" rhs))))
 	     (append
-	      (list (format #f "if len(hi.Values(~s)) != 0 {" tag)
-		    (format #f "var rhs = hi.Values(~s)" tag)
+	      (list (format #f "if len(hi.Values(~s)) != 0 {" slot-name)
+		    (format #f "var rhs = hi.Values(~s)" slot-name)
 		    (format #f "var bin []~a" element-type)
 		    (format #f "for _, v := range slices.All(rhs) {"))
 	      (string-append-on-tail
-	       (make-coercing-intern tag type2 assigner "v") "}")
+	       (make-coercing-intern slot-name type2 assigner "v") "}")
 	      ;;(format #f "bin = append(bin, v)")
 	      (list
 	       (format #f "i.~a = bin}" slot))))))
@@ -1250,13 +1250,13 @@
 	 ;; NEVER THIS CASE.  MAPS ARE USED IN HEADER-PREFIX.
 	 (error "make-input-import with map in headers"))
 	(else
-	 (let ((rhs (format #f "hi.Get(~s)" tag))
+	 (let ((rhs (format #f "hi.Get(~s)" slot-name))
 	       (assigner (lambda (rhs)
 			   (format #f "i.~a = ~a" slot rhs))))
 	   (append
-	    (list (format #f "if len(hi.Values(~s)) != 0 {" tag))
+	    (list (format #f "if len(hi.Values(~s)) != 0 {" slot-name))
 	    (string-append-on-tail
-	     (make-coercing-intern tag type assigner rhs) "}"))))))
+	     (make-coercing-intern slot-name type assigner rhs) "}"))))))
       ((HEADER-PREFIX)
        ;; IT ASSUMES MAPS ARE ALWAYS OF STRINGS.
        (assert (string=? type-kind "map"))
@@ -1268,10 +1268,10 @@
 		(map-type (format #f "map[~a]~a" key-type value-type))
 		(assigner (lambda (rhs)
 			    (format #f "bin[key] = ~a" rhs))))
-	   (list (format #f "if len(hi.Values(~s)) != 0 {" tag)
-		 (format #f "var prefix = http.CanonicalHeaderKey(~s)" tag)
+	   (list (format #f "if len(hi.Values(~s)) != 0 {" slot-name)
+		 (format #f "var prefix = http.CanonicalHeaderKey(~s)"
+			 slot-name)
 		 (format #f "var bin ~a" map-type)
-		 ;; (format #f "var bin map[string]string")
 		 (format #f "for k, v := range hi {")
 		 (format #f "if strings.HasPrefix(k, prefix) {bin[k] = v[0]}}")
 		 (format #f "i.~a = bin}" slot)))))
@@ -1599,7 +1599,8 @@
   (match-let* (((slot tag type locus required) property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition)
-	       (null-value (if (string=? type-kind "enum") "\"\"" "nil")))
+	       (null-value (if (string=? type-kind "enum") "\"\"" "nil"))
+	       (slot-name (if (not (eqv? tag #f)) tag slot)))
     ;;(format #t ";; make-slot-marshaler ~s ~s~%" property definition)
     (case locus
       ((PATH QUERY)
@@ -1609,7 +1610,7 @@
        (list
 	(string-append
 	 (format #f "{var err2 = e.EncodeElement")
-	 (format #f "(s.~a, h_make_tag(\"~a\"))" slot tag))
+	 (format #f "(s.~a, h_make_tag(\"~a\"))" slot slot-name))
 	(format #f "if err2 != nil {return err2}}")))
       ((HEADER HEADER-PREFIX)
        '())
@@ -1618,7 +1619,7 @@
 	;; ((string=? type-kind "list")
 	;;  (list
 	;;   (format #f "if s.~a != ~a {" slot null-value)
-	;;   (format #f "var tag2 = h_make_tag(\"~a\")" tag)
+	;;   (format #f "var tag2 = h_make_tag(\"~a\")" slot-name)
 	;;   "var err2 = e.EncodeToken(tag2)"
 	;;   "if err2 != nil {return err2}"
 	;;   (format #f "var err3 = e.Encode(s.~a)" slot)
@@ -1630,7 +1631,7 @@
 	  (format #f "if s.~a != ~a {" slot null-value)
 	  (string-append
 	   (format #f "var err2 = e.EncodeElement")
-	   (format #f "(s.~a, h_make_tag(\"~a\"))" slot tag))
+	   (format #f "(s.~a, h_make_tag(\"~a\"))" slot slot-name))
 	  (format #f "if err2 != nil {return err2}}")))))
       (else
        (format #t "BAD property in response: ~s~%" property)
@@ -1811,7 +1812,19 @@
     (lambda (port)
       (write-api-template-file port list-of-actions))))
 
-;; (dump-dispatcher "dispatcher.go")
-;; (dump-handlers "handler.go")
-;; (dump-marshalers "marshaler.go")
-;; (dump-template "api-template.go")
+;;;
+;;; WHOLE TASK
+;;;
+
+;; (define list-of-types (make-type-definition-list s3-api))
+;; (define list-of-actions (map summarize-action list-of-action-names))
+;; (define list-of-types-in-requests (list-types-in-requests))
+;; (define collected-dispatches (collect-request-dispatches list-of-actions))
+;; (define merged-dispatches (merge-request-dispatches list-of-actions))
+;; (define list-of-dispatches (sort-dispatches merged-dispatches))
+
+(define (dump-stub)
+  (dump-dispatcher "dispatcher.go")
+  (dump-handlers "handler.go")
+  (dump-marshalers "marshaler.go")
+  (dump-template "api-template.go"))
