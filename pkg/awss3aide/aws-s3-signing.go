@@ -288,33 +288,36 @@ func adjust_x_amz_date(d string) string {
 		d[13:])
 }
 
+/*
 type Signing_credential struct {
 	Host       string
 	Access_key string
 	Secret_key string
 }
+*/
 
 // SIGN_BY_GIVEN_CREDENTIAL replaces an authorization header in a
-// request for the given key-pair.  It returns an error from
+// request for the given key-pair. keypair[0] is an access-key and
+// keypair[1] is a secret-key.  It returns an error from
 // Signer.SignHTTP().  Note that it drops the headers attached by a
 // proxy, which would confuse the signer.
-func Sign_by_given_credential(r *http.Request, keys *Signing_credential) error {
+func Sign_by_given_credential(r *http.Request, host string, keypair [2]string) error {
 	if false {
 		fmt.Printf("*** r.Host(1)=%v\n", r.Host)
 		fmt.Printf("*** Authorization(1)=%v\n", r.Header.Get("Authorization"))
 		fmt.Printf("*** r.Header(1)=%v\n", r.Header)
 	}
 
-	signing_verbose("*** new host=", keys.Host)
+	signing_verbose("*** new host=", host)
 
 	for _, h := range proxy_attached_headers {
 		r.Header.Del(h)
 	}
 
-	r.Host = keys.Host
+	r.Host = host
 	var credentials = aws.Credentials{
-		AccessKeyID:     keys.Access_key,
-		SecretAccessKey: keys.Secret_key,
+		AccessKeyID:     keypair[0],
+		SecretAccessKey: keypair[1],
 		//SessionToken string
 		//Source string
 		//CanExpire bool
