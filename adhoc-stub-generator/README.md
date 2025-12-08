@@ -1,11 +1,11 @@
 # README.md
 
-## About "s3.json"
+## About "s3.json", AWS-S3 IDL Definition
 
 This ad hoc stub-generator refers to "s3.json" in Golang's
-aws-sdk-go-v2.  There are many "s3.json" files but they are virtually
-identical (but not exactly identical).  For instance, other "s3.json"
-files can be found in Smithy-rust or Smithy-java.
+aws-sdk-go-v2.  There are many "s3.json" files in the world but they
+are virtually identical (but not exactly identical).  For instance,
+other "s3.json" can be found in Smithy-rust or Smithy-java.
 
 https://github.com/aws/aws-sdk-go-v2/codegen/sdk-codegen/aws-models/s3.json
 
@@ -112,19 +112,21 @@ Entries marked by (+) are handled (somewhat) in stub-generator.
 - "xmlName" (+)
 - "xmlNamespace"
 
-## XML Marshaling/Unmarshaling ("Tag-Affix")
+## XML Missing Tag Correction ("Tag-Affix")
 
-Some definitions of "types" in AWS-SDK do not work with API-defined
-XML.  AWS-SDK has specific routines in marshaling for those types.
+Some type definitions in "types" in AWS-SDK do not marshal/unmarshal
+with API-defined XML.  The standard marshaler of Golang cannot be
+used, and AWS-SDK has specific marshaling routines for those types.
 
 An example is "types.Tagging" used in the "PutObjectTagging" action.
 The standard marshaler of Golang produces an XML output lacking
 `<Tag>` entry, which appears in the XML in the API document.  Looking
 at the API document, Tagging's `<Tag>` entry has no html-link, i.e.,
-no definition.  See the following description for the difference of
-the generated XML.
+it means it has no definition.  See the following description for the
+difference of the generated XML.
 
-This is the list of structure slots that require the same encoding.
+This is the list of record slots that require the non-standard
+marshaling.
 
 - **Buckets []Bucket** slot used in the response of ListBuckets and
   ListDirectoryBuckets.
@@ -139,17 +141,15 @@ This is the list of structure slots that require the same encoding.
 - **TargetGrants []TargetGrant** slot in types.LoggingEnabled.
 - **UserMetadata []MetadataEntry** slot in types.S3Location.
 
-AWS-SDK has its own marshalers for such types.  "Tagging" has
-"awsRestxml_serializeDocumentTagging()" in
+AWS-SDK uses its own generated marshalers for all types.  For example,
+"Tagging" has "awsRestxml_serializeDocumentTagging()" in
 "aws-sdk-go-v2/service/s3/serializers.go".
 "awsRestxml_serializeDocumentTagging()" calls
 "awsRestxml_serializeDocumentTagSet()" and
 "awsRestxml_serializeDocumentTag()".
 
-Thus, we need to prepare separate type definitions for marshaling.
-They are in "auxiliary.go".  They are hand-coded because the ad-hoc
-stub-generator is not cleaver enough to generate needed types from the
-Smithy definition.
+Thus, we have to prepare separate type definitions to use the standard
+marshaler.
 
 ### Specific Source of the Problem of Missing Tags
 
