@@ -54,13 +54,17 @@ type H_CreateBucketConfiguration struct {
 	Bucket             *types.BucketInfo
 	Location           *types.LocationInfo
 	LocationConstraint types.BucketLocationConstraint
-	Tags               H_Tags
+	Tags               struct {
+		Tag []types.Tag
+	}
 }
 
+/*
 type H_Tags struct {
 	XMLName xml.Name `xml:"Tags"`
 	Tag     []types.Tag
 }
+*/
 
 func import_CreateBucketConfiguration(d *xml.Decoder) (*types.CreateBucketConfiguration, error) {
 	var o H_CreateBucketConfiguration
@@ -82,7 +86,9 @@ func export_CreateBucketConfiguration(e *xml.Encoder, i *types.CreateBucketConfi
 		Bucket:             i.Bucket,
 		Location:           i.Location,
 		LocationConstraint: i.LocationConstraint,
-		Tags:               H_Tags{Tag: i.Tags},
+		Tags: struct {
+			Tag []types.Tag
+		}{Tag: i.Tags},
 	}
 	var err1 = e.Encode(&o)
 	if err1 != nil {

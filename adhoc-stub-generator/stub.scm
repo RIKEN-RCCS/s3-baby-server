@@ -476,12 +476,12 @@
 ;; This part makes a catalog of actions in LIST-OF-ACTIONS.  Its entry
 ;; is a summary of an action.
 
-;; An ACTION is a five-tuple (action-name signature action-property
-;; request-properties response-properties).  A SIGNATURE is a
-;; two-tuple of (request-type response-type).  An ACTION-PROPERTY is a
-;; three-tuple (method uri code).  It consists of a method type, a uri
-;; path pattern, and an http status code for a successful response.  A
-;; REQUEST-PROPERTY and a RESPONSE-PROPERTIES are a list of
+;; ACTION is a five-tuple (action-name signature action-property
+;; request-properties response-properties).  SIGNATURE is a two-tuple
+;; of (request-type response-type).  ACTION-PROPERTY is a three-tuple
+;; (method uri code).  It consists of a method type, a uri path
+;; pattern, and an http status code for a successful response.
+;; REQUEST-PROPERTIES and RESPONSE-PROPERTIES each is a list of
 ;; slot-properties.
 
 (define (adjust-input-structure-name request)
@@ -1027,13 +1027,11 @@
 	type-kind
 	(format #f "types.~a" type-name))))
 
-(define (check-xml-tag-needs-correction definition)
-  ;; Checks if the type has an element which needs correction of
-  ;; XML-tag on an array.
+(define (check-xml-tag-affix-type definition)
+  ;; Checks if a given type needs an affix of xml-tag on an array.  It
+  ;; returns #f or a xml-tag-type pair.  An example of type definition
+  ;; is "TagSet" in "Tagging" type.  The definition of "TagSet" is:
   ;;
-  ;; An example of type definition is "TagSet" in "Tagging" type.  Their
-  ;; definitions are:
-  ;; ("Tagging" "structure" #f ("TagSet" #f "TagSet" ELEMENT #t))
   ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
   (match-let* (((type-name type-kind tag . slot-properties) definition))
     (cond
@@ -1043,19 +1041,42 @@
 	  (string=? type-kind "map"))
       #f)
      ((string=? type-kind "structure")
-      (any check-xml-tag-needs-correction-in-element slot-properties))
+      #f)
      ((string=? type-kind "list")
       (match-let ((((slot xml-tag type locus required) . _) slot-properties))
-	(if (not (eqv? xml-tag #f))
-	    #t
-	    (any check-xml-tag-needs-correction-in-element slot-properties))))
+	(if (eqv? xml-tag #f)
+	    #f
+	    (list xml-tag type))))
      (else
       (error "BAD type-kind definition" definition)))))
 
-(define (check-xml-tag-needs-correction-in-element property)
+(define (check-needs-xml-tag-affix definition)
+  ;; Checks if the type has an element which needs an affix of xml-tag
+  ;; on an array.  It searches in the nesting of types.  An example is
+  ;; the "Tagging" type which has "TagSet".  Their definitions are:
+  ;;
+  ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
+  ;; ("Tagging" "structure" #f ("TagSet" #f "TagSet" ELEMENT #t))
+  (match-let* (((type-name type-kind tag . slot-properties) definition))
+    (cond
+     ((check-xml-tag-affix-type definition)
+      #t)
+     ((or (primitive-type? type-kind)
+	  (string=? type-kind "enum")
+	  (string=? type-kind "union")
+	  (string=? type-kind "map"))
+      #f)
+     ((string=? type-kind "structure")
+      (any check-needs-xml-tag-affix-in-element slot-properties))
+     ((string=? type-kind "list")
+      (any check-needs-xml-tag-affix-in-element slot-properties))
+     (else
+      (error "BAD type-kind definition" definition)))))
+
+(define (check-needs-xml-tag-affix-in-element property)
   (match-let* (((slot tag type locus required) property)
 	       (definition (assoc type list-of-types)))
-    (check-xml-tag-needs-correction definition)))
+    (check-needs-xml-tag-affix definition)))
 
 (define (make-sdk-enumerator type-name enumerator-string)
   ;; Makes an enumerator of an enum of AWS-SDK.
@@ -1238,7 +1259,7 @@
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition)
 	       (slot-name (if (not (eqv? tag #f)) tag slot))
-	       (xml-tag-affix (check-xml-tag-needs-correction definition)))
+	       (xml-tag-affix (check-needs-xml-tag-affix definition)))
     (case locus
       ((PATH)
        ;; Path parameters are taken by request.PathValue(key).
@@ -1621,7 +1642,124 @@
 ;; (display-handler-function (assoc "ListParts" list-of-actions))
 
 ;;;
-;;; RESPONSE MARSHALER PRINTER
+;;; REQUEST UNMARSHALER (IMPORTER)
+;;;
+
+;; This part makes unmarshalers for a few types that need
+;; modifications in unmarshaling.  They are printed in the printer of
+;; request marshalers.
+
+(define (make-slot-declaration-for-affix slot-property)
+  ;; Makes a single line of a slot declaration.  Simple-case:
+  ;; "SlotA_types.TypeA" or Affix-case:
+  ;; "Tags_struct_{Tag_[]types.Tag}".
+  (format #t ";; make-slot-declaration-for-affix ~s~%" slot-property)
+  (match-let* (((slot tag1 type locus required) slot-property)
+	       (definition (assoc type list-of-types))
+	       ((type-name type-kind tag2 . _) definition)
+	       (xml-tag-type (check-xml-tag-affix-type definition)))
+    (format #t ";; -- make-slot-declaration-for-affix ~s~%" definition)
+    (cond
+     ((not (eqv? xml-tag-type #f))
+      ;; Case xml-tag-affix is needed, add one nesting access.
+      (assert (string=? type-kind "list"))
+      (match-let (((xml-tag xml-type) xml-tag-type))
+	(format #f "~a struct {~a []types.~a}" slot xml-tag xml-type)))
+     ((string=? type-kind "enum")
+      (format #f "~a types.~a" slot type))
+     ((string=? type-kind "list")
+      (format #f "~a types.~a" slot type))
+     ((string=? type-kind "structure")
+      (format #f "~a *types.~a" slot type))
+     (else
+      (error "make-slot-declaration-for-affix; bad type-kind" definition)))))
+
+(define (make-slot-copier-for-affix slot-properties)
+  ;; Makes a single line of string for copying a slot. SIMPLE:
+  ;; "SlotA:_o.SlotA," or AFFIX: "Tags:_o.Tags.Tag,".
+  (format #t ";; make-slot-copier-for-affix ~s~%" slot-properties)
+  (match-let* (((slot tag1 type locus required) slot-properties)
+	       (definition (assoc type list-of-types))
+	       ((type-name type-kind tag2 . _) definition)
+	       (xml-tag-type (check-xml-tag-affix-type definition)))
+    (cond
+     ((not (eqv? xml-tag-type #f))
+      ;; Case xml-tag-affix is needed, add one nesting access.
+      (assert (string=? type-kind "list"))
+      (match-let (((xml-tag xml-type) xml-tag-type))
+	(format #f "~a: o.~a.~a," slot slot xml-tag)))
+     (else
+      ;; Case no xml-tag-affix, simple copying.
+      (format #f "~a: o.~a," slot slot)))))
+
+(define (make-xml-tag-affix-import request-property)
+  (format #t ";; make-xml-tag-affix-import ~s~%" request-property)
+  (match-let* (((slot tag type locus required) request-property)
+	       (definition (assoc type list-of-types))
+	       ((type-name type-kind _ . slot-properties) definition)
+	       (xml-tag-affix (check-needs-xml-tag-affix definition)))
+    (case locus
+      ((PATH QUERY HEADER HEADER-PREFIX)
+       '())
+      ((PAYLOAD)
+       (cond
+	((string=? type-kind "blob")
+	 '())
+	(xml-tag-affix
+	 (string=? type-kind "structure")
+	 (format #t ";; GENERATING IMPORT FUNCTION: ~s~%" request-property)
+	 (format #t ";; GENERATING IMPORT FUNCTION: ~s~%" slot-properties)
+	 (append
+	  ;; Make a record declaration for unmarshaling:
+	  (list
+	   (format #f "type H_~a struct {" type-name)
+	   (format #f "XMLName xml.Name `xml:\"~a\"`" type-name))
+	  ;; | SlotA types.SlotA
+	  ;; | Tags struct {Tag []types.Tag}
+	  (map make-slot-declaration-for-affix slot-properties)
+	  (list
+	   "}")
+	  ;; Make an import function:
+	  (list
+	   (format #f "func import_~a(d *xml.Decoder) (*types.~a, error) {"
+		   type-name type-name)
+	   (format #f "var o H_~a" type-name)
+	   "var err1 = d.Decode(&o)"
+	   (string-append
+	    "if err1 != nil {"
+	    (format #f "return nil, xml_marshal_error(\"~a\", err1)" type-name)
+	    "}")
+	   (format #f "var i = types.~a{" type-name))
+	  ;; | SlotA: o.SlotA,
+	  ;; | Tags: o.Tags.Tag,
+	  (map make-slot-copier-for-affix slot-properties)
+	  (list
+	   "}"
+	   "return &i, nil}")))
+	(else
+	 '())))
+      ((ELEMENT)
+       (error "make-xml-tag-affix-import; bad locus ELEMENT" request-property))
+      (else
+       (error "make-xml-tag-affix-import; bad locus ELEMENT" request-property)))))
+
+(define (make-request-import-function action)
+  ;; Returns lines of a request unmarshaler that needs xml-tag-affix.
+  (match-let*
+      (((name signature action-property request-properties _) action))
+    (apply-append
+     (map make-xml-tag-affix-import request-properties))))
+
+(define (print-import-function name)
+  (let* ((action (assoc name list-of-actions))
+	 (ss (make-request-import-function action)))
+    (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
+
+;; (map make-request-import-function list-of-actions)
+;; (print-import-function "CreateBucket")
+
+;;;
+;;; RESPONSE MARSHALER (EXPORTER) PRINTER
 ;;;
 
 (define (check-output-whole-payload response-properties)
@@ -1644,7 +1782,7 @@
 	       ((type-name type-kind _ . slot-properties) definition)
 	       (null-value (if (string=? type-kind "enum") "\"\"" "nil"))
 	       (slot-name (if (not (eqv? tag #f)) tag slot))
-	       (xml-tag-affix (check-xml-tag-needs-correction definition)))
+	       (xml-tag-affix (check-needs-xml-tag-affix definition)))
     ;;(format #t ";; make-slot-marshaler ~s ~s~%" property definition)
     (case locus
       ((PATH QUERY)
