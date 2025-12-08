@@ -484,14 +484,11 @@
 ;; REQUEST-PROPERTIES and RESPONSE-PROPERTIES each is a list of
 ;; slot-properties.
 
-(define (adjust-input-structure-name request)
+(define (adjust-input-record-name request)
   (string-replace-substring request "Request" "Input"))
 
-(define (adjust-output-structure-name response)
+(define (adjust-output-record-name response)
   (string-replace-substring response "Response" "Output"))
-
-(define (rename-output-structure-name~ output)
-  (string-replace-substring output "Output" "Response"))
 
 (define (find-action-structure action-name)
   (let ((key (string-append "com.amazonaws.s3#" action-name)))
@@ -551,7 +548,7 @@
 	 (signature (make-exchange-signature action-structure))
 	 (request-name (car signature))
 	 (response-name (cadr signature))
-	 (output-name (adjust-output-structure-name response-name))
+	 (output-name (adjust-output-record-name response-name))
 	 (properties2 (itemize-slot-properties request-name))
 	 (properties3 (itemize-slot-properties output-name)))
     (list action-name signature properties1 properties2 properties3)))
@@ -1029,8 +1026,9 @@
 
 (define (check-xml-tag-affix-type definition)
   ;; Checks if a given type needs an affix of xml-tag on an array.  It
-  ;; returns #f or a xml-tag-type pair.  An example of type definition
-  ;; is "TagSet" in "Tagging" type.  The definition of "TagSet" is:
+  ;; returns #f or a tag-type pair.  An example of such type
+  ;; definition is "TagSet" in "Tagging" type.  The definition of
+  ;; "TagSet" is:
   ;;
   ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
   (match-let* (((type-name type-kind tag . slot-properties) definition))
@@ -1053,10 +1051,10 @@
 (define (check-needs-xml-tag-affix definition)
   ;; Checks if the type has an element which needs an affix of xml-tag
   ;; on an array.  It searches in the nesting of types.  An example is
-  ;; the "Tagging" type which has "TagSet".  Their definitions are:
+  ;; the types "Tagging" and "TagSet".  Their definitions are:
   ;;
-  ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
   ;; ("Tagging" "structure" #f ("TagSet" #f "TagSet" ELEMENT #t))
+  ;; ("TagSet" "list" #f ("member" "Tag" "Tag" ELEMENT #f)).
   (match-let* (((type-name type-kind tag . slot-properties) definition))
     (cond
      ((check-xml-tag-affix-type definition)
@@ -1115,7 +1113,7 @@
 
 (define (make-coercing-intern name type-name assigner rhs)
   ;; Makes a coercion of a string to a given type.  Calling an
-  ;; assigner makes an assignment.  It assumes a type-name is defined.
+  ;; assigner makes an assignment.
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind tag . slot-properties) definition))
     (let ((error-record-clause
@@ -1200,7 +1198,7 @@
 
 (define (make-coercing-extern type-name assigner rhs)
   ;; Makes a coercion of a given type to a string.  It is in the
-  ;; opposite direction of make-extern-coercing.  It errs when a
+  ;; opposite direction of make-coercing-intern.  It errs when a
   ;; type-name is not defined.
   (match-let* ((definition (assoc type-name list-of-types))
 	       ((type-name type-kind tag . slot-properties) definition))
@@ -1333,7 +1331,7 @@
 	(xml-tag-affix
 	 (format #t ";; XML-TAG AFFIX NEEDED: ~s~%" request-property)
 	 (list
-	  ;; (* xml.Unmarshal() = xml.NewDecoder().Decode() *).
+	  ;; Call unmarshaler with corrections.
 	  "{var d = xml.NewDecoder(r.Body)"
 	  (format #f "var x, err1 = import_~a(d)" type)
 	  "if err1 != nil {"
@@ -1347,7 +1345,7 @@
 	 ;; Records for a payload slot are: {CompletedMultipartUpload,
 	 ;; CreateBucketConfiguration, Delete, Tagging}.
 	 (list
-	  ;; (* xml.Unmarshal() = xml.NewDecoder().Decode() *).
+	  ;; Call the standard unmarshaler.
 	  (format #f "{var x types.~a" type)
 	  "var err1 = xml.NewDecoder(r.Body).Decode(&x)"
 	  "if err1 != nil {"
@@ -1363,10 +1361,10 @@
        (error "make-input-import; bad locus ELEMENT" request-property)))))
 
 (define (make-output-export response-property)
-  ;; Makes extraction code from structure "s3.XXXXOutput" of AWS-SDK.
-  ;; Each property is a list of five-tuples (slot tag type locus
-  ;; required).  Note "XXXXOutput" is copied and stored in variable
-  ;; "s".
+  ;; Makes extraction code from an output record "s3.XXXXOutput" to
+  ;; http headers.  Each property is a list of five-tuples (slot tag
+  ;; type locus required).  Note "XXXXOutput" is copied and stored in
+  ;; variable "s".
   (match-let* (((slot tag type locus required) response-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition))
@@ -1426,14 +1424,14 @@
   (list (format #f "var status int = ~a" code)
 	"w.WriteHeader(status)"))
 
-(define (make-payload-response http-status response-type slot-property)
-  ;; Makes a response of a payload.  Payload is an output record
+(define (make-output-response http-status response-type slot-property)
+  ;; Makes a response of a payload.  Payload is from an output record
   ;; itself or a designated slot.  It uses an output record when
   ;; slot-property=#f.
   (cond
-   ((eqv? #f slot-property)
+   ((eqv? slot-property #f)
     ;; (1) Payload is an output record (including unit case).
-    (match-let* ((output-type (adjust-output-structure-name response-type))
+    (match-let* ((output-type (adjust-output-record-name response-type))
 		 (definition (assoc output-type list-of-types))
 		 ((type-name type-kind tag . slot-properties) definition))
       (cond
@@ -1444,7 +1442,7 @@
        (else
 	;; Marshaling errors are implementation errors.
 	(list "ho.Set(\"Content-Type\", \"application/xml\")"
-	      (format #f "var s = h_~a(*o)" response-type)
+	      (format #f "var s = O_~a(*o)" response-type)
 	      (string-append
 	       "var ox, err6 = xml.MarshalIndent"
 	       (format #f "(s, \" \", \"  \")"))
@@ -1485,8 +1483,8 @@
       (((name signature action-property request-properties response-properties)
 	action)
        ((request-type response-type) signature)
-       (input-type (adjust-input-structure-name request-type))
-       (output-type (adjust-output-structure-name response-type))
+       (input-type (adjust-input-record-name request-type))
+       (output-type (adjust-output-record-name response-type))
        ((payload-import-property import-properties)
 	(split-payload-properties request-properties))
        ((payload-export-property export-properties)
@@ -1537,8 +1535,8 @@
       (else
        (append
 	(apply-append (map make-output-export export-properties))
-	(make-payload-response http-status response-type
-			       payload-export-property))))
+	(make-output-response http-status response-type
+			      payload-export-property))))
      ;; Function end:
      (list "}"))))
 
@@ -1593,14 +1591,16 @@
 	 (string-append
 	  "return \"Enum \" + e.Enum + \" unknown key: \""
 	  " + strconv.Quote(e.Name)}"))
-   #|(list "// BB_INPUT_ERROR is recorded in a context when an error"
+   #|
+   (list "// BB_INPUT_ERROR is recorded in a context when an error"
 	 "// occurs on interning a parameter."
 	 "type Bb_input_error struct {"
 	 "Key string"
 	 "Err error"
 	 "}"
 	 "func (e *Bb_input_error) Error() string {"
-	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}")|#
+	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}")
+   |#
    ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
    ;;"// parameter to record it in the context."
    ;;(string-append
@@ -1649,35 +1649,33 @@
 ;; modifications in unmarshaling.  They are printed in the printer of
 ;; request marshalers.
 
-(define (make-slot-declaration-for-affix slot-property)
+(define (make-slot-declaration-for-tag-affix slot-property)
   ;; Makes a single line of a slot declaration.  Simple-case:
   ;; "SlotA_types.TypeA" or Affix-case:
   ;; "Tags_struct_{Tag_[]types.Tag}".
-  (format #t ";; make-slot-declaration-for-affix ~s~%" slot-property)
+  (format #t ";; make-slot-declaration-for-tag-affix ~s~%" slot-property)
   (match-let* (((slot tag1 type locus required) slot-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind tag2 . _) definition)
 	       (xml-tag-type (check-xml-tag-affix-type definition)))
-    (format #t ";; -- make-slot-declaration-for-affix ~s~%" definition)
+    (format #t ";; -- make-slot-declaration-for-tag-affix ~s~%" definition)
     (cond
      ((not (eqv? xml-tag-type #f))
       ;; Case xml-tag-affix is needed, add one nesting access.
       (assert (string=? type-kind "list"))
       (match-let (((xml-tag xml-type) xml-tag-type))
 	(format #f "~a struct {~a []types.~a}" slot xml-tag xml-type)))
-     ((string=? type-kind "enum")
-      (format #f "~a types.~a" slot type))
-     ((string=? type-kind "list")
+     ((or (string=? type-kind "enum") (string=? type-kind "list"))
       (format #f "~a types.~a" slot type))
      ((string=? type-kind "structure")
       (format #f "~a *types.~a" slot type))
      (else
-      (error "make-slot-declaration-for-affix; bad type-kind" definition)))))
+      (error "make-slot-declaration-for-tag-affix; bad type-kind" definition)))))
 
-(define (make-slot-copier-for-affix slot-properties)
+(define (make-slot-copier-for-tag-affix slot-properties)
   ;; Makes a single line of string for copying a slot. SIMPLE:
   ;; "SlotA:_o.SlotA," or AFFIX: "Tags:_o.Tags.Tag,".
-  (format #t ";; make-slot-copier-for-affix ~s~%" slot-properties)
+  (format #t ";; make-slot-copier-for-tag-affix ~s~%" slot-properties)
   (match-let* (((slot tag1 type locus required) slot-properties)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind tag2 . _) definition)
@@ -1692,8 +1690,11 @@
       ;; Case no xml-tag-affix, simple copying.
       (format #f "~a: o.~a," slot slot)))))
 
-(define (make-xml-tag-affix-import request-property)
-  (format #t ";; make-xml-tag-affix-import ~s~%" request-property)
+(define (make-tag-affix-import-function request-property)
+  ;; Generates a definition of import function for a type that needs
+  ;; xml-tag affix.  The definition is accompanied with a type
+  ;; definition for unmarshaling.
+  (format #t ";; make-tag-affix-import-function ~s~%" request-property)
   (match-let* (((slot tag type locus required) request-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition)
@@ -1712,18 +1713,18 @@
 	 (append
 	  ;; Make a record declaration for unmarshaling:
 	  (list
-	   (format #f "type H_~a struct {" type-name)
+	   (format #f "type I_~a struct {" type-name)
 	   (format #f "XMLName xml.Name `xml:\"~a\"`" type-name))
 	  ;; | SlotA types.SlotA
 	  ;; | Tags struct {Tag []types.Tag}
-	  (map make-slot-declaration-for-affix slot-properties)
+	  (map make-slot-declaration-for-tag-affix slot-properties)
 	  (list
 	   "}")
 	  ;; Make an import function:
 	  (list
 	   (format #f "func import_~a(d *xml.Decoder) (*types.~a, error) {"
 		   type-name type-name)
-	   (format #f "var o H_~a" type-name)
+	   (format #f "var o I_~a" type-name)
 	   "var err1 = d.Decode(&o)"
 	   (string-append
 	    "if err1 != nil {"
@@ -1732,30 +1733,29 @@
 	   (format #f "var i = types.~a{" type-name))
 	  ;; | SlotA: o.SlotA,
 	  ;; | Tags: o.Tags.Tag,
-	  (map make-slot-copier-for-affix slot-properties)
+	  (map make-slot-copier-for-tag-affix slot-properties)
 	  (list
 	   "}"
 	   "return &i, nil}")))
 	(else
 	 '())))
       ((ELEMENT)
-       (error "make-xml-tag-affix-import; bad locus ELEMENT" request-property))
+       (error "make-tag-affix-import-function; bad locus" request-property))
       (else
-       (error "make-xml-tag-affix-import; bad locus ELEMENT" request-property)))))
+       (error "make-tag-affix-import-function; bad locus" request-property)))))
 
-(define (make-request-import-function action)
-  ;; Returns lines of a request unmarshaler that needs xml-tag-affix.
-  (match-let*
-      (((name signature action-property request-properties _) action))
+(define (make-input-marshaling-function action)
+  ;; Returns lines of a request unmarshaler that needs xml-tag affix.
+  (match-let* (((name signature action-property request-properties _) action))
     (apply-append
-     (map make-xml-tag-affix-import request-properties))))
+     (map make-tag-affix-import-function request-properties))))
 
 (define (print-import-function name)
   (let* ((action (assoc name list-of-actions))
-	 (ss (make-request-import-function action)))
+	 (ss (make-input-marshaling-function action)))
     (format #t "~a~%" (apply string-append (intervene-separator "\n" ss)))))
 
-;; (map make-request-import-function list-of-actions)
+;; (map make-input-marshaling-function list-of-actions)
 ;; (print-import-function "CreateBucket")
 
 ;;;
@@ -1773,10 +1773,7 @@
     (any check-output-whole-payload1 response-properties)))
 
 (define (make-slot-marshaler property)
-  ;; Returns lines of marshaler for an response element.  (* FALSE
-  ;; STATEMENT: It specially treats arrays (kind="list"), as
-  ;; "EncodeElement" puts a tag on an array not by the type name but
-  ;; by the passed start tag. *)
+  ;; Returns lines of marshaler for an response element.
   (match-let* (((slot tag type locus required) property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition)
@@ -1832,11 +1829,11 @@
        (format #t "BAD property in response: ~s~%" property)
        (error "make-slot-marshaler: BAD property in response" property)))))
 
-(define (make-marshaler-function action)
+(define (make-output-marshaling-function action)
   ;; Returns lines of a response marshaler for "XXXXResponse".
   (match-let*
       (((name (request-type response-type) _ _ response-properties) action)
-       (output-type (adjust-output-structure-name response-type))
+       (output-type (adjust-output-record-name response-type))
        (encoders (delete '() (map make-slot-marshaler response-properties)))
        (whole-payload (check-output-whole-payload response-properties)))
     (assert (or (not whole-payload) (= (length encoders) 1)))
@@ -1854,9 +1851,9 @@
 	 (else
 	  (append
 	   (list
-	    (format #f "type h_~a s3.~a" response-type output-type)
+	    (format #f "type O_~a s3.~a" response-type output-type)
 	    (string-append
-	     (format #f "func (s h_~a) MarshalXML" response-type)
+	     (format #f "func (s O_~a) MarshalXML" response-type)
 	     (format #f "(e *xml.Encoder, _ xml.StartElement) error {")))
 	   (cond
 	    ((not (eqv? #f tag))
@@ -1886,12 +1883,15 @@
 	 ;; "\"context\""
 	 "\"encoding/xml\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	 ")"
 	 "func h_thing_pointer[T any](v T) *T {return &v}"
 	 "func h_make_tag(k string) xml.StartElement {"
 	 "return xml.StartElement{Name: xml.Name{Local: k}}}")
    (apply-append
-    (map make-marshaler-function list-of-actions))))
+    (map make-output-marshaling-function list-of-actions))
+   (apply-append
+    (map make-input-marshaling-function list-of-actions))))
 
 (define (write-marshalers port list-of-actions)
   (let ((ss (make-marshaler-file list-of-actions)))
@@ -1905,19 +1905,19 @@
     (lambda (port)
       (write-marshalers port list-of-actions))))
 
-;; (make-marshaler-function (assoc "CopyObject" list-of-actions))
-;; (make-marshaler-function (assoc "ListParts" list-of-actions))
+;; (make-output-marshaling-function (assoc "CopyObject" list-of-actions))
+;; (make-output-marshaling-function (assoc "ListParts" list-of-actions))
 ;; (display-marshalers)
 
 ;;;
-;;; SERVER TEMPLATE PRINTER
+;;; API IMPLEMENTATION TEMPLATE PRINTER
 ;;;
 
 (define (make-api-template action)
   (match-let* (((name signature action-property _ _) action)
 	       ((request-name response-name) signature)
-	       (input-name (adjust-input-structure-name request-name))
-	       (output-name (adjust-output-structure-name response-name)))
+	       (input-name (adjust-input-record-name request-name))
+	       (output-name (adjust-output-record-name response-name)))
     (when tr? (format #t ";; make-api-template ~s~%" name))
     (let ((api-output-name
 	   (if (string=? output-name "Unit")
@@ -1971,7 +1971,14 @@
 	  "func (bbs *Bb_server) cope_write_error"
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, e error) {"
-	  "panic(e)}"))
+	  "panic(e)}")
+	 "// XML_MARSHAL_ERROR is called on unmarshal failure"
+	 "// in import functions for tag-affix."
+	 "func xml_marshal_error(ty string, e error) error {"
+	 "var err1 = fmt.Errorf(\"Marshaling for type %s with %w\", ty, e)"
+	 "var errz = &Aws_s3_error{Code: MalformedXML,"
+	 "Message: err1.Error()}"
+	 "return errz}")
    ;;"// RESPOND_ON_INPUT_ERROR is called on an error on"
    ;;"// interning enumerations and makes a response for it."
    ;;(string-append

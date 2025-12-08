@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-07)
+// marshaler.go (2025-12-08)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -8,12 +8,13 @@ package server
 import (
 "encoding/xml"
 "github.com/aws/aws-sdk-go-v2/service/s3"
+"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 func h_thing_pointer[T any](v T) *T {return &v}
 func h_make_tag(k string) xml.StartElement {
 return xml.StartElement{Name: xml.Name{Local: k}}}
-type h_CompleteMultipartUploadResponse s3.CompleteMultipartUploadOutput
-func (s h_CompleteMultipartUploadResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_CompleteMultipartUploadResponse s3.CompleteMultipartUploadOutput
+func (s O_CompleteMultipartUploadResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("CompleteMultipartUploadResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -50,13 +51,13 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_CopyObjectResponse s3.CopyObjectOutput
-func (s h_CopyObjectResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_CopyObjectResponse s3.CopyObjectOutput
+func (s O_CopyObjectResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 {var err2 = e.EncodeElement(s.CopyObjectResult, h_make_tag("CopyObjectResult"))
 if err2 != nil {return err2}}
 return nil}
-type h_CreateMultipartUploadResponse s3.CreateMultipartUploadOutput
-func (s h_CreateMultipartUploadResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_CreateMultipartUploadResponse s3.CreateMultipartUploadOutput
+func (s O_CreateMultipartUploadResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("InitiateMultipartUploadResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -72,8 +73,8 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_DeleteObjectsResponse s3.DeleteObjectsOutput
-func (s h_DeleteObjectsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_DeleteObjectsResponse s3.DeleteObjectsOutput
+func (s O_DeleteObjectsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("DeleteResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -86,13 +87,13 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_GetObjectResponse s3.GetObjectOutput
-func (s h_GetObjectResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_GetObjectResponse s3.GetObjectOutput
+func (s O_GetObjectResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 {var err2 = e.EncodeElement(s.Body, h_make_tag("Body"))
 if err2 != nil {return err2}}
 return nil}
-type h_GetObjectAttributesResponse s3.GetObjectAttributesOutput
-func (s h_GetObjectAttributesResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_GetObjectAttributesResponse s3.GetObjectAttributesOutput
+func (s O_GetObjectAttributesResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("GetObjectAttributesResponse")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -114,8 +115,8 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_GetObjectTaggingResponse s3.GetObjectTaggingOutput
-func (s h_GetObjectTaggingResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_GetObjectTaggingResponse s3.GetObjectTaggingOutput
+func (s O_GetObjectTaggingResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("Tagging")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -131,8 +132,8 @@ if err4 != nil {return err4}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_ListBucketsResponse s3.ListBucketsOutput
-func (s h_ListBucketsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_ListBucketsResponse s3.ListBucketsOutput
+func (s O_ListBucketsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("ListAllMyBucketsResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -157,8 +158,8 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_ListMultipartUploadsResponse s3.ListMultipartUploadsOutput
-func (s h_ListMultipartUploadsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_ListMultipartUploadsResponse s3.ListMultipartUploadsOutput
+func (s O_ListMultipartUploadsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("ListMultipartUploadsResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -201,8 +202,8 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_ListObjectsResponse s3.ListObjectsOutput
-func (s h_ListObjectsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_ListObjectsResponse s3.ListObjectsOutput
+func (s O_ListObjectsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("ListBucketResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -239,8 +240,8 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_ListObjectsV2Response s3.ListObjectsV2Output
-func (s h_ListObjectsV2Response) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_ListObjectsV2Response s3.ListObjectsV2Output
+func (s O_ListObjectsV2Response) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("ListBucketResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -283,8 +284,8 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_ListPartsResponse s3.ListPartsOutput
-func (s h_ListPartsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_ListPartsResponse s3.ListPartsOutput
+func (s O_ListPartsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("ListPartsResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
@@ -330,8 +331,38 @@ if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
 if err9 != nil {return err9}
 return nil}
-type h_UploadPartCopyResponse s3.UploadPartCopyOutput
-func (s h_UploadPartCopyResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+type O_UploadPartCopyResponse s3.UploadPartCopyOutput
+func (s O_UploadPartCopyResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 {var err2 = e.EncodeElement(s.CopyPartResult, h_make_tag("CopyPartResult"))
 if err2 != nil {return err2}}
 return nil}
+type I_CreateBucketConfiguration struct {
+XMLName xml.Name `xml:"CreateBucketConfiguration"`
+LocationConstraint types.BucketLocationConstraint
+Location *types.LocationInfo
+Bucket *types.BucketInfo
+Tags struct {Tag []types.Tag}
+}
+func import_CreateBucketConfiguration(d *xml.Decoder) (*types.CreateBucketConfiguration, error) {
+var o I_CreateBucketConfiguration
+var err1 = d.Decode(&o)
+if err1 != nil {return nil, xml_marshal_error("CreateBucketConfiguration", err1)}
+var i = types.CreateBucketConfiguration{
+LocationConstraint: o.LocationConstraint,
+Location: o.Location,
+Bucket: o.Bucket,
+Tags: o.Tags.Tag,
+}
+return &i, nil}
+type I_Tagging struct {
+XMLName xml.Name `xml:"Tagging"`
+TagSet struct {Tag []types.Tag}
+}
+func import_Tagging(d *xml.Decoder) (*types.Tagging, error) {
+var o I_Tagging
+var err1 = d.Decode(&o)
+if err1 != nil {return nil, xml_marshal_error("Tagging", err1)}
+var i = types.Tagging{
+TagSet: o.TagSet.Tag,
+}
+return &i, nil}

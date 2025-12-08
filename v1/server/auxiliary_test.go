@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // <Tagging xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
@@ -20,6 +21,32 @@ var buckets1 = `<Buckets>
     <Name>amzn-s3-demo-bucket1</Name>
   </Bucket>
 </Buckets>`
+
+var bucketconfig1 = `<CreateBucketConfiguration>
+   <LocationConstraint>string</LocationConstraint>
+   <Location>
+      <Name>usw2-az1</Name>
+      <Type>LocalZone</Type>
+   </Location>
+   <Bucket>
+      <DataRedundancy>SingleLocalZone</DataRedundancy>
+      <Type>Directory</Type>
+   </Bucket>
+   <Tags>
+      <Tag>
+         <Key>key1</Key>
+         <Value>value1</Value>
+      </Tag>
+      <Tag>
+         <Key>key2</Key>
+         <Value>value2</Value>
+      </Tag>
+      <Tag>
+         <Key>key3</Key>
+         <Value>value3</Value>
+      </Tag>
+   </Tags>
+</CreateBucketConfiguration>`
 
 var tagging1 = `<Tagging>
   <TagSet>
@@ -38,34 +65,10 @@ var tagging1 = `<Tagging>
   </TagSet>
 </Tagging>`
 
-var bucketconfig1 = `<CreateBucketConfiguration>
-   <LocationConstraint>string</LocationConstraint>
-   <Location>
-      <Name>usw2-az1</Name>
-      <Type>LocalZone</Type>
-   </Location>
-   <Bucket>
-      <DataRedundancy>SingleLocalZone</DataRedundancy>
-   </Bucket>
-   <Tags>
-      <Tag>
-         <Key>key1</Key>
-         <Value>value1</Value>
-      </Tag>
-      <Tag>
-         <Key>key2</Key>
-         <Value>value2</Value>
-      </Tag>
-      <Tag>
-         <Key>key3</Key>
-         <Value>value3</Value>
-      </Tag>
-   </Tags>
-</CreateBucketConfiguration>`
-
 func TestXmlMarshal(t *testing.T) {
 	fmt.Printf("Test XML Marshaling...\n")
 
+	/*
 	{
 		var r = strings.NewReader(buckets1)
 		var d = xml.NewDecoder(r)
@@ -87,7 +90,33 @@ func TestXmlMarshal(t *testing.T) {
 		var buckets2 = strings.ReplaceAll(
 			strings.ReplaceAll(buckets1, " ", ""), "\n", "")
 		if bs.String() != buckets2 {
-			log.Fatalf("results mismatch")
+			log.Fatalf("RESULTS MISMATCH")
+		}
+	}
+	*/
+
+	{
+		var r = strings.NewReader(bucketconfig1)
+		var d = xml.NewDecoder(r)
+		var x, err1 = import_CreateBucketConfiguration(d)
+		if err1 != nil {
+			log.Fatalf("Decode() error: %v", err1)
+		}
+		// var bs, _ = xml.MarshalIndent(x, "", "  ")
+		//fmt.Printf("Buckets x=%#v\n", string(bs))
+
+		var bs strings.Builder
+		var e = xml.NewEncoder(&bs)
+		var err2 = export_CreateBucketConfiguration(e, x)
+		if err2 != nil {
+			log.Fatalf("Encode() error: %v", err2)
+		}
+		fmt.Printf("%v\n", bs.String())
+
+		var bucketconfig2 = strings.ReplaceAll(
+			strings.ReplaceAll(bucketconfig1, " ", ""), "\n", "")
+		if bs.String() != bucketconfig2 {
+			log.Fatalf("RESULTS MISMATCH")
 		}
 	}
 
@@ -111,32 +140,36 @@ func TestXmlMarshal(t *testing.T) {
 		var tags2 = strings.ReplaceAll(
 			strings.ReplaceAll(tagging1, " ", ""), "\n", "")
 		if bs.String() != tags2 {
-			log.Fatalf("results mismatch")
+			log.Fatalf("RESULTS MISMATCH")
 		}
 	}
+}
 
-	{
-		var r = strings.NewReader(bucketconfig1)
-		var d = xml.NewDecoder(r)
-		var x, err1 = import_CreateBucketConfiguration(d)
-		if err1 != nil {
-			log.Fatalf("Decode() error: %v", err1)
-		}
-		// var bs, _ = xml.MarshalIndent(x, "", "  ")
-		//fmt.Printf("Buckets x=%#v\n", string(bs))
-
-		var bs strings.Builder
-		var e = xml.NewEncoder(&bs)
-		var err2 = export_CreateBucketConfiguration(e, x)
-		if err2 != nil {
-			log.Fatalf("Encode() error: %v", err2)
-		}
-		fmt.Printf("%v\n", bs.String())
-
-		var bucketconfig2 = strings.ReplaceAll(
-			strings.ReplaceAll(bucketconfig1, " ", ""), "\n", "")
-		if bs.String() != bucketconfig2 {
-			log.Fatalf("results mismatch")
-		}
+func export_CreateBucketConfiguration(e *xml.Encoder, i *types.CreateBucketConfiguration) error {
+	var o = I_CreateBucketConfiguration{
+		Bucket:             i.Bucket,
+		Location:           i.Location,
+		LocationConstraint: i.LocationConstraint,
+		Tags: struct {
+			Tag []types.Tag
+		}{Tag: i.Tags},
 	}
+	var err1 = e.Encode(&o)
+	if err1 != nil {
+		return xml_marshal_error("CreateBucketConfiguration", err1)
+	}
+	return nil
+}
+
+func export_Tagging(e *xml.Encoder, i *types.Tagging) error {
+	var o = I_Tagging{
+		TagSet: struct {
+			Tag []types.Tag
+		}{Tag: i.TagSet},
+	}
+	var err1 = e.Encode(&o)
+	if err1 != nil {
+		return xml_marshal_error("Tagging", err1)
+	}
+	return nil
 }

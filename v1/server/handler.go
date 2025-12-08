@@ -1,4 +1,4 @@
-// handler.go (2025-12-07)
+// handler.go (2025-12-08)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -140,7 +140,7 @@ ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*o.
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var s = h_CompleteMultipartUploadResponse(*o)
+var s = O_CompleteMultipartUploadResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -495,7 +495,7 @@ ho.Add("x-amz-checksum-algorithm", string(o.ChecksumAlgorithm))}
 if o.ChecksumType != "" {
 ho.Add("x-amz-checksum-type", string(o.ChecksumType))}
 ho.Set("Content-Type", "application/xml")
-var s = h_CreateMultipartUploadResponse(*o)
+var s = O_CreateMultipartUploadResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -629,7 +629,7 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var s = h_DeleteObjectsResponse(*o)
+var s = O_DeleteObjectsResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -883,7 +883,7 @@ ho.Add("x-amz-version-id", string(*o.VersionId))}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var s = h_GetObjectAttributesResponse(*o)
+var s = O_GetObjectAttributesResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -926,7 +926,7 @@ return}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 ho.Set("Content-Type", "application/xml")
-var s = h_GetObjectTaggingResponse(*o)
+var s = O_GetObjectTaggingResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -1153,7 +1153,7 @@ if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 ho.Set("Content-Type", "application/xml")
-var s = h_ListBucketsResponse(*o)
+var s = O_ListBucketsResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -1209,7 +1209,7 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var s = h_ListMultipartUploadsResponse(*o)
+var s = O_ListMultipartUploadsResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -1271,7 +1271,7 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var s = h_ListObjectsResponse(*o)
+var s = O_ListObjectsResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -1339,7 +1339,7 @@ return}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var s = h_ListObjectsV2Response(*o)
+var s = O_ListObjectsV2Response(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200
@@ -1399,7 +1399,7 @@ ho.Add("x-amz-abort-rule-id", string(*o.AbortRuleId))}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var s = h_ListPartsResponse(*o)
+var s = O_ListPartsResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
 if err6 != nil {log.Fatal(err6)}
 var status int = 200

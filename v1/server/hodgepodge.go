@@ -166,6 +166,15 @@ func (bbs *Bb_server) cope_write_error(ctx context.Context, w http.ResponseWrite
 	panic(e)
 }
 
+// XML_MARSHAL_ERROR is called on unmarshal failure
+// in import functions for tag-affix.
+func xml_marshal_error(ty string, e error) error {
+	var err1 = fmt.Errorf("Marshaling for type %s with %w", ty, e)
+	var errz = &Aws_s3_error{Code: MalformedXML,
+		Message: err1.Error()}
+	return errz
+}
+
 func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")

@@ -112,7 +112,7 @@ Entries marked by (+) are handled (somewhat) in stub-generator.
 - "xmlName" (+)
 - "xmlNamespace"
 
-## XML Marshaling/Unmarshaling
+## XML Marshaling/Unmarshaling ("Tag-Affix")
 
 Some definitions of "types" in AWS-SDK do not work with API-defined
 XML.  AWS-SDK has specific routines in marshaling for those types.
@@ -151,7 +151,9 @@ They are in "auxiliary.go".  They are hand-coded because the ad-hoc
 stub-generator is not cleaver enough to generate needed types from the
 Smithy definition.
 
-The Tagging type shall be marshaled in the API document as follows.
+### Specific Source of the Problem of Missing Tags
+
+The type "Tagging" shall be marshaled in the API document as follows.
 
 ```
 <Tagging>
@@ -163,7 +165,8 @@ The Tagging type shall be marshaled in the API document as follows.
 </Tagging>
 ```
 
-First, the definition of "types.Tag" is not a problem.
+First, the definition of "types.Tag" is as follows, and it is no
+problem.
 
 ```
 type Tag struct {
@@ -180,9 +183,9 @@ type Tagging struct {
 }
 ```
 
-By this definition, Golang's marshaler works on an XML like the
+By this definition, the standard marshaler works on an XML like the
 following.  Notice the <Tag> is missing that is not we expected.  This
-is due to the fact that "Tag" does not appear as a name.
+is due to the fact that "Tag" does not appear as a slot name.
 
 ```
 <Tagging>
@@ -204,9 +207,9 @@ type Tagging struct {
 }
 ```
 
-The extraction of the type definitions in Smithy is shown (details
-dropped).  Notice the "xmlName:Tag" is attached on the "Tag" type in
-the "TagSet" type definition.  It instructs "Tag" to appear.
+The extraction of the type definitions in Smithy is shown below
+(details dropped).  Notice the "xmlName:Tag" is attached on the "Tag"
+type in the "TagSet" type definition.  It instructs "Tag" to appear.
 
 ```
 "com.amazonaws.s3#Tagging": {
@@ -232,3 +235,10 @@ the "TagSet" type definition.  It instructs "Tag" to appear.
     "members": { ...... },
 },
 ```
+
+### Implementation Restrictions of Tag-Affix
+
+Correction XML tags by tag-affix works only on the top level slots of
+records.  It does not work when correction is needed in nested slots.
+The records needed in Baby-server are "[]Bucket" and "[]Tag", and both
+appear in shallow slot.
