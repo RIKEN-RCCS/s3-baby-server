@@ -118,9 +118,9 @@ Some definitions of "types" in AWS-SDK do not work with API-defined
 XML.  AWS-SDK has specific routines in marshaling for those types.
 
 An example is "types.Tagging" used in the "PutObjectTagging" action.
-The XML Marshaler of Golang stdlib produces an XML output lacking
-"<Tag>" entry, which appears in the XML in the API document.  Looking
-at the API document, Tagging's "<Tag>" entry has no html-link, i.e.,
+The standard marshaler of Golang produces an XML output lacking
+`<Tag>` entry, which appears in the XML in the API document.  Looking
+at the API document, Tagging's `<Tag>` entry has no html-link, i.e.,
 no definition.  See the following description for the difference of
 the generated XML.
 
@@ -184,8 +184,8 @@ type Tagging struct {
 ```
 
 By this definition, the standard marshaler works on an XML like the
-following.  Notice the <Tag> is missing that is not we expected.  This
-is due to the fact that "Tag" does not appear as a slot name.
+following.  Notice the `<Tag>` is missing that is not we expected.
+This is due to the fact that "Tag" does not appear as a slot name.
 
 ```
 <Tagging>
@@ -238,7 +238,7 @@ type in the "TagSet" type definition.  It instructs "Tag" to appear.
 
 ### Implementation Restrictions of Tag-Affix
 
-Correction XML tags by tag-affix works only on the top level slots of
-records.  It does not work when correction is needed in nested slots.
-The records needed in Baby-server are "[]Bucket" and "[]Tag", and both
-appear in shallow slot.
+Correction of XML tags by tag-affix works only on the top level slots
+of records.  It does not work when correction is needed in nested
+slots.  The records needed in Baby-server are "[]Bucket" and "[]Tag",
+and both appear in shallow slots.
