@@ -6,7 +6,11 @@
 
 export AWS_EC2_METADATA_DISABLED=true
 
+# Setting "pipefail" makes exit status consider all commands, not the
+# rightmost one.
+
 set -e
+set -o pipefail
 
 alias ECHO=:
 

@@ -42,7 +42,7 @@ func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types
 	var pool_path = "."
 	var entries1, err1 = os.ReadDir(pool_path)
 	if err1 != nil {
-		bbs.logger.Info("os.ReadDir() failed in ListBuckets", "error", err1)
+		bbs.logger.Warn("os.ReadDir() failed in ListBuckets", "error", err1)
 		var errz = map_os_error("/", err1, nil)
 		return nil, 0, errz
 	}
@@ -56,7 +56,7 @@ func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
 			// IGNORE ERRORS.
 			continue
@@ -163,7 +163,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 			var name = e.Name()
 			var stat, err2 = e.Info()
 			if err2 != nil {
-				bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+				bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 					"direntry", e, "error", err2)
 				// IGNORE ERRORS.
 				continue
@@ -222,7 +222,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 		var key = path.Join(dir1, e.Name())
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
 			continue
 		}
@@ -256,7 +256,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 		// Skip errors.
 
 		if err1 != nil {
-			bbs.logger.Info("os.DirFS() callbacks with error",
+			bbs.logger.Warn("os.DirFS() callbacks with error",
 				"bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
@@ -264,7 +264,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
 			// IGNORE ERRORS.
 			return nil
@@ -413,7 +413,7 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 		// Skip errors.
 
 		if err1 != nil {
-			bbs.logger.Info("os.DirFS() callbacks with error",
+			bbs.logger.Warn("os.DirFS() callbacks with error",
 				"bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
@@ -557,7 +557,7 @@ func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) *Aws_s3
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Info("os.Lstat() failed on fs.DirEntry",
+			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
 			// IGNORE ERRORS.
 			continue

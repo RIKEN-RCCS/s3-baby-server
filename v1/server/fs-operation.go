@@ -259,8 +259,8 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 	}
 
 	// It should be atomic on placing an uploaded file and saving a
-	// meta-info file.  Failing to place an uploaded file will lose
-	// old meta-info.
+	// metainfo file.  Failing to place an uploaded file will lose
+	// old metainfo.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -299,7 +299,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 // UPLOAD_FILE_AS_SCRATCH stores the contents as a scratch file.  The
 // work of renaming a scratch file to an actual file will be done in
 // serialization.  Also, renaming should be in coordination with the
-// the meta-info file.
+// the metainfo file.
 func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int64, body io.Reader) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
@@ -744,7 +744,7 @@ func (bbs *Bb_server) check_path_is_link_free(object string) *Aws_s3_error {
 	return nil
 }
 
-// Fetches a meta-info file.  It returns nil if meta-info does not
+// Fetches a metainfo file.  It returns nil if metainfo does not
 // exist.  (The object path is guaranteed its properness).
 func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) {
 	var location = "/" + object
@@ -773,15 +773,15 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 	var info Meta_info
 	var err4 = dec.Decode(&info)
 	if err4 != nil {
-		bbs.logger.Warn("BAD META-INFO FILE: The content broken",
+		bbs.logger.Warn("BAD METAINFO FILE: The content broken",
 			"file", path, "error", err4)
 		return nil, map_os_error(location, err4, nil)
 	}
 	return &info, nil
 }
 
-// Stores a meta-info file.  Passing nil deletes a meta-info file.
-// Also, deletes a meta-info file all elements are nil.
+// Stores a metainfo file.  Passing nil deletes a metainfo file.
+// Also, deletes a metainfo file all elements are nil.
 func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "meta")
@@ -1000,7 +1000,8 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 }
 
 // Takes a stat() on an object.  It is used to check the existence of
-// an object.
+// an object.  It also checks the existence of metainfo.  Metainfo may
+// be nil.
 func (bbs *Bb_server) check_object_status(object string) (fs.FileInfo, *Meta_info, *Aws_s3_error) {
 	var stat, err1 = bbs.fetch_object_status(object)
 	if err1 != nil {

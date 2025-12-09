@@ -527,7 +527,7 @@ func match_etags_is_star(etags []string) bool {
 	return len(etags) == 1 && etags[0] == "*"
 }
 
-// MAKE_METAINFO makes a meta-info from i.Metadata and i.Tagging.
+// MAKE_METAINFO makes a metainfo from i.Metadata and i.Tagging.
 func make_metainfo(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
 	var tags *types.Tagging
 	if tagging != nil {
@@ -601,14 +601,16 @@ func (bbs *Bb_server) lookat_copy_source(object string, copysource *string) (str
 	}
 	var u, err3 = url.Parse(*copysource)
 	if err3 != nil {
+		bbs.logger.Debug("url.Parse() fail",
+			"string", *copysource, "error", err3)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message: "Bad x-amz-copy-source."}
 		return "", errz
 	}
 	var source = u.Path
-	if check_object_naming(source) {
+	if !check_object_naming(source) {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message: "Bad x-amz-copy-source."}
+			Message: "Bad x-amz-copy-source, bad naming."}
 		return "", errz
 	}
 	var d1 = strings.Split(object, "/")

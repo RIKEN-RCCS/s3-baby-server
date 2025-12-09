@@ -1335,7 +1335,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		return nil, err3
 	}
 
-	// Modify meta-info, and remove the file when it become nothing.
+	// Modify metainfo, and remove the file when it become nothing.
 
 	if info != nil && info.Tags != nil {
 		info.Tags = nil
@@ -1624,7 +1624,9 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 
 	// NO SERIALIZE-ACCESS.
 
-	o.TagSet = info.Tags.TagSet
+	if info != nil && info.Tags != nil {
+		o.TagSet = info.Tags.TagSet
+	}
 
 	// o.VersionId *string
 
