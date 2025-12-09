@@ -1025,7 +1025,7 @@
 	(format #f "types.~a" type-name))))
 
 (define (check-xml-tag-affix-type definition)
-  ;; Checks if a given type needs an affix of xml-tag on an array.  It
+  ;; Checks if a given type needs an xml tag-affix on an array.  It
   ;; returns #f or a tag-type pair.  An example of such type
   ;; definition is "TagSet" in "Tagging" type.  The definition of
   ;; "TagSet" is:
@@ -1049,8 +1049,8 @@
       (error "BAD type-kind definition" definition)))))
 
 (define (check-needs-xml-tag-affix definition)
-  ;; Checks if the type has an element which needs an affix of xml-tag
-  ;; on an array.  It searches in the nesting of types.  An example is
+  ;; Checks if the type has an element which needs an xml tag-affix on
+  ;; an array.  It searches in the nesting of types.  An example is
   ;; the types "Tagging" and "TagSet".  Their definitions are:
   ;;
   ;; ("Tagging" "structure" #f ("TagSet" #f "TagSet" ELEMENT #t))
@@ -1329,7 +1329,7 @@
 	((string=? type-kind "blob")
 	 (list (format #f "{i.~a = r.Body}" slot)))
 	(xml-tag-affix
-	 (format #t ";; XML-TAG AFFIX NEEDED: ~s~%" request-property)
+	 (format #t ";; TAG-AFFIX NEEDED: ~s~%" request-property)
 	 (list
 	  ;; Call unmarshaler with corrections.
 	  "{var d = xml.NewDecoder(r.Body)"
@@ -1657,13 +1657,13 @@
   (match-let* (((slot tag1 type locus required) slot-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind tag2 . _) definition)
-	       (xml-tag-type (check-xml-tag-affix-type definition)))
+	       (xml-tag+type (check-xml-tag-affix-type definition)))
     (format #t ";; -- make-slot-declaration-for-tag-affix ~s~%" definition)
     (cond
-     ((not (eqv? xml-tag-type #f))
-      ;; Case xml-tag-affix is needed, add one nesting access.
+     ((not (eqv? xml-tag+type #f))
+      ;; Case tag-affix is needed, add one nesting access.
       (assert (string=? type-kind "list"))
-      (match-let (((xml-tag xml-type) xml-tag-type))
+      (match-let (((xml-tag xml-type) xml-tag+type))
 	(format #f "~a struct {~a []types.~a}" slot xml-tag xml-type)))
      ((or (string=? type-kind "enum") (string=? type-kind "list"))
       (format #f "~a types.~a" slot type))
@@ -1679,20 +1679,20 @@
   (match-let* (((slot tag1 type locus required) slot-properties)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind tag2 . _) definition)
-	       (xml-tag-type (check-xml-tag-affix-type definition)))
+	       (xml-tag+type (check-xml-tag-affix-type definition)))
     (cond
-     ((not (eqv? xml-tag-type #f))
-      ;; Case xml-tag-affix is needed, add one nesting access.
+     ((not (eqv? xml-tag+type #f))
+      ;; Case tag-affix is needed, add one nesting access.
       (assert (string=? type-kind "list"))
-      (match-let (((xml-tag xml-type) xml-tag-type))
+      (match-let (((xml-tag xml-type) xml-tag+type))
 	(format #f "~a: o.~a.~a," slot slot xml-tag)))
      (else
-      ;; Case no xml-tag-affix, simple copying.
+      ;; Case no tag-affix, simple copying.
       (format #f "~a: o.~a," slot slot)))))
 
 (define (make-tag-affix-import-function request-property)
   ;; Generates a definition of import function for a type that needs
-  ;; xml-tag affix.  The definition is accompanied with a type
+  ;; xml tag-affix.  The definition is accompanied with a type
   ;; definition for unmarshaling.
   (format #t ";; make-tag-affix-import-function ~s~%" request-property)
   (match-let* (((slot tag type locus required) request-property)
@@ -1745,7 +1745,7 @@
        (error "make-tag-affix-import-function; bad locus" request-property)))))
 
 (define (make-input-marshaling-function action)
-  ;; Returns lines of a request unmarshaler that needs xml-tag affix.
+  ;; Returns lines of a request unmarshaler that needs xml tag-affix.
   (match-let* (((name signature action-property request-properties _) action))
     (apply-append
      (map make-tag-affix-import-function request-properties))))
@@ -1796,7 +1796,7 @@
       ((ELEMENT)
        (cond
 	(xml-tag-affix
-	 (format #t ";; XML-TAG AFFIX NEEDED: ~s~%" definition)
+	 (format #t ";; TAG-AFFIX NEEDED: ~s~%" definition)
 	 #|
 	 (list
 	  (format #f "if s.~a != ~a {" slot null-value)
@@ -1806,7 +1806,7 @@
 	 (match-let ((((_ xml-tag _ _ _)) slot-properties))
 	   (assert (not (eqv? xml-tag #f)))
 	   (list
-	    "// XML-TAG AFFIX."
+	    "// XML TAG-AFFIX."
 	    (format #f "var tag2 = h_make_tag(\"~a\")" slot-name)
 	    "var err2 = e.EncodeToken(tag2)"
 	    "if err2 != nil {return err2}"
@@ -1973,7 +1973,7 @@
 	  " r *http.Request, e error) {"
 	  "panic(e)}")
 	 "// XML_MARSHAL_ERROR is called on unmarshal failure"
-	 "// in import functions for tag-affix."
+	 "// in import functions for xml tag-affix."
 	 "func xml_marshal_error(ty string, e error) error {"
 	 "var err1 = fmt.Errorf(\"Marshaling for type %s with %w\", ty, e)"
 	 "var errz = &Aws_s3_error{Code: MalformedXML,"
