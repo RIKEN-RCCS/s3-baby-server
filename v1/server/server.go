@@ -9,15 +9,15 @@ package server
 
 import (
 	//"fmt"
+	"fmt"
+	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
+	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 	"io/fs"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
-	"fmt"
 	"path"
-	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
-	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 	"strings"
 	//"strconv"
 	"sync"
@@ -43,13 +43,13 @@ type Bb_configuration struct {
 }
 
 type Bb_server struct {
-	server *http.Server
-	keypair   [2]string
-	logger    *slog.Logger
+	server  *http.Server
+	keypair [2]string
+	logger  *slog.Logger
 
 	conf Bb_configuration
 
-	rid_past      int64
+	rid_past int64
 	suffixes map[string]suffix_record
 	monitor1 *monitor
 	mutex    sync.Mutex
@@ -98,7 +98,8 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	var logger = slog.New(slog.NewTextHandler(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel}))
 
-	logger.Info("Starting baby-server", "address", addr)
+	logger.Info("Starting Baby-server", "address", addr,
+		"version", Bb_version)
 
 	var access, secret, ok = strings.Cut(authKey, ",")
 	if !ok || len(access) == 0 || len(secret) == 0 {

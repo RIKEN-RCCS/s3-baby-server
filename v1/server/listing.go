@@ -8,6 +8,9 @@
 // "io/fs" that is mostly os-independent (slash-delimited) over "os"
 // and "filepath".
 
+// MEMO: io/fs.WalkDir does not follow symbolic links.  It is explicit
+// in "https://pkg.go.dev/io/fs#WalkDir"
+
 package server
 
 import (
@@ -127,7 +130,7 @@ func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types
 // returns are sorted.  It returns a next start-index and a next
 // start-marker, in addition to the entries.  THE ENTRIES INCLUDE
 // DIRECTORIES EVEN IF THEY ARE EMPTY.
-func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
+func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
 	if delimiter != "/" {
 		log.Fatalf("BAD-IMPL: list_objects_delimited with non-slash")
 	}
@@ -236,7 +239,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 // count directory entries.  COUNT counts files visited and it is used
 // to check a start-index.  MEMO: A prefix should not have a
 // preceeding delimiter.  A common-prefix has a trailing delimiter.
-func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, error) {
+func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
 	var location = "/" + bucket
 	var pool_path = "."
 	var b = path.Join(pool_path, bucket)
@@ -393,7 +396,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 	return contents, commonprefixes, nil
 }
 
-func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, error) {
+func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, *Aws_s3_error) {
 	var location = "/" + bucket
 	var pool_path = "."
 	var b = path.Join(pool_path, bucket)
@@ -532,13 +535,13 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 // deleting it.  It concerns only regular files, but excludes scratch
 // files whose name begins with a dot.  Note a MPUL directory is named
 // ".objectname@mpul".
-func (bbs *Bb_server) check_bucket_empty(bucket string) error {
+func (bbs *Bb_server) check_bucket_empty(bucket string) *Aws_s3_error {
 	var path1 = bbs.make_path_of_bucket(bucket)
 	var err1 = bbs.check_directory_empty(bucket, path1)
 	return err1
 }
 
-func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) error {
+func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) *Aws_s3_error {
 	var location = "/" + bucket
 	var filelist, err1 = os.ReadDir(path1)
 	if err1 != nil {

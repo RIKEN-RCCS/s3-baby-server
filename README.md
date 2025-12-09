@@ -30,7 +30,10 @@ than "application/octet-stream".
 
 - No tags are allowed on buckets.  Tags on a request are ignored.
 
-- Symbolic links in the local filesystem are simply ignored.
+- Symbolic links in the local filesystem are ignored.  Putting an
+  object is an error when the path includes symbolic links.  It is to
+  avoid a file being stored in an inaccessible path.  Baby-server
+  explicitly checks it.
 
 - No owner information is returned.
 

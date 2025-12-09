@@ -8,10 +8,10 @@
 package server
 
 import (
-	"context"
-	"encoding/json"
 	"bytes"
+	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -38,34 +38,34 @@ type Meta_info struct {
 }
 
 type Mpul_info struct {
-	Upload_id string
-	Mtime time.Time
-	Checksum_type types.ChecksumType
+	Upload_id          string
+	Mtime              time.Time
+	Checksum_type      types.ChecksumType
 	Checksum_algorithm types.ChecksumAlgorithm
-	Meta_info *Meta_info
+	Meta_info          *Meta_info
 }
 
 // (MultipartUpload)
 type Mpul_catalog struct {
 	Checksum_algorithm types.ChecksumAlgorithm
-	Parts []Mpul_part
+	Parts              []Mpul_part
 }
 
 // (types.CopyObjectResult, CopyPartResult)
 type Mpul_part struct {
-	Size int64
-	ETag string
+	Size     int64
+	ETag     string
 	Checksum string
-	Mtime time.Time
+	Mtime    time.Time
 }
 
 type upload_checks struct {
-	location string
-	uploadid string
-	size int64
-	checksum types.ChecksumAlgorithm
-	md5_to_check []byte
-	csum_to_check []byte
+	location       string
+	uploadid       string
+	size           int64
+	checksum       types.ChecksumAlgorithm
+	md5_to_check   []byte
+	csum_to_check  []byte
 	etag_condition [2]*string
 }
 
@@ -208,7 +208,7 @@ func (bbs *Bb_server) check_bucket_directory_exists(ctx context.Context, bucket 
 	return nil
 }
 
-func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string, info *Meta_info, check upload_checks, body io.Reader) ([]byte, []byte, error) {
+func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string, info *Meta_info, check upload_checks, body io.Reader) ([]byte, []byte, *Aws_s3_error) {
 	var rid int64 = get_request_id(ctx)
 	var location = check.location
 
@@ -229,7 +229,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 		}
 	}()
 
-	var checksum  = check.checksum
+	var checksum = check.checksum
 	var md5, csum, err3 = bbs.calculate_csum2(checksum, object, scratchkey)
 	if err3 != nil {
 		return nil, nil, err3
@@ -300,7 +300,7 @@ func (bbs *Bb_server) upload_file(ctx context.Context, object, scratchkey string
 // work of renaming a scratch file to an actual file will be done in
 // serialization.  Also, renaming should be in coordination with the
 // the meta-info file.
-func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int64, body io.Reader) error {
+func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int64, body io.Reader) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
@@ -350,7 +350,7 @@ func (bbs *Bb_server) upload_file_as_scratch(object, scratchkey string, size int
 	return nil
 }
 
-func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scratchkey string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info) error {
+func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scratchkey string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
@@ -461,11 +461,11 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 		}
 		var f3 = New_range_reader(f2, extent)
 		/*
-		if err2 != nil {
-			bbs.logger.Warn("New_range_reader() failed for CopyObject",
-				"file", sourcepath, "error", err2)
-			return map_os_error(location, err2, nil)
-		}
+			if err2 != nil {
+				bbs.logger.Warn("New_range_reader() failed for CopyObject",
+					"file", sourcepath, "error", err2)
+				return map_os_error(location, err2, nil)
+			}
 		*/
 		var _, err3 = io.Copy(f1, f3)
 		if err3 != nil {
@@ -492,7 +492,7 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 	return nil
 }
 
-func (bbs *Bb_server) place_scratch_file(object, scratchkey string, info *Meta_info) error {
+func (bbs *Bb_server) place_scratch_file(object, scratchkey string, info *Meta_info) *Aws_s3_error {
 	var location = "/" + object
 	var path1 = bbs.make_path_of_object(object, scratchkey)
 	var path2 = bbs.make_path_of_object(object, "")
@@ -566,7 +566,7 @@ func (bbs *Bb_server) delete_file(object string) error {
 // CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL and
 // populates it with a info file.  It may overtake an existing
 // directory when it already exists, and rewrites its upload-id.
-func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, mpul *Mpul_info) error {
+func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, mpul *Mpul_info) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 
@@ -584,7 +584,7 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
 		} else {
-			bbs.logger.Warn("os.Lstat() failed on MPUL path",
+			bbs.logger.Warn("os.Lstat() failed",
 				"path", path, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
@@ -592,7 +592,7 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 	if !stat.IsDir() {
 		bbs.logger.Warn("A MPUL path is not a directory", "path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message: "A MPUL path is not a directory",
+			Message:  "A MPUL path is not a directory",
 			Resource: location}
 		return errz
 	}
@@ -644,13 +644,13 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 			return nil
 		} else {
 			// Ignore an error in taking stat.
-			bbs.logger.Warn("os.Lstat() failed on a MPUL directory",
+			bbs.logger.Warn("os.Lstat() failed",
 				"path", path, "error", err2)
 		}
 	} else if !stat.IsDir() {
 		bbs.logger.Warn("A MPUL path is not a directory", "path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message: "A MPUL path is not a directory",
+			Message:  "A MPUL path is not a directory",
 			Resource: location}
 		return errz
 	}
@@ -667,7 +667,7 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 		bbs.logger.Info("os.RemoveAll() failed on a MPUL directory",
 			"path", path, "error", err4)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message: "Removing a MPUL scratch directory failed.",
+			Message:  "Removing a MPUL scratch directory failed.",
 			Resource: location}
 		return errz
 	}
@@ -675,9 +675,15 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 	return nil
 }
 
-// MAKE_INTERMEDIATE_DIRECTORIES makes intermediate directories.
-func (bbs *Bb_server) make_intermediate_directories(object string) error {
+// MAKE_INTERMEDIATE_DIRECTORIES makes directories to the object.
+func (bbs *Bb_server) make_intermediate_directories(object string) *Aws_s3_error {
 	var location = "/" + object
+
+	var err1 = bbs.check_path_is_link_free(object)
+	if err1 != nil {
+		return err1
+	}
+
 	var path = bbs.make_path_of_object(object, "")
 	var dir, _ = filepath.Split(path)
 	var stat, err2 = os.Lstat(dir)
@@ -692,7 +698,7 @@ func (bbs *Bb_server) make_intermediate_directories(object string) error {
 			}
 			return nil
 		} else {
-			bbs.logger.Info("os.Lstat() failed in making directories",
+			bbs.logger.Warn("os.Lstat() failed",
 				"path", dir, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
@@ -702,6 +708,38 @@ func (bbs *Bb_server) make_intermediate_directories(object string) error {
 		var errz = &Aws_s3_error{Code: AccessDenied,
 			Resource: location}
 		return errz
+	}
+	return nil
+}
+
+// CHECK_PATH_IS_LINK_FREE makes sure the given os-path to the object
+// does not contain symbolic-links.  It includes the check of the
+// object is a symbolic-link.
+func (bbs *Bb_server) check_path_is_link_free(object string) *Aws_s3_error {
+	var location = "/" + object
+	var path = bbs.make_path_of_object(object, "")
+	var pathlist = strings.Split(path, string(os.PathSeparator))
+	var name = ""
+	for _, e := range pathlist {
+		name = filepath.Join(name, e)
+		var info, err1 = os.Lstat(name)
+		if err1 != nil {
+			if errors.Is(err1, fs.ErrNotExist) {
+				// OK.
+				return nil
+			} else {
+				bbs.logger.Warn("os.Lstat() failed",
+					"path", name, "error", err1)
+				return map_os_error(location, err1, nil)
+			}
+		}
+		var mode = info.Mode()
+		if mode&fs.ModeSymlink != 0 {
+			var errz = &Aws_s3_error{Code: AccessDenied,
+				Message:  "Path to object contains symbolic links.",
+				Resource: location}
+			return errz
+		}
 	}
 	return nil
 }
@@ -760,8 +798,8 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 				// OK.
 				return nil
 			} else {
-				bbs.logger.Warn("os.Lstat() failed in store_metainfo",
-					"file", path, "error", err2)
+				bbs.logger.Warn("os.Lstat() failed",
+					"path", path, "error", err2)
 				return map_os_error(location, err2, nil)
 			}
 		}
@@ -818,7 +856,7 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 	return &mpul, nil
 }
 
-func (bbs *Bb_server) store_mpul_info(object string, mpul *Mpul_info) error {
+func (bbs *Bb_server) store_mpul_info(object string, mpul *Mpul_info) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 	var infopath = filepath.Join(path, "info")
@@ -829,7 +867,7 @@ func (bbs *Bb_server) store_mpul_info(object string, mpul *Mpul_info) error {
 	return nil
 }
 
-func (bbs *Bb_server) fetch_mpul_catalog(object string) (*Mpul_catalog, error) {
+func (bbs *Bb_server) fetch_mpul_catalog(object string) (*Mpul_catalog, *Aws_s3_error) {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 	var infopath = filepath.Join(path, "list")
@@ -841,7 +879,7 @@ func (bbs *Bb_server) fetch_mpul_catalog(object string) (*Mpul_catalog, error) {
 	return &catalog, nil
 }
 
-func (bbs *Bb_server) store_mpul_catalog(object string, catalog *Mpul_catalog) error {
+func (bbs *Bb_server) store_mpul_catalog(object string, catalog *Mpul_catalog) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "mpul")
 	var infopath = filepath.Join(path, "list")
@@ -916,7 +954,7 @@ func (bbs *Bb_server) store_json_data(object, path string, data any) error {
 
 // CHECK_UPLOAD_GOING checks "params.UploadId" is a currently on-going
 // upload.
-func (bbs *Bb_server) check_upload_going(object string, uploadid *string) (*Mpul_info, error) {
+func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string) (*Mpul_info, *Aws_s3_error) {
 	var location = "/" + object
 	if uploadid == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -933,7 +971,7 @@ func (bbs *Bb_server) check_upload_going(object string, uploadid *string) (*Mpul
 	return mpul, nil
 }
 
-func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent *[2]int64) (io.ReadCloser, error) {
+func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent *[2]int64) (io.ReadCloser, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
@@ -982,11 +1020,11 @@ func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, *Aws_s3_e
 
 	var stat, err1 = os.Lstat(path)
 	if err1 != nil {
-		bbs.logger.Info("os.Lstat() failed on an object",
-			"file", path, "error", err1)
+		bbs.logger.Info("os.Lstat() failed",
+			"path", path, "error", err1)
 		if errors.Is(err1, fs.ErrNotExist) {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message: "No object as named.",
+				Message:  "No object as named.",
 				Resource: location}
 			return nil, errz
 		} else {
@@ -1003,7 +1041,7 @@ func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, *Aws_s3_e
 		bbs.logger.Info("An object path is not a regular file",
 			"file", path, "mode", mode)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message: "No object as named.",
+			Message:  "No object as named.",
 			Resource: location}
 		return nil, errz
 	}

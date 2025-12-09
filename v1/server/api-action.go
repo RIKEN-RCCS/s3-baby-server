@@ -34,7 +34,7 @@ import (
 	//"sync"
 )
 
-func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error) {
+func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, *Aws_s3_error) {
 	var action = "AbortMultipartUpload"
 	fmt.Printf("*AbortMultipartUpload*\n")
 	var o = s3.AbortMultipartUploadOutput{}
@@ -76,7 +76,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var mpul, err3 = bbs.check_upload_going(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -100,7 +100,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	return &o, nil
 }
 
-func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, error) {
+func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, *Aws_s3_error) {
 	var action = "CompleteMultipartUpload"
 	fmt.Printf("*CompleteMultipartUpload*\n")
 	var o = s3.CompleteMultipartUploadOutput{}
@@ -136,8 +136,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	{
 		var unsupported = option_check_list{
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			ExpectedBucketOwner:  i.ExpectedBucketOwner,
+			RequestPayer:         i.RequestPayer,
 			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
@@ -146,7 +146,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		}
 	}
 
-	var mpul1, err3 = bbs.check_upload_going(object, i.UploadId)
+	var mpul1, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -170,7 +170,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	// Check parts are sorted.
 
-	var error_in_sorting error = nil
+	var error_in_sorting *Aws_s3_error = nil
 	var sorted = slices.IsSortedFunc(partlist.Parts,
 		func(a, b types.CompletedPart) int {
 			if a.PartNumber == nil || b.PartNumber == nil {
@@ -197,7 +197,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	if err4 != nil {
 		return nil, err4
 	}
-	var error_in_checking error = nil
+	var error_in_checking *Aws_s3_error = nil
 	var ng = slices.ContainsFunc(partlist.Parts,
 		func(e types.CompletedPart) bool {
 			// It returns true on an error to stop the loop.
@@ -368,7 +368,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	{
 		// Check the upload-id again after exclusion.
 
-		var mpul2, err3 = bbs.check_upload_going(object, i.UploadId)
+		var mpul2, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 		if err3 != nil {
 			return nil, err3
 		}
@@ -435,7 +435,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	return &o, nil
 }
 
-func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
+func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, *Aws_s3_error) {
 	var action = "CopyObject"
 	fmt.Printf("*CopyObject*\n")
 	var o = s3.CopyObjectOutput{}
@@ -680,7 +680,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
+func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, *Aws_s3_error) {
 	var action = "CreateBucket"
 	fmt.Printf("*CreateBucket*\n")
 	var o = s3.CreateBucketOutput{}
@@ -709,11 +709,11 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 	{
 		var unsupported = option_check_list{
-			GrantFullControl: i.GrantFullControl,
-			GrantRead: i.GrantRead,
-			GrantReadACP: i.GrantReadACP,
-			GrantWrite: i.GrantWrite,
-			GrantWriteACP: i.GrantWriteACP,
+			GrantFullControl:           i.GrantFullControl,
+			GrantRead:                  i.GrantRead,
+			GrantReadACP:               i.GrantReadACP,
+			GrantWrite:                 i.GrantWrite,
+			GrantWriteACP:              i.GrantWriteACP,
 			ObjectLockEnabledForBucket: i.ObjectLockEnabledForBucket,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
@@ -722,9 +722,9 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 		}
 
 		var ignored = option_check_list{
-			ACL_bucket_canned: i.ACL,
+			ACL_bucket_canned:         i.ACL,
 			CreateBucketConfiguration: i.CreateBucketConfiguration,
-			ObjectOwnership: i.ObjectOwnership,
+			ObjectOwnership:           i.ObjectOwnership,
 		}
 		bbs.check_options_ignored(action, location, &ignored)
 	}
@@ -769,7 +769,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	return &o, nil
 }
 
-func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, error) {
+func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, *Aws_s3_error) {
 	var action = "CreateMultipartUpload"
 	fmt.Printf("*CreateMultipartUpload*\n")
 	var o = s3.CreateMultipartUploadOutput{}
@@ -905,7 +905,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, error) {
+func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, *Aws_s3_error) {
 	var action = "DeleteBucket"
 	fmt.Printf("*DeleteBucket*\n")
 	var o = s3.DeleteBucketOutput{}
@@ -971,7 +971,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, *Aws_s3_error) {
 	var action = "DeleteObject"
 	fmt.Printf("*DeleteObject*\n")
 	var o = s3.DeleteObjectOutput{}
@@ -1057,7 +1057,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, *Aws_s3_error) {
 	var action = "DeleteObjects"
 	fmt.Printf("*DeleteObjects*\n")
 	var o = s3.DeleteObjectsOutput{}
@@ -1290,7 +1290,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, error) {
+func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, *Aws_s3_error) {
 	var action = "DeleteObjectTagging"
 	fmt.Printf("*DeleteObjectTagging*\n")
 	var o = s3.DeleteObjectTaggingOutput{}
@@ -1353,7 +1353,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, *Aws_s3_error) {
 	var action = "GetObject"
 	fmt.Printf("*GetObject*\n")
 	var o = s3.GetObjectOutput{}
@@ -1482,7 +1482,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, error) {
+func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, *Aws_s3_error) {
 	var action = "GetObjectAttributes"
 	fmt.Printf("*GetObjectAttributes*\n")
 	var o = s3.GetObjectAttributesOutput{}
@@ -1587,7 +1587,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, error) {
+func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, *Aws_s3_error) {
 	var action = "GetObjectTagging"
 	fmt.Printf("*GetObjectTagging*\n")
 	var o = s3.GetObjectTaggingOutput{}
@@ -1631,7 +1631,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 	return &o, nil
 }
 
-func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
+func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, *Aws_s3_error) {
 	var action = "HeadBucket"
 	fmt.Printf("*HeadBucket*\n")
 	var o = s3.HeadBucketOutput{}
@@ -1666,7 +1666,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, *Aws_s3_error) {
 	var action = "HeadObject"
 	fmt.Printf("*HeadObject*\n")
 	var o = s3.HeadObjectOutput{}
@@ -1885,7 +1885,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, error) {
+func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, *Aws_s3_error) {
 	var action = "ListMultipartUploads"
 	fmt.Printf("*ListMultipartUploads*\n")
 	var o = s3.ListMultipartUploadsOutput{}
@@ -1973,7 +1973,7 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, error) {
+func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, *Aws_s3_error) {
 	var action = "ListObjects"
 	fmt.Printf("*ListObjects*\n")
 	var o = s3.ListObjectsOutput{}
@@ -2038,7 +2038,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	var entries []object_list_entry
 	var nextindex int
 	var nextmarker string
-	var err3 error
+	var err3 *Aws_s3_error
 	if !always_use_flat_lister && delimiter == "/" {
 		entries, nextindex, nextmarker, err3 = bbs.list_objects_delimited(
 			bucket, index, marker, maxkeys, delimiter, prefix)
@@ -2074,7 +2074,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, *Aws_s3_error) {
 	var action = "ListObjectsV2"
 	fmt.Printf("*ListObjectsV2*\n")
 	var o = s3.ListObjectsV2Output{}
@@ -2152,7 +2152,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	var entries []object_list_entry
 	var nextindex int
 	var nextmarker string
-	var err5 error
+	var err5 *Aws_s3_error
 	if !always_use_flat_lister && delimiter == "/" {
 		entries, nextindex, nextmarker, err5 = bbs.list_objects_delimited(
 			bucket, index, marker, maxkeys, delimiter, prefix)
@@ -2196,7 +2196,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, error) {
+func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, *Aws_s3_error) {
 	var action = "ListParts"
 	fmt.Printf("*ListParts*\n")
 	var o = s3.ListPartsOutput{}
@@ -2234,7 +2234,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	}
 
 	/*
-		var mpul, err3 = bbs.check_upload_going(object, i.UploadId)
+		var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 		if err3 != nil {
 			return nil, err3
 		}
@@ -2354,7 +2354,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, *Aws_s3_error) {
 	var action = "PutObject"
 	fmt.Printf("*PutObject*\n")
 	var o = s3.PutObjectOutput{}
@@ -2577,7 +2577,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 		var unsupported = option_check_list{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			RequestPayer:        i.RequestPayer,
-			VersionId: i.VersionId,
+			VersionId:           i.VersionId,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -2608,7 +2608,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 		if info == nil {
 			info = &Meta_info{
 				Headers: nil,
-				Tags: nil,
+				Tags:    nil,
 			}
 		}
 
@@ -2624,7 +2624,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	return &o, nil
 }
 
-func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, error) {
+func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, *Aws_s3_error) {
 	var action = "UploadPart"
 	fmt.Printf("*UploadPart*\n")
 	var o = s3.UploadPartOutput{}
@@ -2678,7 +2678,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		}
 	*/
 
-	var mpul, err3 = bbs.check_upload_going(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2826,7 +2826,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, error) {
+func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, *Aws_s3_error) {
 	var action = "UploadPartCopy"
 	fmt.Printf("*UploadPartCopy*\n")
 	var o = s3.UploadPartCopyOutput{}
@@ -2861,10 +2861,10 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	{
 		var unsupported = option_check_list{
 			CopySourceSSECustomerAlgorithm: i.CopySourceSSECustomerAlgorithm,
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			ExpectedSourceBucketOwner: i.ExpectedSourceBucketOwner,
-			RequestPayer:        i.RequestPayer,
-			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
+			ExpectedBucketOwner:            i.ExpectedBucketOwner,
+			ExpectedSourceBucketOwner:      i.ExpectedSourceBucketOwner,
+			RequestPayer:                   i.RequestPayer,
+			SSECustomerAlgorithm:           i.SSECustomerAlgorithm,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -2872,7 +2872,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		}
 	}
 
-	var _, err3 = bbs.check_upload_going(object, i.UploadId)
+	var _, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
