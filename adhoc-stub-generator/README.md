@@ -1,21 +1,24 @@
 # README.md
 
-## About "s3.json", AWS-S3 IDL Definition
+An ad-hoc stub-generator generates server-side stubs for AWS-S3 from
+the API definition in Smithy.  It generates files: "api-template.go",
+"handler.go", "dispatcher.go", and "marshaler.go".  These generated
+files are copied in the source directory of Baby-server.
 
-This ad hoc stub-generator refers to "s3.json" in Golang's
-aws-sdk-go-v2.  There are many "s3.json" files in the world but they
-are virtually identical (but not exactly identical).  For instance,
-other "s3.json" can be found in Smithy-rust or Smithy-java.
+## About "s3.json", AWS-S3 IDL Definition in Smithy
 
-https://github.com/aws/aws-sdk-go-v2/codegen/sdk-codegen/aws-models/s3.json
+This ad-hoc stub-generator refers to "s3.json" in Golang's
+aws-sdk-go-v2.  There are several "s3.json" files in the world but
+they are virtually identical (but not exactly identical).  For
+instance, other files can be found in Smithy-rust or Smithy-java.
 
-https://github.com/smithy-lang/smithy-rs/blob/main/aws/sdk/aws-models/s3.json
-
-https://github.com/smithy-lang/smithy-java/blob/main/aws/client/aws-client-rulesengine/src/shared-resources/software/amazon/smithy/java/aws/client/rulesengine/s3.json
+- https://github.com/aws/aws-sdk-go-v2/codegen/sdk-codegen/aws-models/s3.json
+- https://github.com/smithy-lang/smithy-rs/blob/main/aws/sdk/aws-models/s3.json
+- https://github.com/smithy-lang/smithy-java/blob/main/aws/client/aws-client-rulesengine/src/shared-resources/software/amazon/smithy/java/aws/client/rulesengine/s3.json
 
 Note that AWS's Simity for Golang does not contain "s3.json".
 
-https://github.com/aws/smithy-go
+- https://github.com/aws/smithy-go
 
 ## Notable remarks
 
@@ -85,15 +88,11 @@ even if it is empty.  Some work is needed to drop the slot.
 
 ----------------------------------------------------------------
 
-## MEMO
-
-There is an extra slot in AWS-SDK, in "XXXXOutput".
-- ResultMetadata middleware.Metadata
-
-## API Markers
+## MEMO: API Markers in Smithy
 
 There are API Markers in traits in Smithy ("smithy.api#XXXX").
-Entries marked by (+) are handled (somewhat) in stub-generator.
+Entries marked by (+) are handled (in some way) in this
+stub-generator.
 
 - "default"
 - "deprecated"
@@ -112,6 +111,11 @@ Entries marked by (+) are handled (somewhat) in stub-generator.
 - "xmlName" (+)
 - "xmlNamespace"
 
+## MEMO
+
+There is an extra slot in AWS-SDK, in "XXXXOutput".
+- ResultMetadata middleware.Metadata
+
 ## XML Missing Tag Correction ("Tag-Affix")
 
 Some type definitions in "types" in AWS-SDK do not marshal/unmarshal
@@ -119,14 +123,16 @@ with API-defined XML.  The standard marshaler of Golang cannot be
 used, and AWS-SDK has specific marshaling routines for those types.
 
 An example is "types.Tagging" used in the "PutObjectTagging" action.
-The standard marshaler of Golang produces an XML output lacking
-`<Tag>` entry, which appears in the XML in the API document.  Looking
-at the API document, Tagging's `<Tag>` entry has no html-link, i.e.,
-it means it has no definition.  See the following description for the
+The standard marshaler produces an XML output lacking `<Tag>` entry,
+which appears in the XML in the API document.  Looking at the API
+document, Tagging's `<Tag>` entry has no html-link, i.e., that means
+it has no definition.  See the following description for the
 difference of the generated XML.
 
+## List of Types with Missing Tags
+
 This is the list of record slots that require the non-standard
-marshaling.
+marshaling in AWS-S3.
 
 - **Buckets []Bucket** slot used in the response of ListBuckets and
   ListDirectoryBuckets.
@@ -141,15 +147,16 @@ marshaling.
 - **TargetGrants []TargetGrant** slot in types.LoggingEnabled.
 - **UserMetadata []MetadataEntry** slot in types.S3Location.
 
-AWS-SDK uses its own generated marshalers for all types.  For example,
-"Tagging" has "awsRestxml_serializeDocumentTagging()" in
+In AWS-SDK, all types have their own generated marshalers.  They affix
+missing tags for those types above.  For example, "Tagging" has
+"awsRestxml_serializeDocumentTagging()" in
 "aws-sdk-go-v2/service/s3/serializers.go".
 "awsRestxml_serializeDocumentTagging()" calls
 "awsRestxml_serializeDocumentTagSet()" and
 "awsRestxml_serializeDocumentTag()".
 
-Thus, we have to prepare separate type definitions to use the standard
-marshaler.
+This stub-generator prepares separate type definitions which can work
+with the standard marshaler.
 
 ### Specific Source of the Problem of Missing Tags
 
