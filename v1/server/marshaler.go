@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-08)
+// marshaler.go (2025-12-09)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -9,6 +9,7 @@ import (
 "encoding/xml"
 "github.com/aws/aws-sdk-go-v2/service/s3"
 "github.com/aws/aws-sdk-go-v2/service/s3/types"
+"io"
 )
 func h_thing_pointer[T any](v T) *T {return &v}
 func h_make_tag(k string) xml.StartElement {
@@ -120,7 +121,7 @@ func (s O_GetObjectTaggingResponse) MarshalXML(e *xml.Encoder, _ xml.StartElemen
 var tag1 = h_make_tag("Tagging")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
-// XML-TAG AFFIX.
+// XML TAG-AFFIX.
 var tag2 = h_make_tag("TagSet")
 var err2 = e.EncodeToken(tag2)
 if err2 != nil {return err2}
@@ -137,7 +138,7 @@ func (s O_ListBucketsResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) er
 var tag1 = h_make_tag("ListAllMyBucketsResult")
 var err1 = e.EncodeToken(tag1)
 if err1 != nil {return err1}
-// XML-TAG AFFIX.
+// XML TAG-AFFIX.
 var tag2 = h_make_tag("Buckets")
 var err2 = e.EncodeToken(tag2)
 if err2 != nil {return err2}
@@ -346,7 +347,8 @@ Tags struct {Tag []types.Tag}
 func import_CreateBucketConfiguration(d *xml.Decoder) (*types.CreateBucketConfiguration, error) {
 var o I_CreateBucketConfiguration
 var err1 = d.Decode(&o)
-if err1 != nil {return nil, xml_marshal_error("CreateBucketConfiguration", err1)}
+if err1 != nil {
+if err1 == io.EOF {return nil, err1} else {return nil, xml_marshal_error("CreateBucketConfiguration", err1)}}
 var i = types.CreateBucketConfiguration{
 LocationConstraint: o.LocationConstraint,
 Location: o.Location,
@@ -361,7 +363,8 @@ TagSet struct {Tag []types.Tag}
 func import_Tagging(d *xml.Decoder) (*types.Tagging, error) {
 var o I_Tagging
 var err1 = d.Decode(&o)
-if err1 != nil {return nil, xml_marshal_error("Tagging", err1)}
+if err1 != nil {
+if err1 == io.EOF {return nil, err1} else {return nil, xml_marshal_error("Tagging", err1)}}
 var i = types.Tagging{
 TagSet: o.TagSet.Tag,
 }

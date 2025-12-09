@@ -20,27 +20,37 @@ echo "Making a test file when not exists."
 
 set -x
 
-echo "Call list-buckets"
+echo "*** Call list-buckets"
 
 aws s3api list-buckets --no-cli-pager
 
-echo "Call create-bucket."
-
-aws s3api create-bucket --no-cli-pager --bucket "mybucket1" --object-ownership "BAD-KEYWORD-FOR-OWNERSHIP" || true
+echo "*** Call create-bucket."
 
 aws s3api create-bucket --no-cli-pager --bucket "mybucket1" --object-ownership "BucketOwnerEnforced"
 
-echo "Call head-bucket."
+aws s3api create-bucket --no-cli-pager --bucket "mybucket2" --create-bucket-configuration 'LocationConstraint=us-west-1,Location={Type=LocalZone,Name=string},Bucket={DataRedundancy=SingleLocalZone},Tags=[{Key=string,Value=string},{Key=string,Value=string}]' || true
 
-aws s3api head-bucket --no-cli-pager --bucket "bucket-that-should-not-exist" || true
+aws s3api create-bucket --no-cli-pager --bucket "mybucket3" --object-ownership "BAD-OWNERSHIP-TO_ERR" || true
+
+echo "*** Call head-bucket."
 
 aws s3api head-bucket --no-cli-pager --bucket "mybucket1"
 
-echo "Call list-buckets."
+aws s3api head-bucket --no-cli-pager --bucket "bucket-that-does-not-exist" || true
 
-aws s3api list-buckets --no-cli-pager --max-buckets 2 --prefix my
+echo "*** Call list-buckets."
 
-echo "Call put-object."
+aws s3api list-buckets --no-cli-pager --max-buckets 7
+
+aws s3api list-buckets --no-cli-pager --max-buckets 7 --prefix "my"
+
+aws s3api list-buckets --no-cli-pager --max-buckets 7 --prefix "gomi"
+
+echo "*** Call delete-bucket."
+
+aws s3api delete-bucket --no-cli-pager --bucket "mybucket2"
+
+echo "*** Call put-object."
 
 aws s3api put-object --no-cli-pager --bucket "mybucket1" --key "dataobject1.txt" --body data-04m.txt --tagging "mytag1=medium&mytag2=median" --cache-control no-cache
 

@@ -146,3 +146,9 @@ Following lines are needed to add "xmlns", in type definition,
   Xmlns string `xml:"xmlns,attr"`
 and in data,
   Xmlns: "http://s3.amazonaws.com/doc/2006-03-01/"
+
+## Request Checks
+
+Baby-server does not check properness of enumerators in XML payload,
+while it checks that in headers.  Baby-server uses the standard
+unmarshaler and it does not know about enumerators.

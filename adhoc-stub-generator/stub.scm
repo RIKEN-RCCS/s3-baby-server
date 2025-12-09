@@ -1726,10 +1726,11 @@
 		   type-name type-name)
 	   (format #f "var o I_~a" type-name)
 	   "var err1 = d.Decode(&o)"
+	   "if err1 != nil {"
 	   (string-append
-	    "if err1 != nil {"
+	    "if err1 == io.EOF {return nil, err1} else {"
 	    (format #f "return nil, xml_marshal_error(\"~a\", err1)" type-name)
-	    "}")
+	    "}}")
 	   (format #f "var i = types.~a{" type-name))
 	  ;; | SlotA: o.SlotA,
 	  ;; | Tags: o.Tags.Tag,
@@ -1880,10 +1881,10 @@
 	 "")
    (list (format #f "package ~a" bb-dispatcher-package)
 	 "import ("
-	 ;; "\"context\""
 	 "\"encoding/xml\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
+	 "\"io\""
 	 ")"
 	 "func h_thing_pointer[T any](v T) *T {return &v}"
 	 "func h_make_tag(k string) xml.StartElement {"
