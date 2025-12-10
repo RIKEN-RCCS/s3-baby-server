@@ -1504,17 +1504,27 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	if err2 != nil {
 		return nil, err2
 	}
-	//var location = "/" + object
+	var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			RequestPayer: i.RequestPayer,
+			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
+			SSECustomerKey: i.SSECustomerKey,
+			SSECustomerKeyMD5: i.SSECustomerKeyMD5,
 			VersionId:           i.VersionId,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
+
+		var ignored = option_check_list{
+			MaxParts: i.MaxParts,
+			PartNumberMarker: i.PartNumberMarker,
+		}
+		bbs.check_options_ignored(action, location, &ignored)
 	}
 
 	var stat, info, err3 = bbs.check_object_status(object)
@@ -1524,19 +1534,19 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	var _ = info
 
 	var rid int64 = get_request_id(ctx)
-	var scratchkey = bbs.make_scratch_suffix(rid)
-	defer bbs.discharge_scratch_suffix(rid)
+	var _ = rid
+	//var scratchkey = bbs.make_scratch_suffix(rid)
+	//defer bbs.discharge_scratch_suffix(rid)
 
 	// NO SERIALIZE-ACCESS.
 
 	var checksum = types.ChecksumAlgorithmCrc64nvme
-	var md5, csum, err6 = bbs.calculate_csum2(checksum, object, scratchkey)
+	var md5, csum, err6 = bbs.calculate_csum2(checksum, object, "")
 	if err6 != nil {
 		return nil, err6
 	}
 
 	var attributes = i.ObjectAttributes
-
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
 		var etag = make_etag_from_md5(md5)
 		o.ETag = &etag

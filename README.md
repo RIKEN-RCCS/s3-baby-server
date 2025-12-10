@@ -46,6 +46,9 @@ than "application/octet-stream".
 
 - Buckets cannot have tags.
 
+- GetObjectAttributes returns no "ObjectParts" infomation.
+  Baby-server does not retain parts information.
+
 ## Terse Error Messages
 
 - Errors returned to a client do not contain information from OS such

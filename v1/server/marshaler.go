@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-09)
+// marshaler.go (2025-12-10)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -337,7 +337,7 @@ func (s O_UploadPartCopyResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement)
 {var err2 = e.EncodeElement(s.CopyPartResult, h_make_tag("CopyPartResult"))
 if err2 != nil {return err2}}
 return nil}
-type I_CreateBucketConfiguration struct {
+type O_CreateBucketConfiguration struct {
 XMLName xml.Name `xml:"CreateBucketConfiguration"`
 LocationConstraint types.BucketLocationConstraint
 Location *types.LocationInfo
@@ -345,7 +345,7 @@ Bucket *types.BucketInfo
 Tags struct {Tag []types.Tag}
 }
 func import_CreateBucketConfiguration(d *xml.Decoder) (*types.CreateBucketConfiguration, error) {
-var o I_CreateBucketConfiguration
+var o O_CreateBucketConfiguration
 var err1 = d.Decode(&o)
 if err1 != nil {
 if err1 == io.EOF {return nil, err1} else {return nil, xml_marshal_error("CreateBucketConfiguration", err1)}}
@@ -356,12 +356,12 @@ Bucket: o.Bucket,
 Tags: o.Tags.Tag,
 }
 return &i, nil}
-type I_Tagging struct {
+type O_Tagging struct {
 XMLName xml.Name `xml:"Tagging"`
 TagSet struct {Tag []types.Tag}
 }
 func import_Tagging(d *xml.Decoder) (*types.Tagging, error) {
-var o I_Tagging
+var o O_Tagging
 var err1 = d.Decode(&o)
 if err1 != nil {
 if err1 == io.EOF {return nil, err1} else {return nil, xml_marshal_error("Tagging", err1)}}

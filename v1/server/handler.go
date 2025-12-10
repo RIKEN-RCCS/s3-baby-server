@@ -1,4 +1,4 @@
-// handler.go (2025-12-09)
+// handler.go (2025-12-10)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -862,10 +862,12 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-object-attributes")) != 0 {
 var rhs = hi.Values("x-amz-object-attributes")
 var bin []types.ObjectAttributes
-for _, v := range slices.All(rhs) {
-var s = v
+for _, v1 := range slices.All(rhs) {
+for _, v2 := range strings.Split(v1, ",") {
+var v3 = strings.Trim(v2, " \t")
+var s = v3
 var x, err2 = intern_ObjectAttributes(s)
-if err2 != nil {input_errors["x-amz-object-attributes"] = err2} else {bin = append(bin, x)}}
+if err2 != nil {input_errors["x-amz-object-attributes"] = err2} else {bin = append(bin, x)}}}
 i.ObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
@@ -1256,10 +1258,12 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-optional-object-attributes")) != 0 {
 var rhs = hi.Values("x-amz-optional-object-attributes")
 var bin []types.OptionalObjectAttributes
-for _, v := range slices.All(rhs) {
-var s = v
+for _, v1 := range slices.All(rhs) {
+for _, v2 := range strings.Split(v1, ",") {
+var v3 = strings.Trim(v2, " \t")
+var s = v3
 var x, err2 = intern_OptionalObjectAttributes(s)
-if err2 != nil {input_errors["x-amz-optional-object-attributes"] = err2} else {bin = append(bin, x)}}
+if err2 != nil {input_errors["x-amz-optional-object-attributes"] = err2} else {bin = append(bin, x)}}}
 i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
@@ -1324,10 +1328,12 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-optional-object-attributes")) != 0 {
 var rhs = hi.Values("x-amz-optional-object-attributes")
 var bin []types.OptionalObjectAttributes
-for _, v := range slices.All(rhs) {
-var s = v
+for _, v1 := range slices.All(rhs) {
+for _, v2 := range strings.Split(v1, ",") {
+var v3 = strings.Trim(v2, " \t")
+var s = v3
 var x, err2 = intern_OptionalObjectAttributes(s)
-if err2 != nil {input_errors["x-amz-optional-object-attributes"] = err2} else {bin = append(bin, x)}}
+if err2 != nil {input_errors["x-amz-optional-object-attributes"] = err2} else {bin = append(bin, x)}}}
 i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)

@@ -274,7 +274,7 @@
 ;; This part makes a list of type-definitions, which are stored in
 ;; LIST-OF-TYPES.
 
-;; A TYPE-DEFINITION is a three-tuple plus a list (type-name type-kind
+;; TYPE-DEFINITION is a three-tuple plus a list (type-name type-kind
 ;; tag . slot-property ...).  A TAG is an xml-tag used in marshaling.
 ;; It is one cited by "smithy.api#xmlName" or #f otherwise.  Each
 ;; SLOT-PROPERTY describes record slots, when a TYPE-KIND is "enum",
@@ -282,10 +282,10 @@
 ;; type "Unit" in the elements of it.  A list type has a single
 ;; "member" slot.  A map type has two "key" and "value" slots.
 
-;; A SLOT-PROPERTY is a five-tuple: (slot tag type locus required).
-;; It describes slots of a composite type.  A SLOT is a name of a
-;; record slot (it is specified by a key part in Smithy).  A TAG is
-;; either a key in queries/headers, an xml-tag (specified by
+;; SLOT-PROPERTY is a five-tuple: (slot tag type locus required).  It
+;; describes slots of a composite type.  A SLOT is a name of a record
+;; slot (it is specified by a key part in Smithy).  A TAG is either a
+;; key in queries/headers, an xml-tag (specified by
 ;; "smithy.api#xmlName"), or an enumerator in enumeration types
 ;; (specified by "smithy.api#enumValue").  A tag is used as an xml-tag
 ;; when it is marshaled.  A TYPE is a type-name of this slot
@@ -1277,11 +1277,13 @@
 	  (string-append-on-tail
 	   (make-coercing-intern slot-name type assigner rhs) "}"))))
       ((HEADER)
-       ;; (format #f "i.~a = hi.Get(~s)" slot slot-name)
        (cond
 	((string=? type-kind "list")
-	 ;; List's slot-properties is (("member" "member" type2 . _))
-	 (match-let (((_ _ type2 . _) (car slot-properties)))
+	 ;; A list header is "#(values)" of http, and it can be spread
+	 ;; to multiple headers.  Note a slot-property for lists is
+	 ;; ("member" #f type-name ELEMENT #f)
+	 (format #t ";; Header list scanner: ~s~%" slot-properties)
+	 (match-let ((((_ _ type2 . _)) slot-properties))
 	   (let* ((element-type (resolve-type type2))
 		  (assigner (lambda (rhs)
 			      (format #f "bin = append(bin, ~a)" rhs))))
@@ -1289,10 +1291,11 @@
 	      (list (format #f "if len(hi.Values(~s)) != 0 {" slot-name)
 		    (format #f "var rhs = hi.Values(~s)" slot-name)
 		    (format #f "var bin []~a" element-type)
-		    (format #f "for _, v := range slices.All(rhs) {"))
+		    "for _, v1 := range slices.All(rhs) {"
+		    "for _, v2 := range strings.Split(v1, \",\") {"
+		    "var v3 = strings.Trim(v2, \" \\t\")")
 	      (string-append-on-tail
-	       (make-coercing-intern slot-name type2 assigner "v") "}")
-	      ;;(format #f "bin = append(bin, v)")
+	       (make-coercing-intern slot-name type2 assigner "v3") "}}")
 	      (list
 	       (format #f "i.~a = bin}" slot))))))
 	((string=? type-kind "map")
@@ -1658,7 +1661,7 @@
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind tag2 . _) definition)
 	       (xml-tag+type (check-xml-tag-affix-type definition)))
-    (format #t ";; -- make-slot-declaration-for-tag-affix ~s~%" definition)
+    ;;(format #t ";; -- make-slot-declaration-for-tag-affix ~s~%" definition)
     (cond
      ((not (eqv? xml-tag+type #f))
       ;; Case tag-affix is needed, add one nesting access.
@@ -1694,7 +1697,7 @@
   ;; Generates a definition of import function for a type that needs
   ;; xml tag-affix.  The definition is accompanied with a type
   ;; definition for unmarshaling.
-  (format #t ";; make-tag-affix-import-function ~s~%" request-property)
+  ;;(format #t ";; make-tag-affix-import-function ~s~%" request-property)
   (match-let* (((slot tag type locus required) request-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-properties) definition)
@@ -1708,12 +1711,11 @@
 	 '())
 	(xml-tag-affix
 	 (string=? type-kind "structure")
-	 (format #t ";; GENERATING IMPORT FUNCTION: ~s~%" request-property)
-	 (format #t ";; GENERATING IMPORT FUNCTION: ~s~%" slot-properties)
+	 (format #t ";; Generating import function for: ~s~%" request-property)
 	 (append
 	  ;; Make a record declaration for unmarshaling:
 	  (list
-	   (format #f "type I_~a struct {" type-name)
+	   (format #f "type O_~a struct {" type-name)
 	   (format #f "XMLName xml.Name `xml:\"~a\"`" type-name))
 	  ;; | SlotA types.SlotA
 	  ;; | Tags struct {Tag []types.Tag}
@@ -1724,7 +1726,7 @@
 	  (list
 	   (format #f "func import_~a(d *xml.Decoder) (*types.~a, error) {"
 		   type-name type-name)
-	   (format #f "var o I_~a" type-name)
+	   (format #f "var o O_~a" type-name)
 	   "var err1 = d.Decode(&o)"
 	   "if err1 != nil {"
 	   (string-append
