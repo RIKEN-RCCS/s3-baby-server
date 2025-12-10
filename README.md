@@ -57,9 +57,20 @@ than "application/octet-stream".
 
 ## Additional Features
 
-- S3BBS stores logs in a directory ".s3bbs/access-log" or
+- Baby-server stores logs in a directory ".s3bbs/access-log" or
   ".s3bbs/server-log" when it exists in a pool-direcotry.  It is
   checked at starting a server.
+
+## Restrictions
+
+Restrictions on names for buckets and objects are stricter than
+AWS-S3, Google GCS, or MinIO.
+
+Characters of bucket names are from the set "[a-z0-9-]".  DOTS (".") ARE
+FORBIDDEN.  Bucket names should not start or end with "-".
+
+Characters of object names are from the set
+"[a-zA-Z0-9!$&'()+,-./;=@_]" plus utf-8 characters.
 
 ## golangci-lint
 

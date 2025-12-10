@@ -442,7 +442,7 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, *A
 // CHECK_REQUEST_CONDITIONS checks conditions of "if-match",
 // "if-none-match", "if-modified-since", and "if-unmodified-since".
 // It conciders the equal time as included.
-func (bbs *Bb_server) check_request_conditions(etag *string, mtime *time.Time, method string, match, none_match *string, modified_since, unmodified_since *time.Time, ) (bool, *Aws_s3_error) {
+func (bbs *Bb_server) check_request_conditions(etag *string, mtime *time.Time, method string, match, none_match *string, modified_since, unmodified_since *time.Time) (bool, *Aws_s3_error) {
 	var etags_incl []string
 	var etags_excl []string
 	var modified_after *time.Time

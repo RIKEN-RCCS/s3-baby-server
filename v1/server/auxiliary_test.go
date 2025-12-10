@@ -269,7 +269,7 @@ func TestXmlMarshal(t *testing.T) {
 }
 
 func export_CreateBucketConfiguration(e *xml.Encoder, i *types.CreateBucketConfiguration) error {
-	var o = I_CreateBucketConfiguration{
+	var o = O_CreateBucketConfiguration{
 		Bucket:             i.Bucket,
 		Location:           i.Location,
 		LocationConstraint: i.LocationConstraint,
@@ -285,7 +285,7 @@ func export_CreateBucketConfiguration(e *xml.Encoder, i *types.CreateBucketConfi
 }
 
 func export_Tagging(e *xml.Encoder, i *types.Tagging) error {
-	var o = I_Tagging{
+	var o = O_Tagging{
 		TagSet: struct {
 			Tag []types.Tag
 		}{Tag: i.TagSet},

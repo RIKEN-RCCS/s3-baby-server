@@ -297,5 +297,5 @@ var Aws_s3_error_to_message = map[string]Aws_s3_error_message{
 	// [Others needed by http]
 	//
 
-	NotModified:         {304, "Not Modified."},
+	NotModified: {304, "Not Modified."},
 }

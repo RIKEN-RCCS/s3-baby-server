@@ -7,7 +7,7 @@
 # pool.  No "mybucket1" in particular.  It is tested with AWS CLI
 # v2.31.13.
 #
-# It uses a temporary file "zzz.json", "zzz.data1" and leaves them.
+# It uses a temporary file "zzz" and "zzz.data1" and leaves them.
 
 # Setting "pipefail" makes exit status consider all commands, not the
 # rightmost one.
@@ -115,24 +115,24 @@ ECHO "*** Call get-object-attributes."
 
 aws s3api get-object-attributes --no-cli-pager --bucket "mybucket1" --key "object2.txt" --object-attributes ETag Checksum ObjectParts StorageClass ObjectSize
 
-echo "Call create-multipart-upload."
+ECHO "*** Call create-multipart-upload."
 
-#UPLOAD_ID=$(aws s3api create-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object3.txt" --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" | jq -r '.UploadId')
+aws s3api create-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object4.txt" --tagging "mykey41=myvalue41&mykey42=myvalue42" | tee "zzz"
+UPLOAD_ID=$(jq -r '.UploadId' < zzz)
 
-aws s3api create-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object3.txt" --tagging "testTag=testMultipartUploadProject&Tag=testMultipartUploadProjectPJ" | tee zzz.json
-UPLOAD_ID=$(jq -r '.UploadId' < zzz.json)
+ECHO "*** Call upload-part."
 
-echo "Call upload-part."
+aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object4.txt" --part-number 1 --body data-08k.txt --upload-id $UPLOAD_ID
 
-aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object3.txt" --part-number 1 --body data-20m.txt --upload-id $UPLOAD_ID
+ECHO "*** Call upload-part-copy."
 
-echo "Call upload-part-copy."
+aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object4.txt" --part-number 2 --copy-source ""mybucket1"/"object2.txt"" --upload-id $UPLOAD_ID
 
-aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object3.txt" --part-number 2 --copy-source ""mybucket1"/"object2.txt"" --upload-id $UPLOAD_ID
+aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object1.txt" --part-number 1 --body data-08k.txt --upload-id $UPLOAD_ID || true
 
-echo "Call list-parts."
+ECHO "*** Call list-parts."
 
-aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object3.txt" --upload-id $UPLOAD_ID
+aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOAD_ID
 
 echo "Call list-multipart-uploads."
 
@@ -143,12 +143,12 @@ echo "Call complete-multipart-upload."
 #ETAG1=$(aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object3.txt" --upload-id $UPLOAD_ID | jq '.Parts[0].ETag')
 #ETAG2=$(aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object3.txt" --upload-id $UPLOAD_ID | jq '.Parts[1].ETag')
 
-aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object3.txt" --upload-id $UPLOAD_ID | tee zzz.json
+aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOAD_ID | tee zzz.json
 ETAG1=$(jq '.Parts[0].ETag' < zzz.json)
-aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object3.txt" --upload-id $UPLOAD_ID | tee zzz.json
+aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOAD_ID | tee zzz.json
 ETAG2=$(jq '.Parts[1].ETag' < zzz.json)
 
-aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object3.txt" --upload-id $UPLOAD_ID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
+aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOAD_ID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
 
 echo "Call delete-object."
 
@@ -156,7 +156,7 @@ aws s3api delete-object --no-cli-pager --bucket "mybucket1" --key "object1.txt"
 
 echo "Call delete-objects."
 
-aws s3api delete-objects --no-cli-pager --bucket "mybucket1" --delete "{\"Objects\":[{\"Key\":\"object2.txt\"},{\"Key\":\"object3.txt\"}],\"Quiet\":false}"
+aws s3api delete-objects --no-cli-pager --bucket "mybucket1" --delete "{\"Objects\":[{\"Key\":\"object2.txt\"},{\"Key\":\"object4.txt\"}],\"Quiet\":false}"
 
 echo "Call delete-bucket."
 

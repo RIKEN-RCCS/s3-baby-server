@@ -844,13 +844,6 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 
 	var uploadid = scratchkey
 
-	var mpul = &Mpul_info{
-		Upload_id:          uploadid,
-		Checksum_type:      checksumtype,
-		Checksum_algorithm: checksum,
-		Meta_info:          info,
-	}
-
 	// SERIALIZE ACCESS.
 
 	{
@@ -859,6 +852,14 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 			return nil, timeout
 		}
 		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var mpul = &Mpul_info{
+		Upload_id:          uploadid,
+		Mtime:              time.Now(),
+		Checksum_type:      checksumtype,
+		Checksum_algorithm: checksum,
+		Meta_info:          info,
 	}
 
 	{
@@ -1508,12 +1509,12 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 
 	{
 		var unsupported = option_check_list{
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer: i.RequestPayer,
+			ExpectedBucketOwner:  i.ExpectedBucketOwner,
+			RequestPayer:         i.RequestPayer,
 			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
-			SSECustomerKey: i.SSECustomerKey,
-			SSECustomerKeyMD5: i.SSECustomerKeyMD5,
-			VersionId:           i.VersionId,
+			SSECustomerKey:       i.SSECustomerKey,
+			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
+			VersionId:            i.VersionId,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -1521,7 +1522,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		}
 
 		var ignored = option_check_list{
-			MaxParts: i.MaxParts,
+			MaxParts:         i.MaxParts,
 			PartNumberMarker: i.PartNumberMarker,
 		}
 		bbs.check_options_ignored(action, location, &ignored)
@@ -2508,16 +2509,15 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// SERIALIZE ACCESS (in the uploading routine).
 
 	var check = upload_checks{
-		location:       location,
-		uploadid:       "",
+		upload_id:      "",
 		size:           size,
 		checksum:       checksum,
 		md5_to_check:   md5_to_check,
 		csum_to_check:  csum_to_check,
 		etag_condition: [2]*string{i.IfMatch, i.IfNoneMatch},
 	}
-	var md5, csum, err6 = bbs.upload_file(ctx, object, scratchkey, info,
-		check, i.Body)
+	var md5, csum, err6 = bbs.upload_file(ctx, object, scratchkey, object,
+		info, check, i.Body)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2669,9 +2669,11 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 	{
 		var unsupported = option_check_list{
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			RequestPayer:        i.RequestPayer,
-			// i.SSECustomerAlgorithm *string
+			ExpectedBucketOwner:  i.ExpectedBucketOwner,
+			RequestPayer:         i.RequestPayer,
+			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
+			SSECustomerKey:       i.SSECustomerKey,
+			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -2762,16 +2764,15 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	// SERIALIZE ACCESS (in the uploading routine).
 
 	var check = upload_checks{
-		location:       location,
-		uploadid:       mpul.Upload_id,
+		upload_id:      mpul.Upload_id,
 		size:           size,
 		checksum:       checksum,
 		md5_to_check:   md5_to_check,
 		csum_to_check:  csum_to_check,
 		etag_condition: [2]*string{nil, nil},
 	}
-	var md5, csum, err6 = bbs.upload_file(ctx, partobject, scratchkey, nil,
-		check, i.Body)
+	var md5, csum, err6 = bbs.upload_file(ctx, partobject, scratchkey, object,
+		nil, check, i.Body)
 	if err6 != nil {
 		return nil, err6
 	}

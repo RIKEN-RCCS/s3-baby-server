@@ -26,7 +26,7 @@ const part_size_ub = 5 * 1024 * 1024 * 1024
 // - [General purpose bucket naming rules]
 //   - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
 // - [Bucket naming guidelines]
-//   - https://cloud.google.com/storage/docs/naming-buckets)
+//   - https://cloud.google.com/storage/docs/naming-buckets
 
 var bucket_naming_good_re = regexp.MustCompile(`^[a-z0-9-]{3,63}$`)
 
@@ -70,12 +70,26 @@ func check_bucket_naming(name string) bool {
 //    The object key name consists of a sequence of Unicode characters
 //    encoded in UTF-8, with a maximum length of 1,024 bytes or
 //    approximately 1,024 Latin characters.
+//
+// Characters avoided: `"#%<>[\]^{|}~` + "`".
+// Characters need special handling: " $&+,/:;=?@".
+// Characters unusable in Windows file names `"*/:<>?\|`.
 
 const object_name_limit = 1000
 
+var characters_of_control = string([]byte{
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+	0x10, 0x11, 0x12, 0x13, 0x14, 0x15,	0x16, 0x17,
+	0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+})
+
+var characters_adoided_in_windows = `*:?`
+
 // A list of avoidable characters in [Object key naming guidelines].
 
-var object_naming_avoided_set = (`"#%<>[\]^{|}~` + "`")
+var object_naming_avoided_set = (`"#%<>[\]^{|}~` + "`" +
+	characters_of_control + characters_adoided_in_windows)
 
 // CHECK_OBJECT_NAMING checks the naming rules.  A passed name is a
 // url path (passed as decoded) and expected as normalized.
