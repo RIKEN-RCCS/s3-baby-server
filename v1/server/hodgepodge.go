@@ -32,6 +32,12 @@ import (
 	//"sync"
 )
 
+func bb_assert(c bool) {
+	if !c {
+		panic("assertion")
+	}
+}
+
 type suffix_record struct {
 	rid       int64
 	timestamp time.Time

@@ -63,6 +63,8 @@ than "application/octet-stream".
 
 ## Restrictions
 
+### Restrictions on Bucket and Object Names
+
 Restrictions on names for buckets and objects are stricter than
 AWS-S3, Google GCS, or MinIO.
 
@@ -71,6 +73,14 @@ FORBIDDEN.  Bucket names should not start or end with "-".
 
 Characters of object names are from the set
 "[a-zA-Z0-9!$&'()+,-./;=@_]" plus utf-8 characters.
+
+### Restrictions on mtime
+
+The mtime of an object is not correct by copying.  Baby-server
+performs simple copying by linking a file.
+
+Baby-server only distinguishes between ctime and mtime on buckets.  It
+uses mtime for objects.
 
 ## golangci-lint
 

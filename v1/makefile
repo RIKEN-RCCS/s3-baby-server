@@ -10,13 +10,13 @@ get::
 	go get github.com/riken-rccs/s3-baby-server/pkg/httpaide
 
 check-linux-build::
-	GOOS=linux GOARCH=386 go build
+	GOOS=linux GOARCH=amd64 go build ./server
 
 check-windows-build::
-	GOOS=windows GOARCH=386 go build -o s3-baby-server.exe
+	GOOS=windows GOARCH=amd64 go build -o s3-baby-server.exe ./server
 
 check-unix-build::
-	GOOS=freebsd GOARCH=386 go build
+	GOOS=freebsd GOARCH=amd64 go build ./server
 
 tidy::
 	go mod tidy

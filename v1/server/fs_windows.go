@@ -18,6 +18,33 @@ import (
 	"time"
 )
 
+//func GetFileInformationByHandle(handle Handle, data *ByHandleFileInformation) (err error)
+
+func file_ino(path string) (uint64, bool) {
+	// f : syscall.Handle
+	var flag int = syscall.O_RDONLY
+	var perm uint32 = 0
+	var f, err1 = syscall.Open(path, flag, perm)
+	if err1 != nil {
+		log.Print("windows/syscall.Open() failed.")
+		return 0, false
+	}
+	defer func() {
+		var err3 = syscall.Close(f)
+		if err3 != nil {
+			log.Print("windows/syscall.Close() failed.")
+		}
+	}()
+	var d syscall.ByHandleFileInformation
+	var err2 = syscall.GetFileInformationByHandle(f, &d)
+	if err2 != nil {
+		log.Print("windows/syscall.GetFileInformationByHandle() failed.")
+		return 0, false
+	}
+	var ino = uint64(d.FileIndexHigh)<<32 | uint64(d.FileIndexLow)
+	return ino, true
+}
+
 func file_time(info fs.FileInfo) ([3]time.Time, bool) {
 	var s, ok = info.Sys().(*syscall.Win32FileAttributeData)
 	if !ok {

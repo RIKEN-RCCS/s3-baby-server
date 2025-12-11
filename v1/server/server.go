@@ -98,9 +98,6 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	var logger = slog.New(slog.NewTextHandler(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel}))
 
-	logger.Info("Starting Baby-server", "address", addr,
-		"version", Bb_version)
-
 	var access, secret, ok = strings.Cut(authKey, ",")
 	if !ok || len(access) == 0 || len(secret) == 0 {
 		logger.Info("Bad authentication key pair", "pair", authKey)
@@ -108,9 +105,9 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	}
 	var keypair = [2]string{access, secret}
 
-	// Change working directory to the pool-directory.  It is to avoid
-	// accidentally disclose the full path (it may include a user or
-	// project name)
+	// Change the working directory to the pool-directory.  It is to
+	// avoid accidentally disclosing the full path (which may include
+	// a user name or a project name)
 
 	var wd = path.Clean(pool_directory)
 	var err1 = os.Chdir(wd)
@@ -118,6 +115,9 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 		logger.Info("os.Chdir() failed", "directory", wd, "error", err1)
 		return
 	}
+
+	logger.Info("Starting Baby-server", "address", addr,
+		"access-key", keypair[0], "version", Bb_version)
 
 	var bbs = &Bb_server{pool_path: wd, logger: logger, keypair: keypair}
 	bbs.suffixes = make(map[string]suffix_record)

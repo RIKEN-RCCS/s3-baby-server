@@ -126,7 +126,7 @@ aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object4.txt" --
 
 ECHO "*** Call upload-part-copy."
 
-aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object4.txt" --part-number 2 --copy-source ""mybucket1"/"object2.txt"" --upload-id $UPLOAD_ID
+aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object4.txt" --part-number 2 --copy-source "mybucket1"/"object2.txt" --upload-id $UPLOAD_ID
 
 aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object1.txt" --part-number 1 --body data-08k.txt --upload-id $UPLOAD_ID || true
 

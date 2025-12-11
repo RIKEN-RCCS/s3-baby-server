@@ -66,7 +66,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 
 	var rid int64 = get_request_id(ctx)
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -355,7 +355,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err7
 	}
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -487,34 +487,40 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err2 != nil {
 		return nil, err2
 	}
-	var location = "/" + object
+	//var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
-			// i.ACL types.ObjectCannedACL
-			// i.BucketKeyEnabled *bool
+			ACL_object_canned: i.ACL,
+			BucketKeyEnabled:  i.BucketKeyEnabled,
 			// i.CacheControl *string
 			// i.ContentDisposition *string
 			// i.ContentEncoding *string
 			// i.ContentLanguage *string
 			// i.ContentType *string
-			// i.CopySourceSSECustomerAlgorithm *string
-			// i.ExpectedBucketOwner *string
-			// i.ExpectedSourceBucketOwner *string
-			// i.Expires *time.Time
-			// i.GrantFullControl *string
-			// i.GrantRead *string
-			// i.GrantReadACP *string
-			// i.GrantWriteACP *string
-			// i.MetadataDirective types.MetadataDirective
-			// i.ObjectLockLegalHoldStatus types.ObjectLockLegalHoldStatus
-			// i.ObjectLockMode types.ObjectLockMode
-			// i.ObjectLockRetainUntilDate *time.Time
-			// i.RequestPayer types.RequestPayer
-			// i.SSECustomerAlgorithm *string
-			// i.ServerSideEncryption types.ServerSideEncryption
-			// i.TaggingDirective types.TaggingDirective
-			// i.WebsiteRedirectLocation *string
+			CopySourceSSECustomerAlgorithm: i.CopySourceSSECustomerAlgorithm,
+			CopySourceSSECustomerKey:       i.CopySourceSSECustomerKey,
+			CopySourceSSECustomerKeyMD5:    i.CopySourceSSECustomerKeyMD5,
+			ExpectedBucketOwner:            i.ExpectedBucketOwner,
+			ExpectedSourceBucketOwner:      i.ExpectedSourceBucketOwner,
+			Expires:                        i.Expires,
+			GrantFullControl:               i.GrantFullControl,
+			GrantRead:                      i.GrantRead,
+			GrantReadACP:                   i.GrantReadACP,
+			GrantWriteACP:                  i.GrantWriteACP,
+			MetadataDirective:              i.MetadataDirective,
+			ObjectLockLegalHoldStatus:      i.ObjectLockLegalHoldStatus,
+			ObjectLockMode:                 i.ObjectLockMode,
+			ObjectLockRetainUntilDate:      i.ObjectLockRetainUntilDate,
+			RequestPayer:                   i.RequestPayer,
+			SSECustomerAlgorithm:           i.SSECustomerAlgorithm,
+			SSECustomerKey:                 i.SSECustomerKey,
+			SSECustomerKeyMD5:              i.SSECustomerKeyMD5,
+			SSEKMSEncryptionContext:        i.SSEKMSEncryptionContext,
+			SSEKMSKeyId:                    i.SSEKMSKeyId,
+			ServerSideEncryption:           i.ServerSideEncryption,
+			TaggingDirective:               i.TaggingDirective,
+			WebsiteRedirectLocation:        i.WebsiteRedirectLocation,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -549,101 +555,22 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		return nil, err5
 	}
 
-	var t_mtime time.Time
-	if !copy_file_by_linking {
-		var rid int64 = get_request_id(ctx)
-		var scratchkey = bbs.make_scratch_suffix(rid)
-		defer bbs.discharge_scratch_suffix(rid)
+	//var rid int64 = get_request_id(ctx)
+	//var scratchkey = bbs.make_scratch_suffix(rid)
+	//defer bbs.discharge_scratch_suffix(rid)
 
-		var err6 = bbs.copy_file_as_scratch(ctx, object, scratchkey,
-			source, nil)
-		if err6 != nil {
-			return nil, err6
-		}
-		var cleanup_needed = true
-		defer func() {
-			if cleanup_needed {
-				bbs.discard_scratch_file(object, scratchkey)
-			}
-		}()
-
-		if bbs.conf.Verify_fs_write {
-			var md5x, _, err1 = bbs.calculate_csum2("", object, scratchkey)
-			if err1 != nil {
-				return nil, err1
-			}
-			if bytes.Compare(md5, md5x) != 0 {
-				bbs.logger.Warn("Copying file failed, MD5 values differ",
-					"source", hex.EncodeToString(md5),
-					"target", hex.EncodeToString(md5x))
-				var errz = &Aws_s3_error{
-					Code:     InternalError,
-					Message:  "Copying file failed",
-					Resource: location}
-				return nil, errz
-			}
-		}
-
-		// SERIALIZE ACCESS.
-
-		{
-			var timeout = bbs.serialize_access(ctx, object, rid)
-			if timeout != nil {
-				return nil, timeout
-			}
-			defer bbs.release_access(ctx, object, rid)
-		}
-
-		{
-			var err1 = bbs.place_scratch_file(object, scratchkey, info)
-			if err1 != nil {
-				return nil, err1
-			}
-		}
-
-		var t_stat, err9 = bbs.fetch_object_status(object)
-		if err9 != nil {
-			return nil, err9
-		}
-		t_mtime = t_stat.ModTime()
-		cleanup_needed = false
-	} else {
-		// copy_file_by_linking = true.
-
-		var rid int64 = get_request_id(ctx)
-		// var scratchkey = bbs.make_scratch_suffix(rid)
-		// defer bbs.discharge_scratch_suffix(rid)
-
-		// SERIALIZE ACCESS.
-
-		{
-			var timeout = bbs.serialize_access(ctx, object, rid)
-			if timeout != nil {
-				return nil, timeout
-			}
-			defer bbs.release_access(ctx, object, rid)
-		}
-
-		var err1 = bbs.store_metainfo(object, info)
-		if err1 != nil {
-			return nil, err1
-		}
-
-		var s_path = bbs.make_path_of_object(source, "")
-		var t_path = bbs.make_path_of_object(object, "")
-
-		var err2 = os.Link(s_path, t_path)
-		if err2 != nil {
-			bbs.logger.Warn("os.Link() failed on an object",
-				"source", s_path, "object", t_path, "error", err2)
-			return nil, map_os_error(location, err2, nil)
-		}
-
-		var t_stat, err9 = bbs.fetch_object_status(object)
-		if err9 != nil {
-			return nil, err9
-		}
-		t_mtime = t_stat.ModTime()
+	var extent *[2]int64 = nil
+	var check = copy_checks{
+		checksum:      &checksum,
+		md5_to_check:  md5,
+		csum_to_check: csum,
+	}
+	var part int32 = 0
+	var upload_id = ""
+	var t_mtime, err6 = bbs.copy_object(ctx, object, part, upload_id,
+		source, extent, info, check)
+	if err6 != nil {
+		return nil, err6
 	}
 
 	o.CopyObjectResult = &types.CopyObjectResult{
@@ -663,7 +590,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		ChecksumSHA256:    csum_calculated.ChecksumSHA256,
 		ChecksumType:      csum_calculated.ChecksumType,
 		ETag:              &etag,
-		LastModified:      &t_mtime,
+		LastModified:      t_mtime,
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -735,7 +662,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 	// Note serialization may not be necessary as mkdir() is atomic.
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, bucket, rid)
@@ -844,7 +771,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 
 	var uploadid = scratchkey
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -933,7 +860,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 
 	var rid int64 = get_request_id(ctx)
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, bucket, rid)
@@ -1027,7 +954,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 
 	var rid int64 = get_request_id(ctx)
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -1205,7 +1132,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	// serializes on a bucket.  Also, ETag calculation takes time and
 	// it is placed outside of serialization.
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, bucket, rid)
@@ -1321,7 +1248,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 
 	var rid int64 = get_request_id(ctx)
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -2502,22 +2429,22 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		csum_to_check = csum2
 	}
 
-	var rid int64 = get_request_id(ctx)
-	var scratchkey = bbs.make_scratch_suffix(rid)
-	defer bbs.discharge_scratch_suffix(rid)
+	//var rid int64 = get_request_id(ctx)
+	//var scratchkey = bbs.make_scratch_suffix(rid)
+	//defer bbs.discharge_scratch_suffix(rid)
 
-	// SERIALIZE ACCESS (in the uploading routine).
+	// SERIALIZE-ACCESSES (in the uploading routine).
 
+	var part int32 = 0
+	var upload_id = ""
 	var check = upload_checks{
-		upload_id:      "",
-		size:           size,
-		checksum:       checksum,
-		md5_to_check:   md5_to_check,
-		csum_to_check:  csum_to_check,
-		etag_condition: [2]*string{i.IfMatch, i.IfNoneMatch},
+		size:          size,
+		checksum:      checksum,
+		md5_to_check:  md5_to_check,
+		csum_to_check: csum_to_check,
 	}
-	var md5, csum, err6 = bbs.upload_file(ctx, object, scratchkey, object,
-		info, check, i.Body)
+	var md5, csum, err6 = bbs.upload_object(ctx, object, part, upload_id,
+		i.Body, info, check)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2601,7 +2528,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 
 	var rid int64 = get_request_id(ctx)
 
-	// SERIALIZE ACCESS.
+	// SERIALIZE-ACCESSES.
 
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
@@ -2755,58 +2682,20 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		csum_to_check = csum2
 	}
 
-	var rid int64 = get_request_id(ctx)
-	var scratchkey = bbs.make_scratch_suffix(rid)
-	defer bbs.discharge_scratch_suffix(rid)
+	// SERIALIZE-ACCESSES (in the uploading routine).
 
-	var partobject = make_mpul_part_name(object, part)
-
-	// SERIALIZE ACCESS (in the uploading routine).
-
+	var upload_id = mpul.Upload_id
+	var info *Meta_info = nil
 	var check = upload_checks{
-		upload_id:      mpul.Upload_id,
-		size:           size,
-		checksum:       checksum,
-		md5_to_check:   md5_to_check,
-		csum_to_check:  csum_to_check,
-		etag_condition: [2]*string{nil, nil},
+		size:          size,
+		checksum:      checksum,
+		md5_to_check:  md5_to_check,
+		csum_to_check: csum_to_check,
 	}
-	var md5, csum, err6 = bbs.upload_file(ctx, partobject, scratchkey, object,
-		nil, check, i.Body)
+	var md5, csum, err6 = bbs.upload_object(ctx, object, part, upload_id,
+		i.Body, info, check)
 	if err6 != nil {
 		return nil, err6
-	}
-
-	var stat, _, err7 = bbs.check_object_status(partobject)
-	if err7 != nil {
-		return nil, err7
-	}
-
-	{
-		var catalog, err4 = bbs.fetch_mpul_catalog(object)
-		if err4 != nil {
-			return nil, err4
-		}
-
-		if part > int32(len(catalog.Parts)) {
-			var n = (part - int32(len(catalog.Parts)))
-			var adds = make([]Mpul_part, n)
-			catalog.Parts = append(catalog.Parts, adds...)
-		}
-
-		var etag = make_etag_from_md5(md5)
-
-		catalog.Parts[part-1] = Mpul_part{
-			Size:     size,
-			ETag:     etag,
-			Checksum: base64.StdEncoding.EncodeToString(csum),
-			Mtime:    stat.ModTime(),
-		}
-
-		var err8 = bbs.store_mpul_catalog(object, catalog)
-		if err8 != nil {
-			return nil, err8
-		}
 	}
 
 	var etag = make_etag_from_md5(md5)
@@ -2826,7 +2715,6 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		case types.ChecksumAlgorithmCrc64nvme:
 			o.ChecksumCRC64NVME = &csum1
 		}
-		//o.ChecksumType = types.ChecksumTypeFullObject
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -2874,10 +2762,14 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	{
 		var unsupported = option_check_list{
 			CopySourceSSECustomerAlgorithm: i.CopySourceSSECustomerAlgorithm,
+			CopySourceSSECustomerKey:       i.CopySourceSSECustomerKey,
+			CopySourceSSECustomerKeyMD5:    i.CopySourceSSECustomerKeyMD5,
 			ExpectedBucketOwner:            i.ExpectedBucketOwner,
 			ExpectedSourceBucketOwner:      i.ExpectedSourceBucketOwner,
 			RequestPayer:                   i.RequestPayer,
 			SSECustomerAlgorithm:           i.SSECustomerAlgorithm,
+			SSECustomerKey:                 i.SSECustomerKey,
+			SSECustomerKeyMD5:              i.SSECustomerKeyMD5,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -2885,7 +2777,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		}
 	}
 
-	var _, err3 = bbs.check_upload_ongoing(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2903,22 +2795,20 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err13
 	}
 
-	{
-		var md5, _, err14 = bbs.calculate_csum2("", source, "")
-		if err14 != nil {
-			return nil, err14
-		}
-		//var csum_calculated = fill_checksum_record(checksum, csum)
+	var md5, _, err14 = bbs.calculate_csum2("", source, "")
+	if err14 != nil {
+		return nil, err14
+	}
+	//var csum_calculated = fill_checksum_record(checksum, csum)
 
-		var s_mtime = s_stat.ModTime()
-		var s_etag = make_etag_from_md5(md5)
+	var s_mtime = s_stat.ModTime()
+	var s_etag = make_etag_from_md5(md5)
 
-		var _, err15 = bbs.check_request_conditions(&s_etag, &s_mtime, "PUT",
-			i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
-			i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
-		if err15 != nil {
-			return nil, err15
-		}
+	var _, err15 = bbs.check_request_conditions(&s_etag, &s_mtime, "PUT",
+		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
+		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
+	if err15 != nil {
+		return nil, err15
 	}
 
 	var size = s_stat.Size()
@@ -2927,48 +2817,17 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err24
 	}
 
-	var rid int64 = get_request_id(ctx)
-	var scratchkey = bbs.make_scratch_suffix(rid)
-	defer bbs.discharge_scratch_suffix(rid)
-
-	var partobject = make_mpul_part_name(object, part)
-
-	var err6 = bbs.copy_file_as_scratch(ctx, partobject, scratchkey,
-		source, extent)
+	var upload_id = mpul.Upload_id
+	var info *Meta_info = nil
+	var check = copy_checks{
+		checksum:      nil,
+		md5_to_check:  md5,
+		csum_to_check: nil,
+	}
+	var t_mtime, err6 = bbs.copy_object(ctx, object, part, upload_id,
+		source, extent, info, check)
 	if err6 != nil {
 		return nil, err6
-	}
-	var cleanup_needed = true
-	defer func() {
-		if cleanup_needed {
-			bbs.discard_scratch_file(partobject, scratchkey)
-		}
-	}()
-
-	// SERIALIZE ACCESS.
-
-	{
-		var timeout = bbs.serialize_access(ctx, object, rid)
-		if timeout != nil {
-			return nil, timeout
-		}
-		defer bbs.release_access(ctx, object, rid)
-	}
-
-	var t_mtime time.Time
-	{
-		var err1 = bbs.place_scratch_file(object, scratchkey, nil)
-		if err1 != nil {
-			return nil, err1
-		}
-
-		var t_stat, err9 = bbs.fetch_object_status(object)
-		if err9 != nil {
-			return nil, err9
-		}
-		t_mtime = t_stat.ModTime()
-
-		cleanup_needed = false
 	}
 
 	o.CopyPartResult = &types.CopyPartResult{
@@ -2980,7 +2839,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		// - ETag *string
 		// - LastModified *time.Time
 
-		LastModified: &t_mtime,
+		LastModified: t_mtime,
 	}
 
 	// o.BucketKeyEnabled *bool
