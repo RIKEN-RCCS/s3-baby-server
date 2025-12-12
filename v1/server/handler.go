@@ -1,4 +1,4 @@
-// handler.go (2025-12-10)
+// handler.go (2025-12-12)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -817,7 +817,7 @@ if o.ObjectLockRetainUntilDate != nil {
 ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.Format(time.RFC3339))}
 if o.ObjectLockLegalHoldStatus != "" {
 ho.Add("x-amz-object-lock-legal-hold", string(o.ObjectLockLegalHoldStatus))}
-ho.Set("Content-Type", "application/octet-stream")
+ho.Set("Content-Type", "binary/octet-stream")
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = io.Copy(w, o.Body)

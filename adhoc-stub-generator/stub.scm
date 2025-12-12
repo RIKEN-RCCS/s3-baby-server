@@ -1462,7 +1462,7 @@
 		 (return-binary? (string=? type "StreamingBlob")))
       (cond
        (return-binary?
-	(list "ho.Set(\"Content-Type\", \"application/octet-stream\")"
+	(list "ho.Set(\"Content-Type\", \"binary/octet-stream\")"
 	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
 	      (format #f "var _, err7 = io.Copy(w, o.~a)" slot)

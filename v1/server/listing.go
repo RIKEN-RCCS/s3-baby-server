@@ -3,10 +3,10 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Listing.  This is for {ListBuckets, ListMultipartUploads,
-// ListObjects, ListObjectsV2, ListParts}.  It prefers libraries
-// "io/fs" that is mostly os-independent (slash-delimited) over "os"
-// and "filepath".
+// Listing.  This is the main part of {ListBuckets,
+// ListMultipartUploads, ListObjects, ListObjectsV2, ListParts}.  It
+// prefers libraries "io/fs" that is mostly os-independent
+// (slash-delimited) over "os" and "filepath".
 
 // MEMO: io/fs.WalkDir does not follow symbolic links.  It is explicit
 // in "https://pkg.go.dev/io/fs#WalkDir"
@@ -615,4 +615,19 @@ func check_mpul_scratch_name(name string) bool {
 		log.Fatalf("BAD-IMPL: mpul_scratch_pattern")
 	}
 	return m
+}
+
+// CHECK_COMMON_PREFIX checks if a path has common-prefix part.  It
+// returns a common-prefix or "".
+func check_common_prefix(path, delimiter, prefix string) string {
+	if delimiter == "" {
+		return ""
+	}
+	var suffix = strings.TrimPrefix(path, prefix)
+	var s2 = strings.SplitAfter(suffix, delimiter)
+	if strings.HasSuffix(s2[0], delimiter) {
+		return strings.Join([]string{prefix, s2[0]}, "")
+	} else {
+		return ""
+	}
 }
