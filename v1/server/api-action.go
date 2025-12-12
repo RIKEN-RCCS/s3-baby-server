@@ -30,7 +30,7 @@ import (
 	//"net/http"
 	"net/url"
 	"strconv"
-	"strings"
+	//"strings"
 	//"sync"
 )
 
@@ -151,13 +151,12 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err3
 	}
 
+	var size int64
 	if i.MpuObjectSize == nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "x-amz-mp-object-size missing.",
-			Resource: location}
-		return nil, errz
+		size = -1
+	} else {
+		size = *i.MpuObjectSize
 	}
-	var size = *i.MpuObjectSize
 	var _ = size
 
 	var partlist = i.MultipartUpload
@@ -198,7 +197,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err4
 	}
 	var error_in_checking *Aws_s3_error = nil
-	var ng = slices.ContainsFunc(partlist.Parts,
+	var nogood = slices.ContainsFunc(partlist.Parts,
 		func(e types.CompletedPart) bool {
 			// It returns true on an error to stop the loop.
 			if e.PartNumber == nil || e.ETag == nil {
@@ -262,7 +261,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	if error_in_checking != nil {
 		return nil, error_in_checking
 	}
-	if ng {
+	if nogood {
 		log.Fatal("BAD-IMPL: slices.ContainsFunc() returns something bad" +
 			" in CompleteMultipartUpload")
 	}
@@ -271,7 +270,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
-	var err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul1)
+	var _, err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul1)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -348,13 +347,6 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	var etag = make_etag_from_md5(md5)
 
-	var _, err7 = bbs.check_request_conditions(&etag, nil, "POST",
-		i.IfMatch, i.IfNoneMatch,
-		nil, nil)
-	if err7 != nil {
-		return nil, err7
-	}
-
 	// SERIALIZE-ACCESSES.
 
 	{
@@ -374,6 +366,15 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		}
 		var info = mpul2.Meta_info
 
+		var err7 = bbs.check_request_conditionals(object, "write",
+			&conditionals{
+				some_match: i.IfMatch,
+				none_match: i.IfNoneMatch,
+			})
+		if err7 != nil {
+			return nil, err7
+		}
+
 		var err1 = bbs.place_scratch_file(object, scratchkey, info)
 		if err1 != nil {
 			return nil, err1
@@ -383,7 +384,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 		var err2 = bbs.discard_mpul_directory(object)
 		if err2 != nil {
-			// IGNORE ERRORS.
+			// IGNORE-ERRORS.
 		}
 	}
 
@@ -487,7 +488,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err2 != nil {
 		return nil, err2
 	}
-	//var location = "/" + object
+	var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
@@ -526,6 +527,11 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		if err1 != nil {
 			return nil, err1
 		}
+
+		var ignored = option_check_list{
+			CacheControl: i.CacheControl,
+		}
+		bbs.check_options_ignored(action, location, &ignored)
 	}
 
 	var source, err15 = bbs.lookat_copy_source(object, i.CopySource)
@@ -539,18 +545,25 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err3 != nil {
 		return nil, err3
 	}
+	var _ = s_stat
 	var md5, csum, err4 = bbs.calculate_csum2(checksum, source, "")
 	if err4 != nil {
 		return nil, err4
 	}
 	var csum_calculated = fill_checksum_record(checksum, csum)
 
-	var s_mtime = s_stat.ModTime()
+	//var s_mtime = s_stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err5 = bbs.check_request_conditions(&etag, &s_mtime, "PUT",
-		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
-		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
+	// NOTE: Checking conditionals on the source is not serialized.
+
+	var err5 = bbs.check_request_conditionals(source, "read",
+		&conditionals{
+			some_match:      i.CopySourceIfMatch,
+			none_match:      i.CopySourceIfNoneMatch,
+			modified_after:  i.CopySourceIfModifiedSince,
+			modified_before: i.CopySourceIfUnmodifiedSince,
+		})
 	if err5 != nil {
 		return nil, err5
 	}
@@ -559,14 +572,14 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	//var scratchkey = bbs.make_scratch_suffix(rid)
 	//defer bbs.discharge_scratch_suffix(rid)
 
+	var part int32 = 0
+	var upload_id = ""
 	var extent *[2]int64 = nil
 	var check = copy_checks{
-		checksum:      &checksum,
+		checksum:      checksum,
 		md5_to_check:  md5,
 		csum_to_check: csum,
 	}
-	var part int32 = 0
-	var upload_id = ""
 	var t_mtime, err6 = bbs.copy_object(ctx, object, part, upload_id,
 		source, extent, info, check)
 	if err6 != nil {
@@ -739,7 +752,6 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		return nil, err2
 	}
 	var location = "/" + object
-	var _ = location
 
 	{
 		var unsupported = option_check_list{
@@ -749,6 +761,11 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		if err1 != nil {
 			return nil, err1
 		}
+
+		var ignored = option_check_list{
+			CacheControl: i.CacheControl,
+		}
+		bbs.check_options_ignored(action, location, &ignored)
 	}
 
 	var info, err3 = make_metainfo(i.Metadata, i.Tagging, location)
@@ -943,14 +960,8 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	if err4 != nil {
 		return nil, err4
 	}
-	var etag = make_etag_from_md5(md5)
-
-	var _, err5 = bbs.check_request_conditions(&etag, nil, "POST",
-		i.IfMatch, nil,
-		nil, nil)
-	if err5 != nil {
-		return nil, err5
-	}
+	var _ = md5
+	//var etag = make_etag_from_md5(md5)
 
 	var rid int64 = get_request_id(ctx)
 
@@ -965,9 +976,19 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	}
 
 	{
+		var err5 = bbs.check_request_conditionals(object, "delete",
+			&conditionals{
+				some_match:    i.IfMatch,
+				modified_time: i.IfMatchLastModifiedTime,
+				size:          i.IfMatchSize,
+			})
+		if err5 != nil {
+			return nil, err5
+		}
+
 		var err1 = bbs.store_metainfo(object, nil)
 		if err1 != nil {
-			// IGNORE ERRORS.
+			// IGNORE-ERRORS.
 		}
 		var path = bbs.make_path_of_object(object, "")
 		var err2 = os.Remove(path)
@@ -1151,7 +1172,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				var object = e.object
 				var err6 = bbs.store_metainfo(object, nil)
 				if err6 != nil {
-					// IGNORE ERRORS.
+					// IGNORE-ERRORS.
 					// deletestate[i].error.Code = &err6.Code
 					// deletestate[i].error.Message = &err6.Message
 					// continue loop2
@@ -1347,14 +1368,18 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var mtime = stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err6 = bbs.check_request_conditions(&etag, &mtime, "GET",
-		i.IfMatch, i.IfNoneMatch,
-		i.IfModifiedSince, i.IfUnmodifiedSince)
+	// NO SERIALIZE-ACCESS.
+
+	var err6 = bbs.check_request_conditionals(object, "read",
+		&conditionals{
+			some_match:      i.IfMatch,
+			none_match:      i.IfNoneMatch,
+			modified_after:  i.IfModifiedSince,
+			modified_before: i.IfUnmodifiedSince,
+		})
 	if err6 != nil {
 		return nil, err6
 	}
-
-	// NO SERIALIZE-ACCESS.
 
 	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
 	if err7 != nil {
@@ -1671,14 +1696,18 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	var mtime = stat.ModTime()
 	var etag = make_etag_from_md5(md5)
 
-	var _, err6 = bbs.check_request_conditions(&etag, &mtime, "HEAD",
-		i.IfMatch, i.IfNoneMatch,
-		i.IfModifiedSince, i.IfUnmodifiedSince)
+	// NO SERIALIZE-ACCESS.
+
+	var err6 = bbs.check_request_conditionals(object, "read",
+		&conditionals{
+			some_match:      i.IfMatch,
+			none_match:      i.IfNoneMatch,
+			modified_after:  i.IfModifiedSince,
+			modified_before: i.IfUnmodifiedSince,
+		})
 	if err6 != nil {
 		return nil, err6
 	}
-
-	// NO SERIALIZE-ACCESS.
 
 	o.LastModified = &mtime
 
@@ -2357,17 +2386,11 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		if err1 != nil {
 			return nil, err1
 		}
-	}
 
-	// AHO ?? Check "Cache-Control" which only accepts "no-cache".
-
-	if i.CacheControl != nil {
-		if !strings.EqualFold(*i.CacheControl, "no-cache") {
-			var errz = &Aws_s3_error{Code: InvalidStorageClass,
-				Message:  "Bad Cache-Control",
-				Resource: location}
-			return nil, errz
+		var ignored = option_check_list{
+			CacheControl: i.CacheControl,
 		}
+		bbs.check_options_ignored(action, location, &ignored)
 	}
 
 	var info, err3 = make_metainfo(i.Metadata, i.Tagging, location)
@@ -2437,14 +2460,18 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	var part int32 = 0
 	var upload_id = ""
-	var check = upload_checks{
+	var conditions = &conditionals{
+		some_match: i.IfMatch,
+		none_match: i.IfNoneMatch,
+	}
+	var check = &copy_checks{
 		size:          size,
 		checksum:      checksum,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
 	var md5, csum, err6 = bbs.upload_object(ctx, object, part, upload_id,
-		i.Body, info, check)
+		i.Body, info, conditions, check)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2608,17 +2635,6 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		}
 	}
 
-	/*
-		if i.CacheControl != nil {
-			if !strings.EqualFold(*i.CacheControl, "no-cache") {
-				var errz = &Aws_s3_error{Code: InvalidStorageClass,
-					Message:  "Bad Cache-Control",
-					Resource: location}
-				return nil, errz
-			}
-		}
-	*/
-
 	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
 	if err3 != nil {
 		return nil, err3
@@ -2686,14 +2702,14 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 	var upload_id = mpul.Upload_id
 	var info *Meta_info = nil
-	var check = upload_checks{
+	var check = &copy_checks{
 		size:          size,
 		checksum:      checksum,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
 	var md5, csum, err6 = bbs.upload_object(ctx, object, part, upload_id,
-		i.Body, info, check)
+		i.Body, info, nil, check)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2801,12 +2817,18 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	}
 	//var csum_calculated = fill_checksum_record(checksum, csum)
 
-	var s_mtime = s_stat.ModTime()
-	var s_etag = make_etag_from_md5(md5)
+	//var s_mtime = s_stat.ModTime()
+	//var s_etag = make_etag_from_md5(md5)
 
-	var _, err15 = bbs.check_request_conditions(&s_etag, &s_mtime, "PUT",
-		i.CopySourceIfMatch, i.CopySourceIfNoneMatch,
-		i.CopySourceIfModifiedSince, i.CopySourceIfUnmodifiedSince)
+	// NOTE: Checking conditionals on the source is not serialized.
+
+	var err15 = bbs.check_request_conditionals(source, "read",
+		&conditionals{
+			some_match:      i.CopySourceIfMatch,
+			none_match:      i.CopySourceIfNoneMatch,
+			modified_after:  i.CopySourceIfModifiedSince,
+			modified_before: i.CopySourceIfUnmodifiedSince,
+		})
 	if err15 != nil {
 		return nil, err15
 	}
@@ -2820,7 +2842,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	var upload_id = mpul.Upload_id
 	var info *Meta_info = nil
 	var check = copy_checks{
-		checksum:      nil,
+		checksum:      "",
 		md5_to_check:  md5,
 		csum_to_check: nil,
 	}

@@ -30,7 +30,7 @@ than "application/octet-stream".
 
 - No tags are allowed on buckets.  Tags on a request are ignored.
 
-- Symbolic links in the local filesystem are ignored.  Putting an
+- Symbolic links in the local filesystem are ignored.  Uploading an
   object is an error when the path includes symbolic links.  It is to
   avoid a file being stored in an inaccessible path.  Baby-server
   explicitly checks it.
@@ -48,6 +48,10 @@ than "application/octet-stream".
 
 - GetObjectAttributes returns no "ObjectParts" infomation.
   Baby-server does not retain parts information.
+
+- Bad formatted http-date in http-headers "if-modified-since",
+  "if-unmodified-since", and "x-amz-if-match-last-modified-time"
+  invokes an error, although they should be ignored.
 
 ## Terse Error Messages
 
@@ -81,6 +85,11 @@ performs simple copying by linking a file.
 
 Baby-server only distinguishes between ctime and mtime on buckets.  It
 uses mtime for objects.
+
+## Security
+
+Baby-server uses inode numbers to generate ETags.  There is a concern
+that some may consider inode numbers are sensitive.
 
 ## golangci-lint
 

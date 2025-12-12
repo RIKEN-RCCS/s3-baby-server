@@ -18,8 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"io"
 	"io/fs"
+	"log"
 	"time"
-	//"log"
 	//"net/url"
 	"os"
 	"path"
@@ -58,20 +58,6 @@ type Mpul_part struct {
 	ETag     string
 	Checksum string
 	Mtime    time.Time
-}
-
-type upload_checks struct {
-	size          int64
-	checksum      types.ChecksumAlgorithm
-	md5_to_check  []byte
-	csum_to_check []byte
-}
-
-type copy_checks struct {
-	size          int64
-	checksum      *types.ChecksumAlgorithm
-	md5_to_check  []byte
-	csum_to_check []byte
 }
 
 func os_error_name(err error) string {
@@ -674,12 +660,16 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 }
 
 // CHECK_OBJECT_STATUS takes a stat() on an object.  It is used to
-// check the existence of an object.  It also checks the existence of
-// metainfo.  Metainfo may be nil.
+// check the existence of an object.  It may return stat=nil when an
+// object does not exist.  It returns metainfo as well.  Metainfo may
+// be nil.
 func (bbs *Bb_server) check_object_status(object string) (fs.FileInfo, *Meta_info, *Aws_s3_error) {
-	var stat, err1 = bbs.fetch_object_status(object)
+	var stat, _, err1 = bbs.fetch_object_status(object)
 	if err1 != nil {
 		return nil, nil, err1
+	}
+	if stat == nil {
+		return nil, nil, nil
 	}
 	var info, err2 = bbs.fetch_metainfo(object)
 	if err2 != nil {
@@ -688,38 +678,46 @@ func (bbs *Bb_server) check_object_status(object string) (fs.FileInfo, *Meta_inf
 	return stat, info, nil
 }
 
-// FETCH_OBJECT_STATUS takes a stat() on an object.  Non-regular files
-// are not an object.
-func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, *Aws_s3_error) {
+// FETCH_OBJECT_STATUS takes a stat() on an object.  It can be used
+// for checking existence.  It returns nil and not an error (nil,nil),
+// when an object does not exist.  Note non-regular files are not an
+// object.
+func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
 	var stat, err1 = os.Lstat(path)
 	if err1 != nil {
-		bbs.logger.Info("os.Lstat() failed",
-			"path", path, "error", err1)
 		if errors.Is(err1, fs.ErrNotExist) {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "No object as named.",
-				Resource: location}
-			return nil, errz
+			return nil, "", nil
 		} else {
-			return nil, map_os_error(location, err1, nil)
+			bbs.logger.Error("os.Lstat() failed",
+				"path", path, "error", err1)
+			return nil, "", map_os_error(location, err1, nil)
 		}
 	}
 	var mode = stat.Mode()
 	switch {
 	case mode.IsRegular():
 		// OK.
+	case mode.IsDir():
+		fallthrough
 	case mode&fs.ModeSymlink != 0:
 		fallthrough
 	default:
-		bbs.logger.Info("An object path is not a regular file",
+		bbs.logger.Info("An object is not a regular file",
 			"path", path, "mode", mode)
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "No object as named.",
+		var errz = &Aws_s3_error{Code: InvalidObjectState,
+			Message:  "Non-regular file exists as named.",
 			Resource: location}
-		return nil, errz
+		return nil, "", errz
 	}
-	return stat, nil
+
+	var ino, ok = file_ino(path)
+	if !ok {
+		log.Fatal("BAD-IMPL: Cannot take inode number")
+	}
+	var etag = make_etag_from_stat(stat, ino)
+
+	return stat, etag, nil
 }

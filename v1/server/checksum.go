@@ -137,11 +137,3 @@ func fill_checksum_record(algorithm types.ChecksumAlgorithm, csum []byte) *types
 	}
 	return &cs
 }
-
-// ETags are strong always.
-func make_etag_from_md5(csum []byte) string {
-	if len(csum) == 0 {
-		log.Fatal("BAD-IMPL: md5 never nil")
-	}
-	return "\"" + base64.StdEncoding.EncodeToString(csum) + "\""
-}

@@ -58,7 +58,7 @@ func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types
 		if err2 != nil {
 			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
-			// IGNORE ERRORS.
+			// IGNORE-ERRORS.
 			continue
 		}
 
@@ -165,7 +165,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 			if err2 != nil {
 				bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 					"direntry", e, "error", err2)
-				// IGNORE ERRORS.
+				// IGNORE-ERRORS.
 				continue
 			}
 
@@ -266,7 +266,7 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 		if err2 != nil {
 			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
-			// IGNORE ERRORS.
+			// IGNORE-ERRORS.
 			return nil
 		}
 
@@ -475,11 +475,11 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 		// entry to check truncation.
 
 		if len(objects) < maxkeys {
-			if commonpart != "" {
+			if commonpart == "" {
 				var object = path.Join(bucket, key2)
 				var mpul, err4 = bbs.fetch_mpul_info(object)
 				if err4 != nil {
-					// IGNORE ERRORS.
+					// IGNORE-ERRORS.
 					// Race among listing and others.
 					bbs.logger.Info("Race in accessing MPUL,"+
 						" listing and others",
@@ -559,7 +559,7 @@ func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) *Aws_s3
 		if err2 != nil {
 			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
 				"direntry", e, "error", err2)
-			// IGNORE ERRORS.
+			// IGNORE-ERRORS.
 			continue
 		}
 
