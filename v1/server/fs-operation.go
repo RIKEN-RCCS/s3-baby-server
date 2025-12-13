@@ -31,8 +31,13 @@ import (
 // file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
 // will be encoded in json.
 type Meta_info struct {
-	Headers map[string]string
-	Tags    *types.Tagging
+	Headers            map[string]string
+	Tags               *types.Tagging
+	ContentDisposition *string
+	ContentEncoding    *string
+	ContentLanguage    *string
+	ContentType        *string
+	Expires            *time.Time
 	//ETag *string
 	//Checksum_algorithm types.ChecksumAlgorithm
 	//Checksum *string
@@ -682,29 +687,26 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 	}
 }
 
-// CHECK_OBJECT_STATUS takes a stat() on an object.  It is used to
-// check the existence of an object.  It may return stat=nil when an
-// object does not exist.  It returns metainfo as well.  Metainfo may
-// be nil.
-func (bbs *Bb_server) check_object_status(object string) (fs.FileInfo, *Meta_info, *Aws_s3_error) {
-	var stat, _, err1 = bbs.fetch_object_status(object)
+// CHECK_OBJECT_EXISTS takes a stat() and etag on an object.  It
+// returns an error, when an object does not exist.  It returns metainfo as
+// well.  Metainfo may be nil.
+func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, string, *Aws_s3_error) {
+	var location = "/" + object
+	var stat, etag, err1 = bbs.fetch_object_status(object)
 	if err1 != nil {
-		return nil, nil, err1
+		return stat, etag, err1
 	}
 	if stat == nil {
-		return nil, nil, nil
+		var errz = &Aws_s3_error{Code: NoSuchKey,
+			Resource: location}
+		return stat, etag, errz
 	}
-	var info, err2 = bbs.fetch_metainfo(object)
-	if err2 != nil {
-		return nil, nil, err2
-	}
-	return stat, info, nil
+	return stat, etag, err1
 }
 
-// FETCH_OBJECT_STATUS takes a stat() on an object.  It can be used
-// for checking existence.  It returns nil and not an error (nil,nil),
-// when an object does not exist.  Note non-regular files are not an
-// object.
+// FETCH_OBJECT_STATUS takes a stat() and etag on an object.  It can
+// be used for checking existence.  It may return stat=nil when an
+// object does not exist.  Note non-regular files are never an object.
 func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")

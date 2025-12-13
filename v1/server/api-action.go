@@ -319,9 +319,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 	o.Location = &address
 
-	// Copy the checksum given, because it passes the comparison.
-
 	if mpul.ChecksumAlgorithm != "" {
+		// Copy the checksum given, because it passes the comparison.
 		o.ChecksumType = csum_given.ChecksumType
 		o.ChecksumCRC32 = csum_given.ChecksumCRC32
 		o.ChecksumCRC32C = csum_given.ChecksumCRC32C
@@ -401,24 +400,17 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 
 	{
 		var unsupported = option_check_list{
-			ACL_object_canned: i.ACL,
-			BucketKeyEnabled:  i.BucketKeyEnabled,
-			// i.CacheControl *string
-			// i.ContentDisposition *string
-			// i.ContentEncoding *string
-			// i.ContentLanguage *string
-			// i.ContentType *string
+			ACL_object_canned:              i.ACL,
+			BucketKeyEnabled:               i.BucketKeyEnabled,
 			CopySourceSSECustomerAlgorithm: i.CopySourceSSECustomerAlgorithm,
 			CopySourceSSECustomerKey:       i.CopySourceSSECustomerKey,
 			CopySourceSSECustomerKeyMD5:    i.CopySourceSSECustomerKeyMD5,
 			ExpectedBucketOwner:            i.ExpectedBucketOwner,
 			ExpectedSourceBucketOwner:      i.ExpectedSourceBucketOwner,
-			Expires:                        i.Expires,
 			GrantFullControl:               i.GrantFullControl,
 			GrantRead:                      i.GrantRead,
 			GrantReadACP:                   i.GrantReadACP,
 			GrantWriteACP:                  i.GrantWriteACP,
-			MetadataDirective:              i.MetadataDirective,
 			ObjectLockLegalHoldStatus:      i.ObjectLockLegalHoldStatus,
 			ObjectLockMode:                 i.ObjectLockMode,
 			ObjectLockRetainUntilDate:      i.ObjectLockRetainUntilDate,
@@ -429,7 +421,6 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			SSEKMSEncryptionContext:        i.SSEKMSEncryptionContext,
 			SSEKMSKeyId:                    i.SSEKMSKeyId,
 			ServerSideEncryption:           i.ServerSideEncryption,
-			TaggingDirective:               i.TaggingDirective,
 			WebsiteRedirectLocation:        i.WebsiteRedirectLocation,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
@@ -447,19 +438,46 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err15 != nil {
 		return nil, err15
 	}
-
-	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-
-	var s_stat, info, err3 = bbs.check_object_status(source)
+	//var s_stat, info, err3 = bbs.check_object_status(source)
+	var _, _, err3 = bbs.check_object_exists(source)
 	if err3 != nil {
 		return nil, err3
 	}
-	var _ = s_stat
-	var md5, csum, err4 = bbs.calculate_csum2(checksum, source, "")
-	if err4 != nil {
-		return nil, err4
+
+	var info *Meta_info
+	{
+		var info1 Meta_info
+		var s_info, err2 = bbs.fetch_metainfo(source)
+		if err2 != nil {
+			return nil, err2
+		}
+		var tags, err1 = bbs.parse_tags(i.Tagging, location)
+		if err1 != nil {
+			return nil, err1
+		}
+		switch i.MetadataDirective {
+		case "COPY":
+			info1.Headers = s_info.Headers
+		case "REPLACE":
+			info1.Headers = i.Metadata
+		}
+		switch i.TaggingDirective {
+		case "COPY":
+			info1.Tags = s_info.Tags
+		case "REPLACE":
+			info1.Tags = tags
+		}
+		info1.ContentDisposition = i.ContentDisposition
+		info1.ContentEncoding = i.ContentEncoding
+		info1.ContentLanguage = i.ContentLanguage
+		info1.ContentType = i.ContentType
+		info1.Expires = i.Expires
+		if metainfo_zero(&info1) {
+			info = nil
+		} else {
+			info = &info1
+		}
 	}
-	var csum_calculated = fill_checksum_record(checksum, csum)
 
 	//var s_mtime = s_stat.ModTime()
 	//var etag = make_etag_from_md5(md5)
@@ -477,24 +495,28 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		return nil, err5
 	}
 
-	//var rid int64 = get_request_id(ctx)
-	//var scratchkey = bbs.make_scratch_suffix(rid)
-	//defer bbs.discharge_scratch_suffix(rid)
-
 	// SERIALIZE-ACCESSES (in the copying routine)
 
 	var part int32 = 0
 	var upload_id = ""
 	var extent *[2]int64 = nil
-	var check = copy_checks{
-		checksum:      checksum,
-		md5_to_check:  md5,
-		csum_to_check: csum,
-	}
+	var checks = copy_checks{}
 	var stat, etag, err6 = bbs.copy_object(ctx, object, part, upload_id,
-		source, extent, info, check)
+		source, extent, info, checks)
 	if err6 != nil {
 		return nil, err6
+	}
+
+	// Note checksum calculation is outside of serialization.
+
+	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
+	var csum_calculated *types.Checksum
+	if checksum != "" {
+		var _, csum1, err4 = bbs.calculate_csum2(checksum, source, "")
+		if err4 != nil {
+			return nil, err4
+		}
+		csum_calculated = fill_checksum_record(checksum, csum1)
 	}
 
 	var mtime = stat.ModTime()
@@ -681,7 +703,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var info, err3 = make_metainfo(i.Metadata, i.Tagging, location)
+	var info, err3 = bbs.make_metainfo(i.Metadata, i.Tagging, location)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -867,7 +889,8 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 		}
 	}
 
-	var _, _, err3 = bbs.check_object_status(object)
+	//var _, _, err3 = bbs.check_object_status(object)
+	var _, _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1017,7 +1040,8 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				continue loop1
 			}
 
-			var stat, _, err4 = bbs.check_object_status(object)
+			//var stat, _, err4 = bbs.check_object_status(object)
+			var stat, _, err4 = bbs.check_object_exists(object)
 			if err4 != nil {
 				deletestate[i].error.Code = &err4.Code
 				deletestate[i].error.Message = &err4.Message
@@ -1043,13 +1067,12 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 			}
 
 			if e.ETag != nil {
-				var md5, _, err4 = bbs.calculate_csum2("", object, "")
+				var _, etag, err4 = bbs.check_object_exists(object)
 				if err4 != nil {
 					deletestate[i].error.Code = &err4.Code
 					deletestate[i].error.Message = &err4.Message
 					continue loop1
 				}
-				var etag = make_etag_from_md5(md5)
 				if etag != *e.ETag {
 					var errz = &Aws_s3_error{Code: PreconditionFailed,
 						Message: "ETag does not match."}
@@ -1195,9 +1218,15 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var _, info, err3 = bbs.check_object_status(object)
+	//var _, info, err3 = bbs.check_object_status(object)
+	var _, _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
+	}
+
+	var info, err5 = bbs.fetch_metainfo(object)
+	if err5 != nil {
+		return nil, err5
 	}
 
 	// Modify metainfo, and remove the file when it become nothing.
@@ -1254,9 +1283,13 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	{
 		var unsupported = option_check_list{
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			PartNumber:          i.PartNumber,
-			VersionId:           i.VersionId,
+			ExpectedBucketOwner:  i.ExpectedBucketOwner,
+			PartNumber:           i.PartNumber,
+			RequestPayer:         i.RequestPayer,
+			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
+			SSECustomerKey:       i.SSECustomerKey,
+			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
+			VersionId:            i.VersionId,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -1264,9 +1297,15 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		}
 	}
 
-	var stat, info, err3 = bbs.check_object_status(object)
+	//var stat, info, err3 = bbs.check_object_status(object)
+	var stat, etag, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
+	}
+
+	var info, err5 = bbs.fetch_metainfo(object)
+	if err5 != nil {
+		return nil, err5
 	}
 
 	var size = stat.Size()
@@ -1275,14 +1314,8 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err4
 	}
 
-	var checksum = types.ChecksumAlgorithmCrc64nvme
-	var md5, csum, err5 = bbs.calculate_csum2(checksum, object, "")
-	if err5 != nil {
-		return nil, err5
-	}
-
 	var mtime = stat.ModTime()
-	var etag = make_etag_from_md5(md5)
+	//var etag = make_etag_from_md5(md5)
 
 	// NO SERIALIZE-ACCESS.
 
@@ -1295,6 +1328,16 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		})
 	if err6 != nil {
 		return nil, err6
+	}
+
+	var csum []byte
+	if i.ChecksumMode == types.ChecksumModeEnabled {
+		var checksum = types.ChecksumAlgorithmCrc64nvme
+		var _, csum1, err1 = bbs.calculate_csum2(checksum, object, "")
+		if err1 != nil {
+			return nil, err1
+		}
+		csum = csum1
 	}
 
 	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
@@ -1315,8 +1358,8 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	o.ETag = &etag
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
-		o.ChecksumType = types.ChecksumTypeFullObject
 		var crc = base64.StdEncoding.EncodeToString(csum)
+		o.ChecksumType = types.ChecksumTypeFullObject
 		o.ChecksumCRC64NVME = &crc
 	}
 
@@ -1396,28 +1439,27 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var stat, info, err3 = bbs.check_object_status(object)
+	//var stat, info, err3 = bbs.check_object_status(object)
+	var stat, etag, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
-	var _ = info
 
-	var rid int64 = get_request_id(ctx)
-	var _ = rid
+	//var rid int64 = get_request_id(ctx)
 	//var scratchkey = bbs.make_scratch_suffix(rid)
 	//defer bbs.discharge_scratch_suffix(rid)
 
 	// NO SERIALIZE-ACCESS.
 
 	var checksum = types.ChecksumAlgorithmCrc64nvme
-	var md5, csum, err6 = bbs.calculate_csum2(checksum, object, "")
+	var _, csum, err6 = bbs.calculate_csum2(checksum, object, "")
 	if err6 != nil {
 		return nil, err6
 	}
 
 	var attributes = i.ObjectAttributes
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
-		var etag = make_etag_from_md5(md5)
+		//var etag = make_etag_from_md5(md5)
 		o.ETag = &etag
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
@@ -1496,9 +1538,15 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		}
 	}
 
-	var _, info, err3 = bbs.check_object_status(object)
+	//var _, info, err3 = bbs.check_object_status(object)
+	var _, _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
+	}
+
+	var info, err5 = bbs.fetch_metainfo(object)
+	if err5 != nil {
+		return nil, err5
 	}
 
 	// NO SERIALIZE-ACCESS.
@@ -1583,8 +1631,13 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	{
 		var unsupported = option_check_list{
-			PartNumber:          i.PartNumber,
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
+			PartNumber:           i.PartNumber,
+			ExpectedBucketOwner:  i.ExpectedBucketOwner,
+			RequestPayer:         i.RequestPayer,
+			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
+			SSECustomerKey:       i.SSECustomerKey,
+			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
+			VersionId:            i.VersionId,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -1592,9 +1645,15 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		}
 	}
 
-	var stat, info, err3 = bbs.check_object_status(object)
+	//var stat, info, err3 = bbs.check_object_status(object)
+	var stat, etag, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
+	}
+
+	var info, err5 = bbs.fetch_metainfo(object)
+	if err5 != nil {
+		return nil, err5
 	}
 
 	var size = stat.Size()
@@ -1603,14 +1662,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		return nil, err4
 	}
 
-	var checksum = types.ChecksumAlgorithmCrc64nvme
-	var md5, csum, err5 = bbs.calculate_csum2(checksum, object, "")
-	if err5 != nil {
-		return nil, err5
-	}
-
 	var mtime = stat.ModTime()
-	var etag = make_etag_from_md5(md5)
+	//var etag = make_etag_from_md5(md5)
 
 	// NO SERIALIZE-ACCESS.
 
@@ -1623,6 +1676,16 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		})
 	if err6 != nil {
 		return nil, err6
+	}
+
+	var csum []byte
+	if i.ChecksumMode == types.ChecksumModeEnabled {
+		var checksum = types.ChecksumAlgorithmCrc64nvme
+		var _, csum1, err1 = bbs.calculate_csum2(checksum, object, "")
+		if err1 != nil {
+			return nil, err1
+		}
+		csum = csum1
 	}
 
 	o.LastModified = &mtime
@@ -1639,8 +1702,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	o.PartsCount = &one
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
-		o.ChecksumType = types.ChecksumTypeFullObject
 		var crc = base64.StdEncoding.EncodeToString(csum)
+		o.ChecksumType = types.ChecksumTypeFullObject
 		o.ChecksumCRC64NVME = &crc
 	}
 
@@ -2295,8 +2358,22 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	{
 		var unsupported = option_check_list{
+			ACL_object_canned:   i.ACL,
+			BucketKeyEnabled:    i.BucketKeyEnabled,
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			StorageClass:        i.StorageClass,
+			//Expires: i.Expires,
+			ObjectLockLegalHoldStatus: i.ObjectLockLegalHoldStatus,
+			ObjectLockMode:            i.ObjectLockMode,
+			ObjectLockRetainUntilDate: i.ObjectLockRetainUntilDate,
+			RequestPayer:              i.RequestPayer,
+			SSECustomerAlgorithm:      i.SSECustomerAlgorithm,
+			SSECustomerKey:            i.SSECustomerKey,
+			SSECustomerKeyMD5:         i.SSECustomerKeyMD5,
+			SSEKMSEncryptionContext:   i.SSEKMSEncryptionContext,
+			SSEKMSKeyId:               i.SSEKMSKeyId,
+			ServerSideEncryption:      i.ServerSideEncryption,
+			WebsiteRedirectLocation:   i.WebsiteRedirectLocation,
+			WriteOffsetBytes:          i.WriteOffsetBytes,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -2305,11 +2382,20 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 		var ignored = option_check_list{
 			CacheControl: i.CacheControl,
+			// i.ContentDisposition *string
+			// i.ContentEncoding *string
+			// i.ContentLanguage *string
+			// i.ContentType *string
+			// i.GrantFullControl *string
+			// i.GrantRead *string
+			// i.GrantReadACP *string
+			// i.GrantWriteACP *string
+			StorageClass: i.StorageClass,
 		}
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var info, err3 = make_metainfo(i.Metadata, i.Tagging, location)
+	var info, err3 = bbs.make_metainfo(i.Metadata, i.Tagging, location)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2334,38 +2420,17 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	}
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	var csum_to_check []byte
-	if checksum != "" {
-		var csum1 *string
-		switch checksum {
-		case types.ChecksumAlgorithmCrc32:
-			csum1 = i.ChecksumCRC32
-		case types.ChecksumAlgorithmCrc32c:
-			csum1 = i.ChecksumCRC32C
-		case types.ChecksumAlgorithmSha1:
-			csum1 = i.ChecksumSHA1
-		case types.ChecksumAlgorithmSha256:
-			csum1 = i.ChecksumSHA256
-		case types.ChecksumAlgorithmCrc64nvme:
-			csum1 = i.ChecksumCRC64NVME
-		default:
-			log.Fatalf("BAD-IMPL: Bad s3/types.ChecksumAlgorithm: %s",
-				checksum)
-		}
-		if csum1 == nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "Checksum value is missing.",
-				Resource: location}
-			return nil, errz
-		}
-		var csum2, err5 = base64.StdEncoding.DecodeString(*csum1)
-		if err5 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Resource: location,
-				Message:  "Checksum value is illegal."}
-			return nil, errz
-		}
-		csum_to_check = csum2
+	var csum_given = types.Checksum{
+		ChecksumType:      types.ChecksumTypeFullObject,
+		ChecksumCRC32:     i.ChecksumCRC32,
+		ChecksumCRC32C:    i.ChecksumCRC32C,
+		ChecksumCRC64NVME: i.ChecksumSHA256,
+		ChecksumSHA1:      i.ChecksumCRC64NVME,
+		ChecksumSHA256:    i.ChecksumSHA1,
+	}
+	var csum_to_check, err8 = decode_checksum_value(object, checksum, &csum_given)
+	if err8 != nil {
+		return nil, err8
 	}
 
 	//var rid int64 = get_request_id(ctx)
@@ -2386,30 +2451,23 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
-	var md5, csum, err6 = bbs.upload_object(ctx, object, part, upload_id,
+	var _, etag, err6 = bbs.upload_object(ctx, object, part, upload_id,
 		i.Body, info, conditions, check)
 	if err6 != nil {
 		return nil, err6
 	}
 
 	if checksum != "" {
-		var csum1 = base64.StdEncoding.EncodeToString(csum)
-		switch i.ChecksumAlgorithm {
-		case types.ChecksumAlgorithmCrc32:
-			o.ChecksumCRC32 = &csum1
-		case types.ChecksumAlgorithmCrc32c:
-			o.ChecksumCRC32C = &csum1
-		case types.ChecksumAlgorithmSha1:
-			o.ChecksumSHA1 = &csum1
-		case types.ChecksumAlgorithmSha256:
-			o.ChecksumSHA256 = &csum1
-		case types.ChecksumAlgorithmCrc64nvme:
-			o.ChecksumCRC64NVME = &csum1
-		}
-		o.ChecksumType = types.ChecksumTypeFullObject
+		// Copy the checksum given, because it passes the comparison.
+		o.ChecksumType = csum_given.ChecksumType
+		o.ChecksumCRC32 = csum_given.ChecksumCRC32
+		o.ChecksumCRC32C = csum_given.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csum_given.ChecksumSHA256
+		o.ChecksumSHA1 = csum_given.ChecksumCRC64NVME
+		o.ChecksumSHA256 = csum_given.ChecksumSHA1
 	}
 
-	var etag = make_etag_from_md5(md5)
+	//var etag = make_etag_from_md5(md5)
 	o.ETag = &etag
 
 	// o.BucketKeyEnabled *bool
@@ -2482,18 +2540,22 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	}
 
 	{
-		var _, info, err3 = bbs.check_object_status(object)
+		//var _, info, err3 = bbs.check_object_status(object)
+		var _, _, err3 = bbs.check_object_exists(object)
 		if err3 != nil {
 			return nil, err3
 		}
 
+		var info, err2 = bbs.fetch_metainfo(object)
+		if err2 != nil {
+			return nil, err2
+		}
 		if info == nil {
 			info = &Meta_info{
 				Headers: nil,
 				Tags:    nil,
 			}
 		}
-
 		info.Tags = i.Tagging
 		var err7 = bbs.store_metainfo(object, info)
 		if err7 != nil {
@@ -2580,38 +2642,17 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	}
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	var csum_to_check []byte
-	if checksum != "" {
-		var csum1 *string
-		switch checksum {
-		case types.ChecksumAlgorithmCrc32:
-			csum1 = i.ChecksumCRC32
-		case types.ChecksumAlgorithmCrc32c:
-			csum1 = i.ChecksumCRC32C
-		case types.ChecksumAlgorithmSha1:
-			csum1 = i.ChecksumSHA1
-		case types.ChecksumAlgorithmSha256:
-			csum1 = i.ChecksumSHA256
-		case types.ChecksumAlgorithmCrc64nvme:
-			csum1 = i.ChecksumCRC64NVME
-		default:
-			log.Fatalf("BAD-IMPL: Bad s3/types.ChecksumAlgorithm: %s",
-				checksum)
-		}
-		if csum1 == nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "Checksum value is missing.",
-				Resource: location}
-			return nil, errz
-		}
-		var csum2, err5 = base64.StdEncoding.DecodeString(*csum1)
-		if err5 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Resource: location,
-				Message:  "Checksum value is illegal."}
-			return nil, errz
-		}
-		csum_to_check = csum2
+	var csum_given = types.Checksum{
+		ChecksumType:      types.ChecksumTypeFullObject,
+		ChecksumCRC32:     i.ChecksumCRC32,
+		ChecksumCRC32C:    i.ChecksumCRC32C,
+		ChecksumCRC64NVME: i.ChecksumSHA256,
+		ChecksumSHA1:      i.ChecksumCRC64NVME,
+		ChecksumSHA256:    i.ChecksumSHA1,
+	}
+	var csum_to_check, err8 = decode_checksum_value(object, checksum, &csum_given)
+	if err8 != nil {
+		return nil, err8
 	}
 
 	// It is sure mpul.UploadId is non-nil that is checked already.
@@ -2628,29 +2669,22 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
-	var md5, csum, err6 = bbs.upload_object(ctx, object, part, upload_id,
+	var _, etag, err6 = bbs.upload_object(ctx, object, part, upload_id,
 		i.Body, info, nil, check)
 	if err6 != nil {
 		return nil, err6
 	}
 
-	var etag = make_etag_from_md5(md5)
+	//var etag = make_etag_from_md5(md5)
 	o.ETag = &etag
 
 	if checksum != "" {
-		var csum1 = base64.StdEncoding.EncodeToString(csum)
-		switch checksum {
-		case types.ChecksumAlgorithmCrc32:
-			o.ChecksumCRC32 = &csum1
-		case types.ChecksumAlgorithmCrc32c:
-			o.ChecksumCRC32C = &csum1
-		case types.ChecksumAlgorithmSha1:
-			o.ChecksumSHA1 = &csum1
-		case types.ChecksumAlgorithmSha256:
-			o.ChecksumSHA256 = &csum1
-		case types.ChecksumAlgorithmCrc64nvme:
-			o.ChecksumCRC64NVME = &csum1
-		}
+		// Copy the checksum given, because it passes the comparison.
+		o.ChecksumCRC32 = csum_given.ChecksumCRC32
+		o.ChecksumCRC32C = csum_given.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csum_given.ChecksumSHA256
+		o.ChecksumSHA1 = csum_given.ChecksumCRC64NVME
+		o.ChecksumSHA256 = csum_given.ChecksumSHA1
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -2726,7 +2760,8 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	if err5 != nil {
 		return nil, err5
 	}
-	var s_stat, _, err13 = bbs.check_object_status(source)
+	//var s_stat, _, err13 = bbs.check_object_status(source)
+	var s_stat, _, err13 = bbs.check_object_exists(source)
 	if err13 != nil {
 		return nil, err13
 	}

@@ -7,6 +7,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	//"errors"
 	"fmt"
 	//"io/fs"
@@ -69,6 +70,11 @@ func get_request_id(ctx context.Context) int64 {
 	} else {
 		return *ridx
 	}
+}
+
+func get_request_action(ctx context.Context) string {
+	var action = ctx.Value("action-name").(string)
+	return action
 }
 
 // MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
@@ -597,17 +603,10 @@ func match_etags_is_star(etags []string) bool {
 }
 
 // MAKE_METAINFO makes a metainfo from i.Metadata and i.Tagging.
-func make_metainfo(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
-	var tags *types.Tagging
-	if tagging != nil {
-		var tags1, err1 = parse_tags(*tagging)
-		if err1 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "Tag format error.",
-				Resource: location}
-			return nil, errz
-		}
-		tags = tags1
+func (bbs *Bb_server) make_metainfo(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
+	var tags, err1 = bbs.parse_tags(tagging, location)
+	if err1 != nil {
+		return nil, err1
 	}
 	if tags != nil || headers != nil {
 		return &Meta_info{Headers: headers, Tags: tags}, nil
@@ -616,17 +615,25 @@ func make_metainfo(headers map[string]string, tagging *string, location string) 
 	}
 }
 
-// PARSE_TAGS scans tags in a requst.  (Tag set must be encoded as URL
-// query parameters).
-func parse_tags(s string) (*types.Tagging, error) {
-	var m, err1 = url.ParseQuery(s)
+// PARSE_TAGS scans tags in a request.  Note a tag-set is encoded as
+// URL query parameters.
+func (bbs *Bb_server) parse_tags(s *string, location string) (*types.Tagging, *Aws_s3_error) {
+	if s == nil {
+		return nil, nil
+	}
+	var m, err1 = url.ParseQuery(*s)
 	if err1 != nil {
-		return nil, err1
+		bbs.logger.Info("Parse_tags: .ParseQuery() failed",
+			"error", err1)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Tag format error.",
+			Resource: location}
+		return nil, errz
 	}
 	var tags = []types.Tag{}
 	for k, v := range m {
 		if len(v) != 1 {
-			log.Printf("ignore multiple values in tags\n")
+			bbs.logger.Info("Parse_tags: Multiple values in tags, ignored")
 		}
 		var value string
 		if len(v) == 0 {
@@ -690,4 +697,53 @@ func (bbs *Bb_server) lookat_copy_source(object string, copysource *string) (str
 		return "", errz
 	}
 	return source, nil
+}
+
+func decode_checksum_value(object string, checksum types.ChecksumAlgorithm, csum *types.Checksum) ([]byte, *Aws_s3_error) {
+	var location = "/" + object
+	if checksum == "" {
+		return nil, nil
+	}
+	var csum1 *string
+	switch checksum {
+	case types.ChecksumAlgorithmCrc32:
+		csum1 = csum.ChecksumCRC32
+	case types.ChecksumAlgorithmCrc32c:
+		csum1 = csum.ChecksumCRC32C
+	case types.ChecksumAlgorithmSha1:
+		csum1 = csum.ChecksumSHA1
+	case types.ChecksumAlgorithmSha256:
+		csum1 = csum.ChecksumSHA256
+	case types.ChecksumAlgorithmCrc64nvme:
+		csum1 = csum.ChecksumCRC64NVME
+	default:
+		log.Fatalf("BAD-IMPL: Bad s3/types.ChecksumAlgorithm: %s", checksum)
+	}
+	if csum1 == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Checksum value is missing.",
+			Resource: location}
+		return nil, errz
+	}
+	var csum2, err5 = base64.StdEncoding.DecodeString(*csum1)
+	if err5 != nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Checksum value is illegal.",
+			Resource: location}
+		return nil, errz
+	}
+	return csum2, nil
+}
+
+func metainfo_zero(m *Meta_info) bool {
+	if m == nil {
+		return true
+	}
+	return (m.Headers == nil &&
+		m.Tags == nil &&
+		m.ContentDisposition == nil &&
+		m.ContentEncoding == nil &&
+		m.ContentLanguage == nil &&
+		m.ContentType == nil &&
+		m.Expires == nil)
 }

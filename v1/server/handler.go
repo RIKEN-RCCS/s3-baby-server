@@ -1,4 +1,4 @@
-// handler.go (2025-12-12)
+// handler.go (2025-12-13)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -34,7 +34,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "AbortMultipartUpload")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.AbortMultipartUploadInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -73,7 +74,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "CompleteMultipartUpload")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.CompleteMultipartUploadInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -159,7 +161,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "CopyObject")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.CopyObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -321,7 +324,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "CreateBucket")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.CreateBucketInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -375,7 +379,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "CreateMultipartUpload")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.CreateMultipartUploadInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -514,7 +519,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "DeleteBucket")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.DeleteBucketInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -539,7 +545,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "DeleteObject")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.DeleteObjectInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -594,7 +601,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "DeleteObjects")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.DeleteObjectsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -648,7 +656,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "DeleteObjectTagging")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.DeleteObjectTaggingInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -679,7 +688,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "GetObject")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.GetObjectInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -832,7 +842,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "GetObjectAttributes")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.GetObjectAttributesInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -904,7 +915,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "GetObjectTagging")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.GetObjectTaggingInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -947,7 +959,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "HeadBucket")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.HeadBucketInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -982,7 +995,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "HeadObject")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.HeadObjectInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1134,7 +1148,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "ListBuckets")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.ListBucketsInput{}
 if qi.Has("max-buckets") {
 var s = qi.Get("max-buckets")
@@ -1174,7 +1189,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "ListMultipartUploads")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.ListMultipartUploadsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1230,7 +1246,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "ListObjects")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.ListObjectsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1294,7 +1311,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "ListObjectsV2")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.ListObjectsV2Input{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1364,7 +1382,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "ListParts")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.ListPartsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1424,7 +1443,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "PutObject")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.PutObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -1588,7 +1608,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "PutObjectTagging")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.PutObjectTaggingInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1634,7 +1655,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "UploadPart")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.UploadPartInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1723,7 +1745,8 @@ var _, _, _ = qi, hi, ho
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
 var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx = context.WithValue(ctx2, "input-errors", input_errors)
+var ctx3 = context.WithValue(ctx2, "action-name", "UploadPartCopy")
+var ctx = context.WithValue(ctx3, "input-errors", input_errors)
 var i = s3.UploadPartCopyInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}

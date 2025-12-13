@@ -1511,7 +1511,11 @@
 	    "var ctx2 = context.WithValue(ctx1, \"request-id\","
 	    " bbs.make_request_id())")
 	   (string-append
-	    "var ctx = context.WithValue(ctx2, \"input-errors\","
+	    "var ctx3 = context.WithValue(ctx2, \"action-name\","
+	    (format #f " ~s" name)
+	    ")")
+	   (string-append
+	    "var ctx = context.WithValue(ctx3, \"input-errors\","
 	    " input_errors)"))
      ;; Input accessors:
      (list (format #f "var i = s3.~a{}" input-type))
