@@ -503,11 +503,11 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 					// - StorageClass StorageClass
 					// - UploadId *string
 					Key:               &fixedkey,
-					UploadId:          &mpul.Upload_id,
-					Initiated:         &mpul.Mtime,
+					UploadId:          mpul.UploadId,
+					Initiated:         mpul.Initiated,
 					StorageClass:      types.StorageClassStandard,
-					ChecksumAlgorithm: mpul.Checksum_algorithm,
-					ChecksumType:      mpul.Checksum_type,
+					ChecksumAlgorithm: mpul.ChecksumAlgorithm,
+					ChecksumType:      mpul.ChecksumType,
 				}
 				objects = append(objects, s)
 			} else {

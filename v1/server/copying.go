@@ -41,9 +41,10 @@ type copy_checks struct {
 	checksum      types.ChecksumAlgorithm
 	md5_to_check  []byte
 	csum_to_check []byte
+	csum          types.Checksum
 }
 
-type conditionals struct {
+type copy_conditionals struct {
 	some_match      *string
 	none_match      *string
 	modified_after  *time.Time
@@ -54,7 +55,7 @@ type conditionals struct {
 
 // UPLOAD_OBJECT performs uploading.  Uploading is either for a file
 // of an object or a file of a MPUL part.
-func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, conditionals *conditionals, check *copy_checks) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, conditionals *copy_conditionals, check *copy_checks) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var rid int64 = get_request_id(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
@@ -137,7 +138,8 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 	var mpul *Mpul_info
 	if part != 0 {
 		var mpul1, err4 = bbs.fetch_mpul_info(object)
-		if err4 != nil || mpul1.Upload_id != upload_id {
+		bb_assert(mpul1.UploadId != nil)
+		if err4 != nil || *mpul1.UploadId != upload_id {
 			bbs.logger.Info("Race on MPUL parts",
 				"object", object)
 			var errz = &Aws_s3_error{Code: NoSuchUpload,
@@ -169,7 +171,7 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 
 	//var checksum types.ChecksumAlgorithm
 	if part != 0 {
-		checksum = mpul.Checksum_algorithm
+		checksum = mpul.ChecksumAlgorithm
 	} else {
 		checksum = ""
 	}
@@ -200,7 +202,7 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 
 // COPY_OBJECT performs copying.  Copying is either for a file of an
 // object or a MPUL part.  See also upload_object().
-func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32, upload_id string, source string, extent *[2]int64, info *Meta_info, check copy_checks) (*time.Time, *Aws_s3_error) {
+func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32, upload_id string, source string, extent *[2]int64, info *Meta_info, check copy_checks) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 
 	// A MPUL part does not have metainfo.
@@ -229,7 +231,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	// 	var _, err6 = bbs.copy_file_as_scratch(ctx, target, scratchkey,
 	// 		source, nil)
 	// 	if err6 != nil {
-	// 		return nil, err6
+	// 		return nil, "", err6
 	// 	}
 	// 	cleanup_needed = true
 	// 	defer func() {
@@ -243,7 +245,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		var _, err6 = bbs.copy_file_as_scratch(ctx, target, scratchkey,
 			source, nil)
 		if err6 != nil {
-			return nil, err6
+			return nil, "", err6
 		}
 	} else {
 		var s_path = bbs.make_path_of_object(source, "")
@@ -252,13 +254,13 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		if err3 != nil && !errors.Is(err3, fs.ErrNotExist) {
 			bbs.logger.Error("os.Remove() failed on a scratch file",
 				"path", t_path, "error", err3)
-			return nil, map_os_error(location, err3, nil)
+			return nil, "", map_os_error(location, err3, nil)
 		}
 		var err4 = os.Link(s_path, t_path)
 		if err4 != nil {
 			bbs.logger.Error("os.Link() failed on a scratch file",
 				"source", s_path, "target", t_path, "error", err4)
-			return nil, map_os_error(location, err4, nil)
+			return nil, "", map_os_error(location, err4, nil)
 		}
 	}
 	var cleanup_needed = true
@@ -272,7 +274,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		if bbs.conf.Verify_fs_write {
 			var md5, _, err1 = bbs.calculate_csum2("", target, scratchkey)
 			if err1 != nil {
-				return nil, err1
+				return nil, "", err1
 			}
 			if bytes.Compare(check.md5_to_check, md5) != 0 {
 				bbs.logger.Error("Copying file failed, MD5 values differ",
@@ -282,7 +284,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 					Code:     InternalError,
 					Message:  "Copying file failed",
 					Resource: location}
-				return nil, errz
+				return nil, "", errz
 			}
 		}
 	}
@@ -292,7 +294,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	{
 		var timeout = bbs.serialize_access(ctx, object, rid)
 		if timeout != nil {
-			return nil, timeout
+			return nil, "", timeout
 		}
 		defer bbs.release_access(ctx, object, rid)
 	}
@@ -303,31 +305,32 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	var mpul *Mpul_info
 	if part != 0 {
 		var mpul1, err4 = bbs.fetch_mpul_info(object)
-		if err4 != nil || mpul1.Upload_id != upload_id {
+		bb_assert(mpul1.UploadId != nil)
+		if err4 != nil || *mpul1.UploadId != upload_id {
 			bbs.logger.Info("Race on MPUL parts",
 				"object", object)
 			var errz = &Aws_s3_error{Code: NoSuchUpload,
 				Resource: location}
-			return nil, errz
+			return nil, "", errz
 		}
 		mpul = mpul1
 	}
 
 	var err16 = bbs.place_scratch_file(target, scratchkey, info)
 	if err16 != nil {
-		return nil, err16
+		return nil, "", err16
 	}
 
 	// if !copy_file_by_linking {
 	// 	var err16 = bbs.place_scratch_file(target, scratchkey, info)
 	// 	if err16 != nil {
-	// 		return nil, err16
+	// 		return nil, "", err16
 	// 	}
 	// 	cleanup_needed = false
 	// } else {
 	// 	var err1 = bbs.store_metainfo(target, info)
 	// 	if err1 != nil {
-	// 		return nil, err1
+	// 		return nil, "", err1
 	// 	}
 	//
 	// 	var s_path = bbs.make_path_of_object(source, "")
@@ -337,29 +340,30 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	// 	if err2 != nil {
 	// 		bbs.logger.Error("os.Link() failed on an object",
 	// 			"source", s_path, "object", t_path, "error", err2)
-	// 		return nil, map_os_error(location, err2, nil)
+	// 		return nil, "", map_os_error(location, err2, nil)
 	// 	}
 	// }
 
-	var stat, _, err7 = bbs.check_object_status(target)
+	//var stat, etag, err7 = bbs.check_object_status(target)
+	var stat, etag, err7 = bbs.fetch_object_status(target)
 	if err7 != nil {
-		return nil, err7
+		return nil, "", err7
 	}
 	var size = stat.Size()
 	var mtime = stat.ModTime()
 
 	var checksum types.ChecksumAlgorithm
 	if part != 0 {
-		checksum = mpul.Checksum_algorithm
+		checksum = mpul.ChecksumAlgorithm
 	} else {
 		checksum = ""
 	}
-	var md5, csum1, err1 = bbs.calculate_csum2(checksum, target, "")
+	var _, csum1, err1 = bbs.calculate_csum2(checksum, target, "")
 	if err1 != nil {
-		return nil, err1
+		return nil, "", err1
 	}
 	var csum = base64.StdEncoding.EncodeToString(csum1)
-	var etag = make_etag_from_md5(md5)
+	//var etag = make_etag_from_md5(md5)
 
 	// Update MPUL parts catatlog information.
 
@@ -372,11 +376,139 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		}
 		var err8 = bbs.update_mpul_catalog(object, part, partinfo)
 		if err8 != nil {
-			return nil, err8
+			return nil, "", err8
 		}
 	}
 
-	return &mtime, nil
+	return stat, etag, nil
+}
+
+// CONCATENATE_OBJECT concatenates the parts to an object.
+func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, conditionals *copy_conditionals, checks *copy_checks) (fs.FileInfo, string, *Aws_s3_error) {
+	var action = "CompleteMultipartUpload"
+	var location = "/" + object
+	var rid int64 = get_request_id(ctx)
+	var scratchkey = bbs.make_scratch_suffix(rid)
+	defer bbs.discharge_scratch_suffix(rid)
+
+	var _, err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul)
+	if err5 != nil {
+		return nil, "", err5
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(object, scratchkey)
+		}
+	}()
+
+	{
+		// Baby-server can only handle "types.ChecksumTypeFullObject".
+		// The checksum of the input is ignored when it is not the
+		// case.  The returned checksum is always for full object.
+
+		var checksum = types.ChecksumAlgorithmCrc64nvme
+		if checks.csum.ChecksumType != types.ChecksumTypeFullObject {
+			bbs.logger.Info("Checksum by not full-object unsuppored, ignored",
+				"checksum-type", checks.csum.ChecksumType)
+			checksum = ""
+		}
+
+		var _, csum, err6 = bbs.calculate_csum2(checksum, object, scratchkey)
+		if err6 != nil {
+			return nil, "", err6
+		}
+
+		if checksum != "" {
+			var csum1 *string
+			switch checksum {
+			case types.ChecksumAlgorithmCrc32:
+				csum1 = checks.csum.ChecksumCRC32
+			case types.ChecksumAlgorithmCrc32c:
+				csum1 = checks.csum.ChecksumCRC32C
+			case types.ChecksumAlgorithmCrc64nvme:
+				csum1 = checks.csum.ChecksumCRC64NVME
+			case types.ChecksumAlgorithmSha1:
+				csum1 = checks.csum.ChecksumSHA1
+			case types.ChecksumAlgorithmSha256:
+				csum1 = checks.csum.ChecksumSHA256
+			}
+			var csum_to_check []byte
+			if csum1 != nil {
+				var csum2, err5 = base64.StdEncoding.DecodeString(*csum1)
+				if err5 != nil {
+					var errz = &Aws_s3_error{Code: InvalidArgument,
+						Resource: location,
+						Message:  "Checksum value is illegal."}
+					return nil, "", errz
+				}
+				csum_to_check = csum2
+			}
+			if len(csum_to_check) != 0 && bytes.Compare(csum_to_check, csum) != 0 {
+				bbs.logger.Info("Checksums mismatch",
+					"algorithm", checksum,
+					"passed", hex.EncodeToString(csum_to_check),
+					"calculated", hex.EncodeToString(csum))
+				var errz = &Aws_s3_error{Code: BadDigest,
+					Resource: location,
+					Message:  "The checksum did not match what we received."}
+				return nil, "", errz
+			}
+		}
+	}
+
+	// SERIALIZE-ACCESSES.
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return nil, "", timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	{
+		// Check the upload-id again after exclusion.
+
+		var mpul2, err3 = bbs.check_upload_ongoing(object, mpul.UploadId)
+		if err3 != nil {
+			return nil, "", err3
+		}
+		var info = mpul2.MetaInfo
+
+		var err7 = bbs.check_request_conditionals(object, "write",
+			conditionals)
+		if err7 != nil {
+			return nil, "", err7
+		}
+
+		var err1 = bbs.place_scratch_file(object, scratchkey, info)
+		if err1 != nil {
+			return nil, "", err1
+		}
+
+		cleanup_needed = false
+
+		var err2 = bbs.discard_mpul_directory(object)
+		if err2 != nil {
+			// IGNORE-ERRORS.
+		}
+	}
+
+	var stat, etag, err7 = bbs.fetch_object_status(object)
+	if err7 != nil {
+		return nil, "", err7
+	}
+	if stat == nil {
+		bbs.logger.Error("Object gone while serialized",
+			"action", action, "object", object)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message:  "Uploaded object gone",
+			Resource: location}
+		return nil, "", errz
+	}
+
+	return stat, etag, nil
 }
 
 // UPLOAD_FILE_AS_SCRATCH stores the contents as a scratch file.  The
@@ -577,7 +709,9 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 
 	cleanup_needed = false
 
-	var err5 = os.Chtimes(path, time.Time{}, mpul.Mtime)
+	bb_assert(mpul.Initiated != nil)
+
+	var err5 = os.Chtimes(path, time.Time{}, *mpul.Initiated)
 	if err5 != nil {
 		bbs.logger.Warn("op.Chtimes() failed",
 			"path", path, "error", err5)

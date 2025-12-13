@@ -464,12 +464,12 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, *A
 // (PUT/POST), and "delete" (DELETE).  A mode may disagree with the
 // method, when the object is a copy source.  It considers the equal
 // time as included.
-func (bbs *Bb_server) check_request_conditionals(object string, mode string, conditions *conditionals) *Aws_s3_error {
+func (bbs *Bb_server) check_request_conditionals(object string, mode string, conditions *copy_conditionals) *Aws_s3_error {
 	bb_assert(slices.Contains([]string{"read", "write", "delete"}, mode))
 
 	// No conditions are unconditionally Okay.
 
-	if (conditions == nil || *conditions == conditionals{}) {
+	if (conditions == nil || *conditions == copy_conditionals{}) {
 		return nil
 	}
 

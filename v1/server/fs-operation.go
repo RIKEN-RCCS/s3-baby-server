@@ -38,18 +38,26 @@ type Meta_info struct {
 	//Checksum *string
 }
 
+// MPUL-information.  It is stored in a file "info".  It corresponds
+// to "types.MultipartUpload".
 type Mpul_info struct {
-	Upload_id          string
-	Mtime              time.Time
-	Checksum_type      types.ChecksumType
-	Checksum_algorithm types.ChecksumAlgorithm
-	Meta_info          *Meta_info
+	types.MultipartUpload
+	MetaInfo *Meta_info
+	// "types.MultipartUpload":
+	// - ChecksumAlgorithm ChecksumAlgorithm
+	// - ChecksumType ChecksumType
+	// - Initiated *time.Time
+	// - Initiator *Initiator
+	// - Key *string
+	// - Owner *Owner
+	// - StorageClass StorageClass
+	// - UploadId *string
 }
 
-// (MultipartUpload)
+// MPUL-catalog.  It is stored in a file "list".
 type Mpul_catalog struct {
-	Checksum_algorithm types.ChecksumAlgorithm
-	Parts              []Mpul_part
+	ChecksumAlgorithm types.ChecksumAlgorithm
+	Parts             []Mpul_part
 }
 
 // (types.CopyObjectResult, CopyPartResult)
@@ -431,6 +439,8 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 	return nil
 }
 
+// FETCH_MPUL_INFO fetches the stored MPUL information file.  It
+// checks the required fields are non-nil.
 func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 	var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "mpul")
@@ -438,16 +448,28 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 	var mpul Mpul_info
 	var err5 = bbs.fetch_json_data(object, path, &mpul)
 	if err5 == io.EOF {
-		bbs.logger.Warn("Metainfo file of MPUL missing",
+		bbs.logger.Warn("Info file of MPUL missing",
 			"path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "Metainfo file of MPUL missing.",
+			Message:  "Info file of MPUL missing.",
 			Resource: location}
 		return nil, errz
 	} else if err5 != nil {
 		var errz = err5.(*Aws_s3_error)
 		return nil, errz
 	}
+
+	// Check if the required fields of Baby-server is Okay.
+
+	if mpul.Initiated == nil || mpul.UploadId == nil {
+		bbs.logger.Warn("Info file of MPUL broken",
+			"path", path)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message:  "Info file of MPUL broken.",
+			Resource: location}
+		return nil, errz
+	}
+
 	return &mpul, nil
 }
 
@@ -623,7 +645,8 @@ func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string) (*Mp
 		return nil, errz
 	}
 	var mpul, err1 = bbs.fetch_mpul_info(object)
-	if err1 != nil || mpul.Upload_id != *uploadid {
+	bb_assert(mpul.UploadId != nil)
+	if err1 != nil || *mpul.UploadId != *uploadid {
 		var errz = &Aws_s3_error{Code: NoSuchUpload,
 			Resource: location}
 		return nil, errz
