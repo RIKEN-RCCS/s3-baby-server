@@ -362,17 +362,6 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 				// Skip this entry.
 				continue
 			}
-			/*
-				var md5, _, err3 = bbs.calculate_csum2("", object, "")
-				var etag string
-				if err3 != nil {
-					bbs.logger.Warn("MD5 calculation failed",
-						"file", object, "error", err3)
-					etag = ""
-				} else {
-					etag = make_etag_from_md5(md5)
-				}
-			*/
 			var key string
 			if urlencode {
 				key = url.QueryEscape(e.key)

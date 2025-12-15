@@ -470,12 +470,12 @@ func scan_range(rangestring *string, size int64, location string) (*[2]int64, *A
 // (PUT/POST), and "delete" (DELETE).  A mode may disagree with the
 // method, when the object is a copy source.  It considers the equal
 // time as included.
-func (bbs *Bb_server) check_request_conditionals(object string, mode string, conditions *copy_conditionals) *Aws_s3_error {
+func (bbs *Bb_server) check_request_conditionals(object string, mode string, conditionals copy_conditionals) *Aws_s3_error {
 	bb_assert(slices.Contains([]string{"read", "write", "delete"}, mode))
 
 	// No conditions are unconditionally Okay.
 
-	if (conditions == nil || *conditions == copy_conditionals{}) {
+	if conditionals == (copy_conditionals{}) {
 		return nil
 	}
 
@@ -483,8 +483,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 
 	var etags_include []string
 	var etags_exclude []string
-	if conditions.some_match != nil {
-		var m1, err1 = httpaide.Scan_rfc7232_etags(*conditions.some_match)
+	if conditionals.some_match != nil {
+		var m1, err1 = httpaide.Scan_rfc7232_etags(*conditionals.some_match)
 		if err1 != nil {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: "Bad if-match."}
@@ -492,8 +492,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		}
 		etags_include = m1
 	}
-	if conditions.none_match != nil {
-		var m2, err2 = httpaide.Scan_rfc7232_etags(*conditions.none_match)
+	if conditionals.none_match != nil {
+		var m2, err2 = httpaide.Scan_rfc7232_etags(*conditionals.none_match)
 		if err2 != nil {
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: "Bad if-none-match."}
@@ -502,14 +502,14 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		etags_exclude = m2
 	}
 
-	// Fetch status of an object.
+	// Fetch status of an object.  It accepts non-existing case.
 
 	var stat, etag, err1 = bbs.fetch_object_status(object)
 	if err1 != nil {
 		return err1
 	}
-
 	var nonexist = (stat == nil)
+
 	var mtime time.Time
 	var size int64
 	if stat != nil {
@@ -536,9 +536,9 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 				Message: "Condition if-match fails."}
 			return errz
 		}
-	} else if conditions.modified_before != nil {
+	} else if conditionals.modified_before != nil {
 		// "if-unmodified-since"
-		if nonexist || !(mtime.Compare(*conditions.modified_before) <= 0) {
+		if nonexist || !(mtime.Compare(*conditionals.modified_before) <= 0) {
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition if-unmodified-since fails."}
 			return errz
@@ -564,31 +564,31 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 				Message: "Condition if-none-match fails."}
 			return errz
 		}
-	} else if conditions.modified_after != nil {
+	} else if conditionals.modified_after != nil {
 		// "if-modified-since"
-		if nonexist || !(conditions.modified_after.Compare(mtime) <= 0) {
+		if nonexist || !(conditionals.modified_after.Compare(mtime) <= 0) {
 			var errz = &Aws_s3_error{Code: NotModified,
 				Message: "Condition if-modified-since fails."}
 			return errz
 		}
 	}
 
-	if conditions.modified_time != nil {
+	if conditionals.modified_time != nil {
 		// "x-amz-if-match-last-modified-time"
 		if nonexist {
 			// OK.
-		} else if !conditions.modified_time.Equal(mtime) {
+		} else if !conditionals.modified_time.Equal(mtime) {
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition x-amz-if-match-last-modified-time fails."}
 			return errz
 		}
 	}
 
-	if conditions.size != nil {
+	if conditionals.size != nil {
 		// "x-amz-if-match-size"
 		if nonexist {
 			// OK.
-		} else if !(*conditions.size == size) {
+		} else if !(*conditionals.size == size) {
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition x-amz-if-match-size fails."}
 			return errz
@@ -699,7 +699,23 @@ func (bbs *Bb_server) lookat_copy_source(object string, copysource *string) (str
 	return source, nil
 }
 
-func decode_checksum_value(object string, checksum types.ChecksumAlgorithm, csum *types.Checksum) ([]byte, *Aws_s3_error) {
+func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
+	if csum == nil {
+		return nil, nil
+	} else {
+		var location = "/" + object
+		var csum2, err5 = base64.StdEncoding.DecodeString(*csum)
+		if err5 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message:  "Bad base64 (MD5) encoding.",
+				Resource: location}
+			return nil, errz
+		}
+		return csum2, nil
+	}
+}
+
+func decode_checksum_value(object string, checksum types.ChecksumAlgorithm, csumset *types.Checksum) ([]byte, *Aws_s3_error) {
 	var location = "/" + object
 	if checksum == "" {
 		return nil, nil
@@ -707,15 +723,15 @@ func decode_checksum_value(object string, checksum types.ChecksumAlgorithm, csum
 	var csum1 *string
 	switch checksum {
 	case types.ChecksumAlgorithmCrc32:
-		csum1 = csum.ChecksumCRC32
+		csum1 = csumset.ChecksumCRC32
 	case types.ChecksumAlgorithmCrc32c:
-		csum1 = csum.ChecksumCRC32C
+		csum1 = csumset.ChecksumCRC32C
 	case types.ChecksumAlgorithmSha1:
-		csum1 = csum.ChecksumSHA1
+		csum1 = csumset.ChecksumSHA1
 	case types.ChecksumAlgorithmSha256:
-		csum1 = csum.ChecksumSHA256
+		csum1 = csumset.ChecksumSHA256
 	case types.ChecksumAlgorithmCrc64nvme:
-		csum1 = csum.ChecksumCRC64NVME
+		csum1 = csumset.ChecksumCRC64NVME
 	default:
 		log.Fatalf("BAD-IMPL: Bad s3/types.ChecksumAlgorithm: %s", checksum)
 	}
@@ -728,7 +744,7 @@ func decode_checksum_value(object string, checksum types.ChecksumAlgorithm, csum
 	var csum2, err5 = base64.StdEncoding.DecodeString(*csum1)
 	if err5 != nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "Checksum value is illegal.",
+			Message:  "Bad checksum encoding.",
 			Resource: location}
 		return nil, errz
 	}
@@ -739,11 +755,11 @@ func metainfo_zero(m *Meta_info) bool {
 	if m == nil {
 		return true
 	}
+	//m.ContentDisposition == nil &&
+	//m.ContentEncoding == nil &&
+	//m.ContentLanguage == nil &&
+	//m.ContentType == nil &&
+	//m.Expires == nil &&
 	return (m.Headers == nil &&
-		m.Tags == nil &&
-		m.ContentDisposition == nil &&
-		m.ContentEncoding == nil &&
-		m.ContentLanguage == nil &&
-		m.ContentType == nil &&
-		m.Expires == nil)
+		m.Tags == nil)
 }

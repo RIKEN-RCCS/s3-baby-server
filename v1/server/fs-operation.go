@@ -33,14 +33,15 @@ import (
 type Meta_info struct {
 	Headers            map[string]string
 	Tags               *types.Tagging
-	ContentDisposition *string
-	ContentEncoding    *string
-	ContentLanguage    *string
-	ContentType        *string
-	Expires            *time.Time
 	//ETag *string
 	//Checksum_algorithm types.ChecksumAlgorithm
 	//Checksum *string
+
+	//ContentDisposition *string
+	//ContentEncoding    *string
+	//ContentLanguage    *string
+	//ContentType        *string
+	//Expires            *time.Time
 }
 
 // MPUL-information.  It is stored in a file "info".  It corresponds
@@ -688,8 +689,9 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 }
 
 // CHECK_OBJECT_EXISTS takes a stat() and etag on an object.  It
-// returns an error, when an object does not exist.  It returns metainfo as
-// well.  Metainfo may be nil.
+// differs from fetch_object_status() as it returns an error, when an
+// object does not exist.  It returns metainfo as well.  Metainfo may
+// be nil.
 func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var stat, etag, err1 = bbs.fetch_object_status(object)
