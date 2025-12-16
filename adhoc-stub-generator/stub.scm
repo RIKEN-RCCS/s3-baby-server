@@ -371,10 +371,8 @@
 	   (type (assoc-type-of-slot slot property))
 	   (required (cond ((assoc '#{smithy.api#required}# traits) #t)
 			   (else #f)))
-	   ;; (* FLATTENED IS NOT USED. *)
-	   (flattened
-	    (cond ((assoc '#{smithy.api#xmlFlattened}# traits) #t)
-		  (else #f))))
+	   (flattened (cond ((assoc '#{smithy.api#xmlFlattened}# traits) #t)
+			    (else #f))))
       (cond ((assoc-option '#{smithy.api#httpLabel}# traits)
 	     => (lambda (_)
 		  (list slot tag type 'PATH required)))
@@ -1335,29 +1333,31 @@
 	 (format #t ";; TAG-AFFIX NEEDED: ~s~%" request-property)
 	 (list
 	  ;; Call unmarshaler with corrections.
-	  "{var d = xml.NewDecoder(r.Body)"
-	  (format #f "var x, err1 = import_~a(d)" type)
+	  (format #f "{var o O_~a" type)
+	  "var err1 = h_decode_body(&o, r.Body, hi)"
 	  "if err1 != nil {"
 	  (string-append
 	   "if err1 != io.EOF {"
 	   (format #f "input_errors[~s] = fmt.Errorf" "_payload_")
 	   (format #f "(\"Malformed http body for types.~a: %w\", err1)}"
 		   type))
-	  (format #f "} else {i.~a = x}}" slot)))
+	  (format #f "} else {")
+	  (format #f "i.~a = import_~a(&o)}}" slot type)))
 	(else
 	 ;; Records for a payload slot are: {CompletedMultipartUpload,
 	 ;; CreateBucketConfiguration, Delete, Tagging}.
 	 (list
 	  ;; Call the standard unmarshaler.
 	  (format #f "{var x types.~a" type)
-	  "var err1 = xml.NewDecoder(r.Body).Decode(&x)"
+	  "var err1 = h_decode_body(&x, r.Body, hi)"
 	  "if err1 != nil {"
 	  (string-append
 	   "if err1 != io.EOF {"
 	   (format #f "input_errors[~s] = fmt.Errorf" "_payload_")
 	   (format #f "(\"Malformed http body for types.~a: %w\", err1)}"
 		   type))
-	  (format #f "} else {i.~a = &x}}" slot)))))
+	  (format #f "} else {")
+	  (format #f "i.~a = &x}}" slot)))))
       ((ELEMENT)
        (error "make-input-import; bad locus ELEMENT" request-property))
       (else
@@ -1453,9 +1453,13 @@
 	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
 	      "var _, err7 = w.Write([]byte(xml.Header))"
-	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}"
+	      (string-append
+	       "if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7);"
+	       " return}")
 	      "var _, err8 = w.Write(ox)"
-	      "if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}")))))
+	      (string-append
+	       "if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8);"
+	       " return}"))))))
    (else
     ;; (2) Payload is described by a slot-property.
     (match-let* (((slot tag type locus required) slot-property)
@@ -1466,7 +1470,9 @@
 	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
 	      (format #f "var _, err7 = io.Copy(w, o.~a)" slot)
-	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}"))
+	      (string-append
+	       "if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7);"
+	       " return}")))
        (else
 	;; Marshaling errors means implementation errors.
 	(list "ho.Set(\"Content-Type\", \"application/xml\")"
@@ -1477,9 +1483,13 @@
 	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
 	      "var _, err7 = w.Write([]byte(xml.Header))"
-	      "if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}"
+	      (string-append
+	       "if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7);"
+	       " return}")
 	      "var _, err8 = w.Write(ox)"
-	      "if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}")))))))
+	      (string-append
+	       "if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8);"
+	       " return}"))))))))
 
 (define (make-handler-function action)
   (match-let*
@@ -1728,6 +1738,9 @@
 	   "}")
 	  ;; Make an import function:
 	  (list
+	   (format #f "func import_~a(o *O_~a) *types.~a {"
+		   type-name type-name type-name)
+	   #|
 	   (format #f "func import_~a(d *xml.Decoder) (*types.~a, error) {"
 		   type-name type-name)
 	   (format #f "var o O_~a" type-name)
@@ -1737,13 +1750,15 @@
 	    "if err1 == io.EOF {return nil, err1} else {"
 	    (format #f "return nil, xml_marshal_error(\"~a\", err1)" type-name)
 	    "}}")
+	   |#
 	   (format #f "var i = types.~a{" type-name))
 	  ;; | SlotA: o.SlotA,
 	  ;; | Tags: o.Tags.Tag,
 	  (map make-slot-copier-for-tag-affix slot-properties)
 	  (list
 	   "}"
-	   "return &i, nil}")))
+	   ;; "return &i, nil}"
+	   "return &i}")))
 	(else
 	 '())))
       ((ELEMENT)
@@ -1887,14 +1902,38 @@
 	 "")
    (list (format #f "package ~a" bb-dispatcher-package)
 	 "import ("
+	 "\"bytes\""
+	 "\"crypto/md5\""
+	 "\"encoding/base64\""
 	 "\"encoding/xml\""
+	 "\"fmt\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	 "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	 "\"io\""
+	 "\"net/http\""
 	 ")"
+
 	 "func h_thing_pointer[T any](v T) *T {return &v}"
 	 "func h_make_tag(k string) xml.StartElement {"
-	 "return xml.StartElement{Name: xml.Name{Local: k}}}")
+	 "return xml.StartElement{Name: xml.Name{Local: k}}}"
+
+	 "// H_DECODE_BODY decodes the XML body with checking its md5 hash,"
+	 "// when a header exists."
+	 "func h_decode_body(x any, body io.Reader, h http.Header) error {"
+	 "var hash = md5.New()"
+	 "var body2 = &io.LimitedReader{R: body, N: h_xml_body_limit}"
+	 "var r io.Reader = io.TeeReader(body2, hash)"
+	 "var d = xml.NewDecoder(r)"
+	 "var err1 = d.Decode(x)"
+	 "if err1 != nil {return err1}"
+	 "var md5c = hash.Sum(nil)"
+	 "var s = h.Get(\"Content-MD5\")"
+	 "if s != \"\" {"
+	 "var md5h, err2 = base64.StdEncoding.DecodeString(s)"
+	 "if err2 != nil {return err2}"
+	 "if bytes.Compare(md5c, md5h) != 0 {"
+	 "return fmt.Errorf(\"MD5 mismatch\")}}"
+	 "return nil}")
    (apply-append
     (map make-output-marshaling-function list-of-actions))
    (apply-append
@@ -1954,10 +1993,14 @@
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	  ")"))
    (list "type Bb_server struct {}"
+	 "// H_XML_BODY_LIMIT limits the receive size of a request body."
+	 "var h_xml_body_limit int64 = (2 * 1024 * 1024)"
+
 	 "// MAKE_REQUEST_ID makes a new request-id."
 	 (string-append
 	  "func (bbs *Bb_server) make_request_id() string {"
 	  "panic(e)}")
+
 	 "// RESPOND_ON_ACTION_ERROR is called on an action error and"
 	 "// makes a response for it."
 	 (string-append
@@ -1965,6 +2008,7 @@
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, e error) {"
 	  "panic(e)}")
+
 	 "// RESPOND_ON_INPUT_ERROR is called on an input error and"
 	 "// makes a response for it."
 	 (string-append
@@ -1972,43 +2016,51 @@
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, m map[string]error) {"
 	  "panic(m)}")
-	 "// COPE_WRITE_ERROR is called on a write error of response"
+
+	 "// COPE_WITH_WRITE_ERROR is called on a write error of response"
 	 "// payload and makes a response for it."
 	 (string-append
-	  "func (bbs *Bb_server) cope_write_error"
+	  "func (bbs *Bb_server) cope_with_write_error"
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, e error) {"
 	  "panic(e)}")
+
+	 #|
 	 "// XML_MARSHAL_ERROR is called on unmarshal failure"
 	 "// in import functions for xml tag-affix."
 	 "func xml_marshal_error(ty string, e error) error {"
 	 "var err1 = fmt.Errorf(\"Marshaling for type %s with %w\", ty, e)"
 	 "var errz = &Aws_s3_error{Code: MalformedXML,"
 	 "Message: err1.Error()}"
-	 "return errz}")
-   ;;"// RESPOND_ON_INPUT_ERROR is called on an error on"
-   ;;"// interning enumerations and makes a response for it."
-   ;;(string-append
-   ;;"func (bbs *Bb_server) respond_on_input_error"
-   ;;"(ctx context.Context, w http.ResponseWriter,"
-   ;;" r *http.Request, name string) {"
-   ;;"panic(fmt.Errorf(\"Bad parameter %s\", name))}")
-   ;;"// RESPOND_ON_MISSING_INPUT is called on an internal error"
-   ;;"// and makes a response for it."
-   ;;(string-append
-   ;;"func (bbs *Bb_server) respond_on_missing_input"
-   ;;"(ctx context.Context, w http.ResponseWriter,"
-   ;;" r *http.Request, name string) {"
-   ;;"panic(fmt.Errorf(\"Missing path: %s\", name))}")
-   ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
-   ;;"// parameter to record it in the context."
-   ;;"var v = ctx.Value("input-errors").(*[]Bb_input_error_record)"
-   ;;"*v = append(*v, Bb_input_error_record{key, e})}"
-   ;;(string-append
-   ;;	  "func record_input_error"
-   ;;	  "(ctx context.Context, key string, e error) {"
-   ;;	  "var m = ctx.Value(\"input-errors\").(map[string]error)"
-   ;;	  "v[key] = e}"))
+	 "return errz}"
+	 |#
+
+	 ;;"// RESPOND_ON_INPUT_ERROR is called on an error on"
+	 ;;"// interning enumerations and makes a response for it."
+	 ;;(string-append
+	 ;;"func (bbs *Bb_server) respond_on_input_error"
+	 ;;"(ctx context.Context, w http.ResponseWriter,"
+	 ;;" r *http.Request, name string) {"
+	 ;;"panic(fmt.Errorf(\"Bad parameter %s\", name))}")
+
+	 ;;"// RESPOND_ON_MISSING_INPUT is called on an internal error"
+	 ;;"// and makes a response for it."
+	 ;;(string-append
+	 ;;"func (bbs *Bb_server) respond_on_missing_input"
+	 ;;"(ctx context.Context, w http.ResponseWriter,"
+	 ;;" r *http.Request, name string) {"
+	 ;;"panic(fmt.Errorf(\"Missing path: %s\", name))}")
+
+	 ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
+	 ;;"// parameter to record it in the context."
+	 ;;"var v = ctx.Value("input-errors").(*[]Bb_input_error_record)"
+	 ;;"*v = append(*v, Bb_input_error_record{key, e})}"
+	 ;;(string-append
+	 ;;	  "func record_input_error"
+	 ;;	  "(ctx context.Context, key string, e error) {"
+	 ;;	  "var m = ctx.Value(\"input-errors\").(map[string]error)"
+	 ;;	  "v[key] = e}"))
+	 )
    (apply-append
     (map make-api-template list-of-actions))))
 

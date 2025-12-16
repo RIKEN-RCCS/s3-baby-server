@@ -22,7 +22,7 @@ func TestCRC64NVME(t *testing.T) {
 	var dataset = [][]byte{data1, data2}
 	var crcset = [][]byte{crc1, crc2}
 	for i := range dataset {
-		var hash1 hash.Hash = crc64.New(crc64.MakeTable(poly_nvme))
+		var hash1 hash.Hash = crc64.New(crc64.MakeTable(polynomial_nvme))
 		var dati = dataset[i]
 		var crci = crcset[i]
 		var bc = bytes.NewReader(dati)

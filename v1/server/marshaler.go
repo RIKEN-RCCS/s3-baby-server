@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-12)
+// marshaler.go (2025-12-16)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -6,14 +6,36 @@
 
 package server
 import (
+"bytes"
+"crypto/md5"
+"encoding/base64"
 "encoding/xml"
+"fmt"
 "github.com/aws/aws-sdk-go-v2/service/s3"
 "github.com/aws/aws-sdk-go-v2/service/s3/types"
 "io"
+"net/http"
 )
 func h_thing_pointer[T any](v T) *T {return &v}
 func h_make_tag(k string) xml.StartElement {
 return xml.StartElement{Name: xml.Name{Local: k}}}
+// H_DECODE_BODY decodes the XML body with checking its md5 hash,
+// when a header exists.
+func h_decode_body(x any, body io.Reader, h http.Header) error {
+var hash = md5.New()
+var body2 = &io.LimitedReader{R: body, N: h_xml_body_limit}
+var r io.Reader = io.TeeReader(body2, hash)
+var d = xml.NewDecoder(r)
+var err1 = d.Decode(x)
+if err1 != nil {return err1}
+var md5c = hash.Sum(nil)
+var s = h.Get("Content-MD5")
+if s != "" {
+var md5h, err2 = base64.StdEncoding.DecodeString(s)
+if err2 != nil {return err2}
+if bytes.Compare(md5c, md5h) != 0 {
+return fmt.Errorf("MD5 mismatch")}}
+return nil}
 type O_CompleteMultipartUploadResponse s3.CompleteMultipartUploadOutput
 func (s O_CompleteMultipartUploadResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 var tag1 = h_make_tag("CompleteMultipartUploadResult")
@@ -344,28 +366,20 @@ Location *types.LocationInfo
 Bucket *types.BucketInfo
 Tags struct {Tag []types.Tag}
 }
-func import_CreateBucketConfiguration(d *xml.Decoder) (*types.CreateBucketConfiguration, error) {
-var o O_CreateBucketConfiguration
-var err1 = d.Decode(&o)
-if err1 != nil {
-if err1 == io.EOF {return nil, err1} else {return nil, xml_marshal_error("CreateBucketConfiguration", err1)}}
+func import_CreateBucketConfiguration(o *O_CreateBucketConfiguration) *types.CreateBucketConfiguration {
 var i = types.CreateBucketConfiguration{
 LocationConstraint: o.LocationConstraint,
 Location: o.Location,
 Bucket: o.Bucket,
 Tags: o.Tags.Tag,
 }
-return &i, nil}
+return &i}
 type O_Tagging struct {
 XMLName xml.Name `xml:"Tagging"`
 TagSet struct {Tag []types.Tag}
 }
-func import_Tagging(d *xml.Decoder) (*types.Tagging, error) {
-var o O_Tagging
-var err1 = d.Decode(&o)
-if err1 != nil {
-if err1 == io.EOF {return nil, err1} else {return nil, xml_marshal_error("Tagging", err1)}}
+func import_Tagging(o *O_Tagging) *types.Tagging {
 var i = types.Tagging{
 TagSet: o.TagSet.Tag,
 }
-return &i, nil}
+return &i}

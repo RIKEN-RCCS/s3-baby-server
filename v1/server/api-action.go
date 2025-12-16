@@ -169,6 +169,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, errz
 	}
 
+	bbs.logger.Debug("concat copying", "list", partlist)
+
 	// Check parts are sorted.
 
 	var error_in_sorting *Aws_s3_error = nil
@@ -234,11 +236,11 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				ChecksumType:      types.ChecksumTypeFullObject,
 				ChecksumCRC32:     e.ChecksumCRC32,
 				ChecksumCRC32C:    e.ChecksumCRC32C,
-				ChecksumCRC64NVME: e.ChecksumSHA256,
-				ChecksumSHA1:      e.ChecksumCRC64NVME,
-				ChecksumSHA256:    e.ChecksumSHA1,
+				ChecksumCRC64NVME: e.ChecksumCRC64NVME,
+				ChecksumSHA1:      e.ChecksumSHA1,
+				ChecksumSHA256:    e.ChecksumSHA256,
 			}
-			var csum_to_check, err8 = decode_checksum_value(object, checksum, &csumset2)
+			var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset2)
 			if err8 != nil {
 				// IGNORE-ERRORS.
 			}
@@ -278,28 +280,28 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
-		ChecksumCRC64NVME: i.ChecksumSHA256,
-		ChecksumSHA1:      i.ChecksumCRC64NVME,
-		ChecksumSHA256:    i.ChecksumSHA1,
+		ChecksumCRC64NVME: i.ChecksumCRC64NVME,
+		ChecksumSHA1:      i.ChecksumSHA1,
+		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var csum_to_check, err8 = decode_checksum_value(object, checksum, &csumset1)
+	var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset1)
 	if err8 != nil {
 		// IGNORE-ERRORS.
 	}
 
 	// SERIALIZE-ACCESSES (in the concatenation routine).
 
-	var conditionals = copy_conditionals{
-		some_match: i.IfMatch,
-		none_match: i.IfNoneMatch,
-	}
 	var checks = copy_checks{
 		size_to_check: size_to_check,
 		checksum:      checksum,
 		csum_to_check: csum_to_check,
 	}
+	var conditionals = copy_conditionals{
+		some_match: i.IfMatch,
+		none_match: i.IfNoneMatch,
+	}
 	var _, etag, err6 = bbs.concatenate_object(ctx, object, partlist, mpul,
-		conditionals, checks)
+		checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -325,9 +327,9 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		o.ChecksumType = csumset1.ChecksumType
 		o.ChecksumCRC32 = csumset1.ChecksumCRC32
 		o.ChecksumCRC32C = csumset1.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset1.ChecksumSHA256
-		o.ChecksumSHA1 = csumset1.ChecksumCRC64NVME
-		o.ChecksumSHA256 = csumset1.ChecksumSHA1
+		o.ChecksumCRC64NVME = csumset1.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset1.ChecksumSHA1
+		o.ChecksumSHA256 = csumset1.ChecksumSHA256
 	}
 
 	{
@@ -512,13 +514,13 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	// Note checksum calculation is outside of serialization.
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	var csum_calculated *types.Checksum
+	var csumset *types.Checksum
 	if checksum != "" {
-		var _, csum1, err4 = bbs.calculate_csum2(checksum, object, "")
+		var _, csum, err4 = bbs.calculate_csum2(checksum, object, "")
 		if err4 != nil {
 			return nil, err4
 		}
-		csum_calculated = fill_checksum_record(checksum, csum1)
+		csumset = fill_checksum_record(checksum, csum)
 	}
 
 	var mtime = stat.ModTime()
@@ -533,12 +535,12 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		// - ChecksumType ChecksumType
 		// - ETag: *string
 		// - LastModified *time.Time
-		ChecksumCRC32:     csum_calculated.ChecksumCRC32,
-		ChecksumCRC32C:    csum_calculated.ChecksumCRC32C,
-		ChecksumCRC64NVME: csum_calculated.ChecksumCRC64NVME,
-		ChecksumSHA1:      csum_calculated.ChecksumSHA1,
-		ChecksumSHA256:    csum_calculated.ChecksumSHA256,
-		ChecksumType:      csum_calculated.ChecksumType,
+		ChecksumCRC32:     csumset.ChecksumCRC32,
+		ChecksumCRC32C:    csumset.ChecksumCRC32C,
+		ChecksumCRC64NVME: csumset.ChecksumCRC64NVME,
+		ChecksumSHA1:      csumset.ChecksumSHA1,
+		ChecksumSHA256:    csumset.ChecksumSHA256,
+		ChecksumType:      csumset.ChecksumType,
 		ETag:              &etag,
 		LastModified:      &mtime,
 	}
@@ -831,11 +833,13 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	}
 
 	var path = bbs.make_path_of_bucket(bucket)
-	var err3 = os.Remove(path)
 
 	// Check some objects remain, when removing has failed.
 
+	var err3 = os.Remove(path)
 	if err3 != nil {
+		bbs.logger.Info("os.Remove() failed for DeleteBucket",
+			"path", path, "error", err3)
 		var err4 = bbs.check_bucket_empty(path)
 		if err4 != nil {
 			return nil, err4
@@ -848,8 +852,8 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 
 		var err5 = os.RemoveAll(path)
 		if err5 != nil {
-			bbs.logger.Info("os.RemoveAll() failed", "path", path,
-				"error", err5)
+			bbs.logger.Info("os.RemoveAll() failed for DeleteBucket",
+				"path", path, "error", err5)
 			var errz = &Aws_s3_error{Code: BucketNotEmpty,
 				Resource: location}
 			return nil, errz
@@ -961,8 +965,8 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	// i.MFA *string
 	// i.RequestPayer types.RequestPayer
 
-	// Note "i.ChecksumAlgorithm" is passed by
-	// "x-amz-sdk-checksum-algorithm" ("sdk" with it).
+	// Note "i.ChecksumAlgorithm" is not used as Baby-server does not
+	//  record passed checksum values.
 
 	var dummy = "dummy"
 	var _, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, &dummy)
@@ -1087,12 +1091,10 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	}
 
 	var rid int64 = get_request_id(ctx)
-	// var scratchkey = bbs.make_scratch_suffix(rid)
-	// defer bbs.discharge_scratch_suffix(rid)
 
-	// Deleting files and checking conditions are slack.  It
-	// serializes on a bucket.  Also, ETag calculation takes time and
-	// it is placed outside of serialization.
+	// NOTE: Checking conditions on deleting objects is slack.  It
+	// cannot serializes on each object.  It only serializes on a
+	// bucket which might be meaningless.
 
 	// SERIALIZE-ACCESSES.
 
@@ -2407,11 +2409,11 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
-		ChecksumCRC64NVME: i.ChecksumSHA256,
-		ChecksumSHA1:      i.ChecksumCRC64NVME,
-		ChecksumSHA256:    i.ChecksumSHA1,
+		ChecksumCRC64NVME: i.ChecksumCRC64NVME,
+		ChecksumSHA1:      i.ChecksumSHA1,
+		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var csum_to_check, err8 = decode_checksum_value(object, checksum, &csumset)
+	var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2425,18 +2427,18 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	var part int32 = 0
 	var upload_id = ""
-	var conditionals = copy_conditionals{
-		some_match: i.IfMatch,
-		none_match: i.IfNoneMatch,
-	}
 	var checks = copy_checks{
 		size_to_check: size_to_check,
 		checksum:      checksum,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
+	var conditionals = copy_conditionals{
+		some_match: i.IfMatch,
+		none_match: i.IfNoneMatch,
+	}
 	var stat, etag, err6 = bbs.upload_object(ctx, object, part, upload_id,
-		i.Body, info, conditionals, checks)
+		i.Body, info, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2450,9 +2452,9 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset.ChecksumSHA256
-		o.ChecksumSHA1 = csumset.ChecksumCRC64NVME
-		o.ChecksumSHA256 = csumset.ChecksumSHA1
+		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset.ChecksumSHA1
+		o.ChecksumSHA256 = csumset.ChecksumSHA256
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -2489,7 +2491,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	// - OperationAborted
 	// - InternalError
 
-	// IGNORE i.ContentMD5.
+	// i.ContentMD5 is implicitly checked in unmarshaling body.
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err2 != nil {
@@ -2621,11 +2623,11 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
-		ChecksumCRC64NVME: i.ChecksumSHA256,
-		ChecksumSHA1:      i.ChecksumCRC64NVME,
-		ChecksumSHA256:    i.ChecksumSHA1,
+		ChecksumCRC64NVME: i.ChecksumCRC64NVME,
+		ChecksumSHA1:      i.ChecksumSHA1,
+		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var csum_to_check, err8 = decode_checksum_value(object, checksum, &csumset)
+	var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2638,15 +2640,15 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	// SERIALIZE-ACCESSES (in the uploading routine).
 
 	var info *Meta_info = nil
-	var conditionals = copy_conditionals{}
 	var checks = copy_checks{
 		size_to_check: size_to_check,
 		checksum:      checksum,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
+	var conditionals = copy_conditionals{}
 	var _, etag, err6 = bbs.upload_object(ctx, object, part, upload_id,
-		i.Body, info, conditionals, checks)
+		i.Body, info, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2657,9 +2659,9 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		// Copy the checksum given, because it passes the comparison.
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset.ChecksumSHA256
-		o.ChecksumSHA1 = csumset.ChecksumCRC64NVME
-		o.ChecksumSHA256 = csumset.ChecksumSHA1
+		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset.ChecksumSHA1
+		o.ChecksumSHA256 = csumset.ChecksumSHA256
 	}
 
 	// o.BucketKeyEnabled *bool

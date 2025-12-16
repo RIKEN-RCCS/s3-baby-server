@@ -44,6 +44,9 @@ type suffix_record struct {
 	timestamp time.Time
 }
 
+// H_XML_BODY_LIMIT limits the receive size of a request body.
+var h_xml_body_limit int64 = (2 * 1024 * 1024)
+
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
@@ -60,6 +63,56 @@ func (bbs *Bb_server) make_request_id() *int64 {
 	//return strconv.FormatInt(t, 16)
 	//return fmt.Sprintf("%016x", t)
 	return &t
+}
+
+// RESPOND_ON_ACTION_ERROR is called on an action error and
+// makes a response for it.
+func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
+	var e1, ok = e.(*Aws_s3_error)
+	if !ok {
+		log.Fatalf("Bad error from action: %#v", e)
+	}
+	bbs.logger.Info("Error in action", "code", string(e1.Code), "error", e1)
+
+	var rid int64 = get_request_id(ctx)
+
+	e1.RequestId = fmt.Sprintf("%016x", rid)
+	var m = Aws_s3_error_to_message[e1.Code]
+	if len(e1.Message) == 0 {
+		e1.Message = m.Message
+		//fmt.Printf("e1=%#v\n", e1)
+	}
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(m.Status)
+	var w1 = http.NewResponseController(w)
+	var err1 = xml.NewEncoder(w).Encode(e1)
+	if err1 != nil {
+		bbs.logger.Error("xml-encoder failure", "error", err1)
+		panic(fmt.Errorf("xml-encoder failure: %w", err1))
+	}
+	w1.Flush()
+}
+
+// RESPOND_ON_INPUT_ERROR is an action error and makes a
+// response for it.
+func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, m map[string]error) {
+	if len(m) == 0 {
+		log.Fatalf("BAD-IMPL: error handler is called without errors: %#v", m)
+	}
+	var e error
+	for _, e = range m {
+		break
+	}
+	var err1 = &Aws_s3_error{Code: InvalidArgument, Message: e.Error()}
+	bbs.respond_on_action_error(ctx, w, r, err1)
+}
+
+// COPE_WITH_WRITE_ERROR is called on a write error of response
+// payload and makes a response for it.
+func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
+	var action = get_request_action(ctx)
+	bbs.logger.Info("Writing response failed",
+		"action", action, "error", e)
 }
 
 func get_request_id(ctx context.Context) int64 {
@@ -128,63 +181,6 @@ func (bbs *Bb_server) release_access(ctx context.Context, object string, rid int
 
 func make_parameter_error(name string, err error) error {
 	return fmt.Errorf(("Parameter \"" + name + "\" error: %w"), err)
-}
-
-// RESPOND_ON_ACTION_ERROR is an action error and makes a
-// response for it.
-func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	var e1, ok = e.(*Aws_s3_error)
-	if !ok {
-		log.Fatalf("Bad error from action: %#v", e)
-	}
-	bbs.logger.Info("Error in action", "code", string(e1.Code), "error", e1)
-
-	var rid int64 = get_request_id(ctx)
-
-	e1.RequestId = fmt.Sprintf("%016x", rid)
-	var m = Aws_s3_error_to_message[e1.Code]
-	if len(e1.Message) == 0 {
-		e1.Message = m.Message
-		//fmt.Printf("e1=%#v\n", e1)
-	}
-	w.Header().Set("Content-Type", "application/xml")
-	w.WriteHeader(m.Status)
-	var w1 = http.NewResponseController(w)
-	var err1 = xml.NewEncoder(w).Encode(e1)
-	if err1 != nil {
-		bbs.logger.Error("xml-encoder failure", "error", err1)
-		panic(fmt.Errorf("xml-encoder failure: %w", err1))
-	}
-	w1.Flush()
-}
-
-// RESPOND_ON_INPUT_ERROR is an action error and makes a
-// response for it.
-func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, m map[string]error) {
-	if len(m) == 0 {
-		log.Fatalf("BAD-IMPL: error handler is called without errors: %#v", m)
-	}
-	var e error
-	for _, e = range m {
-		break
-	}
-	var err1 = &Aws_s3_error{Code: InvalidArgument, Message: e.Error()}
-	bbs.respond_on_action_error(ctx, w, r, err1)
-}
-
-// COPE_WRITE_ERROR is called on a write error of response payload and
-// makes a response for it.
-func (bbs *Bb_server) cope_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	panic(e)
-}
-
-// XML_MARSHAL_ERROR is called on unmarshal failure
-// in import functions for tag-affix.
-func xml_marshal_error(ty string, e error) error {
-	var err1 = fmt.Errorf("Marshaling for type %s with %w", ty, e)
-	var errz = &Aws_s3_error{Code: MalformedXML,
-		Message: err1.Error()}
-	return errz
 }
 
 func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
@@ -715,7 +711,7 @@ func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
 	}
 }
 
-func decode_checksum_value(object string, checksum types.ChecksumAlgorithm, csumset *types.Checksum) ([]byte, *Aws_s3_error) {
+func decode_checksum_record(object string, checksum types.ChecksumAlgorithm, csumset *types.Checksum) ([]byte, *Aws_s3_error) {
 	var location = "/" + object
 	if checksum == "" {
 		return nil, nil

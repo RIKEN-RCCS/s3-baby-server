@@ -1,4 +1,4 @@
-// handler.go (2025-12-13)
+// handler.go (2025-12-16)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -118,10 +118,11 @@ i.SSECustomerKey = h_thing_pointer(hi.Get("x-amz-server-side-encryption-customer
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
 {var x types.CompletedMultipartUpload
-var err1 = xml.NewDecoder(r.Body).Decode(&x)
+var err1 = h_decode_body(&x, r.Body, hi)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.CompletedMultipartUpload: %w", err1)}
-} else {i.MultipartUpload = &x}}
+} else {
+i.MultipartUpload = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -148,9 +149,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_CopyObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -311,9 +312,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_CreateBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -351,11 +352,12 @@ if len(hi.Values("x-amz-object-ownership")) != 0 {
 var s = hi.Get("x-amz-object-ownership")
 var x, err2 = intern_ObjectOwnership(s)
 if err2 != nil {input_errors["x-amz-object-ownership"] = err2} else {i.ObjectOwnership = x}}
-{var d = xml.NewDecoder(r.Body)
-var x, err1 = import_CreateBucketConfiguration(d)
+{var o O_CreateBucketConfiguration
+var err1 = h_decode_body(&o, r.Body, hi)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.CreateBucketConfiguration: %w", err1)}
-} else {i.CreateBucketConfiguration = x}}
+} else {
+i.CreateBucketConfiguration = import_CreateBucketConfiguration(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -506,9 +508,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_DeleteBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -623,10 +625,11 @@ var s = hi.Get("x-amz-sdk-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
 if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
 {var x types.Delete
-var err1 = xml.NewDecoder(r.Body).Decode(&x)
+var err1 = h_decode_body(&x, r.Body, hi)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.Delete: %w", err1)}
-} else {i.Delete = &x}}
+} else {
+i.Delete = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -643,9 +646,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_DeleteObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -831,7 +834,7 @@ ho.Set("Content-Type", "binary/octet-stream")
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = io.Copy(w, o.Body)
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 }
 func h_GetObjectAttributes(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -902,9 +905,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_GetObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -946,9 +949,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_HeadBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1176,9 +1179,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_ListMultipartUploads(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1233,9 +1236,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_ListObjects(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1298,9 +1301,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_ListObjectsV2(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1369,9 +1372,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_ListParts(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1430,9 +1433,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func h_PutObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
@@ -1629,11 +1632,12 @@ if len(hi.Values("x-amz-request-payer")) != 0 {
 var s = hi.Get("x-amz-request-payer")
 var x, err2 = intern_RequestPayer(s)
 if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer = x}}
-{var d = xml.NewDecoder(r.Body)
-var x, err1 = import_Tagging(d)
+{var o O_Tagging
+var err1 = h_decode_body(&o, r.Body, hi)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.Tagging: %w", err1)}
-} else {i.Tagging = x}}
+} else {
+i.Tagging = import_Tagging(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -1822,9 +1826,9 @@ if err6 != nil {log.Fatal(err6)}
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
-if err7 != nil {bbs.cope_write_error(ctx, w, r, err7)}
+if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
-if err8 != nil {bbs.cope_write_error(ctx, w, r, err8)}
+if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
 func intern_BucketCannedACL(s string) (types.BucketCannedACL, error) {
 switch s {

@@ -128,23 +128,27 @@ func TestXmlMarshal(t *testing.T) {
 	*/
 
 	{
+		var o O_CreateBucketConfiguration
 		var r = strings.NewReader("")
 		var d = xml.NewDecoder(r)
-		var _, err1 = import_CreateBucketConfiguration(d)
+		var err1 = d.Decode(&o)
 		if err1 != nil {
 			if err1 != io.EOF {
 				log.Fatalf("Decode() error on empty stream: %v", err1)
 			}
 		}
+		var _ = import_CreateBucketConfiguration(&o)
 	}
 
 	{
+		var o O_CreateBucketConfiguration
 		var r = strings.NewReader(bucketconfig1)
 		var d = xml.NewDecoder(r)
-		var x, err1 = import_CreateBucketConfiguration(d)
+		var err1 = d.Decode(&o)
 		if err1 != nil {
 			log.Fatalf("Decode() error: %v", err1)
 		}
+		var x = import_CreateBucketConfiguration(&o)
 		// var bs, _ = xml.MarshalIndent(x, "", "  ")
 		//fmt.Printf("Buckets x=%#v\n", string(bs))
 
@@ -164,12 +168,14 @@ func TestXmlMarshal(t *testing.T) {
 	}
 
 	{
+		var o O_Tagging
 		var r = strings.NewReader(tagging1)
 		var d = xml.NewDecoder(r)
-		var x, err1 = import_Tagging(d)
+		var err1 = d.Decode(&o)
 		if err1 != nil {
 			log.Fatalf("Decode() error: %v", err1)
 		}
+		var x = import_Tagging(&o)
 		//fmt.Printf("Tagging=%#v\n", x)
 
 		var bs strings.Builder
@@ -279,7 +285,7 @@ func export_CreateBucketConfiguration(e *xml.Encoder, i *types.CreateBucketConfi
 	}
 	var err1 = e.Encode(&o)
 	if err1 != nil {
-		return xml_marshal_error("CreateBucketConfiguration", err1)
+		return fmt.Errorf("CreateBucketConfiguration: %w", err1)
 	}
 	return nil
 }
@@ -292,7 +298,7 @@ func export_Tagging(e *xml.Encoder, i *types.Tagging) error {
 	}
 	var err1 = e.Encode(&o)
 	if err1 != nil {
-		return xml_marshal_error("Tagging", err1)
+		return fmt.Errorf("CreateBucketConfiguration: %w", err1)
 	}
 	return nil
 }

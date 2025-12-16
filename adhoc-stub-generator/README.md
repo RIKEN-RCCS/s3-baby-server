@@ -129,7 +129,7 @@ document, Tagging's `<Tag>` entry has no html-link, i.e., that means
 it has no definition.  See the following description for the
 difference of the generated XML.
 
-## List of Types with Missing Tags
+### List of Types with Missing Tags
 
 This is the list of record slots that require the non-standard
 marshaling in AWS-S3.

@@ -454,10 +454,10 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 	var mpul Mpul_info
 	var err5 = bbs.fetch_json_data(object, path, &mpul)
 	if err5 == io.EOF {
-		bbs.logger.Warn("Info file of MPUL missing",
+		bbs.logger.Warn("MPUL info file missing",
 			"path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "Info file of MPUL missing.",
+			Message:  "MPUL info file missing.",
 			Resource: location}
 		return nil, errz
 	} else if err5 != nil {
@@ -468,11 +468,17 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 	// Check if the required fields of Baby-server is Okay.
 
 	if mpul.Initiated == nil || mpul.UploadId == nil {
-		bbs.logger.Warn("Info file of MPUL broken",
+		bbs.logger.Warn("MPUL info file broken",
 			"path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "Info file of MPUL broken.",
+			Message:  "MPUL info file broken.",
 			Resource: location}
+
+		var err6 = bbs.discard_mpul_directory(object)
+		if err6 != nil {
+			// IGNORE-ERRORS.
+		}
+
 		return nil, errz
 	}
 
@@ -651,7 +657,6 @@ func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string) (*Mp
 		return nil, errz
 	}
 	var mpul, err1 = bbs.fetch_mpul_info(object)
-	bb_assert(mpul.UploadId != nil)
 	if err1 != nil || *mpul.UploadId != *uploadid {
 		var errz = &Aws_s3_error{Code: NoSuchUpload,
 			Resource: location}

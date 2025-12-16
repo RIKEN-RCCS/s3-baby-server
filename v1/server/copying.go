@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	//"encoding/json"
+	//"encoding/xml"
 	"errors"
 	//"fmt"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -55,7 +56,7 @@ type copy_conditionals struct {
 
 // UPLOAD_OBJECT performs uploading.  Uploading is either for a file
 // of an object or a file of a MPUL part.
-func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, conditionals copy_conditionals, checks copy_checks) (fs.FileInfo, string, *Aws_s3_error) {
+func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var action = get_request_action(ctx)
 	var rid int64 = get_request_id(ctx)
@@ -134,7 +135,6 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 
 	if part != 0 {
 		var mpul, err4 = bbs.fetch_mpul_info(object)
-		bb_assert(mpul.UploadId != nil)
 		if err4 != nil || *mpul.UploadId != upload_id {
 			bbs.logger.Info("Race on MPUL parts",
 				"object", object)
@@ -160,13 +160,13 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 	}
 	cleanup_needed = false
 
-	var stat, etag, err7 = bbs.fetch_object_status(object)
+	var stat, etag, err7 = bbs.fetch_object_status(target)
 	if err7 != nil {
 		return nil, "", err7
 	}
 	if stat == nil {
 		bbs.logger.Error("Race: Object gone while serialized",
-			"action", action, "object", object)
+			"action", action, "object", object, "target", target)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message:  "Uploaded object gone",
 			Resource: location}
@@ -301,7 +301,6 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	var mpul *Mpul_info
 	if part != 0 {
 		var mpul1, err4 = bbs.fetch_mpul_info(object)
-		bb_assert(mpul1.UploadId != nil)
 		if err4 != nil || *mpul1.UploadId != upload_id {
 			bbs.logger.Info("Race on MPUL parts",
 				"object", object)
@@ -364,7 +363,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 }
 
 // CONCATENATE_OBJECT concatenates the parts to an object.
-func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, conditionals copy_conditionals, checks copy_checks) (fs.FileInfo, string, *Aws_s3_error) {
+func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, *Aws_s3_error) {
 	var action = "CompleteMultipartUpload"
 	var location = "/" + object
 	var rid int64 = get_request_id(ctx)
@@ -424,7 +423,7 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 	}
 
 	{
-		// Check the upload-id again after exclusion.
+		// Re-check the upload-id again after exclusion.
 
 		var mpul2, err3 = bbs.check_upload_ongoing(object, mpul.UploadId)
 		if err3 != nil {
@@ -661,7 +660,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 				"path", partpath, "error", err1)
 			return nil, map_os_error(location, err1, nil)
 		}
-		var _, err2 = io.Copy(f2, f3)
+		var cc, err2 = io.Copy(f2, f3)
 		if err2 != nil {
 			bbs.logger.Warn("io.Copy() failed for MPUL data",
 				"path", partpath, "error", err2)
@@ -673,6 +672,8 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 				"path", partpath, "error", err3)
 			// IGNORE-ERRORS.
 		}
+
+		bbs.logger.Debug("concat copied", "count", cc)
 	}
 
 	cleanup_needed = false
