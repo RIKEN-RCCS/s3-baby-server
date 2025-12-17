@@ -120,7 +120,7 @@ https://gist.githubusercontent.com/maratori/47a4d00457a92aa426dbd48a18776322/raw
 - Versions
 - POST Object
 
-## Implemented API
+## Implemented API Actions
 
 - AbortMultipartUpload
 - CompleteMultipartUpload

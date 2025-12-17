@@ -162,14 +162,12 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 
 	var partlist = i.MultipartUpload
-	if partlist == nil {
+	if partlist == nil || len(partlist.Parts) == 0 {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message:  "Request body missing.",
 			Resource: location}
 		return nil, errz
 	}
-
-	bbs.logger.Debug("concat copying", "list", partlist)
 
 	// Check parts are sorted.
 

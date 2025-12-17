@@ -5,7 +5,7 @@ the API definition in Smithy.  It generates files: "api-template.go",
 "handler.go", "dispatcher.go", and "marshaler.go".  These generated
 files are copied in the source directory of Baby-server.
 
-## About "s3.json", AWS-S3 IDL Definition in Smithy
+## About "s3.json", AWS-S3 Definition in Smithy IDL
 
 This ad-hoc stub-generator refers to "s3.json" in Golang's
 aws-sdk-go-v2.  There are several "s3.json" files in the world but
@@ -16,9 +16,15 @@ instance, other files can be found in Smithy-rust or Smithy-java.
 - https://github.com/smithy-lang/smithy-rs/blob/main/aws/sdk/aws-models/s3.json
 - https://github.com/smithy-lang/smithy-java/blob/main/aws/client/aws-client-rulesengine/src/shared-resources/software/amazon/smithy/java/aws/client/rulesengine/s3.json
 
-Note that AWS's Simity for Golang does not contain "s3.json".
+Note that AWS's Simity for Golang does not contain "s3.json".  See
+smithy-go:
 
 - https://github.com/aws/smithy-go
+
+General information on Smithy IDL and its syntax can be found in:
+
+- https://smithy.io
+- https://smithy.io/2.0/spec/idl.html
 
 ## Notable remarks
 

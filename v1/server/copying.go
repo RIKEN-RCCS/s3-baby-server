@@ -660,7 +660,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 				"path", partpath, "error", err1)
 			return nil, map_os_error(location, err1, nil)
 		}
-		var cc, err2 = io.Copy(f2, f3)
+		var _, err2 = io.Copy(f2, f3)
 		if err2 != nil {
 			bbs.logger.Warn("io.Copy() failed for MPUL data",
 				"path", partpath, "error", err2)
@@ -673,7 +673,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 			// IGNORE-ERRORS.
 		}
 
-		bbs.logger.Debug("concat copied", "count", cc)
+		//bbs.logger.Debug("concat copied", "count", cc)
 	}
 
 	cleanup_needed = false
