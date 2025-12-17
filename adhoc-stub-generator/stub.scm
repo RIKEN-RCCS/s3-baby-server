@@ -1464,9 +1464,9 @@
 	"w.WriteHeader(status)"))
 
 (define (make-output-response http-status response-type slot-property)
-  ;; Makes a response of a payload.  Payload is from an output record
-  ;; itself or a designated slot.  It uses an output record when
-  ;; slot-property=#f.
+  ;; Makes a response of a payload.  A payload is either from a
+  ;; designated slot or an output record itself.  An output record is
+  ;; used when slot-property=#f.
   (cond
    ((eqv? slot-property #f)
     ;; (1) Payload is an output record (including unit case).
@@ -1840,7 +1840,8 @@
     (any check-output-whole-payload1 response-properties)))
 
 (define (make-slot-marshaler slot-property)
-  ;; Returns lines of marshaler for an response element.
+  ;; Returns lines of marshaler for an response element.  Note there
+  ;; would be no TAG-AMEND cases.
   (match-let* (((slot type tag locus required flattened) slot-property)
 	       (definition (assoc type list-of-types))
 	       ((type-name type-kind _ . slot-property-list) definition)
