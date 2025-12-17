@@ -255,3 +255,47 @@ Correction of XML tags by tag-affix works only on the top level slots
 of records.  It does not work when correction is needed in nested
 slots.  The records needed in Baby-server are "[]Bucket" and "[]Tag",
 and both appear in shallow slots.
+
+
+## XML Tag Mapping ("Tag-Amend")
+
+DeleteObjects action has "Delete" parameter whose definition in Smithy
+is as follows.  It has "Objects" slot as an array.
+
+```
+"com.amazonaws.s3#Delete": {
+    "type": "structure",
+    "members": {
+        "Objects": {
+            "target": "com.amazonaws.s3#ObjectIdentifierList",
+            "traits": {
+                "smithy.api#xmlFlattened": {},
+                "smithy.api#xmlName": "Object"
+    ......
+}
+```
+
+The type of "Delete" is "types.Delete" and it is defined as follows in
+AWS-SDK (attached the package name explicitly).
+
+```
+type types.Delete struct {
+    Objects []types.ObjectIdentifier
+    Quiet *bool
+}
+```
+
+By this definition, the standard marshaler would rendar the "Objects"
+slot as a list of `<Objects>`, although API definition requires a list
+of `<Object>`.
+
+To instruct the marshaler of this fact, the definition of the
+"Objects" slot in Smithy has markers `xmlName="Object"` and
+`xmlFlattened` in its traits.  Since the standard marshaler handles
+arrays as flattened by default, it requires only the correction of tag
+names.
+
+### Types that need XML Tag Mapping
+
+- types.Delete for DeleteObjects
+- types.CompletedMultipartUpload for CompleteMultipartUpload

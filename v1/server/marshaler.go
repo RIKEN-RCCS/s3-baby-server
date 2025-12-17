@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-16)
+// marshaler.go (2025-12-18)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -359,6 +359,15 @@ func (s O_UploadPartCopyResponse) MarshalXML(e *xml.Encoder, _ xml.StartElement)
 {var err2 = e.EncodeElement(s.CopyPartResult, h_make_tag("CopyPartResult"))
 if err2 != nil {return err2}}
 return nil}
+type O_CompletedMultipartUpload struct {
+XMLName xml.Name `xml:"CompleteMultipartUpload"`
+Part []types.CompletedPart
+}
+func import_CompletedMultipartUpload(o *O_CompletedMultipartUpload) *types.CompletedMultipartUpload {
+var i = types.CompletedMultipartUpload{
+Parts: o.Part,
+}
+return &i}
 type O_CreateBucketConfiguration struct {
 XMLName xml.Name `xml:"CreateBucketConfiguration"`
 LocationConstraint types.BucketLocationConstraint
@@ -372,6 +381,17 @@ LocationConstraint: o.LocationConstraint,
 Location: o.Location,
 Bucket: o.Bucket,
 Tags: o.Tags.Tag,
+}
+return &i}
+type O_Delete struct {
+XMLName xml.Name `xml:"Delete"`
+Object []types.ObjectIdentifier
+Quiet *bool
+}
+func import_Delete(o *O_Delete) *types.Delete {
+var i = types.Delete{
+Objects: o.Object,
+Quiet: o.Quiet,
 }
 return &i}
 type O_Tagging struct {

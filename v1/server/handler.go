@@ -1,4 +1,4 @@
-// handler.go (2025-12-16)
+// handler.go (2025-12-18)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -117,12 +117,12 @@ if len(hi.Values("x-amz-server-side-encryption-customer-key")) != 0 {
 i.SSECustomerKey = h_thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key"))}
 if len(hi.Values("x-amz-server-side-encryption-customer-key-MD5")) != 0 {
 i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-customer-key-MD5"))}
-{var x types.CompletedMultipartUpload
-var err1 = h_decode_body(&x, r.Body, hi)
+{var o O_CompletedMultipartUpload
+var err1 = h_decode_body(&o, r.Body, hi)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.CompletedMultipartUpload: %w", err1)}
 } else {
-i.MultipartUpload = &x}}
+i.MultipartUpload = import_CompletedMultipartUpload(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
@@ -624,12 +624,12 @@ if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
 var s = hi.Get("x-amz-sdk-checksum-algorithm")
 var x, err2 = intern_ChecksumAlgorithm(s)
 if err2 != nil {input_errors["x-amz-sdk-checksum-algorithm"] = err2} else {i.ChecksumAlgorithm = x}}
-{var x types.Delete
-var err1 = h_decode_body(&x, r.Body, hi)
+{var o O_Delete
+var err1 = h_decode_body(&o, r.Body, hi)
 if err1 != nil {
 if err1 != io.EOF {input_errors["_payload_"] = fmt.Errorf("Malformed http body for types.Delete: %w", err1)}
 } else {
-i.Delete = &x}}
+i.Delete = import_Delete(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
