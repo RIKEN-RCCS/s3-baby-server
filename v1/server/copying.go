@@ -800,15 +800,18 @@ func (bbs *Bb_server) calculate_csum2(checksum types.ChecksumAlgorithm, object s
 	return csum1, csum2, nil
 }
 
-// ETags are strong always.
+// Note ETags are strong always.  Do not confuse md5.Sum(b) and
+// md5.New().Sum(b).
 func make_etag_from_stat(stat fs.FileInfo, ino uint64) string {
 	var size = stat.Size()
 	var mtime = stat.ModTime().UnixMicro()
-	var b = make([]byte, 32)
-	binary.LittleEndian.PutUint64(b[0:], 0xdeadbeefdeadbeef)
-	binary.LittleEndian.PutUint64(b[8:], uint64(size))
-	binary.LittleEndian.PutUint64(b[16:], uint64(mtime))
-	binary.LittleEndian.PutUint64(b[24:], ino)
-	var md5 = md5.New().Sum(b)
-	return "\"" + base64.StdEncoding.EncodeToString(md5) + "\""
+	var b1 = []byte("The quick brown fox jumps over the lazy dog")
+	var c = len(b1)
+	var b2 = make([]byte, c+24)
+	binary.LittleEndian.PutUint64(b2[0:], uint64(size))
+	binary.LittleEndian.PutUint64(b2[8:], uint64(mtime))
+	binary.LittleEndian.PutUint64(b2[16:], ino)
+	copy(b2[24:], b1)
+	var md5v = md5.Sum(b2)
+	return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
 }

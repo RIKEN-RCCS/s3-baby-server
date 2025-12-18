@@ -91,7 +91,7 @@ cat "zzz" | tr '\n' '@' | grep -ae '{@ *"CopyObjectResult": {@ *"ETag": "\\"qkwT
 
 ECHO "*** Call list-objects-v2."
 
-aws s3api list-objects-v2 --no-cli-pager --bucket "mybucket1" --prefix "data" --max-keys 17
+aws s3api list-objects-v2 --no-cli-pager --bucket "mybucket1" --prefix "obj" --max-keys 17
 
 ECHO "*** Call put-object-tagging."
 
