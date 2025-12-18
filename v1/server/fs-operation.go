@@ -140,17 +140,21 @@ func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 	return path
 }
 
-// MAKE_PATH_OF_OBJECT makes an OS-path to an object, by appending a
-// pool-directory, a bucket, and a key.  A scratchkey is a random key,
-// or it can be "meta" or "mpul" (multipart upload).
-func (bbs *Bb_server) make_path_of_object(object string, scratchkey string) string {
+// MAKE_PATH_OF_OBJECT makes an OS-path to an object, by appending an
+// object name with a marker suffix.  A marker can be one of a null
+// string, a random for a scratch file, "@meta", or "@mpul" (mpul is
+// for multipart upload).
+func (bbs *Bb_server) make_path_of_object(object string, marker string) string {
 	var prefix, suffix string
-	if scratchkey == "" {
+	if marker == "" {
 		prefix = ""
 		suffix = ""
+	} else if marker[0] == '@' {
+		prefix = "."
+		suffix = marker
 	} else {
 		prefix = "."
-		suffix = "@" + scratchkey
+		suffix = "@" + marker
 	}
 	var dir, file = path.Split(object)
 	var pool_path = "."
@@ -234,7 +238,7 @@ func (bbs *Bb_server) delete_file(object string) error {
 // directory when it already exists, and rewrites its upload-id.
 func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, mpul *Mpul_info) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
-	var path = bbs.make_path_of_object(object, "mpul")
+	var path = bbs.make_path_of_object(object, "@mpul")
 
 	// Make intermediate directories.
 
@@ -302,7 +306,7 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 // remove intermediate directories.  Errors are ignored.
 func (bbs *Bb_server) discard_mpul_directory(object string) error {
 	var location = "/" + object + "@mpul"
-	var path = bbs.make_path_of_object(object, "mpul")
+	var path = bbs.make_path_of_object(object, "@mpul")
 
 	var stat, err2 = os.Lstat(path)
 	if err2 != nil {
@@ -416,7 +420,7 @@ func (bbs *Bb_server) check_path_is_link_free(object string) *Aws_s3_error {
 // properness).
 func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) {
 	//var location = "/" + object
-	var path = bbs.make_path_of_object(object, "meta")
+	var path = bbs.make_path_of_object(object, "@meta")
 
 	var info Meta_info
 	var err5 = bbs.fetch_json_data(object, path, &info)
@@ -430,15 +434,21 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 }
 
 // STORE_METAINFO stores a metainfo file.  Passing nil deletes a
-// metainfo file.  Also, deletes a metainfo file all elements are nil.
+// metainfo file.  Also, it deletes a metainfo file when all elements
+// are nil.  IMPLEMENTATION NOTE: Do not assign info=nil, but use
+// data=nil instead.  This is to avoid the issue of typed-nil!=nil.
 func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_error {
 	//var location = "/" + object
-	if info != nil && (info.Headers == nil && info.Tags == nil) {
-		info = nil
+	var data any
+	if info == nil {
+		data = nil
+	} else if info.Headers == nil && info.Tags == nil {
+		data = nil
+	} else {
+		data = info
 	}
-
-	var path = bbs.make_path_of_object(object, "meta")
-	var err5 = bbs.store_json_data(object, path, info)
+	var path = bbs.make_path_of_object(object, "@meta")
+	var err5 = bbs.store_json_data(object, path, data)
 	if err5 != nil {
 		return err5
 	}
@@ -449,7 +459,7 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 // checks the required fields are non-nil.
 func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 	var location = "/" + object + "@mpul"
-	var mpulpath = bbs.make_path_of_object(object, "mpul")
+	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
 	var mpul Mpul_info
 	var err5 = bbs.fetch_json_data(object, path, &mpul)
@@ -487,7 +497,7 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 
 func (bbs *Bb_server) store_mpul_info(object string, mpul *Mpul_info) *Aws_s3_error {
 	//var location = "/" + object + "@mpul"
-	var mpulpath = bbs.make_path_of_object(object, "mpul")
+	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
 	var err5 = bbs.store_json_data(object, path, mpul)
 	if err5 != nil {
@@ -516,7 +526,7 @@ func (bbs *Bb_server) update_mpul_catalog(object string, part int32, partinfo *M
 
 func (bbs *Bb_server) fetch_mpul_catalog(object string) (*Mpul_catalog, *Aws_s3_error) {
 	var location = "/" + object + "@mpul"
-	var mpulpath = bbs.make_path_of_object(object, "mpul")
+	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "list")
 	var catalog Mpul_catalog
 	var err5 = bbs.fetch_json_data(object, path, &catalog)
@@ -536,7 +546,7 @@ func (bbs *Bb_server) fetch_mpul_catalog(object string) (*Mpul_catalog, *Aws_s3_
 
 func (bbs *Bb_server) store_mpul_catalog(object string, catalog *Mpul_catalog) *Aws_s3_error {
 	//var location = "/" + object + "@mpul"
-	var mpulpath = bbs.make_path_of_object(object, "mpul")
+	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "list")
 	var err5 = bbs.store_json_data(object, path, catalog)
 	if err5 != nil {

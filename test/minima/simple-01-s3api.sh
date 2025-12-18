@@ -155,7 +155,7 @@ aws s3api delete-object --no-cli-pager --bucket "mybucket1" --key "object1.txt"
 
 ECHO "*** Call delete-objects."
 
-aws s3api delete-objects --no-cli-pager --bucket "mybucket1" --delete "{\"Objects\":[{\"Key\":\"object2.txt\"},{\"Key\":\"object4.txt\"}],\"Quiet\":false}"
+aws s3api delete-objects --no-cli-pager --bucket "mybucket1" --delete "{\"Objects\":[{\"Key\":\"object2.txt\"},{\"Key\":\"object4.txt\"},{\"Key\":\"object5.txt\"}],\"Quiet\":false}"
 
 ECHO "*** Call delete-bucket."
 

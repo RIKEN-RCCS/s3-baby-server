@@ -640,7 +640,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 		f2 = f1
 	}
 
-	var mpulpath = bbs.make_path_of_object(object, "mpul")
+	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	for _, p := range partlist.Parts {
 		// p : types.CompletedPart
 		// - ChecksumCRC32 *string
@@ -734,7 +734,7 @@ func (bbs *Bb_server) discard_scratch_file(object, scratchkey string) error {
 		// IGNORE-ERRORS.
 	}
 
-	var path2 = bbs.make_path_of_object(object, "meta")
+	var path2 = bbs.make_path_of_object(object, "@meta")
 	var _, err2 = os.Lstat(path2)
 	if err2 == nil || !errors.Is(err2, fs.ErrNotExist) {
 		var err3 = os.Remove(path2)
