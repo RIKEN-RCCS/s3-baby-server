@@ -164,7 +164,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	var partlist = i.MultipartUpload
 	if partlist == nil || len(partlist.Parts) == 0 {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "Request body missing.",
+			Message:  "Parts in request empty.",
 			Resource: location}
 		return nil, errz
 	}
@@ -176,7 +176,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		func(a, b types.CompletedPart) int {
 			if a.PartNumber == nil || b.PartNumber == nil {
 				error_in_sorting = &Aws_s3_error{Code: InvalidArgument,
-					Message:  "PartNumber missing.",
+					Message:  "Part number missing.",
 					Resource: location}
 				// Return a positive to stop the loop.
 				return 1
@@ -206,24 +206,25 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			// It returns true on an error to stop the loop.
 			if e.PartNumber == nil || e.ETag == nil {
 				error_in_checking = &Aws_s3_error{Code: InvalidArgument,
-					Message:  "PartNumber/ETag missing.",
+					Message:  "Part number or ETag missing.",
 					Resource: location}
 				// Return true to stop the loop.
 				return true
 			}
 			var part = *e.PartNumber
 			var etag = *e.ETag
-			if part >= int32(len(catalog.Parts)) {
+			if !(0 <= (part-1) && (part-1) < int32(len(catalog.Parts)) &&
+				catalog.Parts[part-1].ETag != "") {
 				bbs.logger.Info("Part not uploaded",
-					"action", action)
+					"action", action, "part", part)
 				error_in_checking = &Aws_s3_error{Code: NoSuchUpload,
 					Resource: location}
 				// Return true to stop the loop.
 				return true
 			}
-			if catalog.Parts[part].ETag != etag {
+			if catalog.Parts[part-1].ETag != etag {
 				bbs.logger.Info("ETags mismatch",
-					"action", action)
+					"action", action, "part", part)
 				error_in_checking = &Aws_s3_error{Code: InvalidPart,
 					Resource: location}
 				// Return true to stop the loop.
@@ -243,7 +244,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				// IGNORE-ERRORS.
 			}
 			if csum_to_check != nil {
-				var csum, err7 = decode_base64(object, &catalog.Parts[part].Checksum)
+				var csum, err7 = decode_base64(object, &catalog.Parts[part-1].Checksum)
 				if err7 != nil {
 					// IGNORE-ERRORS.
 				}

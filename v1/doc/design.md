@@ -106,6 +106,8 @@ that are in-progress. *)
 
 ListMultipartUploads never returns NextUploadIdMarker in the output.
 
+The saved array of parts are indexed in zero origin (part - 1).
+
 ## Copying a file
 
 Baby-server copies a file by linking a file.  The mtime of a new file
