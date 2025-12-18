@@ -513,13 +513,13 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	// Note checksum calculation is outside of serialization.
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	var csumset *types.Checksum
+	var csumset types.Checksum
 	if checksum != "" {
 		var _, csum, err4 = bbs.calculate_csum2(checksum, object, "")
 		if err4 != nil {
 			return nil, err4
 		}
-		csumset = fill_checksum_record(checksum, csum)
+		fill_checksum_record(&csumset, checksum, csum)
 	}
 
 	var mtime = stat.ModTime()
@@ -1461,8 +1461,9 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		o.ETag = &etag
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
-		var csum_calculated = fill_checksum_record(checksum, csum)
-		o.Checksum = csum_calculated
+		var csumset types.Checksum
+		fill_checksum_record(&csumset, checksum, csum)
+		o.Checksum = &csumset
 	}
 	if slices.Contains(attributes, types.ObjectAttributesObjectParts) {
 		o.ObjectParts = nil
@@ -2740,12 +2741,6 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	if err3 != nil {
 		return nil, err3
 	}
-
-	//var md5, _, err4 = bbs.calculate_csum2("", source, "")
-	//if err4 != nil {
-	//	return nil, err4
-	//}
-	//var csum_calculated = fill_checksum_record(checksum, csum)
 
 	// NOTE: Checking conditionals on the source is not serialized.
 

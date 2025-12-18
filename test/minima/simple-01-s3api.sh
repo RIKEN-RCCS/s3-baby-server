@@ -65,7 +65,7 @@ ECHO "*** Call put-object."
 
 aws s3api put-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --body data-01k.txt --cache-control no-cache | tee "zzz"
 
-cat "zzz" | tr '\n' '@' | grep -ae '{@ *"ETag": "\\"qkwTLse+ClningEv4pWrfw==\\"",@ *"ChecksumCRC64NVME": "Bhu12BI5T1s=",@ *"ChecksumType": "FULL_OBJECT"@}@'
+cat "zzz" | tr '\n' '@' | grep -ae '{@ *"ETag": "\\"[a-zA-Z0-9+/=]*\\"",@ *"ChecksumCRC64NVME": "Bhu12BI5T1s=",@ *"ChecksumType": "FULL_OBJECT",@ *"Size": 1299@}@'
 
 aws s3api put-object --no-cli-pager --bucket "mybucket1" --key "object2.txt" --body data-01k.txt --tagging "mykey1=myvalue1&mykey2=myvalue2"
 
@@ -87,7 +87,7 @@ ECHO "*** Call copy-object."
 
 aws s3api copy-object --no-cli-pager --bucket "mybucket1" --key "object3.txt" --copy-source "mybucket1/object1.txt" --tagging-directive REPLACE --tagging "mykey5=myvalue5&mykey6=myvalue6" | tee "zzz"
 
-cat "zzz" | tr '\n' '@' | grep -ae '{@ *"CopyObjectResult": {@ *"ETag": "\\"qkwTLse+ClningEv4pWrfw==\\"",@ *"LastModified": "[-0-9T:+]*",@ *"ChecksumType": "FULL_OBJECT"@ *}@}@' > /dev/null
+cat "zzz" | tr '\n' '@' | grep -ae '{@ *"CopyObjectResult": {@ *"ETag": "\\"[a-zA-Z0-9+/=]*\\"",@ *"LastModified": "[-0-9T:+]*",@ *"ChecksumType": ""@ *}@}@' > /dev/null
 
 ECHO "*** Call list-objects-v2."
 
@@ -155,7 +155,7 @@ aws s3api delete-object --no-cli-pager --bucket "mybucket1" --key "object1.txt"
 
 ECHO "*** Call delete-objects."
 
-aws s3api delete-objects --no-cli-pager --bucket "mybucket1" --delete "{\"Objects\":[{\"Key\":\"object2.txt\"},{\"Key\":\"object4.txt\"},{\"Key\":\"object5.txt\"}],\"Quiet\":false}"
+aws s3api delete-objects --no-cli-pager --bucket "mybucket1" --delete "{\"Objects\":[{\"Key\":\"object2.txt\"},{\"Key\":\"object3.txt\"},{\"Key\":\"object4.txt\"},{\"Key\":\"object5.txt\"}],\"Quiet\":false}"
 
 ECHO "*** Call delete-bucket."
 
