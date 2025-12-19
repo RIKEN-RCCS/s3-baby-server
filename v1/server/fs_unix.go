@@ -21,11 +21,16 @@ import (
 	"time"
 )
 
-func file_ino(path string) (uint64, bool) {
-	var s syscall.Stat_t
-	var err1 = syscall.Lstat(path, &s)
-	if err1 != nil {
-		log.Print("unix/syscall.Lstat() failed.")
+func file_ino(stat fs.FileInfo, path string) (uint64, bool) {
+	//var s syscall.Stat_t
+	//var err1 = syscall.Lstat(path, &s)
+	//if err1 != nil {
+	//	log.Print("unix/syscall.Lstat() failed.")
+	//	return 0, false
+	//}
+	var s, ok = stat.Sys().(*syscall.Stat_t)
+	if !ok {
+		log.Print("fs.FileInfo.Sys() is not for unix.")
 		return 0, false
 	}
 	return s.Ino, true

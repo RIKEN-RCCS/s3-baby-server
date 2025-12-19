@@ -36,9 +36,9 @@ import (
 )
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, *Aws_s3_error) {
-	var action = "AbortMultipartUpload"
-	fmt.Printf("*AbortMultipartUpload*\n")
 	var o = s3.AbortMultipartUploadOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -102,9 +102,9 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 }
 
 func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, *Aws_s3_error) {
-	var action = "CompleteMultipartUpload"
-	fmt.Printf("*CompleteMultipartUpload*\n")
 	var o = s3.CompleteMultipartUploadOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -198,7 +198,6 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	if err4 != nil {
 		return nil, err4
 	}
-	var checksum = catalog.ChecksumAlgorithm
 
 	var error_in_checking *Aws_s3_error = nil
 	var nogood = slices.ContainsFunc(partlist.Parts,
@@ -239,11 +238,19 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				ChecksumSHA1:      e.ChecksumSHA1,
 				ChecksumSHA256:    e.ChecksumSHA256,
 			}
-			var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset2)
+			var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset2)
 			if err8 != nil {
 				// IGNORE-ERRORS.
 			}
 			if csum_to_check != nil {
+				if checksum != mpul.ChecksumAlgorithm {
+					bbs.logger.Info("Checksum algorithm mismatch",
+						"action", action)
+					error_in_checking = &Aws_s3_error{Code: InvalidPart,
+						Resource: location}
+					// Return true to stop the loop.
+					return true
+				}
 				var csum, err7 = decode_base64(object, &catalog.Parts[part-1].Checksum)
 				if err7 != nil {
 					// IGNORE-ERRORS.
@@ -272,9 +279,14 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// The returned checksum is always for full object.
 
 	if i.ChecksumType != types.ChecksumTypeFullObject {
-		bbs.logger.Info("Checksum by not full-object unsuppored, ignored",
+		bbs.logger.Info("Checksum by not full-object unsuppored",
 			"checksum-type", i.ChecksumType)
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message:  "Checksum by not full-object unsuppored.",
+			Resource: location}
+		return nil, errz
 	}
+
 	var csumset1 = types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
@@ -283,9 +295,19 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset1)
+	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset1)
 	if err8 != nil {
-		// IGNORE-ERRORS.
+		return nil, err8
+	}
+
+	if checksum != "" && checksum != mpul.ChecksumAlgorithm {
+		bbs.logger.Info("Checksum algorithm mismatch",
+			"checksum-algorithm MPUL creation", mpul.ChecksumAlgorithm,
+			"checksum-algorithm MPUL completion", checksum)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Checksum algorithm mismatch in MPUL creation and completion",
+			Resource: location}
+		return nil, errz
 	}
 
 	// SERIALIZE-ACCESSES (in the concatenation routine).
@@ -321,7 +343,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 	o.Location = &address
 
-	if mpul.ChecksumAlgorithm != "" {
+	if checksum != "" {
+		/*AHO*/
 		// Copy the checksum given, because it passes the comparison.
 		o.ChecksumType = csumset1.ChecksumType
 		o.ChecksumCRC32 = csumset1.ChecksumCRC32
@@ -347,9 +370,9 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 }
 
 func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, *Aws_s3_error) {
-	var action = "CopyObject"
-	fmt.Printf("*CopyObject*\n")
 	var o = s3.CopyObjectOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -513,6 +536,9 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	// Note checksum calculation is outside of serialization.
 
 	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
+	if checksum == "" {
+		checksum = types.ChecksumAlgorithmCrc64nvme
+	}
 	var csumset types.Checksum
 	if checksum != "" {
 		var _, csum, err4 = bbs.calculate_csum2(checksum, object, "")
@@ -559,9 +585,9 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 }
 
 func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, *Aws_s3_error) {
-	var action = "CreateBucket"
-	fmt.Printf("*CreateBucket*\n")
 	var o = s3.CreateBucketOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -648,9 +674,9 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 }
 
 func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, *Aws_s3_error) {
-	var action = "CreateMultipartUpload"
-	fmt.Printf("*CreateMultipartUpload*\n")
 	var o = s3.CreateMultipartUploadOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -717,8 +743,12 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	}
 
 	if i.ChecksumType != types.ChecksumTypeFullObject {
-		bbs.logger.Info("Checksum by not full-object unsuppored, ignored",
+		bbs.logger.Info("Checksum by not full-object unsuppored",
 			"checksum-type", i.ChecksumType)
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message:  "Checksum by not full-object unsuppored.",
+			Resource: location}
+		return nil, errz
 	}
 	var checksumtype = types.ChecksumTypeFullObject
 	var checksum = i.ChecksumAlgorithm
@@ -744,8 +774,8 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		MultipartUpload: types.MultipartUpload{
 			UploadId:          &uploadid,
 			Initiated:         &now,
-			ChecksumType:      checksumtype,
 			ChecksumAlgorithm: checksum,
+			ChecksumType:      checksumtype,
 		},
 		MetaInfo: info,
 	}
@@ -763,7 +793,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		}()
 
 		var catalog = &Mpul_catalog{
-			ChecksumAlgorithm: checksum,
+			// Empty catalog information.
 		}
 		var err7 = bbs.store_mpul_catalog(object, catalog)
 		if err7 != nil {
@@ -795,9 +825,9 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 }
 
 func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, *Aws_s3_error) {
-	var action = "DeleteBucket"
-	fmt.Printf("*DeleteBucket*\n")
 	var o = s3.DeleteBucketOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -863,9 +893,9 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 }
 
 func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, *Aws_s3_error) {
-	var action = "DeleteObject"
-	fmt.Printf("*DeleteObject*\n")
 	var o = s3.DeleteObjectOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -952,9 +982,9 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 }
 
 func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, *Aws_s3_error) {
-	var action = "DeleteObjects"
-	fmt.Printf("*DeleteObjects*\n")
 	var o = s3.DeleteObjectsOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// i.Bucket *string
 	// i.Delete *types.Delete
@@ -965,7 +995,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	// i.RequestPayer types.RequestPayer
 
 	// Note "i.ChecksumAlgorithm" is not used as Baby-server does not
-	//  record passed checksum values.
+	// record passed checksum values.
 
 	var dummy = "dummy"
 	var _, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, &dummy)
@@ -1182,9 +1212,9 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 }
 
 func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, *Aws_s3_error) {
-	var action = "DeleteObjectTagging"
-	fmt.Printf("*DeleteObjectTagging*\n")
 	var o = s3.DeleteObjectTaggingOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1250,9 +1280,9 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 }
 
 func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, *Aws_s3_error) {
-	var action = "GetObject"
-	fmt.Printf("*GetObject*\n")
 	var o = s3.GetObjectOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1332,12 +1362,16 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	var csum []byte
 	if i.ChecksumMode == types.ChecksumModeEnabled {
-		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum1, err1 = bbs.calculate_csum2(checksum, object, "")
-		if err1 != nil {
-			return nil, err1
+		if i.Range == nil {
+			var checksum = types.ChecksumAlgorithmCrc64nvme
+			var _, csum1, err1 = bbs.calculate_csum2(checksum, object, "")
+			if err1 != nil {
+				return nil, err1
+			}
+			csum = csum1
+		} else {
+			bbs.logger.Error("CHECKSUM NOT RETURNED")
 		}
-		csum = csum1
 	}
 
 	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
@@ -1395,9 +1429,9 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 }
 
 func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, *Aws_s3_error) {
-	var action = "GetObjectAttributes"
-	fmt.Printf("*GetObjectAttributes*\n")
 	var o = s3.GetObjectAttributesOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1450,17 +1484,16 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 
 	// NO SERIALIZE-ACCESS.
 
-	var checksum = types.ChecksumAlgorithmCrc64nvme
-	var _, csum, err6 = bbs.calculate_csum2(checksum, object, "")
-	if err6 != nil {
-		return nil, err6
-	}
-
 	var attributes = i.ObjectAttributes
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
 		o.ETag = &etag
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
+		var checksum = types.ChecksumAlgorithmCrc64nvme
+		var _, csum, err6 = bbs.calculate_csum2(checksum, object, "")
+		if err6 != nil {
+			return nil, err6
+		}
 		var csumset types.Checksum
 		fill_checksum_record(&csumset, checksum, csum)
 		o.Checksum = &csumset
@@ -1494,23 +1527,18 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	// - PartNumber *int32
 	// - Size *int64
 
-	// o.Checksum *types.Checksum
 	// o.DeleteMarker *bool
-	// o.ETag *string
-	// o.LastModified *time.Time
 	// o.ObjectParts *types.GetObjectAttributesParts
-	// o.ObjectSize *int64
 	// o.RequestCharged types.RequestCharged
-	// o.StorageClass types.StorageClass
 	// o.VersionId *string
 
 	return &o, nil
 }
 
 func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, *Aws_s3_error) {
-	var action = "GetObjectTagging"
-	fmt.Printf("*GetObjectTagging*\n")
 	var o = s3.GetObjectTaggingOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1559,9 +1587,9 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 }
 
 func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, *Aws_s3_error) {
-	var action = "HeadBucket"
-	fmt.Printf("*HeadBucket*\n")
 	var o = s3.HeadBucketOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1594,9 +1622,9 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 }
 
 func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, *Aws_s3_error) {
-	var action = "HeadObject"
-	fmt.Printf("*HeadObject*\n")
 	var o = s3.HeadObjectOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1674,17 +1702,21 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		return nil, err6
 	}
 
-	var csum []byte
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum1, err1 = bbs.calculate_csum2(checksum, object, "")
+		var _, csum, err1 = bbs.calculate_csum2(checksum, object, "")
 		if err1 != nil {
 			return nil, err1
 		}
-		csum = csum1
+		var csumset types.Checksum
+		fill_checksum_record(&csumset, checksum, csum)
+		o.ChecksumType = csumset.ChecksumType
+		o.ChecksumCRC32 = csumset.ChecksumCRC32
+		o.ChecksumCRC32C = csumset.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset.ChecksumSHA1
+		o.ChecksumSHA256 = csumset.ChecksumSHA256
 	}
-
-	o.LastModified = &mtime
 
 	if extent != nil {
 		var length = extent[1] - extent[0]
@@ -1697,13 +1729,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	var one int32 = 1
 	o.PartsCount = &one
 
-	if i.ChecksumMode == types.ChecksumModeEnabled {
-		var crc = base64.StdEncoding.EncodeToString(csum)
-		o.ChecksumType = types.ChecksumTypeFullObject
-		o.ChecksumCRC64NVME = &crc
-	}
-
 	o.ETag = &etag
+	o.LastModified = &mtime
 
 	if info != nil {
 		// Always leave "MissingMeta" nil for zero.
@@ -1754,9 +1781,9 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 }
 
 func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, *Aws_s3_error) {
-	var action = "ListBuckets"
-	fmt.Printf("*ListBuckets*\n")
 	var o = s3.ListBucketsOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.BucketRegion *string
@@ -1830,9 +1857,9 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 }
 
 func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, *Aws_s3_error) {
-	var action = "ListMultipartUploads"
-	fmt.Printf("*ListMultipartUploads*\n")
 	var o = s3.ListMultipartUploadsOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1918,9 +1945,9 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 }
 
 func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, *Aws_s3_error) {
-	var action = "ListObjects"
-	fmt.Printf("*ListObjects*\n")
 	var o = s3.ListObjectsOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2019,9 +2046,9 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 }
 
 func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, *Aws_s3_error) {
-	var action = "ListObjectsV2"
-	fmt.Printf("*ListObjectsV2*\n")
 	var o = s3.ListObjectsV2Output{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2141,9 +2168,9 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 }
 
 func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, *Aws_s3_error) {
-	var action = "ListParts"
-	fmt.Printf("*ListParts*\n")
 	var o = s3.ListPartsOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2177,12 +2204,10 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		}
 	}
 
-	/*
-		var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
-		if err3 != nil {
-			return nil, err3
-		}
-	*/
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
+	if err3 != nil {
+		return nil, err3
+	}
 
 	var count int32 = -1
 	if i.MaxParts != nil {
@@ -2210,7 +2235,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	// Copy MPUL catalog to a result record.
 
 	var partlist []types.Part
-	var checksum = catalog.ChecksumAlgorithm
+	var checksum = mpul.ChecksumAlgorithm
 	var parts = catalog.Parts
 	var endindex int32
 	if count != -1 {
@@ -2226,6 +2251,12 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	}
 
 	for i, e := range parts {
+		var csum, err5 = base64.StdEncoding.DecodeString(e.Checksum)
+		if err5 != nil {
+			// IGNORE-ERRORS.
+		}
+		var csumset types.Checksum
+		fill_checksum_record(&csumset, checksum, csum)
 		// Part is counted by base one.
 		var no = int32(i + 1)
 		var p = types.Part{
@@ -2240,28 +2271,21 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 			// - PartNumber *int32
 			// - Size *int64
 
-			ETag:         &e.ETag,
-			LastModified: &e.Mtime,
-			PartNumber:   &no,
-			Size:         &e.Size,
-		}
-		var csum1 = &e.Checksum
-		switch checksum {
-		case types.ChecksumAlgorithmCrc32:
-			p.ChecksumCRC32 = csum1
-		case types.ChecksumAlgorithmCrc32c:
-			p.ChecksumCRC32C = csum1
-		case types.ChecksumAlgorithmSha1:
-			p.ChecksumSHA1 = csum1
-		case types.ChecksumAlgorithmSha256:
-			p.ChecksumSHA256 = csum1
-		case types.ChecksumAlgorithmCrc64nvme:
-			p.ChecksumCRC64NVME = csum1
+			ChecksumCRC32:     csumset.ChecksumCRC32,
+			ChecksumCRC32C:    csumset.ChecksumCRC32C,
+			ChecksumCRC64NVME: csumset.ChecksumCRC64NVME,
+			ChecksumSHA1:      csumset.ChecksumSHA1,
+			ChecksumSHA256:    csumset.ChecksumSHA256,
+			ETag:              &e.ETag,
+			LastModified:      &e.Mtime,
+			PartNumber:        &no,
+			Size:              &e.Size,
 		}
 		partlist = append(partlist, p)
 	}
 
 	{
+		o.Bucket = i.Bucket
 		o.Key = i.Key
 		o.MaxParts = i.MaxParts
 		o.PartNumberMarker = i.PartNumberMarker
@@ -2280,28 +2304,17 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 
 	// o.AbortDate *time.Time
 	// o.AbortRuleId *string
-	// o.Bucket *string
-	// o.ChecksumAlgorithm types.ChecksumAlgorithm
-	// o.ChecksumType types.ChecksumType
 	// o.Initiator *types.Initiator
-	// o.IsTruncated *bool
-	// o.Key *string
-	// o.MaxParts *int32
-	// o.NextPartNumberMarker *string
 	// o.Owner *types.Owner
-	// o.PartNumberMarker *string
-	// o.Parts []types.Part
 	// o.RequestCharged types.RequestCharged
-	// o.StorageClass types.StorageClass
-	// o.UploadId *string
 
 	return &o, nil
 }
 
 func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, *Aws_s3_error) {
-	var action = "PutObject"
-	fmt.Printf("*PutObject*\n")
 	var o = s3.PutObjectOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2351,6 +2364,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		return nil, err2
 	}
 	var location = "/" + object
+
+	// i.ChecksumAlgorithm is ignored.
 
 	{
 		var unsupported = option_check_list{
@@ -2404,7 +2419,6 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if err7 != nil {
 		return nil, err7
 	}
-	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
 	var csumset = types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
@@ -2413,7 +2427,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset)
+	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2448,6 +2462,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	o.Size = &size
 
 	if checksum != "" {
+		/*AHO*/
 		// Copy the checksum given, because it passes the comparison.
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
@@ -2471,9 +2486,9 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 }
 
 func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, *Aws_s3_error) {
-	var action = "PutObjectTagging"
-	fmt.Printf("*PutObjectTagging*\n")
 	var o = s3.PutObjectTaggingOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2492,6 +2507,8 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	// - InternalError
 
 	// i.ContentMD5 is implicitly checked in unmarshaling body.
+
+	// i.ChecksumAlgorithm is ignored.
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err2 != nil {
@@ -2554,9 +2571,9 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 }
 
 func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, *Aws_s3_error) {
-	var action = "UploadPart"
-	fmt.Printf("*UploadPart*\n")
 	var o = s3.UploadPartOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2614,11 +2631,12 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		size_to_check = -1
 	}
 
+	// i.ChecksumAlgorithm is ignored.
+
 	var md5_to_check, err7 = decode_base64(object, i.ContentMD5)
 	if err7 != nil {
 		return nil, err7
 	}
-	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
 	var csumset = types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
@@ -2627,7 +2645,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var csum_to_check, err8 = decode_checksum_record(object, checksum, &csumset)
+	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2656,6 +2674,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	o.ETag = &etag
 
 	if checksum != "" {
+		/*AHO*/
 		// Copy the checksum given, because it passes the comparison.
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -2675,9 +2694,9 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 }
 
 func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, *Aws_s3_error) {
-	var action = "UploadPartCopy"
-	fmt.Printf("*UploadPartCopy*\n")
 	var o = s3.UploadPartCopyOutput{}
+	var action = get_request_action(ctx)
+	bbs.logger.Debug("Serving", "action", action)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2777,6 +2796,17 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	}
 
 	var mtime = stat.ModTime()
+
+	var csumset types.Checksum
+	{
+		var checksum = mpul.ChecksumAlgorithm
+		var _, csum, err1 = bbs.calculate_csum2(checksum, object, "")
+		if err1 != nil {
+			return nil, err1
+		}
+		fill_checksum_record(&csumset, checksum, csum)
+	}
+
 	o.CopyPartResult = &types.CopyPartResult{
 		// - ChecksumCRC32 *string
 		// - ChecksumCRC32C *string
@@ -2786,8 +2816,13 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		// - ETag *string
 		// - LastModified *time.Time
 
-		ETag:         &etag,
-		LastModified: &mtime,
+		ChecksumCRC32:     csumset.ChecksumCRC32,
+		ChecksumCRC32C:    csumset.ChecksumCRC32C,
+		ChecksumCRC64NVME: csumset.ChecksumCRC64NVME,
+		ChecksumSHA1:      csumset.ChecksumSHA1,
+		ChecksumSHA256:    csumset.ChecksumSHA256,
+		ETag:              &etag,
+		LastModified:      &mtime,
 	}
 
 	// o.BucketKeyEnabled *bool

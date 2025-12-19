@@ -711,40 +711,50 @@ func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
 	}
 }
 
-func decode_checksum_record(object string, checksum types.ChecksumAlgorithm, csumset *types.Checksum) ([]byte, *Aws_s3_error) {
+func decode_checksum_record(object string, csumset *types.Checksum) (types.ChecksumAlgorithm, []byte, *Aws_s3_error) {
 	var location = "/" + object
-	if checksum == "" {
-		return nil, nil
-	}
+	var checksum types.ChecksumAlgorithm
 	var csum1 *string
-	switch checksum {
-	case types.ChecksumAlgorithmCrc32:
+	var count = 0
+	if csumset.ChecksumCRC32 != nil {
+		checksum = types.ChecksumAlgorithmCrc32
 		csum1 = csumset.ChecksumCRC32
-	case types.ChecksumAlgorithmCrc32c:
+		count++
+	}
+	if csumset.ChecksumCRC32C != nil {
+		checksum = types.ChecksumAlgorithmCrc32c
 		csum1 = csumset.ChecksumCRC32C
-	case types.ChecksumAlgorithmSha1:
-		csum1 = csumset.ChecksumSHA1
-	case types.ChecksumAlgorithmSha256:
-		csum1 = csumset.ChecksumSHA256
-	case types.ChecksumAlgorithmCrc64nvme:
+		count++
+	}
+	if csumset.ChecksumCRC64NVME != nil {
+		checksum = types.ChecksumAlgorithmCrc64nvme
 		csum1 = csumset.ChecksumCRC64NVME
-	default:
-		log.Fatalf("BAD-IMPL: Bad s3/types.ChecksumAlgorithm: %s", checksum)
+		count++
 	}
-	if csum1 == nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "Checksum value is missing.",
+	if csumset.ChecksumSHA1 != nil {
+		checksum = types.ChecksumAlgorithmSha1
+		csum1 = csumset.ChecksumSHA1
+		count++
+	}
+	if csumset.ChecksumSHA256 != nil {
+		checksum = types.ChecksumAlgorithmSha256
+		csum1 = csumset.ChecksumSHA256
+		count++
+	}
+	if count >= 2 {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message:  "Checksum value is multiple times specified.",
 			Resource: location}
-		return nil, errz
+		return "", nil, errz
 	}
-	var csum2, err5 = base64.StdEncoding.DecodeString(*csum1)
+	var csum, err5 = base64.StdEncoding.DecodeString(*csum1)
 	if err5 != nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message:  "Bad checksum encoding.",
 			Resource: location}
-		return nil, errz
+		return "", nil, errz
 	}
-	return csum2, nil
+	return checksum, csum, nil
 }
 
 func metainfo_zero(m *Meta_info) bool {

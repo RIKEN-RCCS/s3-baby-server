@@ -19,19 +19,24 @@ import (
 )
 
 // FILE_INO returns inode or equivalent.  PATH be an os-path.
-func file_ino(path string) (uint64, bool) {
-	var s syscall.Stat_t
-	var err1 = syscall.Lstat(path, &s)
-	if err1 != nil {
-		log.Print("linux/syscall.Lstat() failed.")
+func file_ino(stat fs.FileInfo, path string) (uint64, bool) {
+	//var s syscall.Stat_t
+	//var err1 = syscall.Lstat(path, &s)
+	//if err1 != nil {
+	//	log.Print("linux/syscall.Lstat() failed.")
+	//	return 0, false
+	//}
+	var s, ok = stat.Sys().(*syscall.Stat_t)
+	if !ok {
+		log.Print("fs.FileInfo.Sys() is not for linux.")
 		return 0, false
 	}
 	return s.Ino, true
 }
 
 // FILE_TIME returns atime, ctime, mtime in this order.
-func file_time(info fs.FileInfo) ([3]time.Time, bool) {
-	var s, ok = info.Sys().(*syscall.Stat_t)
+func file_time(stat fs.FileInfo) ([3]time.Time, bool) {
+	var s, ok = stat.Sys().(*syscall.Stat_t)
 	if !ok {
 		log.Print("fs.FileInfo.Sys() is not linux.")
 		return [3]time.Time{}, false

@@ -20,7 +20,7 @@ import (
 
 //func GetFileInformationByHandle(handle Handle, data *ByHandleFileInformation) (err error)
 
-func file_ino(path string) (uint64, bool) {
+func file_ino(_ fs.FileInfo, path string) (uint64, bool) {
 	// f : syscall.Handle
 	var flag int = syscall.O_RDONLY
 	var perm uint32 = 0

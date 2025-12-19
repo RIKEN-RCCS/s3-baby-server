@@ -31,8 +31,8 @@ import (
 // file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
 // will be encoded in json.
 type Meta_info struct {
-	Headers            map[string]string
-	Tags               *types.Tagging
+	Headers map[string]string
+	Tags    *types.Tagging
 	//ETag *string
 	//Checksum_algorithm types.ChecksumAlgorithm
 	//Checksum *string
@@ -62,8 +62,8 @@ type Mpul_info struct {
 
 // MPUL-catalog.  It is stored in a file "list".
 type Mpul_catalog struct {
-	ChecksumAlgorithm types.ChecksumAlgorithm
-	Parts             []Mpul_part
+	//ChecksumAlgorithm types.ChecksumAlgorithm
+	Parts []Mpul_part
 }
 
 // (types.CopyObjectResult, CopyPartResult)
@@ -747,15 +747,15 @@ func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, string, *
 	case mode&fs.ModeSymlink != 0:
 		fallthrough
 	default:
-		bbs.logger.Info("An object is not a regular file",
+		bbs.logger.Info("Object is not a regular file",
 			"path", path, "mode", mode)
 		var errz = &Aws_s3_error{Code: InvalidObjectState,
-			Message:  "Non-regular file exists as named.",
+			Message:  "Named object is a non-regular file.",
 			Resource: location}
 		return nil, "", errz
 	}
 
-	var ino, ok = file_ino(path)
+	var ino, ok = file_ino(stat, path)
 	if !ok {
 		log.Fatal("BAD-IMPL: Cannot take inode number")
 	}

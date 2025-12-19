@@ -42,7 +42,7 @@ type copy_checks struct {
 	checksum      types.ChecksumAlgorithm
 	md5_to_check  []byte
 	csum_to_check []byte
-	csum_          types.Checksum
+	//csum_ types.Checksum
 }
 
 type copy_conditionals struct {
@@ -362,15 +362,18 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	return stat, etag, nil
 }
 
-// CONCATENATE_OBJECT concatenates the parts to an object.
+// CONCATENATE_OBJECT concatenates the parts to an object.  It returns
+// stat and etag.
 func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, *Aws_s3_error) {
-	var action = "CompleteMultipartUpload"
+	var action = get_request_action(ctx)
 	var location = "/" + object
+
 	var rid int64 = get_request_id(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
-	var _, err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul)
+	var checksum = checks.checksum
+	var _, csum, err5 = bbs.concat_parts_as_scratch(ctx, object, scratchkey, partlist, mpul, checksum)
 	if err5 != nil {
 		return nil, "", err5
 	}
@@ -381,34 +384,22 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		}
 	}()
 
-	{
-		// Baby-server can only handle "types.ChecksumTypeFullObject".
-		// The checksum of the input is ignored when it is not the
-		// case.  The returned checksum is always for full object.
+	//var _, csum, err6 = bbs.calculate_csum2(checksum, object, scratchkey)
+	//if err6 != nil {
+	//	return nil, "", err6
+	//}
 
-		var checksum = checks.checksum
-		//var checksum = types.ChecksumAlgorithmCrc64nvme
-		//if checks.csum.ChecksumType != types.ChecksumTypeFullObject {
-		//	bbs.logger.Info("Checksum by not full-object unsuppored, ignored",
-		//		"checksum-type", checks.csum.ChecksumType)
-		//	checksum = ""
-		//}
-
-		var _, csum, err6 = bbs.calculate_csum2(checksum, object, scratchkey)
-		if err6 != nil {
-			return nil, "", err6
-		}
-		if checks.csum_to_check != nil {
-			if bytes.Compare(checks.csum_to_check, csum) != 0 {
-				bbs.logger.Info("Checksums mismatch",
-					"algorithm", checksum,
-					"passed", hex.EncodeToString(checks.csum_to_check),
-					"calculated", hex.EncodeToString(csum))
-				var errz = &Aws_s3_error{Code: BadDigest,
-					Resource: location,
-					Message:  "The checksum did not match what we received."}
-				return nil, "", errz
-			}
+	if checks.csum_to_check != nil {
+		bb_assert(csum != nil)
+		if bytes.Compare(checks.csum_to_check, csum) != 0 {
+			bbs.logger.Info("Checksums mismatch",
+				"algorithm", checksum,
+				"passed", hex.EncodeToString(checks.csum_to_check),
+				"calculated", hex.EncodeToString(csum))
+			var errz = &Aws_s3_error{Code: BadDigest,
+				Message:  "The checksum did not match what we received.",
+				Resource: location}
+			return nil, "", errz
 		}
 	}
 
@@ -605,7 +596,7 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object, scratchk
 	return md5, nil
 }
 
-func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scratchkey string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info) ([]byte, *Aws_s3_error) {
+func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scratchkey string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, scratchkey)
 
@@ -617,7 +608,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 	if err1 != nil {
 		bbs.logger.Info("os.Create() failed for concat parts",
 			"path", path, "error", err1)
-		return nil, map_os_error(location, err1, nil)
+		return nil, nil, map_os_error(location, err1, nil)
 	}
 	var cleanup_needed = true
 	defer func() {
@@ -633,11 +624,23 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 
 	var f2 io.Writer
 	var hash1 hash.Hash
-	if generate_md5_on_copy {
-		hash1 = md5.New()
-		f2 = io.MultiWriter(f1, hash1)
-	} else {
-		f2 = f1
+	var hash2 hash.Hash
+	{
+		var writers []io.Writer
+		writers = append(writers, f1)
+		if checksum != "" {
+			hash1 = checksum_algorithm(checksum)
+			writers = append(writers, hash1)
+		}
+		if generate_md5_on_copy {
+			hash2 = md5.New()
+			writers = append(writers, hash2)
+		}
+		if len(writers) == 1 {
+			f2 = f1
+		} else {
+			f2 = io.MultiWriter(writers...)
+		}
 	}
 
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
@@ -658,13 +661,13 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 		if err1 != nil {
 			bbs.logger.Warn("os.Open() failed for MPUL data",
 				"path", partpath, "error", err1)
-			return nil, map_os_error(location, err1, nil)
+			return nil, nil, map_os_error(location, err1, nil)
 		}
 		var _, err2 = io.Copy(f2, f3)
 		if err2 != nil {
 			bbs.logger.Warn("io.Copy() failed for MPUL data",
 				"path", partpath, "error", err2)
-			return nil, map_os_error(location, err2, nil)
+			return nil, nil, map_os_error(location, err2, nil)
 		}
 		var err3 = f3.Close()
 		if err3 != nil {
@@ -688,10 +691,14 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object, scrat
 	}
 
 	var md5 []byte
+	var csum []byte
 	if hash1 != nil {
 		md5 = hash1.Sum(nil)
 	}
-	return md5, nil
+	if hash2 != nil {
+		csum = hash2.Sum(nil)
+	}
+	return md5, csum, nil
 }
 
 func (bbs *Bb_server) place_scratch_file(object, scratchkey string, info *Meta_info) *Aws_s3_error {
