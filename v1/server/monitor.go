@@ -36,7 +36,7 @@ type monitor struct {
 }
 
 type wait_task struct {
-	id  int64
+	id  uint64
 	due time.Time
 }
 
@@ -99,7 +99,7 @@ func (m *monitor) guard_loop() {
 // A failed task should not call m.exit().  It schedules the timer for
 // a timeout.  A race of notifications and intervening deletions is
 // acceptable.  Deletions are OK.
-func (m *monitor) enter(object string, id int64, d time.Duration) bool {
+func (m *monitor) enter(object string, id uint64, d time.Duration) bool {
 	var due = time.Now().Add(d)
 	func() {
 		m.mutex.Lock()
@@ -143,7 +143,7 @@ func (m *monitor) enter(object string, id int64, d time.Duration) bool {
 
 // EXIT exits an exclusion region.  It schedules for a next task.
 // Timeout tasks should not called it.
-func (m *monitor) exit(object string, id int64) {
+func (m *monitor) exit(object string, id uint64) {
 	m.mutex.Lock()
 	defer func() {
 		m.mutex.Unlock()
@@ -159,7 +159,7 @@ func (m *monitor) exit(object string, id int64) {
 	}
 }
 
-func (m *monitor) attest(object string, id int64) bool {
+func (m *monitor) attest(object string, id uint64) bool {
 	m.mutex.Lock()
 	defer func() {
 		m.mutex.Unlock()

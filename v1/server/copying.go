@@ -59,7 +59,7 @@ type copy_conditionals struct {
 func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var action = get_request_action(ctx)
-	var rid int64 = get_request_id(ctx)
+	var rid uint64 = get_request_id(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
@@ -207,7 +207,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 
 	var copy_file_by_linking = (extent == nil)
 
-	var rid int64 = get_request_id(ctx)
+	var rid uint64 = get_request_id(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
@@ -368,7 +368,7 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 	var action = get_request_action(ctx)
 	var location = "/" + object
 
-	var rid int64 = get_request_id(ctx)
+	var rid uint64 = get_request_id(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 

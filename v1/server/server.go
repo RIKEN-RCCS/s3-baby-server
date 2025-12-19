@@ -49,7 +49,7 @@ type Bb_server struct {
 
 	conf Bb_configuration
 
-	rid_past int64
+	rid_past uint64
 	suffixes map[string]suffix_record
 	monitor1 *monitor
 	mutex    sync.Mutex
@@ -60,6 +60,14 @@ type Bb_server struct {
 	// changes working directory to that path, and this is only a
 	// record.
 	pool_path string
+}
+
+// HANDLER_DATA is a record of handler context.
+type Handler_data struct {
+	Request_id uint64
+	Action_name string
+	ResponseWriter http.ResponseWriter
+	Request *http.Request
 }
 
 // PRIOR_HANDLER is an http.Handler and it checks an authorization

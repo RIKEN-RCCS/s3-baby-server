@@ -1,4 +1,4 @@
-// handler.go (2025-12-18)
+// handler.go (2025-12-19)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -31,11 +31,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "AbortMultipartUpload",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "AbortMultipartUpload")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.AbortMultipartUploadInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -60,6 +64,9 @@ var o, err5 = bbs.AbortMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 var status int = 204
@@ -71,11 +78,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "CompleteMultipartUpload",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "CompleteMultipartUpload")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CompleteMultipartUploadInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -130,6 +141,9 @@ var o, err5 = bbs.CompleteMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.Expiration != nil {
 ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.ServerSideEncryption != "" {
@@ -159,11 +173,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "CopyObject",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "CopyObject")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CopyObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -286,6 +304,9 @@ var o, err5 = bbs.CopyObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.Expiration != nil {
 ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.CopySourceVersionId != nil {
@@ -322,11 +343,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "CreateBucket",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "CreateBucket")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CreateBucketInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -365,6 +390,9 @@ var o, err5 = bbs.CreateBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.Location != nil {
 ho.Add("Location", string(*o.Location))}
 if o.BucketArn != nil {
@@ -378,11 +406,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "CreateMultipartUpload",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "CreateMultipartUpload")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CreateMultipartUploadInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -479,6 +511,9 @@ var o, err5 = bbs.CreateMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.AbortDate != nil {
 ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
 if o.AbortRuleId != nil {
@@ -518,11 +553,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "DeleteBucket",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "DeleteBucket")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteBucketInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -535,6 +574,9 @@ var _, err5 = bbs.DeleteBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 var status int = 204
 w.WriteHeader(status)
 }
@@ -544,11 +586,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "DeleteObject",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "DeleteObject")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteObjectInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -585,6 +631,9 @@ var o, err5 = bbs.DeleteObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.VersionId != nil {
@@ -600,11 +649,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "DeleteObjects",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "DeleteObjects")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteObjectsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -637,6 +690,9 @@ var o, err5 = bbs.DeleteObjects(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -656,11 +712,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "DeleteObjectTagging",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "DeleteObjectTagging")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteObjectTaggingInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -677,6 +737,9 @@ var o, err5 = bbs.DeleteObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 var status int = 204
@@ -688,11 +751,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "GetObject",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "GetObject")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.GetObjectInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -756,6 +823,9 @@ var o, err5 = bbs.GetObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.AcceptRanges != nil {
@@ -842,11 +912,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "GetObjectAttributes",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "GetObjectAttributes")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.GetObjectAttributesInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -890,6 +964,9 @@ var o, err5 = bbs.GetObjectAttributes(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.LastModified != nil {
@@ -915,11 +992,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "GetObjectTagging",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "GetObjectTagging")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.GetObjectTaggingInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -940,6 +1021,9 @@ var o, err5 = bbs.GetObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 ho.Set("Content-Type", "application/xml")
@@ -959,11 +1043,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "HeadBucket",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "HeadBucket")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.HeadBucketInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -976,6 +1064,9 @@ var o, err5 = bbs.HeadBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.BucketArn != nil {
 ho.Add("x-amz-bucket-arn", string(*o.BucketArn))}
 if o.BucketLocationType != "" {
@@ -995,11 +1086,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "HeadObject",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "HeadObject")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.HeadObjectInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1063,6 +1158,9 @@ var o, err5 = bbs.HeadObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.AcceptRanges != nil {
@@ -1148,11 +1246,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "ListBuckets",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "ListBuckets")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListBucketsInput{}
 if qi.Has("max-buckets") {
 var s = qi.Get("max-buckets")
@@ -1172,6 +1274,9 @@ var o, err5 = bbs.ListBuckets(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 ho.Set("Content-Type", "application/xml")
 var s = O_ListBucketsResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
@@ -1189,11 +1294,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "ListMultipartUploads",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "ListMultipartUploads")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListMultipartUploadsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1227,6 +1336,9 @@ var o, err5 = bbs.ListMultipartUploads(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -1246,11 +1358,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "ListObjects",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "ListObjects")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListObjectsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1292,6 +1408,9 @@ var o, err5 = bbs.ListObjects(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -1311,11 +1430,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "ListObjectsV2",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "ListObjectsV2")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListObjectsV2Input{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1363,6 +1486,9 @@ var o, err5 = bbs.ListObjectsV2(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -1382,11 +1508,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "ListParts",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "ListParts")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListPartsInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1420,6 +1550,9 @@ var o, err5 = bbs.ListParts(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.AbortDate != nil {
 ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
 if o.AbortRuleId != nil {
@@ -1443,11 +1576,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "PutObject",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "PutObject")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.PutObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
 var s = hi.Get("x-amz-acl")
@@ -1565,6 +1702,9 @@ var o, err5 = bbs.PutObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.Expiration != nil {
 ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.ETag != nil {
@@ -1608,11 +1748,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "PutObjectTagging",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "PutObjectTagging")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.PutObjectTaggingInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1645,6 +1789,9 @@ var o, err5 = bbs.PutObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 var status int = 200
@@ -1656,11 +1803,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "UploadPart",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "UploadPart")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.UploadPartInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1713,6 +1864,9 @@ var o, err5 = bbs.UploadPart(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.ServerSideEncryption != "" {
 ho.Add("x-amz-server-side-encryption", string(o.ServerSideEncryption))}
 if o.ETag != nil {
@@ -1746,11 +1900,15 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
+var handler_data = &Handler_data{
+Request_id: bbs.make_request_id(),
+Action_name: "UploadPartCopy",
+ResponseWriter: w,
+Request: r}
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "request-id", bbs.make_request_id())
-var ctx3 = context.WithValue(ctx2, "action-name", "UploadPartCopy")
-var ctx = context.WithValue(ctx3, "input-errors", input_errors)
+var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.UploadPartCopyInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
@@ -1806,6 +1964,9 @@ var o, err5 = bbs.UploadPartCopy(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer exists, unsupported",
+ "trailer", r.Trailer)}
 if o.CopySourceVersionId != nil {
 ho.Add("x-amz-copy-source-version-id", string(*o.CopySourceVersionId))}
 if o.ServerSideEncryption != "" {

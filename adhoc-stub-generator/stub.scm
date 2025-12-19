@@ -116,6 +116,11 @@
   (if (not (string=? bb-server-package bb-dispatcher-package))
       (string-append bb-server-package "." bb-server-name)
       bb-server-name))
+(define handler-data-name "Handler_data")
+(define handler-data-type
+  (if (not (string=? bb-server-package bb-dispatcher-package))
+      (string-append bb-server-package "." handler-data-name)
+      handler-data-name))
 
 ;; List of implemented actions of s3-baby-server.  The full list of S3
 ;; actions are listed in "shapes" / "com.amazonaws.s3#AmazonS3" /
@@ -1551,17 +1556,16 @@
 	   "var ho = w.Header()"
 	   "// Mark variables used to avoid unused errors:"
 	   "var _, _, _ = qi, hi, ho"
+	   (format #f "var handler_data = &~a{" handler-data-type)
+	   (format #f "Request_id: bbs.make_request_id(),")
+	   (format #f "Action_name: ~s," name)
+	   (format #f "ResponseWriter: w,")
+	   (format #f "Request: r}")
 	   "var input_errors = map[string]error{}"
 	   "var ctx1 = r.Context()"
+	   "var ctx2 = context.WithValue(ctx1, \"handler-data\", handler_data)"
 	   (string-append
-	    "var ctx2 = context.WithValue(ctx1, \"request-id\","
-	    " bbs.make_request_id())")
-	   (string-append
-	    "var ctx3 = context.WithValue(ctx2, \"action-name\","
-	    (format #f " ~s" name)
-	    ")")
-	   (string-append
-	    "var ctx = context.WithValue(ctx3, \"input-errors\","
+	    "var ctx = context.WithValue(ctx2, \"input-errors\","
 	    " input_errors)"))
      ;; Input accessors:
      (list (format #f "var i = s3.~a{}" input-type))
@@ -1579,6 +1583,10 @@
 	   "if err5 != nil {"
 	   "bbs.respond_on_action_error(ctx, w, r, err5)"
 	   "return}")
+     ;; Check http trailer existence.  It is not implemented yet.
+     (list "if r.Trailer != nil {"
+	   "bbs.logger.Error(\"http trailer exists, unsupported\","
+	   " \"trailer\", r.Trailer)}")
      ;; Output accessors:
      (cond
       ((string=? output-type "Unit")
@@ -2039,14 +2047,24 @@
 	  "import ("
 	  "\"context\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
+	  "\"net/http\""
 	  ")"))
-   (list "type Bb_server struct {}"
+   (list "// BB_SERVER is the server body."
+	 "type Bb_server struct {}"
+
 	 "// H_XML_BODY_LIMIT limits the receive size of a request body."
 	 "var h_xml_body_limit int64 = (2 * 1024 * 1024)"
 
+	 "// HANDLER_DATA is a record of handler context."
+	 "type Handler_data struct {"
+	 "Request_id uint64"
+	 "Action_name string"
+	 "ResponseWriter http.ResponseWriter"
+	 "Request *http.Request}"
+
 	 "// MAKE_REQUEST_ID makes a new request-id."
 	 (string-append
-	  "func (bbs *Bb_server) make_request_id() string {"
+	  "func (bbs *Bb_server) make_request_id() uint64 {"
 	  "panic(e)}")
 
 	 "// RESPOND_ON_ACTION_ERROR is called on an action error and"

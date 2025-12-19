@@ -40,7 +40,7 @@ func bb_assert(c bool) {
 }
 
 type suffix_record struct {
-	rid       int64
+	rid       uint64
 	timestamp time.Time
 }
 
@@ -50,8 +50,8 @@ var h_xml_body_limit int64 = (2 * 1024 * 1024)
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
-func (bbs *Bb_server) make_request_id() *int64 {
-	var t int64 = time.Now().UnixMicro()
+func (bbs *Bb_server) make_request_id() uint64 {
+	var t uint64 = uint64(time.Now().UnixMicro())
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	if bbs.rid_past < t {
@@ -62,7 +62,7 @@ func (bbs *Bb_server) make_request_id() *int64 {
 	}
 	//return strconv.FormatInt(t, 16)
 	//return fmt.Sprintf("%016x", t)
-	return &t
+	return t
 }
 
 // RESPOND_ON_ACTION_ERROR is called on an action error and
@@ -74,7 +74,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	}
 	bbs.logger.Info("Error in action", "code", string(e1.Code), "error", e1)
 
-	var rid int64 = get_request_id(ctx)
+	var rid uint64 = get_request_id(ctx)
 
 	e1.RequestId = fmt.Sprintf("%016x", rid)
 	var m = Aws_s3_error_to_message[e1.Code]
@@ -115,19 +115,31 @@ func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.Response
 		"action", action, "error", e)
 }
 
-func get_request_id(ctx context.Context) int64 {
-	var ridx = ctx.Value("request-id").(*int64)
-	if ridx == nil {
-		log.Fatal("BAD-IMPL: request-id not assigned")
+func get_request_id(ctx context.Context) uint64 {
+	var frame = ctx.Value("handler-data").(*Handler_data)
+	if frame == nil {
+		log.Fatal("BAD-IMPL: handler-data not set")
 		return 0
-	} else {
-		return *ridx
 	}
+	return frame.Request_id
 }
 
 func get_request_action(ctx context.Context) string {
-	var action = ctx.Value("action-name").(string)
-	return action
+	var frame = ctx.Value("handler-data").(*Handler_data)
+	if frame == nil {
+		log.Fatal("BAD-IMPL: handler-data not set")
+		return ""
+	}
+	return frame.Action_name
+}
+
+func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Request) {
+	var frame = ctx.Value("handler-data").(*Handler_data)
+	if frame == nil {
+		log.Fatal("BAD-IMPL: handler-data not set")
+		return nil, nil
+	}
+	return frame.ResponseWriter, frame.Request
 }
 
 // MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
@@ -135,7 +147,7 @@ func get_request_action(ctx context.Context) string {
 // when a request-id is given.  Otherwise, when zero is given, a key
 // is for multipart upload and it is active until completion.  It
 // returns a string of 6 hex-digits.
-func (bbs *Bb_server) make_scratch_suffix(rid int64) string {
+func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	var loops int = 0
@@ -156,7 +168,7 @@ func (bbs *Bb_server) make_scratch_suffix(rid int64) string {
 	panic("NEVER")
 }
 
-func (bbs *Bb_server) discharge_scratch_suffix(rid int64) {
+func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	for k, v := range bbs.suffixes {
@@ -166,7 +178,7 @@ func (bbs *Bb_server) discharge_scratch_suffix(rid int64) {
 	}
 }
 
-func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid int64) *Aws_s3_error {
+func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
 	var ok = bbs.monitor1.enter(object, rid, (10 * time.Millisecond))
 	if !ok {
 		return &Aws_s3_error{Code: RequestTimeout}
@@ -174,7 +186,7 @@ func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid i
 	return nil
 }
 
-func (bbs *Bb_server) release_access(ctx context.Context, object string, rid int64) *Aws_s3_error {
+func (bbs *Bb_server) release_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
 	bbs.monitor1.exit(object, rid)
 	return nil
 }
