@@ -1576,6 +1576,10 @@
      (list "if len(input_errors) > 0 {"
 	   "bbs.respond_on_input_error(ctx, w, r, input_errors)"
 	   "return}")
+     ;; Check http trailer existence.  It is not implemented yet.
+     (list "if r.Trailer != nil {"
+	   "bbs.logger.Error(\"http trailer header is unsupported\","
+	   " \"trailer\", r.Trailer)}")
      ;; Hander invocation:
      (list (if (string=? output-type "Unit")
 	       (format #f "var _, err5 = bbs.~a(ctx, &i)" name)
@@ -1583,10 +1587,6 @@
 	   "if err5 != nil {"
 	   "bbs.respond_on_action_error(ctx, w, r, err5)"
 	   "return}")
-     ;; Check http trailer existence.  It is not implemented yet.
-     (list "if r.Trailer != nil {"
-	   "bbs.logger.Error(\"http trailer exists, unsupported\","
-	   " \"trailer\", r.Trailer)}")
      ;; Output accessors:
      (cond
       ((string=? output-type "Unit")
@@ -1862,11 +1862,16 @@
        (format #t "BAD property in response: ~s~%" slot-property)
        (error "make-slot-marshaler: BAD property in response" slot-property))
       ((PAYLOAD)
-       (list
-	(string-append
-	 (format #f "{var err2 = e.EncodeElement")
-	 (format #f "(s.~a, h_make_tag(\"~a\"))" slot slot-name))
-	(format #f "if err2 != nil {return err2}}")))
+       (delete
+	""
+	(list
+	 (if (string=? slot slot-name)
+	     ""
+	     "// XML TAG-AMEND.")
+	 (string-append
+	  (format #f "{var err2 = e.EncodeElement")
+	  (format #f "(s.~a, h_make_tag(\"~a\"))" slot slot-name))
+	 (format #f "if err2 != nil {return err2}}"))))
       ((HEADER HEADER-PREFIX)
        '())
       ((ELEMENT)
@@ -1897,12 +1902,17 @@
 	    "var err4 = e.EncodeToken(tag2.End())"
 	    "if err4 != nil {return err4}")))
 	(else
-	 (list
-	  (format #f "if s.~a != ~a {" slot null-value)
-	  (string-append
-	   (format #f "var err2 = e.EncodeElement")
-	   (format #f "(s.~a, h_make_tag(\"~a\"))" slot slot-name))
-	  (format #f "if err2 != nil {return err2}}")))))
+	 (delete
+	  ""
+	  (list
+	   (format #f "if s.~a != ~a {" slot null-value)
+	   (if (string=? slot slot-name)
+	       ""
+	       "// XML TAG-AMEND.")
+	   (string-append
+	    (format #f "var err2 = e.EncodeElement")
+	    (format #f "(s.~a, h_make_tag(\"~a\"))" slot slot-name))
+	   (format #f "if err2 != nil {return err2}}"))))))
       (else
        (format #t "BAD property in response: ~s~%" slot-property)
        (error "make-slot-marshaler: BAD property in response" slot-property)))))

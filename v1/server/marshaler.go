@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-19)
+// marshaler.go (2025-12-20)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -105,6 +105,7 @@ if s.Deleted != nil {
 var err2 = e.EncodeElement(s.Deleted, h_make_tag("Deleted"))
 if err2 != nil {return err2}}
 if s.Errors != nil {
+// XML TAG-AMEND.
 var err2 = e.EncodeElement(s.Errors, h_make_tag("Error"))
 if err2 != nil {return err2}}
 var err9 = e.EncodeToken(tag1.End())
@@ -214,6 +215,7 @@ if s.IsTruncated != nil {
 var err2 = e.EncodeElement(s.IsTruncated, h_make_tag("IsTruncated"))
 if err2 != nil {return err2}}
 if s.Uploads != nil {
+// XML TAG-AMEND.
 var err2 = e.EncodeElement(s.Uploads, h_make_tag("Upload"))
 if err2 != nil {return err2}}
 if s.CommonPrefixes != nil {
@@ -334,6 +336,7 @@ if s.IsTruncated != nil {
 var err2 = e.EncodeElement(s.IsTruncated, h_make_tag("IsTruncated"))
 if err2 != nil {return err2}}
 if s.Parts != nil {
+// XML TAG-AMEND.
 var err2 = e.EncodeElement(s.Parts, h_make_tag("Part"))
 if err2 != nil {return err2}}
 if s.Initiator != nil {

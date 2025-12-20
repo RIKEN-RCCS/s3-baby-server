@@ -1,4 +1,4 @@
-// handler.go (2025-12-19)
+// handler.go (2025-12-20)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -60,13 +60,13 @@ if err2 != nil {input_errors["x-amz-if-match-initiated-time"] = err2} else {i.If
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.AbortMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 var status int = 204
@@ -137,13 +137,13 @@ i.MultipartUpload = import_CompletedMultipartUpload(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.CompleteMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.Expiration != nil {
 ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.ServerSideEncryption != "" {
@@ -300,13 +300,13 @@ i.ExpectedSourceBucketOwner = h_thing_pointer(hi.Get("x-amz-source-expected-buck
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.CopyObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.Expiration != nil {
 ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.CopySourceVersionId != nil {
@@ -386,13 +386,13 @@ i.CreateBucketConfiguration = import_CreateBucketConfiguration(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.CreateBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.Location != nil {
 ho.Add("Location", string(*o.Location))}
 if o.BucketArn != nil {
@@ -507,13 +507,13 @@ if err2 != nil {input_errors["x-amz-checksum-type"] = err2} else {i.ChecksumType
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.CreateMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.AbortDate != nil {
 ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
 if o.AbortRuleId != nil {
@@ -570,13 +570,13 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var _, err5 = bbs.DeleteBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 var status int = 204
 w.WriteHeader(status)
 }
@@ -627,13 +627,13 @@ if err2 != nil {input_errors["x-amz-if-match-size"] = err2} else {i.IfMatchSize 
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.DeleteObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.VersionId != nil {
@@ -686,13 +686,13 @@ i.Delete = import_Delete(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.DeleteObjects(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -733,13 +733,13 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.DeleteObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 var status int = 204
@@ -819,13 +819,13 @@ if err2 != nil {input_errors["x-amz-checksum-mode"] = err2} else {i.ChecksumMode
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.GetObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.AcceptRanges != nil {
@@ -960,13 +960,13 @@ i.ObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.GetObjectAttributes(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.LastModified != nil {
@@ -1017,13 +1017,13 @@ if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.GetObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 ho.Set("Content-Type", "application/xml")
@@ -1060,13 +1060,13 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.HeadBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.BucketArn != nil {
 ho.Add("x-amz-bucket-arn", string(*o.BucketArn))}
 if o.BucketLocationType != "" {
@@ -1154,13 +1154,13 @@ if err2 != nil {input_errors["x-amz-checksum-mode"] = err2} else {i.ChecksumMode
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.HeadObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.AcceptRanges != nil {
@@ -1270,13 +1270,13 @@ i.BucketRegion = h_thing_pointer(qi.Get("bucket-region"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.ListBuckets(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 ho.Set("Content-Type", "application/xml")
 var s = O_ListBucketsResponse(*o)
 var ox, err6 = xml.MarshalIndent(s, " ", "  ")
@@ -1332,13 +1332,13 @@ if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.ListMultipartUploads(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -1404,13 +1404,13 @@ i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.ListObjects(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -1482,13 +1482,13 @@ i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.ListObjectsV2(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
@@ -1546,13 +1546,13 @@ i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-custo
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.ListParts(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.AbortDate != nil {
 ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
 if o.AbortRuleId != nil {
@@ -1698,13 +1698,13 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.PutObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.Expiration != nil {
 ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.ETag != nil {
@@ -1785,13 +1785,13 @@ i.Tagging = import_Tagging(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.PutObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 var status int = 200
@@ -1860,13 +1860,13 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.UploadPart(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.ServerSideEncryption != "" {
 ho.Add("x-amz-server-side-encryption", string(o.ServerSideEncryption))}
 if o.ETag != nil {
@@ -1960,13 +1960,13 @@ i.ExpectedSourceBucketOwner = h_thing_pointer(hi.Get("x-amz-source-expected-buck
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
+if r.Trailer != nil {
+bbs.logger.Error("http trailer header is unsupported",
+ "trailer", r.Trailer)}
 var o, err5 = bbs.UploadPartCopy(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer exists, unsupported",
- "trailer", r.Trailer)}
 if o.CopySourceVersionId != nil {
 ho.Add("x-amz-copy-source-version-id", string(*o.CopySourceVersionId))}
 if o.ServerSideEncryption != "" {

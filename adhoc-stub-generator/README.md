@@ -28,14 +28,6 @@ General information on Smithy IDL and its syntax can be found in:
 
 ## Notable remarks
 
-### Differing names in API and in structures
-
-The definition in Smithy renames XML tags for structure slots.  An
-example is "ListParts" action's "ListPartsOutput", where "Part" is in
-the API and "Parts" is in the structure.  A structure slot is
-specified by a member name, but an XML tag name is specified by
-"smithy.api#xmlName".
-
 ## Request: API declaration vs SDK structure
 
 XXXXRequest (API) -> XXXXInput
@@ -230,7 +222,12 @@ of records.  It does not work when correction is needed in nested
 slots.  The records needed in Baby-server are "[]Bucket" and "[]Tag",
 and both appear in shallow slots.
 
-#### List of Types with Missing Tags
+#### Types that need XML Tag Insertion
+
+- **Buckets []Bucket** slot in the response of ListBuckets.
+- **TagSet []Tag** slot in the request of PutObjectTagging.
+
+#### Full List of Types with Missing Tags
 
 This is the list of record slots that require the non-standard
 marshaling in AWS-S3.
@@ -243,7 +240,7 @@ marshaling in AWS-S3.
   types.InventoryConfiguration.
 - **RoutingRules []RoutingRule** slot used in GetBucketWebsite and
   PutBucketWebsite.
-- **Tags []Tag** slot (in several structures).
+- **Tags []Tag** slot (in several records).
 - **TagSet []Tag** slot in types.Tagging.
 - **TargetGrants []TargetGrant** slot in types.LoggingEnabled.
 - **UserMetadata []MetadataEntry** slot in types.S3Location.
@@ -299,5 +296,8 @@ names.
 
 #### Types that need XML Tag Mapping
 
-- types.Delete for DeleteObjects
-- types.CompletedMultipartUpload for CompleteMultipartUpload
+- types.CompletedMultipartUpload for CompleteMultipartUpload (in request)
+- types.Delete for DeleteObjects (in request)
+- types.Errors for DeleteObjects (in response)
+- types.Uploads for ListMultipartUploads (in response)
+- types.Parts for ListParts (in response)
