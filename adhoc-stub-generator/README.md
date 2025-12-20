@@ -172,7 +172,8 @@ of "TagSet" in XML.
 
 #### Specific Source of the Problem of Missing Tags
 
-The type "Tagging" shall be marshaled in the API document as follows.
+The type "Tagging" shall be marshaled in the AWS-S3 API document as
+follows.
 
 ```
 <Tagging>
@@ -210,7 +211,7 @@ name that will not appear in the XML rendering).
 </Tagging>
 ```
 
-To get the wanted XML output using the standard marshaling, the type
+To get the wanted XML output using the standard marshaler, the type
 definitions should be modified to the following.
 
 ```
