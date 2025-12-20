@@ -122,20 +122,114 @@ stub-generator.
 There is an extra slot in AWS-SDK, in "XXXXOutput".
 - ResultMetadata middleware.Metadata
 
-## XML Missing Tag Correction ("Tag-Affix")
+## XML Tag Correction
 
-Some type definitions in "types" in AWS-SDK do not marshal/unmarshal
-with API-defined XML.  The standard marshaler of Golang cannot be
-used, and AWS-SDK has specific marshaling routines for those types.
+There is no direct correspondence between type definitions and XML
+rendering in the Smithy definition.  In other words, Smithy specifies
+both the type definition and its way of XML rendering.  AWS-SDK has
+specific marshaling routines for types, and we cannot use the Golang's
+standard marshaler.
 
 An example is "types.Tagging" used in the "PutObjectTagging" action.
 The standard marshaler produces an XML output lacking `<Tag>` entry,
-which appears in the XML in the API document.  Looking at the API
-document, Tagging's `<Tag>` entry has no html-link, i.e., that means
-it has no definition.  See the following description for the
-difference of the generated XML.
+which appears in the XML in the API document.  Looking at the AWS-SDK
+API document, the Tagging type has no corresponding definition to the
+`<Tag>` entry.
 
-### List of Types with Missing Tags
+See the following description for the difference of the generated XML.
+
+### XML Missing Tag Insertion ("Tag-Affix")
+
+The extraction shown below is the type definitions in Smithy (details
+dropped).  Notice the "xmlName:Tag" is attached on the "Tag" type in
+the "TagSet" type definition.  It instructs "Tag" to appear in place
+of "TagSet" in XML.
+
+```
+"com.amazonaws.s3#Tagging": {
+    "type": "structure",
+    "members": {
+        "TagSet": {
+            "target": "com.amazonaws.s3#TagSet",
+            }
+        }
+    }
+},
+"com.amazonaws.s3#TagSet": {
+    "type": "list",
+    "member": {
+        "target": "com.amazonaws.s3#Tag",
+        "traits": {
+            "smithy.api#xmlName": "Tag"
+        }
+    }
+},
+"com.amazonaws.s3#Tag": {
+    "type": "structure",
+    "members": { ...... },
+},
+```
+
+#### Specific Source of the Problem of Missing Tags
+
+The type "Tagging" shall be marshaled in the API document as follows.
+
+```
+<Tagging>
+  <TagSet>
+    <Tag><Key>mytag1</Key><Value>myvalue1</Value></Tag>
+    <Tag><Key>mytag2</Key><Value>myvalue2</Value></Tag>
+    <Tag><Key>mytag3</Key><Value>myvalue3</Value></Tag>
+  </TagSet>
+</Tagging>
+```
+
+The definitions of "types.Tag" and "types.Tagging" in AWS-SDK are as
+follows.  Note the definition of "types.Tag" is no problem.
+
+```
+type Tag struct {
+    Key *string
+    Value *string
+}
+type Tagging struct {
+    TagSet []Tag
+}
+```
+
+By this definition, the standard marshaler renders an XML like the
+following.  Notice the expected `<Tag>` is missing.  This is due to
+the fact that "Tag" does not appear as a slot name (only as a type
+name that will not appear in the XML rendering).
+
+```
+<Tagging>
+  <TagSet><Key>mytag1</Key><Value>myvalue1</Value></TagSet>
+  <TagSet><Key>mytag2</Key><Value>myvalue2</Value></TagSet>
+  <TagSet><Key>mytag3</Key><Value>myvalue3</Value></TagSet>
+</Tagging>
+```
+
+To get the wanted XML output using the standard marshaling, the type
+definitions should be modified to the following.
+
+```
+type Tagging struct {
+    TagSet TagSet
+}
+type Tagging struct {
+    Tag []Tag
+}
+```
+
+#### Implementation Restrictions of Tag-Affix
+
+Correction of XML tags by tag-affix works only on the top level slots
+of records.  It does not work when correction is needed in nested
+slots.  The records needed in Baby-server are "[]Bucket" and "[]Tag",
+and both appear in shallow slots.
+
+#### List of Types with Missing Tags
 
 This is the list of record slots that require the non-standard
 marshaling in AWS-S3.
@@ -164,100 +258,7 @@ missing tags for those types above.  For example, "Tagging" has
 This stub-generator prepares separate type definitions which can work
 with the standard marshaler.
 
-### Specific Source of the Problem of Missing Tags
-
-The type "Tagging" shall be marshaled in the API document as follows.
-
-```
-<Tagging>
-  <TagSet>
-    <Tag><Key>mytag1</Key><Value>myvalue1</Value></Tag>
-    <Tag><Key>mytag2</Key><Value>myvalue2</Value></Tag>
-    <Tag><Key>mytag3</Key><Value>myvalue3</Value></Tag>
-  </TagSet>
-</Tagging>
-```
-
-First, the definition of "types.Tag" is as follows, and it is no
-problem.
-
-```
-type Tag struct {
-    Key *string
-    Value *string
-}
-```
-
-The definition of "types.Tagging" in AWS-SDK is as follows.
-
-```
-type Tagging struct {
-    TagSet []Tag
-}
-```
-
-By this definition, the standard marshaler works on an XML like the
-following.  Notice the `<Tag>` is missing that is not we expected.
-This is due to the fact that "Tag" does not appear as a slot name.
-
-```
-<Tagging>
-  <TagSet><Key>mytag1</Key><Value>myvalue1</Value></TagSet>
-  <TagSet><Key>mytag2</Key><Value>myvalue2</Value></TagSet>
-  <TagSet><Key>mytag3</Key><Value>myvalue3</Value></TagSet>
-</Tagging>
-```
-
-To get the wanted XML output, the type definitions should be modified
-to the following.
-
-```
-type Tagging struct {
-    TagSet TagSet
-}
-type Tagging struct {
-    Tag []Tag
-}
-```
-
-The extraction of the type definitions in Smithy is shown below
-(details dropped).  Notice the "xmlName:Tag" is attached on the "Tag"
-type in the "TagSet" type definition.  It instructs "Tag" to appear.
-
-```
-"com.amazonaws.s3#Tagging": {
-    "type": "structure",
-    "members": {
-        "TagSet": {
-            "target": "com.amazonaws.s3#TagSet",
-            }
-        }
-    }
-},
-"com.amazonaws.s3#TagSet": {
-    "type": "list",
-    "member": {
-        "target": "com.amazonaws.s3#Tag",
-        "traits": {
-            "smithy.api#xmlName": "Tag"
-        }
-    }
-},
-"com.amazonaws.s3#Tag": {
-    "type": "structure",
-    "members": { ...... },
-},
-```
-
-### Implementation Restrictions of Tag-Affix
-
-Correction of XML tags by tag-affix works only on the top level slots
-of records.  It does not work when correction is needed in nested
-slots.  The records needed in Baby-server are "[]Bucket" and "[]Tag",
-and both appear in shallow slots.
-
-
-## XML Tag Mapping ("Tag-Amend")
+### XML Tag Mapping ("Tag-Amend")
 
 DeleteObjects action has "Delete" parameter whose definition in Smithy
 is as follows.  It has "Objects" slot as an array.
@@ -295,7 +296,7 @@ To instruct the marshaler of this fact, the definition of the
 arrays as flattened by default, it requires only the correction of tag
 names.
 
-### Types that need XML Tag Mapping
+#### Types that need XML Tag Mapping
 
 - types.Delete for DeleteObjects
 - types.CompletedMultipartUpload for CompleteMultipartUpload
