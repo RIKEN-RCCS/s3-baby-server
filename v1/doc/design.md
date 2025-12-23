@@ -57,11 +57,6 @@ document string in "s3.json".  They are in "shapes" /
 
 [Naming Amazon S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html)
 
-## Assuptions on Golang stdlib
-
-- It assumes key part is clean as a filesystem path, as ServMux()
-  handles it.
-
 ## Serialization (Criticals)
 
 - Accesses to an object file and a meta-info file are serialized by an
@@ -111,7 +106,7 @@ The saved array of parts are indexed in zero origin (part - 1).
 ## Copying a file
 
 Baby-server copies a file by linking a file.  The mtime of a new file
-is not updated.  Note AWS-S3 never updates files and linking is safe.
+is not updated.
 
 ## Timestamps of objects
 
@@ -130,14 +125,8 @@ explicitly provided tags and headers.  Especially, it does not record
 checksums or checksum algorithms, too.  It returns checksums of
 CRC64NVME in spite of an algorithm specified at "PutObject".
 
-Baby-server ignores checking with "x-amz-sdk-checksum-algorithm" (note
-it is with "sdk").  This header is used to check the algorithm matches
-the stored one.  Baby-server does not store the checksum algorithm.
-Note "x-amz-sdk-checksum-algorithm" is used in {DeleteObjects,
-PutObject, PutObjectTagging, UploadPart}.
-
-Note multiple checksum algorithms can be specified in internally
-defined types in: types.Object and types.ObjectVersion.
+Note multiple checksum algorithms can be specified in internal types
+in: types.Object and types.ObjectVersion.
 
 ## Responses
 
@@ -154,3 +143,24 @@ and in data,
 Baby-server does not check properness of enumerators in XML payload,
 while it checks that in headers.  Baby-server uses the standard
 unmarshaler and it does not know about enumerators.
+
+## Implementation Limitations
+
+### No Handling of Trailer Headers
+
+Baby-server does not handle http trailer headers in either requests or
+responses.  It issues an error in log and ignores them when trailer
+headers are received.
+
+### Assuptions on http Server in Golang stdlib
+
+- Baby-server assumes key part is clean as a filesystem path, as
+  ServMux() handles it.
+
+## MEMO
+
+Baby-server ignores checking with "x-amz-sdk-checksum-algorithm" (note
+it is with "sdk").  This header is used to check the algorithm matches
+the stored one.  Baby-server does not store the checksum algorithm.
+Note "x-amz-sdk-checksum-algorithm" is used in {DeleteObjects,
+PutObject, PutObjectTagging, UploadPart}.

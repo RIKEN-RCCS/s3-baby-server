@@ -913,13 +913,15 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	if err2 != nil {
 		return nil, err2
 	}
-	var location = "/" + object
+	//var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
-			MFA:                 i.MFA,
-			ExpectedBucketOwner: i.ExpectedBucketOwner,
-			VersionId:           i.VersionId,
+			BypassGovernanceRetention: i.BypassGovernanceRetention,
+			ExpectedBucketOwner:       i.ExpectedBucketOwner,
+			MFA:                       i.MFA,
+			RequestPayer:              i.RequestPayer,
+			VersionId:                 i.VersionId,
 		}
 		var err1 = check_options_unsupported(action, &unsupported)
 		if err1 != nil {
@@ -927,51 +929,16 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 		}
 	}
 
-	var _, _, err3 = bbs.check_object_exists(object)
-	if err3 != nil {
-		return nil, err3
+	// SERIALIZE-ACCESSES (in the deletion routine).
+
+	var conditionals = copy_conditionals{
+		some_match:    i.IfMatch,
+		modified_time: i.IfMatchLastModifiedTime,
+		size:          i.IfMatchSize,
 	}
-
-	var md5, _, err4 = bbs.calculate_csum2("", object, "")
-	if err4 != nil {
-		return nil, err4
-	}
-	var _ = md5
-
-	var rid uint64 = get_request_id(ctx)
-
-	// SERIALIZE-ACCESSES.
-
-	{
-		var timeout = bbs.serialize_access(ctx, object, rid)
-		if timeout != nil {
-			return nil, timeout
-		}
-		defer bbs.release_access(ctx, object, rid)
-	}
-
-	{
-		var err5 = bbs.check_request_conditionals(object, "delete",
-			copy_conditionals{
-				some_match:    i.IfMatch,
-				modified_time: i.IfMatchLastModifiedTime,
-				size:          i.IfMatchSize,
-			})
-		if err5 != nil {
-			return nil, err5
-		}
-
-		var err1 = bbs.store_metainfo(object, nil)
-		if err1 != nil {
-			// IGNORE-ERRORS.
-		}
-		var path = bbs.make_path_of_object(object, "")
-		var err2 = os.Remove(path)
-		if err2 != nil {
-			bbs.logger.Warn("os.Remove() failed on an object",
-				"file", path, "error", err2)
-			return nil, map_os_error(location, err2, nil)
-		}
+	var err6 = bbs.delete_object(ctx, object, conditionals)
+	if err6 != nil {
+		return nil, err6
 	}
 
 	// o.DeleteMarker *bool
@@ -1003,7 +970,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 		return nil, err2
 	}
 	var bucket = *i.Bucket
-	var location = "/" + bucket
+	//var location = "/" + bucket
 
 	{
 		var unsupported = option_check_list{
@@ -1036,7 +1003,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 		error  types.Error
 	}, len(i.Delete.Objects))
 
-	// Check conditions of objects.
+	// Delete objects.
 
 	{
 	loop1:
@@ -1076,89 +1043,18 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 				continue loop1
 			}
 
-			var stat, _, err4 = bbs.check_object_exists(object)
-			if err4 != nil {
-				deletestate[i].error.Code = &err4.Code
-				deletestate[i].error.Message = &err4.Message
+			// SERIALIZE-ACCESSES (in the deletion routine).
+
+			var conditionals = copy_conditionals{
+				some_match:    e.ETag,
+				modified_time: e.LastModifiedTime,
+				size:          e.Size,
+			}
+			var err6 = bbs.delete_object(ctx, object, conditionals)
+			if err6 != nil {
+				deletestate[i].error.Code = &err6.Code
+				deletestate[i].error.Message = &err6.Message
 				continue loop1
-			}
-
-			var mtime = stat.ModTime()
-			if e.LastModifiedTime != nil && !mtime.Equal(*e.LastModifiedTime) {
-				var errz = &Aws_s3_error{Code: PreconditionFailed,
-					Message: "LastModifiedTime does not match."}
-				deletestate[i].error.Code = &errz.Code
-				deletestate[i].error.Message = &errz.Message
-				continue loop1
-			}
-
-			var size = stat.Size()
-			if e.Size != nil && size != *e.Size {
-				var errz = &Aws_s3_error{Code: PreconditionFailed,
-					Message: "Size does not match."}
-				deletestate[i].error.Code = &errz.Code
-				deletestate[i].error.Message = &errz.Message
-				continue loop1
-			}
-
-			if e.ETag != nil {
-				var _, etag, err4 = bbs.check_object_exists(object)
-				if err4 != nil {
-					deletestate[i].error.Code = &err4.Code
-					deletestate[i].error.Message = &err4.Message
-					continue loop1
-				}
-				if etag != *e.ETag {
-					var errz = &Aws_s3_error{Code: PreconditionFailed,
-						Message: "ETag does not match."}
-					deletestate[i].error.Code = &errz.Code
-					deletestate[i].error.Message = &errz.Message
-					continue loop1
-				}
-			}
-		}
-	}
-
-	var rid uint64 = get_request_id(ctx)
-
-	// NOTE: Checking conditions on deleting objects is slack.  It
-	// cannot serializes on each object.  It only serializes on a
-	// bucket which might be meaningless.
-
-	// SERIALIZE-ACCESSES.
-
-	{
-		var timeout = bbs.serialize_access(ctx, bucket, rid)
-		if timeout != nil {
-			return nil, timeout
-		}
-		defer bbs.release_access(ctx, bucket, rid)
-	}
-
-	// Perform deletes.
-
-	{
-	loop2:
-		for i, e := range deletestate {
-			if e.object != "" && e.error.Code == nil {
-				var object = e.object
-				var err6 = bbs.store_metainfo(object, nil)
-				if err6 != nil {
-					// IGNORE-ERRORS.
-					// deletestate[i].error.Code = &err6.Code
-					// deletestate[i].error.Message = &err6.Message
-					// continue loop2
-				}
-				var path = bbs.make_path_of_object(object, "")
-				var err7 = os.Remove(path)
-				if err7 != nil {
-					bbs.logger.Warn("os.Remove() failed on an object",
-						"file", path, "error", err7)
-					var errz = map_os_error(location, err7, nil)
-					deletestate[i].error.Code = &errz.Code
-					deletestate[i].error.Message = &errz.Message
-					continue loop2
-				}
 			}
 		}
 	}

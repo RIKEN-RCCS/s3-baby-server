@@ -536,7 +536,7 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 	// Evaluate conditions in the order specified in RFC-7232.
 
 	if etags_include != nil {
-		// "if-match"
+		// "if-match" and "e.ETag" in DeleteObjects.
 		if !nonexist && match_etags_is_star(etags_include) {
 			// Always matches.
 		} else if nonexist || !slices.Contains(etags_include, etag) {
@@ -582,7 +582,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 	}
 
 	if conditionals.modified_time != nil {
-		// "x-amz-if-match-last-modified-time"
+		// "x-amz-if-match-last-modified-time" and
+		// "e.LastModifiedTime" in DeleteObjects.
 		if nonexist {
 			// OK.
 		} else if !conditionals.modified_time.Equal(mtime) {
@@ -593,7 +594,7 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 	}
 
 	if conditionals.size != nil {
-		// "x-amz-if-match-size"
+		// "x-amz-if-match-size" and "e.Size" in DeleteObjects.
 		if nonexist {
 			// OK.
 		} else if !(*conditionals.size == size) {
