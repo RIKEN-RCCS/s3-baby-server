@@ -478,7 +478,7 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 		if len(objects) < maxkeys {
 			if commonpart == "" {
 				var object = path.Join(bucket, key2)
-				var mpul, err4 = bbs.fetch_mpul_info(object)
+				var mpul, err4 = bbs.fetch_mpul_info(object, false)
 				if err4 != nil {
 					// IGNORE-ERRORS.
 					// Race among listing and others.

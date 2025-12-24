@@ -72,9 +72,9 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
-	bbs.logger.Info("Error in action", "code", string(e1.Code), "error", e1)
-
-	var rid uint64 = get_request_id(ctx)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Info("Error in action",
+		"action", action, "rid", rid, "code", string(e1.Code), "error", e1)
 
 	e1.RequestId = fmt.Sprintf("%016x", rid)
 	var m = Aws_s3_error_to_message[e1.Code]
@@ -110,27 +110,18 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 // COPE_WITH_WRITE_ERROR is called on a write error of response
 // payload and makes a response for it.
 func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	var action = get_request_action(ctx)
+	var action, rid = get_request_action(ctx)
 	bbs.logger.Info("Writing response failed",
-		"action", action, "error", e)
+		"action", action, "rid", rid, "error", e)
 }
 
-func get_request_id(ctx context.Context) uint64 {
+func get_request_action(ctx context.Context) (string, uint64) {
 	var frame = ctx.Value("handler-data").(*Handler_data)
 	if frame == nil {
 		log.Fatal("BAD-IMPL: handler-data not set")
-		return 0
+		return "", 0
 	}
-	return frame.Request_id
-}
-
-func get_request_action(ctx context.Context) string {
-	var frame = ctx.Value("handler-data").(*Handler_data)
-	if frame == nil {
-		log.Fatal("BAD-IMPL: handler-data not set")
-		return ""
-	}
-	return frame.Action_name
+	return frame.Action_name, frame.Request_id
 }
 
 func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Request) {
@@ -143,10 +134,8 @@ func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Requ
 }
 
 // MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
-// takes request-id or zero.  A key is valid during request processing
-// when a request-id is given.  Otherwise, when zero is given, a key
-// is for multipart upload and it is active until completion.  It
-// returns a string of 6 hex-digits.
+// takes a request-id.  A key is valid during request processing with
+// a request-id.  It returns a string of 6 hex-digits.
 func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
@@ -164,7 +153,6 @@ func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 			log.Fatal("BAD-IMPL: unique key generation loops forever")
 		}
 	}
-	// NEVER.
 	panic("NEVER")
 }
 
@@ -189,6 +177,11 @@ func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid u
 func (bbs *Bb_server) release_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
 	bbs.monitor1.exit(object, rid)
 	return nil
+}
+
+func (bbs *Bb_server) test_access_serialized(ctx context.Context, object string, rid uint64) bool {
+	var ok = bbs.monitor1.attest(object, rid)
+	return ok
 }
 
 func make_parameter_error(name string, err error) error {

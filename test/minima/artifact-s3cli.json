@@ -2,109 +2,95 @@
   "name": "s3cli",
   "date": "2025-09-25",
   "NOTE": ["It should be started with an empty pool directory.",
-	   "It needs files on the client: {'data-04m.txt', data-10m.txt'},",
+	   "It needs files on the client: {'data-04m.txt', data-20m.txt'},",
 	   "and files in './datafiles': {'data-00[1234].txt'}."],
   "test": [
 {
   "ID": 1,
-  "step": "Display a list of buckets, which is initially empty.  Check no dot-files are listed.",
-  "name": "server-connection",
-  "kind": "basic",
+  "step": "Display a list of buckets, which is initially empty.",
   "operation": "aws s3api list-buckets --no-cli-pager",
   "status": 0,
-  "outcome1": {"Buckets": [],
-	       "Owner": null,
-	       "Prefix": null},
-  "outcome2": null
+  "format": "json",
+  "outcome": {"Buckets": [],
+	      "Owner": null,
+	      "Prefix": null},
+  "remarks1": ["Check badly named directories are not listed."]
 },
 {
   "ID": 2,
-  "step": "Create a bucket named 'mybucket'.",
-  "name": "MB",
-  "kind": "s3 command",
-  "operation": "aws s3 mb s3://mybucket",
+  "step": "Create a bucket named 'mybucket1'.",
+  "operation": "aws s3 mb s3://mybucket1",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["make_bucket: mybucket"]
+  "format": "lines",
+  "outcome": ["make_bucket: mybucket1"]
 },
 {
   "ID": 3,
-  "step": "Display a list of buckets.  There is one 'mybucket'.",
-  "name": "LS",
-  "kind": "s3 command",
+  "step": "Display a list of buckets.  There is one 'mybucket1'.",
   "operation": "aws s3 ls --no-cli-pager --page-size 10",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["#|date| #|time| mybucket"]
+  "format": "lines",
+  "outcome": ["#|date| #|time| mybucket1"],
+  "remarks2": ["Check also non-object files are not listed.  Non-object",
+	      " files include files starting with a dot, devices, or",
+	      " symbolic-links."]
 },
 {
   "ID": 4,
   "step": "Copy a file that is smaller than 5MB.",
-  "name": "CP",
-  "kind": null,
-  "operation": "aws s3 cp --no-progress data-04m.txt s3://mybucket",
+  "operation": "aws s3 cp --no-progress data-04m.txt s3://mybucket1",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["upload: .*/data-04m.txt to s3://mybucket/data-04m.txt"]
+  "format": "lines",
+  "outcome": ["upload: .*/data-04m.txt to s3://mybucket1/data-04m.txt"]
 },
 {
   "ID": 5,
   "step": "Copy a file that is larger than 5MB.",
-  "name": "CP",
-  "kind": null,
-  "operation": "aws s3 cp --no-progress data-10m.txt s3://mybucket",
+  "operation": "aws s3 cp --no-progress data-20m.txt s3://mybucket1",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["upload: .*/data-10m.txt to s3://mybucket/data-10m.txt"]
+  "format": "lines",
+  "outcome": ["upload: .*/data-20m.txt to s3://mybucket1/data-20m.txt"]
 },
 {
   "ID": 6,
-  "step": "Copy files in the source directory './datafiles' to 'mybucket'.",
-  "name": "SYNC",
-  "kind": null,
-  "operation": "aws s3 sync --no-progress ./datafiles s3://mybucket",
+  "step": "Copy files in the source directory './datafiles' to 'mybucket1'.",
+  "operation": "aws s3 sync --no-progress ./datafiles s3://mybucket1",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
-	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
-	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt",
-	       "upload: .*/data-...\\.txt to s3://mybucket/data-...\\.txt"]
+  "format": "lines",
+  "outcome": ["upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
+	      "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
+	      "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
+	      "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt"]
 },
 {
   "ID": 6.5,
   "step": "Display a list of objects.",
-  "name": "LS",
-  "kind": "s3 command",
-  "operation": "aws s3 ls --no-cli-pager --page-size 10 s3://mybucket",
+  "operation": "aws s3 ls --no-cli-pager --page-size 10 s3://mybucket1",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["#|date| #|time| mybucket"]
+  "format": "lines",
+  "outcome": ["#|date| #|time| mybucket1"]
 },
 {
   "ID": 7,
-  "step": "Delete a previously copied file in 'mybucket'.",
-  "name": "RM",
-  "kind": null,
-  "operation": "aws s3 rm s3://mybucket/data-001.txt",
+  "step": "Delete a previously copied file in 'mybucket1'.",
+  "operation": "aws s3 rm s3://mybucket1/data-001.txt",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["delete: s3://mybucket/data-001.txt"]
+  "format": "lines",
+  "outcome": ["delete: s3://mybucket1/data-001.txt"]
 },
 {
   "ID": 8,
-  "step": "Remove 'mybucket', while five files remains in the bucket.",
-  "name": "RB",
-  "kind": null,
-  "operation": "aws s3 rb --no-progress --force s3://mybucket",
+  "step": "Remove 'mybucket1', while five files remains in the bucket.",
+  "operation": "aws s3 rb --no-progress --force s3://mybucket1",
   "status": 0,
-  "outcome1": null,
-  "outcome2": ["delete: s3://mybucket/data-...\\.txt",
-	       "delete: s3://mybucket/data-...\\.txt",
-	       "delete: s3://mybucket/data-...\\.txt",
-	       "delete: s3://mybucket/data-...\\.txt",
-	       "delete: s3://mybucket/data-...\\.txt",
-	       "remove_bucket: mybucket"],
-  "outcome3": "C:\\Users\\k-ryoh>aws s3 rb s3://new-bucket --force\nremove_bucket: new-bucket"
+  "format": "lines",
+  "outcome": ["delete: s3://mybucket1/data-...\\.txt",
+	      "delete: s3://mybucket1/data-...\\.txt",
+	      "delete: s3://mybucket1/data-...\\.txt",
+	      "delete: s3://mybucket1/data-...\\.txt",
+	      "delete: s3://mybucket1/data-...\\.txt",
+	      "remove_bucket: mybucket1"],
+  "remarks3": "C:\\Users\\k-ryoh>aws s3 rb s3://new-bucket --force\nremove_bucket: new-bucket"
 }
 ]
 }

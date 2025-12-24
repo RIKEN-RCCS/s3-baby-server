@@ -140,6 +140,26 @@ func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 	return path
 }
 
+// MAKE_SCRATCH_OBJECT_NAME makes an object name by appending a marker
+// suffix.  A marker can be one of a null string, a random for a
+// scratch file, "@meta", or "@mpul" (mpul is for multipart upload).
+func (bbs *Bb_server) make_scratch_object_name(object string, marker string) string {
+	var prefix, suffix string
+	if marker == "" {
+		prefix = ""
+		suffix = ""
+	} else if marker[0] == '@' {
+		prefix = "."
+		suffix = marker
+	} else {
+		prefix = "."
+		suffix = "@" + marker
+	}
+	var dir, file = path.Split(object)
+	var scratch = path.Join(dir, (prefix + file + suffix))
+	return scratch
+}
+
 // MAKE_PATH_OF_OBJECT makes an OS-path to an object, by appending an
 // object name with a marker suffix.  A marker can be one of a null
 // string, a random for a scratch file, "@meta", or "@mpul" (mpul is
@@ -242,7 +262,7 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 
 	// Make intermediate directories.
 
-	var err1 = bbs.make_intermediate_directories(object)
+	var err1 = bbs.make_intervening_directories(object)
 	if err1 != nil {
 		return err1
 	}
@@ -283,11 +303,15 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 	var cleanup_needed = true
 	defer func() {
 		if cleanup_needed {
-			var err4 = os.RemoveAll(path)
+			var err4 = bbs.discard_mpul_directory(object)
 			if err4 != nil {
-				bbs.logger.Info("os.RemoveAll() failed", "path", path,
-					"error", err4)
+				// IGNORE-ERRORS.
 			}
+			//var err4 = os.RemoveAll(path)
+			//if err4 != nil {
+			//	bbs.logger.Info("os.RemoveAll() failed in cleanup MPUL",
+			//		"path", path, "error", err4)
+			//}
 		}
 	}()
 
@@ -329,9 +353,9 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 	var infopath = filepath.Join(path, "info")
 	var err3 = os.Remove(infopath)
 	if err3 != nil {
-		// Ignore an error.
 		bbs.logger.Warn("os.Remove() failed on MPUL info",
 			"path", infopath, "error", err3)
+		// IGNORE-ERRORS.
 	}
 	var err4 = os.RemoveAll(path)
 	if err4 != nil {
@@ -346,8 +370,8 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 	return nil
 }
 
-// MAKE_INTERMEDIATE_DIRECTORIES makes directories to the object.
-func (bbs *Bb_server) make_intermediate_directories(object string) *Aws_s3_error {
+// MAKE_INTERVENING_DIRECTORIES makes directories to the object.
+func (bbs *Bb_server) make_intervening_directories(object string) *Aws_s3_error {
 	var location = "/" + object
 
 	var err1 = bbs.check_path_is_link_free(object)
@@ -457,7 +481,7 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 
 // FETCH_MPUL_INFO fetches the stored MPUL information file.  It
 // checks the required fields are non-nil.
-func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
+func (bbs *Bb_server) fetch_mpul_info(object string, serializing bool) (*Mpul_info, error) {
 	var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
@@ -475,7 +499,7 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 		return nil, errz
 	}
 
-	// Check if the required fields of Baby-server is Okay.
+	// Check if the fields of MPUL info is Okay.
 
 	if mpul.Initiated == nil || mpul.UploadId == nil {
 		bbs.logger.Warn("MPUL info file broken",
@@ -484,9 +508,13 @@ func (bbs *Bb_server) fetch_mpul_info(object string) (*Mpul_info, error) {
 			Message:  "MPUL info file broken.",
 			Resource: location}
 
-		var err6 = bbs.discard_mpul_directory(object)
-		if err6 != nil {
-			// IGNORE-ERRORS.
+		// REMOVE MPUL DIRECTORY when in an access serialization.
+
+		if serializing {
+			var err6 = bbs.discard_mpul_directory(object)
+			if err6 != nil {
+				// IGNORE-ERRORS.
+			}
 		}
 
 		return nil, errz
@@ -657,7 +685,8 @@ func (bbs *Bb_server) store_json_data(object, path string, data any) *Aws_s3_err
 }
 
 // CHECK_UPLOAD_ONGOING checks "params.UploadId" is a currently
-// on-going upload.
+// on-going upload.  Serialization status that is passed to
+// fetch_mpul_info (false) is imprecise.
 func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string) (*Mpul_info, *Aws_s3_error) {
 	var location = "/" + object
 	if uploadid == nil {
@@ -666,7 +695,7 @@ func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string) (*Mp
 			Resource: location}
 		return nil, errz
 	}
-	var mpul, err1 = bbs.fetch_mpul_info(object)
+	var mpul, err1 = bbs.fetch_mpul_info(object, false)
 	if err1 != nil || *mpul.UploadId != *uploadid {
 		var errz = &Aws_s3_error{Code: NoSuchUpload,
 			Resource: location}

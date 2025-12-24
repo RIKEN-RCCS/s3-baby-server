@@ -34,8 +34,8 @@ import (
 
 func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditionals copy_conditionals) *Aws_s3_error {
 	var location = "/" + object
-	//var action = get_request_action(ctx)
-	var rid uint64 = get_request_id(ctx)
+	var _, rid = get_request_action(ctx)
+	// var rid uint64 = get_request_id(ctx)
 
 	// SERIALIZE-ACCESSES.
 

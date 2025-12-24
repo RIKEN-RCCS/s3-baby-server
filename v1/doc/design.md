@@ -144,6 +144,28 @@ Baby-server does not check properness of enumerators in XML payload,
 while it checks that in headers.  Baby-server uses the standard
 unmarshaler and it does not know about enumerators.
 
+## Temporary "Scratch" Files
+
+Baby-server creates temporary "scratch" files on copying or uploading.
+An object is once created as a scratch file, and when copying
+completes, it is renamed to the true name.  A name of a scratch file
+is prefixed with "." and suffixed with "@random" to the object name.
+A random is hex digits.  Scratch files are created without serializing
+accesses and its life time is limited while processing a request.
+
+Baby-server creates scratch files for part-files for MPUL, too.
+Although a temporary directory for MPUL is created to store
+part-files, scratch files are not stored in that directory.  Instead,
+scratch files are stored in the same directory where the object will
+be created.
+
+Placement of scratch files for MPUL is to allow removal of the
+temporary directory.  On aborting MPUL, it is necessary to remove the
+directory, but on-going copying would prevent removal of the
+directory.  It is the behavior on handling removal of directories
+while some files are open (especially on NFS).  Placing scratch files
+outside the temporary directory will avoid such prevention.
+
 ## Implementation Limitations
 
 ### No Handling of Trailer Headers

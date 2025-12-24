@@ -1,11 +1,29 @@
 ;; check.scm (2025-10-16)
 
-;; Check runner.  It runs test cases in json.  It is "expect",
-;; expecting command outputs in json.
+;; Check runner.  It runs test cases described in json.
 
-;; This is for "guile --r7rs", 3.0.9 and later.  It uses "spawn" which
-;; is introduced in guile-3.0.9.  We use Guile just because the base
-;; language is stable for years.
+;; This is for "guile --r7rs", version 3.0.9 and later.  It uses
+;; "spawn" which is introduced in guile-3.0.9.  We choose Guile just
+;; because the base language (Scheme) is stable for years.
+
+;; DESCRIPTION: This checker runs "aws" command with subcommands "s3"
+;; or "s3api" as specified in the "operation" field, and expects an
+;; output in "outcome".  "outcome" field is a simple pattern.
+;; Mismatch in "outcome" is an error.  "status" is an exit status, and
+;; it is usually zero.
+;;
+;; "format" specifies an interpretation of "outcome" field.  By
+;; "json", "outcome" is a record of regexp patterns in json.  By
+;; "lines", "outcome" is a vector of (non-json) lines of regexp
+;; patterns.  Patterns may include simple templates: "#|datetime|"
+;; matches date-time, and "#_" is a wildcard, and so on.
+;;
+;; "record" field is used to remember values in the output.  It is a
+;; list of pairs, with the first part a variable name and the second
+;; part a path in json.  It remembers a value of the output at the
+;; path in json in the named variable.
+;;
+;; Fields of "ID" and "step" are remarks.
 
 ;; MEMO: AWS CLI s3 command has "--quiet" option but it is too quiet.
 ;; And, "--only-show-errors", too.
@@ -242,21 +260,22 @@
 	(else v)))
 
 (define (fetch-assoc entity slot)
-  ;; Does assoc, but value "null" is treated as key is missing.  It
-  ;; maps #f to 'false and #t to 'true, to use false as a valid value.
+  ;; Does assoc, but "null" value is treated as missing key.  It maps
+  ;; #f to 'false and #t to 'true, to use false as a valid value.
   (cond ((assoc slot entity)
 	 => (lambda (pair) (make-entity-value (cdr pair))))
 	(else #f)))
 
-(define (fetch-outcome-slot article)
-  ;; Fetches an outcome pattern from either slot "outcome1" or
-  ;; "outcome2" in a test article.  An "outcome1" slot is json object,
-  ;; but an "outcome2" slot is a pattern string.
-  (cond ((fetch-assoc article 'outcome1)
-	 => (lambda (e) e))
-	((fetch-assoc article 'outcome2)
-	 => (lambda (v) (string-append (append-string-vector v "\n") "\n")))
-	(else #f)))
+(define (translate-outcome-slot e outcome-format)
+  ;; Converts an outcome pattern in "outcome" slot in an article with
+  ;; regard to the outcome-format.  Outcome-format is either "json"
+  ;; for a json object or "lines" for pattern strings.
+  (cond ((string=? outcome-format "json")
+	 e)
+	((string=? outcome-format "lines")
+	 (string-append (append-string-vector e "\n") "\n"))
+	(else
+	 (error "BAD: bad outcome-format slot" format))))
 
 (define (fetch-json-slot entity path i)
   ;; Accesses for a path of keys in an entity.  A key is a string or a
@@ -293,17 +312,27 @@
 	 (format #t "BAD record slot: record=~s~%" records)
 	 env))))
 
-(define (check-run item i env test-loop)
-  ;; (item = (vector-ref tests i))
-  (let* ((op (cond ((assoc 'operation item)
-		    => (lambda (pair) (substitute-strings (cdr pair) env)))
-		   (else #f)))
-	 (expect (fetch-outcome-slot item))
-	 (records (cond ((fetch-assoc item 'record)
-			 => (lambda (e) e))
-			(else #())))
-	 (skip-flag (assoc 'skip item))
-	 (stop-flag (assoc 'stop item)))
+(define (check-run article i env test-loop)
+  ;; (article = (vector-ref tests i))
+  (let* ((op
+	  (cond ((assoc 'operation article)
+		 => (lambda (pair) (substitute-strings (cdr pair) env)))
+		(else (error "BAD: No operation slot" article))))
+	 (output-format
+	  (cond ((assoc 'format article)
+		 => (lambda (pair) (cdr pair)))
+		(else (error "BAD: No format slot" article))))
+	 (expect
+	  (cond ((fetch-assoc article 'outcome)
+		 => (lambda (e)
+		      (translate-outcome-slot e output-format)))
+		(else (error "BAD: No outcome slot" article))))
+	 (records
+	  (cond ((fetch-assoc article 'record)
+		 => (lambda (e) e))
+		(else #())))
+	 (skip-flag (assoc 'skip article))
+	 (stop-flag (assoc 'stop article)))
     (cond
      ((not (eqv? stop-flag #f))
       (format #t "STOP TESTING~%")
@@ -312,10 +341,9 @@
       (format #t "Skipping test ~s~%" i)
       (test-loop (+ i 1) env))
      ((not (eqv? op #f))
-      (format #t "testing: ~s ~s ~s~%"
-	      (assoc 'ID item)
-	      (assoc 'name item)
-	      (assoc 'kind item))
+      (format #t "testing: ~s ~s~%"
+	      (assoc 'ID article)
+	      (assoc 'step article))
       (format #t "environment: ~s~%" env)
       (format #t "expect: ~s~%" expect)
       (format #t "operation: ~s~%" op)
@@ -368,6 +396,10 @@
 		(check-run item i env (lambda (j env) #t))
 		(test-loop (+ i 1) env)))
 	  #t))))
+
+(define tests (cdr (assoc 'test
+			  (with-input-from-file "./artifact-s3cli.json"
+			    json-read))))
 
 (define tests (cdr (assoc 'test
 			  (with-input-from-file "./artifact-argument.json"

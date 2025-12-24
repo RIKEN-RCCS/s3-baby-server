@@ -37,8 +37,8 @@ import (
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, *Aws_s3_error) {
 	var o = s3.AbortMultipartUploadOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -64,8 +64,6 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 			return nil, err1
 		}
 	}
-
-	var rid uint64 = get_request_id(ctx)
 
 	// SERIALIZE-ACCESSES.
 
@@ -103,8 +101,8 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 
 func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, *Aws_s3_error) {
 	var o = s3.CompleteMultipartUploadOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -278,7 +276,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// The checksum of the input is ignored when it is not the case.
 	// The returned checksum is always for full object.
 
-	if i.ChecksumType != types.ChecksumTypeFullObject {
+	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
 		bbs.logger.Info("Checksum by not full-object unsuppored",
 			"checksum-type", i.ChecksumType)
 		var errz = &Aws_s3_error{Code: NotImplemented,
@@ -371,8 +369,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, *Aws_s3_error) {
 	var o = s3.CopyObjectOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -541,7 +539,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	}
 	var csumset types.Checksum
 	if checksum != "" {
-		var _, csum, err4 = bbs.calculate_csum2(checksum, object, "")
+		var _, csum, err4 = bbs.calculate_csum2(object, checksum, object)
 		if err4 != nil {
 			return nil, err4
 		}
@@ -586,8 +584,8 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 
 func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, *Aws_s3_error) {
 	var o = s3.CreateBucketOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -633,10 +631,6 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var rid uint64 = get_request_id(ctx)
-	// var scratchkey = bbs.make_scratch_suffix(rid)
-	// defer bbs.discharge_scratch_suffix(rid)
-
 	// Note serialization may not be necessary as mkdir() is atomic.
 
 	// SERIALIZE-ACCESSES.
@@ -675,8 +669,8 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 
 func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, *Aws_s3_error) {
 	var o = s3.CreateMultipartUploadOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -742,7 +736,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		return nil, err3
 	}
 
-	if i.ChecksumType != types.ChecksumTypeFullObject {
+	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
 		bbs.logger.Info("Checksum by not full-object unsuppored",
 			"checksum-type", i.ChecksumType)
 		var errz = &Aws_s3_error{Code: NotImplemented,
@@ -753,7 +747,6 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	var checksumtype = types.ChecksumTypeFullObject
 	var checksum = i.ChecksumAlgorithm
 
-	var rid uint64 = get_request_id(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
@@ -788,7 +781,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		var cleanup_needed = true
 		defer func() {
 			if cleanup_needed {
-				bbs.discard_mpul_directory(object)
+				var _ = bbs.discard_mpul_directory(object)
 			}
 		}()
 
@@ -826,8 +819,8 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 
 func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, *Aws_s3_error) {
 	var o = s3.DeleteBucketOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -849,7 +842,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 		}
 	}
 
-	var rid uint64 = get_request_id(ctx)
+	// var rid uint64 = get_request_id(ctx)
 
 	// SERIALIZE-ACCESSES.
 
@@ -894,8 +887,8 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 
 func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, *Aws_s3_error) {
 	var o = s3.DeleteObjectOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -950,8 +943,8 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 
 func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, *Aws_s3_error) {
 	var o = s3.DeleteObjectsOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// i.Bucket *string
 	// i.Delete *types.Delete
@@ -1108,8 +1101,8 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 
 func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, *Aws_s3_error) {
 	var o = s3.DeleteObjectTaggingOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1134,7 +1127,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		}
 	}
 
-	var rid uint64 = get_request_id(ctx)
+	// var rid uint64 = get_request_id(ctx)
 
 	// SERIALIZE-ACCESSES.
 
@@ -1176,8 +1169,8 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 
 func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, *Aws_s3_error) {
 	var o = s3.GetObjectOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1259,7 +1252,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		if i.Range == nil {
 			var checksum = types.ChecksumAlgorithmCrc64nvme
-			var _, csum1, err1 = bbs.calculate_csum2(checksum, object, "")
+			var _, csum1, err1 = bbs.calculate_csum2(object, checksum, object)
 			if err1 != nil {
 				return nil, err1
 			}
@@ -1325,8 +1318,8 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, *Aws_s3_error) {
 	var o = s3.GetObjectAttributesOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1373,10 +1366,6 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		return nil, err3
 	}
 
-	//var rid uint64 = get_request_id(ctx)
-	//var scratchkey = bbs.make_scratch_suffix(rid)
-	//defer bbs.discharge_scratch_suffix(rid)
-
 	// NO SERIALIZE-ACCESS.
 
 	var attributes = i.ObjectAttributes
@@ -1385,7 +1374,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum, err6 = bbs.calculate_csum2(checksum, object, "")
+		var _, csum, err6 = bbs.calculate_csum2(object, checksum, object)
 		if err6 != nil {
 			return nil, err6
 		}
@@ -1432,8 +1421,8 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 
 func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, *Aws_s3_error) {
 	var o = s3.GetObjectTaggingOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1483,8 +1472,8 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 
 func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, *Aws_s3_error) {
 	var o = s3.HeadBucketOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1518,8 +1507,8 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 
 func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, *Aws_s3_error) {
 	var o = s3.HeadObjectOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1599,7 +1588,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum, err1 = bbs.calculate_csum2(checksum, object, "")
+		var _, csum, err1 = bbs.calculate_csum2(object, checksum, object)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1677,8 +1666,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, *Aws_s3_error) {
 	var o = s3.ListBucketsOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.BucketRegion *string
@@ -1753,8 +1742,8 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 
 func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, *Aws_s3_error) {
 	var o = s3.ListMultipartUploadsOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1841,8 +1830,8 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 
 func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, *Aws_s3_error) {
 	var o = s3.ListObjectsOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -1942,8 +1931,8 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 
 func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, *Aws_s3_error) {
 	var o = s3.ListObjectsV2Output{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2064,8 +2053,8 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 
 func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, *Aws_s3_error) {
 	var o = s3.ListPartsOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2208,8 +2197,8 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 
 func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, *Aws_s3_error) {
 	var o = s3.PutObjectOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2383,8 +2372,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, *Aws_s3_error) {
 	var o = s3.PutObjectTaggingOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2427,7 +2416,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 
 	//bbs.logger.Debug("Tagging", "action", action, "tagging", i.Tagging)
 
-	var rid uint64 = get_request_id(ctx)
+	// var rid uint64 = get_request_id(ctx)
 
 	// SERIALIZE-ACCESSES.
 
@@ -2469,8 +2458,8 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 
 func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, *Aws_s3_error) {
 	var o = s3.UploadPartOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2593,8 +2582,8 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, *Aws_s3_error) {
 	var o = s3.UploadPartCopyOutput{}
-	var action = get_request_action(ctx)
-	bbs.logger.Debug("Servicing", "action", action)
+	var action, rid = get_request_action(ctx)
+	bbs.logger.Debug("Servicing", "action", action, "rid", rid)
 
 	// List of parameters.
 	// i.Bucket *string
@@ -2698,7 +2687,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	var csumset types.Checksum
 	{
 		var checksum = mpul.ChecksumAlgorithm
-		var _, csum, err1 = bbs.calculate_csum2(checksum, object, "")
+		var _, csum, err1 = bbs.calculate_csum2(object, checksum, object)
 		if err1 != nil {
 			return nil, err1
 		}
