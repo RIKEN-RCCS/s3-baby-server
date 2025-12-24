@@ -157,10 +157,18 @@ headers are received.
 - Baby-server assumes key part is clean as a filesystem path, as
   ServMux() handles it.
 
+### No Request Timeout
+
+Baby-server does not set a timeout for request handlers.
+
 ## MEMO
 
-Baby-server ignores checking with "x-amz-sdk-checksum-algorithm" (note
-it is with "sdk").  This header is used to check the algorithm matches
-the stored one.  Baby-server does not store the checksum algorithm.
-Note "x-amz-sdk-checksum-algorithm" is used in {DeleteObjects,
-PutObject, PutObjectTagging, UploadPart}.
+Baby-server ignores "x-amz-sdk-checksum-algorithm" (note it is with
+"sdk").  This header is said to be a marker used in AWS-SDK.  Note
+"x-amz-sdk-checksum-algorithm" is passed as param.ChecksumAlgorithm in
+the following actions.
+
+- DeleteObjects
+- PutObject
+- PutObjectTagging
+- UploadPart

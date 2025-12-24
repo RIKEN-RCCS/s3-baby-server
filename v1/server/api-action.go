@@ -961,8 +961,8 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	// i.MFA *string
 	// i.RequestPayer types.RequestPayer
 
-	// Note "i.ChecksumAlgorithm" is not used as Baby-server does not
-	// record passed checksum values.
+	// Note i.ChecksumAlgorithm shall be ignored because it is
+	// "x-amz-sdk-checksum-algorithm".
 
 	var dummy = "dummy"
 	var _, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, &dummy)
@@ -975,7 +975,6 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	{
 		var unsupported = option_check_list{
 			BypassGovernanceRetention: i.BypassGovernanceRetention,
-			ChecksumAlgorithm:         i.ChecksumAlgorithm,
 			ExpectedBucketOwner:       i.ExpectedBucketOwner,
 			MFA:                       i.MFA,
 			RequestPayer:              i.RequestPayer,
@@ -2255,13 +2254,14 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// i.WebsiteRedirectLocation *string
 	// i.WriteOffsetBytes *int64
 
+	// Note i.ChecksumAlgorithm shall be ignored because it is
+	// "x-amz-sdk-checksum-algorithm".
+
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
 	var location = "/" + object
-
-	// i.ChecksumAlgorithm is ignored.
 
 	{
 		var unsupported = option_check_list{
@@ -2402,9 +2402,10 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	// - OperationAborted
 	// - InternalError
 
-	// i.ContentMD5 is implicitly checked in unmarshaling body.
+	// Note i.ChecksumAlgorithm shall be ignored because it is
+	// "x-amz-sdk-checksum-algorithm".
 
-	// i.ChecksumAlgorithm is ignored.
+	// i.ContentMD5 is implicitly checked in unmarshaling body.
 
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err2 != nil {
@@ -2424,7 +2425,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 		}
 	}
 
-	bbs.logger.Debug("Tagging", "action", action, "tagging", i.Tagging)
+	//bbs.logger.Debug("Tagging", "action", action, "tagging", i.Tagging)
 
 	var rid uint64 = get_request_id(ctx)
 
@@ -2491,6 +2492,9 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
+	// Note i.ChecksumAlgorithm shall be ignored because it is
+	// "x-amz-sdk-checksum-algorithm".
+
 	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
@@ -2526,8 +2530,6 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	} else {
 		size_to_check = -1
 	}
-
-	// i.ChecksumAlgorithm is ignored.
 
 	var md5_to_check, err7 = decode_base64(object, i.ContentMD5)
 	if err7 != nil {
