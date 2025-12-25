@@ -8,15 +8,15 @@
 
 ;; DESCRIPTION: This checker runs "aws" command with subcommands "s3"
 ;; or "s3api" as specified in the "operation" field, and expects an
-;; output in "outcome".  "outcome" field is a simple pattern.
-;; Mismatch in "outcome" is an error.  "status" is an exit status, and
+;; output in "expect".  "expect" field is a simple pattern.
+;; Mismatch in "expect" is an error.  "status" is an exit status, and
 ;; it is usually zero.
 ;;
-;; "format" specifies an interpretation of "outcome" field.  By
-;; "json", "outcome" is a record of regexp patterns in json.  By
-;; "lines", "outcome" is a vector of (non-json) lines of regexp
-;; patterns.  Patterns may include simple templates: "#|datetime|"
-;; matches date-time, and "#_" is a wildcard, and so on.
+;; "output" specifies an interpretation of "expect" field.  By "json",
+;; "expect" is a record of regexp patterns in json.  By "lines",
+;; "expect" is a vector of (non-json) lines of regexp patterns.
+;; Patterns may include simple templates: "#|datetime|" matches
+;; date-time, and "#_" is a wildcard, and so on.
 ;;
 ;; "record" field is used to remember values in the output.  It is a
 ;; list of pairs, with the first part a variable name and the second
@@ -266,16 +266,16 @@
 	 => (lambda (pair) (make-entity-value (cdr pair))))
 	(else #f)))
 
-(define (translate-outcome-slot e outcome-format)
-  ;; Converts an outcome pattern in "outcome" slot in an article with
-  ;; regard to the outcome-format.  Outcome-format is either "json"
+(define (translate-expectation-slot e output-format)
+  ;; Converts an expectation pattern in "expect" slot in an article
+  ;; with regard to the output-format.  Output-format is either "json"
   ;; for a json object or "lines" for pattern strings.
-  (cond ((string=? outcome-format "json")
+  (cond ((string=? output-format "json")
 	 e)
-	((string=? outcome-format "lines")
+	((string=? output-format "lines")
 	 (string-append (append-string-vector e "\n") "\n"))
 	(else
-	 (error "BAD: bad outcome-format slot" format))))
+	 (error "BAD: bad output-format slot" format))))
 
 (define (fetch-json-slot entity path i)
   ;; Accesses for a path of keys in an entity.  A key is a string or a
@@ -313,19 +313,19 @@
 	 env))))
 
 (define (check-run article i env test-loop)
-  ;; (article = (vector-ref tests i))
+  ;; Note (article = (vector-ref tests i)).
   (let* ((op
 	  (cond ((assoc 'operation article)
 		 => (lambda (pair) (substitute-strings (cdr pair) env)))
 		(else (error "BAD: No operation slot" article))))
 	 (output-format
-	  (cond ((assoc 'format article)
+	  (cond ((assoc 'output article)
 		 => (lambda (pair) (cdr pair)))
 		(else (error "BAD: No format slot" article))))
 	 (expect
-	  (cond ((fetch-assoc article 'outcome)
+	  (cond ((fetch-assoc article 'expect)
 		 => (lambda (e)
-		      (translate-outcome-slot e output-format)))
+		      (translate-expectation-slot e output-format)))
 		(else (error "BAD: No outcome slot" article))))
 	 (records
 	  (cond ((fetch-assoc article 'record)

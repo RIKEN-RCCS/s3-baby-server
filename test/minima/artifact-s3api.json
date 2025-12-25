@@ -12,21 +12,19 @@
   "step": "Make a 'mybucket1' bucket",
   "pre": "Start with an empty pool directory.",
   "name": "CreateBucket",
-  "kind": "s3api",
   "operation": "aws s3api create-bucket --no-cli-pager --bucket mybucket1",
   "status": 0,
-  "outcome1": {"Location": "/mybucket1"},
-  "outcome2": null
+  "output": "json",
+  "expect": {"Location": "/mybucket1"}
 },
 {
   "ID": 2,
   "step": "Check 'mybucket1' existence.",
   "name": "HeadBucket",
-  "kind": null,
   "operation": "aws s3api head-bucket --no-cli-pager --bucket mybucket1",
   "status": 0,
-  "outcome1": {"AccessPointAlias": false},
-  "outcome2": null
+  "output": "json",
+  "expect": {"AccessPointAlias": false}
 },
 {
   "ID": 3,
@@ -35,7 +33,8 @@
   "kind": null,
   "operation": "aws s3api list-buckets --no-cli-pager",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "Buckets": [
       {
         "Name": "mybucket1",
@@ -44,8 +43,7 @@
     ],
     "Owner": null,
     "Prefix": null
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 4,
@@ -54,12 +52,12 @@
   "kind": null,
   "operation": "aws s3api put-object --no-cli-pager --bucket mybucket1 --key data-001.txt --body ./data-04m.txt",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "ETag": "#|etag|",
     "ChecksumCRC64NVME": "#|csum|",
     "ChecksumType": "FULL_OBJECT"
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 5,
@@ -68,14 +66,14 @@
   "kind": null,
   "operation": "aws s3api head-object --no-cli-pager --bucket mybucket1 --key data-001.txt",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "AcceptRanges": "bytes",
     "LastModified": "#|datetime|",
     "ContentLength": "#_",
     "ETag": "#|etag|",
     "Metadata": {}
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 6,
@@ -84,7 +82,8 @@
   "kind": null,
   "operation": "aws s3api get-object --no-cli-pager --bucket mybucket1 --key data-001.txt data-101.txt",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "AcceptRanges": "bytes",
     "LastModified": "#|datetime|",
     "ContentLength": "#_",
@@ -93,8 +92,7 @@
     "ChecksumType": "FULL_OBJECT",
     "ContentType": "application/octet-stream",
     "Metadata": {}
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 7,
@@ -103,7 +101,8 @@
   "kind": null,
   "operation": "aws s3api list-objects --no-cli-pager --bucket mybucket1",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "Contents": [
       {
         "Key": "data-001.txt",
@@ -115,8 +114,7 @@
     ],
     "RequestCharged": null,
     "Prefix": ""
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 8,
@@ -127,13 +125,13 @@
   "kind": null,
   "operation": "aws s3api copy-object --no-cli-pager --bucket mybucket1 --key data-002.txt --copy-source mybucket1/data-001.txt",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "CopyObjectResult": {
       "ETag": "#|etag|",
       "LastModified": "#|datetime|"
     }
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 9,
@@ -144,13 +142,13 @@
   "kind": null,
   "operation": "aws s3api copy-object --no-cli-pager --bucket mybucket1 --key data-003.txt --copy-source mybucket1/data-001.txt",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "CopyObjectResult": {
       "ETag": "#|etag|",
       "LastModified": "#|datetime|"
     }
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 10,
@@ -160,7 +158,8 @@
   "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
   "operation": "aws s3api list-objects-v2 --no-cli-pager --bucket mybucket1",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "Contents": [
       {
         "Key": "data-00[123].txt",
@@ -172,8 +171,7 @@
     ],
     "RequestCharged": null,
     "Prefix": ""
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 11,
@@ -182,8 +180,8 @@
   "kind": null,
   "operation": "aws s3api put-object-tagging --no-cli-pager --bucket mybucket1 --key data-001.txt --tagging \"TagSet=[{Key=MyKey,Value=MyValue}]\"",
   "status": 0,
-  "outcome1": {},
-  "outcome2": null
+  "output": "json",
+  "expect": {}
 },
 {
   "ID": 12,
@@ -192,15 +190,15 @@
   "kind": null,
   "operation": "aws s3api get-object-tagging --no-cli-pager --bucket mybucket1 --key data-001.txt",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "TagSet": [
       {
         "Key": "MyKey",
         "Value": "MyValue"
       }
     ]
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 13,
@@ -210,8 +208,8 @@
   "pre": "Files = {'data-001.txt', 'data-002.txt', 'data-003.txt'}",
   "operation": "aws s3api delete-object-tagging --no-cli-pager --bucket mybucket1 --key data-001.txt",
   "status": 0,
-  "outcome1": {},
-  "outcome2": null
+  "output": "json",
+  "expect": {}
 },
 {
   "ID": 14,
@@ -220,7 +218,8 @@
   "kind": null,
   "operation": "aws s3api get-object-tagging --no-cli-pager --bucket mybucket1 --key data-001.txt",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "TagSet": []
   }
 },
@@ -234,7 +233,8 @@
   "MEMO2": "ObjectParts slot misses PartNumberMarker=0",
   "operation": "aws s3api get-object-attributes --no-cli-pager --bucket mybucket1 --key data-001.txt --object-attributes ETag ObjectSize Checksum StorageClass ObjectParts",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "LastModified": "#|datetime|",
     "ETag": "#|etag|",
     "Checksum": {
@@ -254,8 +254,7 @@
     },
     "StorageClass": "STANDARD",
     "ObjectSize": "#_"
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 16,
@@ -266,8 +265,8 @@
   "kind": null,
   "operation": "aws s3api delete-object --no-cli-pager --bucket mybucket1 --key data-001.txt",
   "status": 0,
-  "outcome1": {},
-  "outcome2": null
+  "output": "json",
+  "expect": {}
 },
 {
   "ID": 17,
@@ -277,7 +276,8 @@
   "pre": "Files = {'data-002.txt', 'data-003.txt'}",
   "operation": "aws s3api list-objects --no-cli-pager --bucket mybucket1",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "Contents": [
       {
         "Key": "data-00[23].txt",
@@ -300,14 +300,14 @@
   "kind": null,
   "operation": "aws s3api delete-objects --no-cli-pager --bucket mybucket1 --delete '{\"Objects\":[{\"Key\":\"data-002.txt\"},{\"Key\":\"data-003.txt\"}],\"Quiet\":false}'",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "Deleted": [
       {
         "Key": "data-00[23].txt"
       }
     ]
-  },
-  "outcome2": null
+  }
 },
 {
   "ID": 19,
@@ -317,8 +317,8 @@
   "kind": null,
   "operation": "aws s3api delete-bucket --no-cli-pager --bucket mybucket1",
   "status": 0,
-  "outcome1": {},
-  "outcome2": null
+  "output": "json",
+  "expect": {}
 },
 {
   "ID": 20,
@@ -327,12 +327,12 @@
   "kind": null,
   "operation": "aws s3api list-buckets --no-cli-pager",
   "status": 0,
-  "outcome1": {
+  "output": "json",
+  "expect": {
     "Buckets": [],
     "Owner": null,
     "Prefix": null
-  },
-  "outcome2": null
+  }
 }
 ]
 }

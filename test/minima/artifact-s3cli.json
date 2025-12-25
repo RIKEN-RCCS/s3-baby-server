@@ -10,10 +10,10 @@
   "step": "Display a list of buckets, which is initially empty.",
   "operation": "aws s3api list-buckets --no-cli-pager",
   "status": 0,
-  "format": "json",
-  "outcome": {"Buckets": [],
-	      "Owner": null,
-	      "Prefix": null},
+  "output": "json",
+  "expect": {"Buckets": [],
+	     "Owner": null,
+	     "Prefix": null},
   "remarks1": ["Check badly named directories are not listed."]
 },
 {
@@ -21,16 +21,16 @@
   "step": "Create a bucket named 'mybucket1'.",
   "operation": "aws s3 mb s3://mybucket1",
   "status": 0,
-  "format": "lines",
-  "outcome": ["make_bucket: mybucket1"]
+  "output": "lines",
+  "expect": ["make_bucket: mybucket1"]
 },
 {
   "ID": 3,
   "step": "Display a list of buckets.  There is one 'mybucket1'.",
   "operation": "aws s3 ls --no-cli-pager --page-size 10",
   "status": 0,
-  "format": "lines",
-  "outcome": ["#|date| #|time| mybucket1"],
+  "output": "lines",
+  "expect": ["#|date| #|time| mybucket1"],
   "remarks2": ["Check also non-object files are not listed.  Non-object",
 	      " files include files starting with a dot, devices, or",
 	      " symbolic-links."]
@@ -40,56 +40,56 @@
   "step": "Copy a file that is smaller than 5MB.",
   "operation": "aws s3 cp --no-progress data-04m.txt s3://mybucket1",
   "status": 0,
-  "format": "lines",
-  "outcome": ["upload: .*/data-04m.txt to s3://mybucket1/data-04m.txt"]
+  "output": "lines",
+  "expect": ["upload: .*/data-04m.txt to s3://mybucket1/data-04m.txt"]
 },
 {
   "ID": 5,
   "step": "Copy a file that is larger than 5MB.",
   "operation": "aws s3 cp --no-progress data-20m.txt s3://mybucket1",
   "status": 0,
-  "format": "lines",
-  "outcome": ["upload: .*/data-20m.txt to s3://mybucket1/data-20m.txt"]
+  "output": "lines",
+  "expect": ["upload: .*/data-20m.txt to s3://mybucket1/data-20m.txt"]
 },
 {
   "ID": 6,
   "step": "Copy files in the source directory './datafiles' to 'mybucket1'.",
   "operation": "aws s3 sync --no-progress ./datafiles s3://mybucket1",
   "status": 0,
-  "format": "lines",
-  "outcome": ["upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
-	      "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
-	      "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
-	      "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt"]
+  "output": "lines",
+  "expect": ["upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
+	     "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
+	     "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt",
+	     "upload: .*/data-...\\.txt to s3://mybucket1/data-...\\.txt"]
 },
 {
   "ID": 6.5,
   "step": "Display a list of objects.",
   "operation": "aws s3 ls --no-cli-pager --page-size 10 s3://mybucket1",
   "status": 0,
-  "format": "lines",
-  "outcome": ["#|date| #|time| mybucket1"]
+  "output": "lines",
+  "expect": ["#|date| #|time| mybucket1"]
 },
 {
   "ID": 7,
   "step": "Delete a previously copied file in 'mybucket1'.",
   "operation": "aws s3 rm s3://mybucket1/data-001.txt",
   "status": 0,
-  "format": "lines",
-  "outcome": ["delete: s3://mybucket1/data-001.txt"]
+  "output": "lines",
+  "expect": ["delete: s3://mybucket1/data-001.txt"]
 },
 {
   "ID": 8,
   "step": "Remove 'mybucket1', while five files remains in the bucket.",
   "operation": "aws s3 rb --no-progress --force s3://mybucket1",
   "status": 0,
-  "format": "lines",
-  "outcome": ["delete: s3://mybucket1/data-...\\.txt",
-	      "delete: s3://mybucket1/data-...\\.txt",
-	      "delete: s3://mybucket1/data-...\\.txt",
-	      "delete: s3://mybucket1/data-...\\.txt",
-	      "delete: s3://mybucket1/data-...\\.txt",
-	      "remove_bucket: mybucket1"],
+  "output": "lines",
+  "expect": ["delete: s3://mybucket1/data-...\\.txt",
+	     "delete: s3://mybucket1/data-...\\.txt",
+	     "delete: s3://mybucket1/data-...\\.txt",
+	     "delete: s3://mybucket1/data-...\\.txt",
+	     "delete: s3://mybucket1/data-...\\.txt",
+	     "remove_bucket: mybucket1"],
   "remarks3": "C:\\Users\\k-ryoh>aws s3 rb s3://new-bucket --force\nremove_bucket: new-bucket"
 }
 ]
