@@ -156,6 +156,14 @@ func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 	panic("NEVER")
 }
 
+// MAKE_NEW_UPLOAD_ID makes a key string for a upload-id.  Its
+// uniqueness is NOT guaranteed.  It is only by probability.
+func (bbs *Bb_server) make_new_upload_id() string {
+	var r = rand.Uint32()
+	var s = fmt.Sprintf("%08x", r)
+	return s
+}
+
 func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()

@@ -254,7 +254,7 @@ func (bbs *Bb_server) delete_file(object string) error {
 }
 
 // CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL and
-// populates it with a info file.  It may overtake an existing
+// populates it with an info file.  It may overtake an existing
 // directory when it already exists, and rewrites its upload-id.
 func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, mpul *Mpul_info) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
@@ -270,24 +270,21 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 	// Make or overtake a MPUL directory.
 
 	var stat, err2 = os.Lstat(path)
-	if err2 != nil {
-		if errors.Is(err2, fs.ErrNotExist) {
-			// OK.
-		} else {
-			bbs.logger.Warn("os.Lstat() failed",
-				"path", path, "error", err2)
-			return map_os_error(location, err2, nil)
-		}
-	}
-	if stat != nil && !stat.IsDir() {
+	if err2 == nil && stat != nil && !stat.IsDir() {
 		bbs.logger.Warn("A MPUL path is not a directory", "path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message:  "A MPUL path is not a directory",
 			Resource: location}
 		return errz
 	}
+	if err2 != nil && !errors.Is(err2, fs.ErrNotExist) {
+		bbs.logger.Warn("os.Lstat() failed",
+			"path", path, "error", err2)
+		return map_os_error(location, err2, nil)
+	}
 
 	if err2 != nil {
+		// Make a new directory.
 		bb_assert(errors.Is(err2, fs.ErrNotExist))
 		var err3 = os.Mkdir(path, 0755)
 		if err3 != nil {
@@ -298,6 +295,18 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 	} else {
 		// Overtake an existing directory.
 		bbs.logger.Debug("Overtaking an existing MPUL directory", "path", path)
+
+		var oldmpul, err4 = bbs.fetch_mpul_info(object, false)
+		if err4 == nil {
+			if *oldmpul.UploadId == *mpul.UploadId {
+				bbs.logger.Error("Upload-ID conflicting (should never happen)",
+					"object", object)
+				var errz = &Aws_s3_error{Code: InternalError,
+					Message:  "Upload-ID conflicting.",
+					Resource: location}
+				return errz
+			}
+		}
 	}
 
 	var cleanup_needed = true
@@ -307,11 +316,6 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 			if err4 != nil {
 				// IGNORE-ERRORS.
 			}
-			//var err4 = os.RemoveAll(path)
-			//if err4 != nil {
-			//	bbs.logger.Info("os.RemoveAll() failed in cleanup MPUL",
-			//		"path", path, "error", err4)
-			//}
 		}
 	}()
 
@@ -321,8 +325,8 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 	if err5 != nil {
 		return err5
 	}
-
 	cleanup_needed = false
+
 	return nil
 }
 
@@ -480,7 +484,11 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 }
 
 // FETCH_MPUL_INFO fetches the stored MPUL information file.  It
-// checks the required fields are non-nil.
+// checks the required fields are non-nil.  SERIALIZING indicates it
+// is called in access serialization.  Calling with serializing=false
+// is acceptable when the status is not certain.  It would remove a
+// MPUL scratch directory when the content is broken (should never
+// happen).
 func (bbs *Bb_server) fetch_mpul_info(object string, serializing bool) (*Mpul_info, error) {
 	var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
@@ -491,7 +499,7 @@ func (bbs *Bb_server) fetch_mpul_info(object string, serializing bool) (*Mpul_in
 		bbs.logger.Warn("MPUL info file missing",
 			"path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "MPUL info file missing.",
+			Message:  "MPUL record missing.",
 			Resource: location}
 		return nil, errz
 	} else if err5 != nil {
@@ -502,10 +510,10 @@ func (bbs *Bb_server) fetch_mpul_info(object string, serializing bool) (*Mpul_in
 	// Check if the fields of MPUL info is Okay.
 
 	if mpul.Initiated == nil || mpul.UploadId == nil {
-		bbs.logger.Warn("MPUL info file broken",
+		bbs.logger.Error("MPUL info file broken",
 			"path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "MPUL info file broken.",
+			Message:  "MPUL record broken.",
 			Resource: location}
 
 		// REMOVE MPUL DIRECTORY when in an access serialization.

@@ -747,10 +747,10 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	var checksumtype = types.ChecksumTypeFullObject
 	var checksum = i.ChecksumAlgorithm
 
-	var scratchkey = bbs.make_scratch_suffix(rid)
-	defer bbs.discharge_scratch_suffix(rid)
+	//var scratchkey = bbs.make_scratch_suffix(rid)
+	//defer bbs.discharge_scratch_suffix(rid)
 
-	var uploadid = scratchkey
+	var uploadid string = bbs.make_new_upload_id()
 
 	// SERIALIZE-ACCESSES.
 
