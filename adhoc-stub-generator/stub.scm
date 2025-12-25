@@ -8,14 +8,15 @@
 
 ;; This is for "guile --r7rs" and tested with GNU-Guile-3.0.10.
 
-;; It generates files "api-template.go", "dispatcher.go",
-;; "handler.go", and "marshaler.go".  A dispatcher in
+;; This stub generator generates files "api-template.go",
+;; "dispatcher.go", "handler.go", and "marshaler.go".  A dispatcher in
 ;; "dispatcher.go" is a request multiplexer.  It calls routines in
 ;; "handler.go" to process requests and responses.  Marshalers in
 ;; "marshaler.go" are needed to skip an extra memeber in responses,
-;; because the output structures in AWS-SDK have one added member.
-;; "api-template.go" is a skeleton code of API handlers.  The files
-;; other than "api-template.go" should be placed in the same package.
+;; because the output structures defined in AWS-SDK have one added
+;; member.  "api-template.go" is a skeleton code of API handlers.  The
+;; files other than "api-template.go" are assumed to be placed in the
+;; same package.
 
 ;; Smithy syntax is described in: https://smithy.io/2.0/spec/idl.html
 ;; "+"-qualified element as in {Key+} matches one or more path
