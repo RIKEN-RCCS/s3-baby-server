@@ -197,8 +197,6 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 
 	bb_assert(!(part != 0) || info == nil)
 
-	var copy_file_by_linking = (extent == nil)
-
 	// TARGET is the copy destination.  It can be either an object or
 	// a MPUL part file.
 
@@ -214,38 +212,10 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 
 	var checksum2 = checksum
 
-	var md5a []byte
-	var csum1 []byte
-	if !copy_file_by_linking {
-		var md5, crc, err6 = bbs.copy_file_as_scratch(object, scratch,
-			source, extent, checksum2)
-		if err6 != nil {
-			return nil, "", nil, err6
-		}
-		md5a = md5
-		csum1 = crc
-	} else {
-		var s_path = bbs.make_path_of_object(source, "")
-		var t_path = bbs.make_path_of_object(scratch, "")
-		var err3 = os.Remove(t_path)
-		if err3 != nil && !errors.Is(err3, fs.ErrNotExist) {
-			bbs.logger.Error("os.Remove() failed on a scratch file",
-				"path", t_path, "error", err3)
-			return nil, "", nil, map_os_error(location, err3, nil)
-		}
-		var err4 = os.Link(s_path, t_path)
-		if err4 != nil {
-			bbs.logger.Error("os.Link() failed on a scratch file",
-				"source", s_path, "target", t_path, "error", err4)
-			return nil, "", nil, map_os_error(location, err4, nil)
-		}
-
-		var md5, crc, err1 = bbs.calculate_csum2(object, checksum2, scratch)
-		if err1 != nil {
-			return nil, "", nil, err1
-		}
-		md5a = md5
-		csum1 = crc
+	var md5a, csum1, err6 = bbs.copy_file_as_scratch(object, scratch,
+		source, extent, checksum2)
+	if err6 != nil {
+		return nil, "", nil, err6
 	}
 	var cleanup_needed = true
 	defer func() {
@@ -416,29 +386,9 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 // UPLOAD_FILE_AS_SCRATCH stores the contents as a scratch file.
 // Renaming a scratch file to an actual file will be done in
 // serialization.
-func (bbs *Bb_server) upload_file_as_scratch(object string, scratch string, size int64, checksum types.ChecksumAlgorithm, body io.Reader) ([]byte, []byte, *Aws_s3_error) {
-	var location = "/" + object
-	var path = bbs.make_path_of_object(scratch, "")
-
-	// Copy data to a temporary file.
-
-	var f1, err4 = os.Create(path)
-	if err4 != nil {
-		bbs.logger.Info("os.Create() failed for uploading",
-			"path", path, "error", err4)
-		return nil, nil, map_os_error(location, err4, nil)
-	}
-	var cleanup_needed = true
-	defer func() {
-		var err2 = f1.Close()
-		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.logger.Warn("op.Close() failed",
-				"path", path, "error", err2)
-		}
-		if cleanup_needed {
-			var _ = os.Remove(path)
-		}
-	}()
+func (bbs *Bb_server) upload_file_as_scratch(object string, scratch string, size int64, checksum2 types.ChecksumAlgorithm, body io.Reader) ([]byte, []byte, *Aws_s3_error) {
+	//var location = "/" + object
+	//var path = bbs.make_path_of_object(scratch, "")
 
 	var body2 io.Reader
 	if size != -1 {
@@ -447,47 +397,68 @@ func (bbs *Bb_server) upload_file_as_scratch(object string, scratch string, size
 		body2 = body
 	}
 
-	var hash1 hash.Hash = md5.New()
-	var hash2 hash.Hash = checksum_algorithm(checksum)
-	var f2 io.Writer
-	{
-		if hash2 != nil {
-			f2 = io.MultiWriter(f1, hash1, hash2)
-		} else {
-			f2 = io.MultiWriter(f1, hash1)
-		}
-	}
-
-	var cc, err5 = io.Copy(f2, body2)
-	if err5 != nil {
-		bbs.logger.Info("io.Copy() failed for uploading",
-			"path", path, "error", err5)
-		var m = map[error]Aws_s3_error_code{}
-		var errz = map_os_error(location, err5, m)
-		return nil, nil, errz
-	}
-	if cc != size {
-		bbs.logger.Info("Transfer truncated",
-			"expected", size, "received", cc)
-		var errz = &Aws_s3_error{Code: IncompleteBody,
-			Resource: location}
-		return nil, nil, errz
-	}
-
-	cleanup_needed = false
-
-	var md5 []byte
-	var csum []byte
-	if hash1 != nil {
-		md5 = hash1.Sum(nil)
-	}
-	if hash2 != nil {
-		csum = hash2.Sum(nil)
+	var md5, csum, err6 = bbs.copy_content_stream(object, scratch, "",
+		size, checksum2, body2)
+	if err6 != nil {
+		return nil, nil, err6
 	}
 	return md5, csum, nil
 }
 
-func (bbs *Bb_server) copy_file_as_scratch(object string, scratch string, source string, extent *[2]int64, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) copy_file_as_scratch(object string, scratch string, source string, extent *[2]int64, checksum2 types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+	var location = "/" + object
+	var copy_file_by_linking = (extent == nil)
+
+	if !copy_file_by_linking {
+		var size int64 = extent[1] - extent[0]
+		var sourcepath = bbs.make_path_of_object(source, "")
+		var f3, err1 = os.Open(sourcepath)
+		if err1 != nil {
+			bbs.logger.Warn("os.Open() failed for copy source",
+				"path", sourcepath, "error", err1)
+			return nil, nil, map_os_error(location, err1, nil)
+		}
+		var f4 = New_range_reader(f3, extent)
+		defer func() {
+			var err4 = f4.Close()
+			if err4 != nil {
+				bbs.logger.Warn("op.Close() failed",
+					"path", sourcepath, "error", err4)
+				// IGNORE-ERRORS.
+			}
+		}()
+
+		var md5, csum, err6 = bbs.copy_content_stream(object, scratch, source,
+			size, checksum2, f4)
+		if err6 != nil {
+			return nil, nil, err6
+		}
+		return md5, csum, nil
+	} else {
+		var s_path = bbs.make_path_of_object(source, "")
+		var t_path = bbs.make_path_of_object(scratch, "")
+		var err3 = os.Remove(t_path)
+		if err3 != nil && !errors.Is(err3, fs.ErrNotExist) {
+			bbs.logger.Error("os.Remove() failed on a scratch file",
+				"path", t_path, "error", err3)
+			return nil, nil, map_os_error(location, err3, nil)
+		}
+		var err4 = os.Link(s_path, t_path)
+		if err4 != nil {
+			bbs.logger.Error("os.Link() failed on a scratch file",
+				"source", s_path, "target", t_path, "error", err4)
+			return nil, nil, map_os_error(location, err4, nil)
+		}
+
+		var md5, csum, err1 = bbs.calculate_csum2(object, checksum2, scratch)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+		return md5, csum, nil
+	}
+}
+
+func (bbs *Bb_server) copy_content_stream(object string, scratch string, source string, size int64, checksum2 types.ChecksumAlgorithm, body io.Reader) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(scratch, "")
 
@@ -512,7 +483,7 @@ func (bbs *Bb_server) copy_file_as_scratch(object string, scratch string, source
 	}()
 
 	var hash1 hash.Hash = md5.New()
-	var hash2 hash.Hash = checksum_algorithm(checksum)
+	var hash2 hash.Hash = checksum_algorithm(checksum2)
 	var f2 io.Writer
 	{
 		if hash2 != nil {
@@ -523,25 +494,27 @@ func (bbs *Bb_server) copy_file_as_scratch(object string, scratch string, source
 	}
 
 	{
-		var sourcepath = bbs.make_path_of_object(source, "")
-		var f3, err1 = os.Open(sourcepath)
-		if err1 != nil {
-			bbs.logger.Warn("os.Open() failed for copy source",
-				"path", sourcepath, "error", err1)
-			return nil, nil, map_os_error(location, err1, nil)
+		var sourcepath string
+		if source != "" {
+			// Copying from a source file.
+			sourcepath = bbs.make_path_of_object(source, "")
+		} else {
+			// Uploading from a request stream.
+			sourcepath = "-"
 		}
-		var f4 = New_range_reader(f3, extent)
-		var _, err3 = io.Copy(f2, f4)
+
+		var cc, err3 = io.Copy(f2, body)
 		if err3 != nil {
 			bbs.logger.Warn("io.Copy() failed for copying object",
 				"path", sourcepath, "error", err3)
 			return nil, nil, map_os_error(location, err3, nil)
 		}
-		var err4 = f4.Close()
-		if err4 != nil {
-			bbs.logger.Warn("op.Close() failed",
-				"path", sourcepath, "error", err4)
-			// IGNORE-ERRORS.
+		if size != -1 && cc != size {
+			bbs.logger.Info("Transfer truncated",
+				"expected", size, "received", cc)
+			var errz = &Aws_s3_error{Code: IncompleteBody,
+				Resource: location}
+			return nil, nil, errz
 		}
 	}
 
