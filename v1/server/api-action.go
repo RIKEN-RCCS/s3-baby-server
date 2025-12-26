@@ -228,7 +228,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				return true
 			}
 
-			var csumset2 = types.Checksum{
+			var csumset3 = types.Checksum{
 				ChecksumType:      types.ChecksumTypeFullObject,
 				ChecksumCRC32:     e.ChecksumCRC32,
 				ChecksumCRC32C:    e.ChecksumCRC32C,
@@ -236,7 +236,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				ChecksumSHA1:      e.ChecksumSHA1,
 				ChecksumSHA256:    e.ChecksumSHA256,
 			}
-			var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset2)
+			var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset3)
 			if err8 != nil {
 				// IGNORE-ERRORS.
 			}
@@ -319,8 +319,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		some_match: i.IfMatch,
 		none_match: i.IfNoneMatch,
 	}
-	var _, etag, err6 = bbs.concatenate_object(ctx, object, partlist, mpul,
-		checks, conditionals)
+	var _, etag, csum2, err6 = bbs.concatenate_object(ctx, object,
+		partlist, mpul, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -341,15 +341,16 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 	o.Location = &address
 
-	if checksum != "" {
-		/*AHO*/
-		// Copy the checksum given, because it passes the comparison.
-		o.ChecksumType = csumset1.ChecksumType
-		o.ChecksumCRC32 = csumset1.ChecksumCRC32
-		o.ChecksumCRC32C = csumset1.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset1.ChecksumCRC64NVME
-		o.ChecksumSHA1 = csumset1.ChecksumSHA1
-		o.ChecksumSHA256 = csumset1.ChecksumSHA256
+	{
+		var csumset2 = types.Checksum{}
+		var checksum2 = types.ChecksumAlgorithmCrc64nvme
+		fill_checksum_record(&csumset2, checksum2, csum2)
+		o.ChecksumType = csumset2.ChecksumType
+		o.ChecksumCRC32 = csumset2.ChecksumCRC32
+		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset2.ChecksumSHA1
+		o.ChecksumSHA256 = csumset2.ChecksumSHA256
 	}
 
 	{
@@ -519,34 +520,26 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		return nil, err5
 	}
 
+	var checksum2 types.ChecksumAlgorithm = i.ChecksumAlgorithm
+	if checksum2 == "" {
+		checksum2 = types.ChecksumAlgorithmCrc64nvme
+	}
+
 	// SERIALIZE-ACCESSES (in the copying routine)
 
 	var part int32 = 0
 	var upload_id = ""
 	var extent *[2]int64 = nil
-	var checks = copy_checks{}
-	var stat, etag, err6 = bbs.copy_object(ctx, object, part, upload_id,
-		source, extent, info, checks)
+	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, part, upload_id,
+		source, extent, info, checksum2)
 	if err6 != nil {
 		return nil, err6
 	}
 
-	// Note checksum calculation is outside of serialization.
-
-	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	if checksum == "" {
-		checksum = types.ChecksumAlgorithmCrc64nvme
-	}
-	var csumset types.Checksum
-	if checksum != "" {
-		var _, csum, err4 = bbs.calculate_csum2(object, checksum, object)
-		if err4 != nil {
-			return nil, err4
-		}
-		fill_checksum_record(&csumset, checksum, csum)
-	}
-
 	var mtime = stat.ModTime()
+
+	var csumset2 = types.Checksum{}
+	fill_checksum_record(&csumset2, checksum2, csum2)
 
 	o.CopyObjectResult = &types.CopyObjectResult{
 		// types.CopyObjectResult:
@@ -558,12 +551,12 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		// - ChecksumType ChecksumType
 		// - ETag: *string
 		// - LastModified *time.Time
-		ChecksumCRC32:     csumset.ChecksumCRC32,
-		ChecksumCRC32C:    csumset.ChecksumCRC32C,
-		ChecksumCRC64NVME: csumset.ChecksumCRC64NVME,
-		ChecksumSHA1:      csumset.ChecksumSHA1,
-		ChecksumSHA256:    csumset.ChecksumSHA256,
-		ChecksumType:      csumset.ChecksumType,
+		ChecksumCRC32:     csumset2.ChecksumCRC32,
+		ChecksumCRC32C:    csumset2.ChecksumCRC32C,
+		ChecksumCRC64NVME: csumset2.ChecksumCRC64NVME,
+		ChecksumSHA1:      csumset2.ChecksumSHA1,
+		ChecksumSHA256:    csumset2.ChecksumSHA256,
+		ChecksumType:      csumset2.ChecksumType,
 		ETag:              &etag,
 		LastModified:      &mtime,
 	}
@@ -2304,7 +2297,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if err7 != nil {
 		return nil, err7
 	}
-	var csumset = types.Checksum{
+	var csumset1 = types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
@@ -2312,7 +2305,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
+	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset1)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2336,8 +2329,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		some_match: i.IfMatch,
 		none_match: i.IfNoneMatch,
 	}
-	var stat, etag, err6 = bbs.upload_object(ctx, object, part, upload_id,
-		i.Body, info, checks, conditionals)
+	var stat, etag, csum2, err6 = bbs.upload_object(ctx, object,
+		part, upload_id, i.Body, info, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2346,15 +2339,16 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	o.ETag = &etag
 	o.Size = &size
 
-	if checksum != "" {
-		/*AHO*/
-		// Copy the checksum given, because it passes the comparison.
-		o.ChecksumType = csumset.ChecksumType
-		o.ChecksumCRC32 = csumset.ChecksumCRC32
-		o.ChecksumCRC32C = csumset.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
-		o.ChecksumSHA1 = csumset.ChecksumSHA1
-		o.ChecksumSHA256 = csumset.ChecksumSHA256
+	{
+		var csumset2 = types.Checksum{}
+		var checksum2 = types.ChecksumAlgorithmCrc64nvme
+		fill_checksum_record(&csumset2, checksum2, csum2)
+		o.ChecksumType = csumset2.ChecksumType
+		o.ChecksumCRC32 = csumset2.ChecksumCRC32
+		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset2.ChecksumSHA1
+		o.ChecksumSHA256 = csumset2.ChecksumSHA256
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -2524,7 +2518,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	if err7 != nil {
 		return nil, err7
 	}
-	var csumset = types.Checksum{
+	var csumset1 = types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
@@ -2532,7 +2526,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
+	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset1)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2552,22 +2546,23 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		csum_to_check: csum_to_check,
 	}
 	var conditionals = copy_conditionals{}
-	var _, etag, err6 = bbs.upload_object(ctx, object, part, upload_id,
-		i.Body, info, checks, conditionals)
+	var _, etag, csum2, err6 = bbs.upload_object(ctx, object,
+		part, upload_id, i.Body, info, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
 
 	o.ETag = &etag
 
-	if checksum != "" {
-		/*AHO*/
-		// Copy the checksum given, because it passes the comparison.
-		o.ChecksumCRC32 = csumset.ChecksumCRC32
-		o.ChecksumCRC32C = csumset.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
-		o.ChecksumSHA1 = csumset.ChecksumSHA1
-		o.ChecksumSHA256 = csumset.ChecksumSHA256
+	{
+		var csumset2 = types.Checksum{}
+		var checksum2 = types.ChecksumAlgorithmCrc64nvme
+		fill_checksum_record(&csumset2, checksum2, csum2)
+		o.ChecksumCRC32 = csumset2.ChecksumCRC32
+		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset2.ChecksumSHA1
+		o.ChecksumSHA256 = csumset2.ChecksumSHA256
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -2667,6 +2662,8 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err24
 	}
 
+	var checksum2 types.ChecksumAlgorithm = mpul.ChecksumAlgorithm
+
 	// It is sure mpul.UploadId is non-nil that is checked already.
 
 	bb_assert(mpul.UploadId != nil)
@@ -2675,24 +2672,16 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	// SERIALIZE-ACCESSES (in the copying routine)
 
 	var info *Meta_info = nil
-	var checks = copy_checks{}
-	var stat, etag, err6 = bbs.copy_object(ctx, object, part, upload_id,
-		source, extent, info, checks)
+	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, part, upload_id,
+		source, extent, info, checksum2)
 	if err6 != nil {
 		return nil, err6
 	}
 
 	var mtime = stat.ModTime()
 
-	var csumset types.Checksum
-	{
-		var checksum = mpul.ChecksumAlgorithm
-		var _, csum, err1 = bbs.calculate_csum2(object, checksum, object)
-		if err1 != nil {
-			return nil, err1
-		}
-		fill_checksum_record(&csumset, checksum, csum)
-	}
+	var csumset2 = types.Checksum{}
+	fill_checksum_record(&csumset2, checksum2, csum2)
 
 	o.CopyPartResult = &types.CopyPartResult{
 		// - ChecksumCRC32 *string
@@ -2703,11 +2692,11 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		// - ETag *string
 		// - LastModified *time.Time
 
-		ChecksumCRC32:     csumset.ChecksumCRC32,
-		ChecksumCRC32C:    csumset.ChecksumCRC32C,
-		ChecksumCRC64NVME: csumset.ChecksumCRC64NVME,
-		ChecksumSHA1:      csumset.ChecksumSHA1,
-		ChecksumSHA256:    csumset.ChecksumSHA256,
+		ChecksumCRC32:     csumset2.ChecksumCRC32,
+		ChecksumCRC32C:    csumset2.ChecksumCRC32C,
+		ChecksumCRC64NVME: csumset2.ChecksumCRC64NVME,
+		ChecksumSHA1:      csumset2.ChecksumSHA1,
+		ChecksumSHA256:    csumset2.ChecksumSHA256,
 		ETag:              &etag,
 		LastModified:      &mtime,
 	}
