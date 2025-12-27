@@ -58,17 +58,18 @@ type copy_conditionals struct {
 // of an object or a file of a MPUL part.  It returns stat, etag, and
 // csum (of CRC64NVME).
 func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
-	var location = "/" + object
-	var action, rid = get_request_action(ctx)
+	//var location = "/" + object
+	var _, rid = get_request_action(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
+
+	bb_assert(!(part != 0) || upload_id != "")
 
 	// TARGET is the copy destination.  It can be either an object or
 	// a MPUL part file.
 
 	var target string
 	if part != 0 {
-		bb_assert(upload_id != "")
 		target = make_mpul_part_name(object, part)
 	} else {
 		target = object
@@ -120,13 +121,9 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 	// for MPUL.
 
 	if part != 0 {
-		var mpul, err4 = bbs.fetch_mpul_info(object, true)
-		if err4 != nil || *mpul.UploadId != upload_id {
-			bbs.logger.Info("Race on MPUL, MPUL gone",
-				"action", action, "object", object)
-			var errz = &Aws_s3_error{Code: NoSuchUpload,
-				Resource: location}
-			return nil, "", nil, errz
+		var _, err3 = bbs.check_upload_ongoing(object, &upload_id, true)
+		if err3 != nil {
+			return nil, "", nil, err3
 		}
 	}
 
@@ -148,18 +145,11 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 		cleanup_needed = false
 	}
 
-	var stat, etag, err7 = bbs.fetch_object_status(target)
+	var stat, etag, err7 = bbs.fetch_object_status(target, true)
 	if err7 != nil {
 		return nil, "", nil, err7
 	}
-	if stat == nil {
-		bbs.logger.Error("Race: Object gone while serialized",
-			"action", action, "object", target)
-		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "Uploaded object gone.",
-			Resource: location}
-		return nil, "", nil, errz
-	}
+	bb_assert(stat != nil)
 
 	// Update MPUL catatlog information.
 
@@ -188,21 +178,20 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 // MPUL when copying is for MPUL.  Note checksum checks are not
 // applied on copying.
 func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32, upload_id string, source string, extent *[2]int64, info *Meta_info, checksum types.ChecksumAlgorithm) (fs.FileInfo, string, []byte, *Aws_s3_error) {
-	var location = "/" + object
-	var action, rid = get_request_action(ctx)
+	//var location = "/" + object
+	var _, rid = get_request_action(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
 	// A MPUL part does not have metainfo.
 
-	bb_assert(!(part != 0) || info == nil)
+	bb_assert(!(part != 0) || (info == nil && upload_id != ""))
 
 	// TARGET is the copy destination.  It can be either an object or
 	// a MPUL part file.
 
 	var target string
 	if part != 0 {
-		bb_assert(upload_id != "")
 		target = make_mpul_part_name(object, part)
 	} else {
 		target = object
@@ -244,13 +233,9 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	// for MPUL.
 
 	if part != 0 {
-		var mpul, err4 = bbs.fetch_mpul_info(object, true)
-		if err4 != nil || *mpul.UploadId != upload_id {
-			bbs.logger.Info("Race on MPUL, MPUL gone",
-				"action", action, "object", object)
-			var errz = &Aws_s3_error{Code: NoSuchUpload,
-				Resource: location}
-			return nil, "", nil, errz
+		var _, err3 = bbs.check_upload_ongoing(object, &upload_id, true)
+		if err3 != nil {
+			return nil, "", nil, err3
 		}
 	}
 
@@ -262,18 +247,11 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		cleanup_needed = false
 	}
 
-	var stat, etag, err7 = bbs.fetch_object_status(target)
+	var stat, etag, err7 = bbs.fetch_object_status(target, true)
 	if err7 != nil {
 		return nil, "", nil, err7
 	}
-	if stat == nil {
-		bbs.logger.Error("Race: Object gone while serialized",
-			"action", action, "object", target)
-		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "Uploaded object gone",
-			Resource: location}
-		return nil, "", nil, errz
-	}
+	bb_assert(stat != nil)
 
 	// Update MPUL catatlog information.
 
@@ -299,8 +277,8 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 // CONCATENATE_OBJECT concatenates the parts to an object.  It returns
 // stat, etag, and csum (of CRC64NVME).
 func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
-	var location = "/" + object
-	var action, rid = get_request_action(ctx)
+	//var location = "/" + object
+	var _, rid = get_request_action(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
@@ -340,10 +318,10 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	{
-		// Re-check the upload-id again after exclusion.
+	// Re-check the MPUL upload-id after exclusion.
 
-		var mpul2, err3 = bbs.check_upload_ongoing(object, mpul.UploadId)
+	{
+		var mpul2, err3 = bbs.check_upload_ongoing(object, mpul.UploadId, true)
 		if err3 != nil {
 			return nil, "", nil, err3
 		}
@@ -355,9 +333,9 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 			return nil, "", nil, err7
 		}
 
-		var err1 = bbs.place_scratch_file(object, scratch, target, info)
-		if err1 != nil {
-			return nil, "", nil, err1
+		var err6 = bbs.place_scratch_file(object, scratch, target, info)
+		if err6 != nil {
+			return nil, "", nil, err6
 		}
 		cleanup_needed = false
 
@@ -367,18 +345,11 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		}
 	}
 
-	var stat, etag, err7 = bbs.fetch_object_status(object)
+	var stat, etag, err7 = bbs.fetch_object_status(object, true)
 	if err7 != nil {
 		return nil, "", nil, err7
 	}
-	if stat == nil {
-		bbs.logger.Error("Race: Object gone while serialized",
-			"action", action, "object", object)
-		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "Uploaded object gone",
-			Resource: location}
-		return nil, "", nil, errz
-	}
+	bb_assert(stat != nil)
 
 	return stat, etag, csum2, nil
 }
@@ -676,20 +647,6 @@ func (bbs *Bb_server) discard_scratch_file(object string, scratch string) error 
 			"path", path1, "error", err1)
 		// IGNORE-ERRORS.
 	}
-
-	/*
-		var path2 = bbs.make_path_of_object(object, "@meta")
-		var _, err2 = os.Lstat(path2)
-		if err2 == nil || !errors.Is(err2, fs.ErrNotExist) {
-			var err3 = os.Remove(path2)
-			if err3 != nil {
-				bbs.logger.Warn("os.Remove() failed on metainfo",
-					"path", path2, "error", err3)
-				// IGNORE-ERRORS.
-			}
-		}
-	*/
-
 	return nil
 }
 
@@ -750,7 +707,8 @@ func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgo
 }
 
 // COMPARE_CHECKSUMS compares checksums between ones passed and
-// calculated.  It returns a checksum of CRC64NVME.
+// calculated.  It may calculate when a checksum of CRC64NVME is
+// needed.
 func (bbs *Bb_server) compare_checksums(object string, checksum1 types.ChecksumAlgorithm, md5a []byte, csum1 []byte, checks copy_checks) ([]byte, *Aws_s3_error) {
 	var location = "/" + object
 	if checks.md5_to_check != nil {

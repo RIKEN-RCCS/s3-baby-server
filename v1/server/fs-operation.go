@@ -484,11 +484,11 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 }
 
 // FETCH_MPUL_INFO fetches the stored MPUL information file.  It
-// checks the required fields are non-nil.  SERIALIZING indicates it
-// is called in access serialization.  Calling with serializing=false
-// is acceptable when the status is not certain.  It would remove a
-// MPUL scratch directory when the content is broken (should never
-// happen).
+// checks the required fields are non-nil.  It would remove a MPUL
+// scratch directory when the content is broken (should never happen).
+// SERIALIZING indicates it is called in access serialization.  The
+// serializing status can be imprecise, and it is acceptable calling
+// with serializing=false when the status is not certain.
 func (bbs *Bb_server) fetch_mpul_info(object string, serializing bool) (*Mpul_info, error) {
 	var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
@@ -693,9 +693,9 @@ func (bbs *Bb_server) store_json_data(object, path string, data any) *Aws_s3_err
 }
 
 // CHECK_UPLOAD_ONGOING checks "params.UploadId" is a currently
-// on-going upload.  Serialization status that is passed to
-// fetch_mpul_info (false) is imprecise.
-func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string) (*Mpul_info, *Aws_s3_error) {
+// on-going upload.  SERIALIZING is the serialization status that is
+// passed to fetch_mpul_info.
+func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string, serializing bool) (*Mpul_info, *Aws_s3_error) {
 	var location = "/" + object
 	if uploadid == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -705,6 +705,10 @@ func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string) (*Mp
 	}
 	var mpul, err1 = bbs.fetch_mpul_info(object, false)
 	if err1 != nil || *mpul.UploadId != *uploadid {
+		if serializing {
+			bbs.logger.Info("Race on MPUL, MPUL gone",
+				"object", object)
+		}
 		var errz = &Aws_s3_error{Code: NoSuchUpload,
 			Resource: location}
 		return nil, errz
@@ -742,11 +746,10 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 
 // CHECK_OBJECT_EXISTS takes a stat() and etag on an object.  It
 // differs from fetch_object_status() as it returns an error, when an
-// object does not exist.  It returns metainfo as well.  Metainfo may
-// be nil.
+// object does not exist.
 func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
-	var stat, etag, err1 = bbs.fetch_object_status(object)
+	var stat, etag, err1 = bbs.fetch_object_status(object, false)
 	if err1 != nil {
 		return stat, etag, err1
 	}
@@ -761,20 +764,31 @@ func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, string, *
 // FETCH_OBJECT_STATUS takes a stat() and etag on an object.  It can
 // be used for checking existence.  It may return stat=nil when an
 // object does not exist.  Note non-regular files are never an object.
-func (bbs *Bb_server) fetch_object_status(object string) (fs.FileInfo, string, *Aws_s3_error) {
+// SERIALIZING is the serialization status.  Fetching should not fail
+// when serializing.
+func (bbs *Bb_server) fetch_object_status(object string, serializing bool) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
 	var stat, err1 = os.Lstat(path)
-	if err1 != nil {
-		if errors.Is(err1, fs.ErrNotExist) {
-			return nil, "", nil
+	if err1 != nil && !errors.Is(err1, fs.ErrNotExist) {
+		bbs.logger.Error("os.Lstat() failed",
+			"path", path, "error", err1)
+		return nil, "", map_os_error(location, err1, nil)
+	}
+	if err1 != nil && errors.Is(err1, fs.ErrNotExist) {
+		if serializing {
+			bbs.logger.Error("RACE: Object gone while serialized",
+				"object", object)
+			var errz = &Aws_s3_error{Code: InternalError,
+				Message:  "Uploaded object gone.",
+				Resource: location}
+			return nil, "", errz
 		} else {
-			bbs.logger.Error("os.Lstat() failed",
-				"path", path, "error", err1)
-			return nil, "", map_os_error(location, err1, nil)
+			return nil, "", nil
 		}
 	}
+
 	var mode = stat.Mode()
 	switch {
 	case mode.IsRegular():

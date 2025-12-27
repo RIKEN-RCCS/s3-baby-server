@@ -75,7 +75,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, true)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -147,7 +147,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2081,7 +2081,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2498,7 +2498,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId)
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2625,9 +2625,9 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		}
 	}
 
-	var mpul, err13 = bbs.check_upload_ongoing(object, i.UploadId)
-	if err13 != nil {
-		return nil, err13
+	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
+	if err3 != nil {
+		return nil, err3
 	}
 	var part, err14 = bbs.lookat_part_number(object, i.PartNumber)
 	if err14 != nil {
@@ -2638,9 +2638,9 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	if err5 != nil {
 		return nil, err5
 	}
-	var s_stat, _, err3 = bbs.check_object_exists(source)
-	if err3 != nil {
-		return nil, err3
+	var s_stat, _, err13 = bbs.check_object_exists(source)
+	if err13 != nil {
+		return nil, err13
 	}
 
 	// NOTE: Checking conditionals on the source is not serialized.

@@ -352,7 +352,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 		var object = path.Join(bucket, e.key)
 		var commonpart = check_common_prefix(e.key, delimiter, prefix)
 		if commonpart == "" {
-			var stat, etag, err7 = bbs.fetch_object_status(object)
+			var stat, etag, err7 = bbs.fetch_object_status(object, false)
 			if err7 != nil {
 				return nil, nil, err7
 			}

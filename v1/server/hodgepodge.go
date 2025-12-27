@@ -513,7 +513,7 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 
 	// Fetch status of an object.  It accepts non-existing case.
 
-	var stat, etag, err1 = bbs.fetch_object_status(object)
+	var stat, etag, err1 = bbs.fetch_object_status(object, false)
 	if err1 != nil {
 		return err1
 	}
