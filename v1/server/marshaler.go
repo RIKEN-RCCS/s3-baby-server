@@ -1,4 +1,4 @@
-// marshaler.go (2025-12-20)
+// marshaler.go (2025-12-27)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an
@@ -23,7 +23,7 @@ return xml.StartElement{Name: xml.Name{Local: k}}}
 // when a header exists.
 func h_decode_body(x any, body io.Reader, h http.Header) error {
 var hash = md5.New()
-var body2 = &io.LimitedReader{R: body, N: h_xml_body_limit}
+var body2 = &io.LimitedReader{R: body, N: h_limit_of_xml_parameters}
 var r io.Reader = io.TeeReader(body2, hash)
 var d = xml.NewDecoder(r)
 var err1 = d.Decode(x)

@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
-	"io/fs"
+	//"io/fs"
 	"log"
 	"log/slog"
 	"net/http"
@@ -27,19 +27,24 @@ import (
 const Bb_version = "v1.2.1"
 
 type Bb_configuration struct {
-	Access_logging            bool
-	Pending_upload_expiration time.Duration
-	Server_control_path       string
+	// Access_logging bool
+	// Pending_upload_expiration time.Duration
+	// Server_control_path string
 
 	Verify_fs_write bool
-	// Anonymize_ower bool
-	// File_follow_link bool
 
-	File_creation_mode fs.FileMode
+	// Anonymize_ower bool
+	// File_creation_mode fs.FileMode
+
+	Limit_of_xml_parameters int64
 
 	Site_base_url *string
 
-	request_processing_timeout time.Duration
+	// ReadTimeout time.Duration
+	// ReadHeaderTimeout time.Duration
+	// WriteTimeout time.Duration
+	// IdleTimeout time.Duration
+	// MaxHeaderBytes int
 }
 
 type Bb_server struct {
@@ -69,6 +74,10 @@ type Handler_data struct {
 	ResponseWriter http.ResponseWriter
 	Request        *http.Request
 }
+
+// H_LIMIT_OF_XML_PARAMETERS limits the size of XML parameters
+// in a request body.
+var h_limit_of_xml_parameters int64 = (2 * 1024 * 1024)
 
 // PRIOR_HANDLER is an http.Handler and it checks an authorization
 // header in a request before passing it to actual handlers.  See its
@@ -147,6 +156,10 @@ func Start_server(pool_directory, addr, cert, cred, logs string) {
 			"access-key", keypair[0], "version", Bb_version)
 	}
 
+	if bbs.conf.Limit_of_xml_parameters != 0 {
+		h_limit_of_xml_parameters = bbs.conf.Limit_of_xml_parameters
+	}
+
 	var sx = http.NewServeMux()
 	sx.HandleFunc("POST /bbs.ctl/{$}", func(w http.ResponseWriter, r *http.Request) {
 		bbs.server_control(w, r)
@@ -157,7 +170,7 @@ func Start_server(pool_directory, addr, cert, cred, logs string) {
 	bbs.server = &http.Server{
 		Addr:     addr,
 		Handler:  sv,
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
+		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 		// ReadTimeout time.Duration
 		// ReadHeaderTimeout time.Duration
 		// WriteTimeout time.Duration

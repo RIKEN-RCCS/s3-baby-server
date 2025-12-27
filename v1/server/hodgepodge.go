@@ -44,9 +44,6 @@ type suffix_record struct {
 	timestamp time.Time
 }
 
-// H_XML_BODY_LIMIT limits the receive size of a request body.
-var h_xml_body_limit int64 = (2 * 1024 * 1024)
-
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
@@ -725,6 +722,8 @@ func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
 	}
 }
 
+// DECODE_CHECKSUM_RECORD decodes a checksum record.  It will return
+// nothing silently when no checksum is given.
 func decode_checksum_record(object string, csumset *types.Checksum) (types.ChecksumAlgorithm, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var checksum types.ChecksumAlgorithm
@@ -754,6 +753,10 @@ func decode_checksum_record(object string, csumset *types.Checksum) (types.Check
 		checksum = types.ChecksumAlgorithmSha256
 		csum1 = csumset.ChecksumSHA256
 		count++
+	}
+	if csum1 == nil {
+		// No checksum is given.
+		return "", nil, nil
 	}
 	if count >= 2 {
 		var errz = &Aws_s3_error{Code: NotImplemented,

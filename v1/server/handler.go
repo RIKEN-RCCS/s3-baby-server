@@ -1,4 +1,4 @@
-// handler.go (2025-12-20)
+// handler.go (2025-12-27)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 

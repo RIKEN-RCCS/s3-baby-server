@@ -101,8 +101,8 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 		}
 	}()
 
-	var csum2, err3 = bbs.compare_checksums(object, checksum1, md5a,
-		csum1, checks)
+	var csum2, err3 = bbs.compare_checksums(object, scratch, checksum1,
+		md5a, csum1, checks)
 	if err3 != nil {
 		return nil, "", nil, err3
 	}
@@ -214,7 +214,8 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 	}()
 
 	var checks = copy_checks{}
-	var csum2, err3 = bbs.compare_checksums(object, checksum2, md5a, csum1, checks)
+	var csum2, err3 = bbs.compare_checksums(object, scratch, checksum2,
+		md5a, csum1, checks)
 	if err3 != nil {
 		return nil, "", nil, err3
 	}
@@ -303,7 +304,8 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		}
 	}()
 
-	var csum2, err3 = bbs.compare_checksums(object, checksum1, md5a, csum1, checks)
+	var csum2, err3 = bbs.compare_checksums(object, scratch, checksum1,
+		md5a, csum1, checks)
 	if err3 != nil {
 		return nil, "", nil, err3
 	}
@@ -707,9 +709,9 @@ func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgo
 }
 
 // COMPARE_CHECKSUMS compares checksums between ones passed and
-// calculated.  It may calculate when a checksum of CRC64NVME is
-// needed.
-func (bbs *Bb_server) compare_checksums(object string, checksum1 types.ChecksumAlgorithm, md5a []byte, csum1 []byte, checks copy_checks) ([]byte, *Aws_s3_error) {
+// calculated.  It will calculate the checksum of a SCRATCH when one is
+// needed by CRC64NVME.
+func (bbs *Bb_server) compare_checksums(object string, scratch string, checksum1 types.ChecksumAlgorithm, md5a []byte, csum1 []byte, checks copy_checks) ([]byte, *Aws_s3_error) {
 	var location = "/" + object
 	if checks.md5_to_check != nil {
 		if bytes.Compare(checks.md5_to_check, md5a) != 0 {
@@ -737,7 +739,7 @@ func (bbs *Bb_server) compare_checksums(object string, checksum1 types.ChecksumA
 	if bbs.conf.Verify_fs_write || checksum1 != checksum2 {
 		// HERE NEEDS A FS CACHE PURGE CALL (or flock for NFS).
 
-		var md5b, crc, err1 = bbs.calculate_csum2(object, checksum2, object)
+		var md5b, crc, err1 = bbs.calculate_csum2(object, checksum2, scratch)
 		if err1 != nil {
 			return nil, err1
 		}

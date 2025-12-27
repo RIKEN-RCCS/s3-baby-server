@@ -1988,7 +1988,7 @@
 	 "// when a header exists."
 	 "func h_decode_body(x any, body io.Reader, h http.Header) error {"
 	 "var hash = md5.New()"
-	 "var body2 = &io.LimitedReader{R: body, N: h_xml_body_limit}"
+	 "var body2 = &io.LimitedReader{R: body, N: h_limit_of_xml_parameters}"
 	 "var r io.Reader = io.TeeReader(body2, hash)"
 	 "var d = xml.NewDecoder(r)"
 	 "var err1 = d.Decode(x)"
@@ -2063,8 +2063,9 @@
    (list "// BB_SERVER is the server body."
 	 "type Bb_server struct {}"
 
-	 "// H_XML_BODY_LIMIT limits the receive size of a request body."
-	 "var h_xml_body_limit int64 = (2 * 1024 * 1024)"
+	 "// H_LIMIT_OF_XML_PARAMETERS limits the size of XML parameters"
+	 "// in a request body."
+	 "var h_limit_of_xml_parameters int64 = (2 * 1024 * 1024)"
 
 	 "// HANDLER_DATA is a record of handler context."
 	 "type Handler_data struct {"
