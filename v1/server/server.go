@@ -3,7 +3,7 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// S3-Baby-Server main.  Call Start_server().
+// S3-Baby-Server main.  The main entry is Start_server().
 
 package server
 
@@ -31,9 +31,9 @@ type Bb_configuration struct {
 	Pending_upload_expiration time.Duration
 	Server_control_path       string
 
-	// Anonymize_ower            bool
 	Verify_fs_write bool
-	// File_follow_link   bool
+	// Anonymize_ower bool
+	// File_follow_link bool
 
 	File_creation_mode fs.FileMode
 
@@ -64,10 +64,10 @@ type Bb_server struct {
 
 // HANDLER_DATA is a record of handler context.
 type Handler_data struct {
-	Request_id uint64
-	Action_name string
+	Request_id     uint64
+	Action_name    string
 	ResponseWriter http.ResponseWriter
-	Request *http.Request
+	Request        *http.Request
 }
 
 // PRIOR_HANDLER is an http.Handler and it checks an authorization
@@ -95,20 +95,29 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Start_server(pool_directory, addr, logPath, authKey string) {
+func Start_server(pool_directory, addr, cert, cred, logs string) {
+
 	// Run in UTC time zone instead of local time zone.
 
 	time.Local = time.UTC
 
-	//var logger = slog.Default()
 	var loglevel = new(slog.LevelVar)
-	loglevel.Set(slog.LevelDebug)
+	switch logs {
+	case "debug":
+		loglevel.Set(slog.LevelDebug)
+	case "info":
+		loglevel.Set(slog.LevelInfo)
+	case "warn":
+		loglevel.Set(slog.LevelWarn)
+	default:
+		loglevel.Set(slog.LevelInfo)
+	}
 	var logger = slog.New(slog.NewTextHandler(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel}))
 
-	var access, secret, ok = strings.Cut(authKey, ",")
+	var access, secret, ok = strings.Cut(cred, ",")
 	if !ok || len(access) == 0 || len(secret) == 0 {
-		logger.Info("Bad authentication key pair", "pair", authKey)
+		logger.Info("Bad authorization key pair", "pair", cred)
 		return
 	}
 	var keypair = [2]string{access, secret}
@@ -124,14 +133,19 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 		return
 	}
 
-	logger.Info("Starting Baby-server", "address", addr,
-		"access-key", keypair[0], "version", Bb_version)
-
 	var bbs = &Bb_server{pool_path: wd, logger: logger, keypair: keypair}
 	bbs.suffixes = make(map[string]suffix_record)
 	bbs.server_quit = make(chan struct{})
 	bbs.monitor1 = new_monitor()
 	go bbs.monitor1.guard_loop()
+
+	if cert != "" {
+		logger.Info("Starting Baby-server (https)", "address", addr,
+			"access-key", keypair[0], "version", Bb_version)
+	} else {
+		logger.Info("Starting Baby-server (http)", "address", addr,
+			"access-key", keypair[0], "version", Bb_version)
+	}
 
 	var sx = http.NewServeMux()
 	sx.HandleFunc("POST /bbs.ctl/{$}", func(w http.ResponseWriter, r *http.Request) {
@@ -140,9 +154,27 @@ func Start_server(pool_directory, addr, logPath, authKey string) {
 	register_dispatcher(bbs, sx)
 	var sv = &prior_handler{bbs, sx}
 
-	bbs.server = &http.Server{Addr: addr, Handler: sv}
-	//var err2 = http.ListenAndServe(addr, sv)
-	var err2 = bbs.server.ListenAndServe()
+	bbs.server = &http.Server{
+		Addr:     addr,
+		Handler:  sv,
+		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		// ReadTimeout time.Duration
+		// ReadHeaderTimeout time.Duration
+		// WriteTimeout time.Duration
+		// IdleTimeout time.Duration
+		// MaxHeaderBytes int
+	}
+
+	var err2 error
+	if cert != "" {
+		var crt = cert + ".crt"
+		var key = cert + ".key"
+		err2 = bbs.server.ListenAndServeTLS(crt, key)
+
+	} else {
+		//var err2 = http.ListenAndServe(addr, sv)
+		err2 = bbs.server.ListenAndServe()
+	}
 	if err2 != nil {
 		bbs.logger.Info("http.ListenAndServe() returns", "error", err2)
 	}

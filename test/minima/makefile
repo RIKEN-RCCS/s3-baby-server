@@ -27,3 +27,11 @@ data-20m.txt:
 
 download-srfi-180::
 	wget https://raw.githubusercontent.com/scheme-requests-for-implementation/srfi-180/725372ebe5dff447188656754cf84c7ba5155cc7/srfi/180/body.scm -O srfi-180-body.scm
+
+# Make certificate pairs (self-signed) for testing.  Or, use files
+# that may be found in /etc/pki/tls/certs/ and /etc/pki/tls/private/.
+
+crt::
+	openssl genrsa -out crt.key 2048
+	openssl ecparam -genkey -name secp384r1 -out crt.key
+	openssl req -new -x509 -subj "/CN=s3bbs" -sha256 -key crt.key -out crt.crt -days 3650

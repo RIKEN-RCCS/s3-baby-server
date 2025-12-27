@@ -194,3 +194,7 @@ the following actions.
 - PutObject
 - PutObjectTagging
 - UploadPart
+
+### (MEMO) Logging
+
+Logs from the http server is printed at level=ERROR.

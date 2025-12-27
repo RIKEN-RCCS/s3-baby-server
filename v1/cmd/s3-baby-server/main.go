@@ -16,75 +16,90 @@ import (
 )
 
 func main() {
-	var fs = flag.NewFlagSet("", flag.ExitOnError)
-	fs.Usage = func() {
+	var options = flag.NewFlagSet("", flag.ExitOnError)
+	options.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s serve url path options...\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Other commands:\n")
 		fmt.Fprintf(os.Stderr, "\tversion:\tPrint version.\n")
 		fmt.Fprintf(os.Stderr, "\thelp:\tPrint help.\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		fs.PrintDefaults()
+		options.PrintDefaults()
 	}
-	var print_help = fs.Bool("help", false,
+	var print_help = options.Bool("help", false,
 		"Print help.")
-	var print_version = fs.Bool("version", false,
+	var print_version = options.Bool("version", false,
 		"Print version.")
-	var flag_cred = fs.String("cred", "",
-		"Credential, a pair of key and secret separated by a comma.")
-	var log_file = fs.String("log-file", "",
-		"Log file.")
+	var flag_cred = options.String("cred", "",
+		"Credential key pair of access-key and secret-key,"+
+			" separated by a comma.")
+	var flag_cert = options.String("cert", "",
+		("Certificate pair for https, a path to files." +
+			"  It is appended with suffixes .crt and .key."))
+	var flag_logging = options.String("log", "",
+		("Log-level, one of debug/info/warn."))
 
 	var args = os.Args
-	if len(args) <= 2 {
-		fs.Usage()
-		os.Exit(2)
-	}
 	var url string = ""
 	var path string = ""
+
+	if len(args) <= 1 {
+		options.Usage()
+		os.Exit(2)
+	}
 	switch args[1] {
 	case "serve":
 		if len(args) < 4 {
-			fs.Usage()
+			options.Usage()
 			os.Exit(2)
 		}
 		url = args[2]
 		path = args[3]
+	case "version":
+		fmt.Fprintf(os.Stdout, "%s\n", server.Bb_version)
+		os.Exit(0)
 	case "help":
 		fallthrough
 	default:
-		fs.Usage()
+		options.Usage()
 		os.Exit(2)
 	}
 
-	var err1 = fs.Parse(args[4:])
+	var err1 = options.Parse(args[4:])
 	if err1 != nil {
 		fmt.Printf("error: %s", err1)
 		return
 	}
 
 	if *print_help {
-		fs.Usage()
+		options.Usage()
 		os.Exit(2)
 	}
 	if *print_version {
-		fmt.Fprintf(os.Stdout, "s3-baby-server %s:\n", server.Bb_version)
+		fmt.Fprintf(os.Stdout, "%s\n", server.Bb_version)
 		os.Exit(0)
 	}
 
-	if fs.NArg() != 0 {
+	if options.NArg() != 0 {
 		fmt.Fprintf(os.Stdout, "Unrecognized options exit.\n")
-		fs.Usage()
+		options.Usage()
 		os.Exit(2)
 	}
 
-	var cred = *flag_cred
+	var cert = os.Getenv("S3BBS_CERT")
+	if len(cert) == 0 {
+		cert = *flag_cert
+	}
+
+	var cred = os.Getenv("S3BBS_CRED")
 	if len(cred) == 0 {
-		cred = os.Getenv("S3BBS_CRED")
+		cred = *flag_cred
 	}
 	if len(cred) == 0 {
 		fmt.Fprintf(os.Stderr, "Credential not specified, use --cred.\n")
 		os.Exit(2)
 	}
 
-	server.Start_server(path, url, *log_file, cred)
+	var logs = *flag_logging
+
+	server.Start_server(path, url, cert, cred, logs)
 }
