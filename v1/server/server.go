@@ -157,7 +157,7 @@ func Start_server(pool_directory, addr, cert, cred, logs string) {
 	bbs.server = &http.Server{
 		Addr:     addr,
 		Handler:  sv,
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
 		// ReadTimeout time.Duration
 		// ReadHeaderTimeout time.Duration
 		// WriteTimeout time.Duration

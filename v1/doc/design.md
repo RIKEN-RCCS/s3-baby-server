@@ -197,4 +197,4 @@ the following actions.
 
 ### (MEMO) Logging
 
-Logs from the http server is printed at level=ERROR.
+Server logs from Golang's http library is printed at level=WARN.
