@@ -330,8 +330,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	o.ETag = &etag
 
 	var address string
-	if bbs.conf.Site_base_url != nil {
-		var a, err1 = url.JoinPath(*bbs.conf.Site_base_url, location)
+	if bbs.config.Site_base_url != nil {
+		var a, err1 = url.JoinPath(*bbs.config.Site_base_url, location)
 		if err1 != nil {
 			// IGNORE-ERRORS.
 			address = location
@@ -1273,9 +1273,14 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	o.ETag = &etag
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
-		var crc = base64.StdEncoding.EncodeToString(csum)
-		o.ChecksumType = types.ChecksumTypeFullObject
-		o.ChecksumCRC64NVME = &crc
+		var checksum2 = types.ChecksumAlgorithmCrc64nvme
+		var csumset *types.Checksum = fill_checksum_record(checksum2, csum)
+		o.ChecksumType = csumset.ChecksumType
+		o.ChecksumCRC32 = csumset.ChecksumCRC32
+		o.ChecksumCRC32C = csumset.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset.ChecksumSHA1
+		o.ChecksumSHA256 = csumset.ChecksumSHA256
 	}
 
 	if info != nil && info.Headers != nil {
@@ -2553,6 +2558,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	{
 		var checksum2 = types.ChecksumAlgorithmCrc64nvme
 		var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+		// No o.ChecksumType in the output record.
 		o.ChecksumCRC32 = csumset2.ChecksumCRC32
 		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
 		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME

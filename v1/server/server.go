@@ -8,7 +8,7 @@
 package server
 
 import (
-	//"fmt"
+	"encoding/json"
 	"fmt"
 	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
@@ -26,33 +26,12 @@ import (
 
 const Bb_version = "v1.2.1"
 
-type Bb_configuration struct {
-	// Access_logging bool
-	// Pending_upload_expiration time.Duration
-	// Server_control_path string
-
-	Verify_fs_write bool
-
-	// Anonymize_ower bool
-	// File_creation_mode fs.FileMode
-
-	Limit_of_xml_parameters int64
-
-	Site_base_url *string
-
-	// ReadTimeout time.Duration
-	// ReadHeaderTimeout time.Duration
-	// WriteTimeout time.Duration
-	// IdleTimeout time.Duration
-	// MaxHeaderBytes int
-}
-
 type Bb_server struct {
-	server  *http.Server
-	keypair [2]string
-	logger  *slog.Logger
-
-	conf Bb_configuration
+	server    *http.Server
+	cert_pair [2]string
+	cred_pair [2]string
+	config    Bb_configuration
+	logger    *slog.Logger
 
 	rid_past uint64
 	suffixes map[string]suffix_record
@@ -61,10 +40,28 @@ type Bb_server struct {
 
 	server_quit chan struct{}
 
-	// POOL_PATH is a path passed to the server command.  Baby-server
-	// changes working directory to that path, and this is only a
-	// record.
+	// POOL_PATH is a path where buckets reside.  Baby-server changes
+	// the working directory to that path, and this is only a record.
 	pool_path string
+}
+
+type Bb_configuration struct {
+	// Access_logging bool
+	// Pending_upload_expiration time.Duration
+
+	Server_control_path     string
+	Site_base_url           *string
+	Verify_fs_write         bool
+	Limit_of_xml_parameters int64
+
+	// Anonymize_ower bool
+	// File_creation_mode fs.FileMode
+
+	ReadTimeout       time.Duration
+	ReadHeaderTimeout time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	MaxHeaderBytes    int
 }
 
 // HANDLER_DATA is a record of handler context.
@@ -104,7 +101,7 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Start_server(pool_directory, addr, cert, cred, logs string) {
+func Start_server(pool_directory, addr, cred, cert, conf, logs string) {
 
 	// Run in UTC time zone instead of local time zone.
 
@@ -124,12 +121,53 @@ func Start_server(pool_directory, addr, cert, cred, logs string) {
 	var logger = slog.New(slog.NewTextHandler(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel}))
 
-	var access, secret, ok = strings.Cut(cred, ",")
-	if !ok || len(access) == 0 || len(secret) == 0 {
-		logger.Info("Bad authorization key pair", "pair", cred)
-		return
+	var credpair [2]string
+	{
+		var access, secret, ok = strings.Cut(cred, ",")
+		if !ok || len(access) == 0 || len(secret) == 0 {
+			logger.Info("Bad authorization key pair", "pair", cred)
+			return
+		}
+		credpair = [2]string{access, secret}
 	}
-	var keypair = [2]string{access, secret}
+
+	var certpair [2]string
+	if cert != "" {
+		var crt, key, ok = strings.Cut(cert, ",")
+		if !ok || len(crt) == 0 || len(key) == 0 {
+			logger.Error("Bad certificate and key pair for https",
+				"pair", cert)
+			return
+		}
+		certpair = [2]string{crt, key}
+	}
+
+	// Set default configurations, then read a configuration file.
+
+	var config = Bb_configuration{
+		Server_control_path: "bbs.ctl",
+	}
+	if conf != "" {
+		var f1, err1 = os.Open(conf)
+		if err1 != nil {
+			logger.Error("os.Open() failed for conf",
+				"path", conf, "error", err1)
+			return
+		}
+		var d = json.NewDecoder(f1)
+		var err2 = d.Decode(&config)
+		if err2 != nil {
+			logger.Error("json.Decode() failed",
+				"path", conf, "error", err2)
+			return
+		}
+		var err3 = f1.Close()
+		if err3 != nil {
+			logger.Error("op.Close() failed",
+				"path", conf, "error", err3)
+			return
+		}
+	}
 
 	// Change the working directory to the pool-directory.  It is to
 	// avoid accidentally disclosing the full path (which may include
@@ -142,26 +180,24 @@ func Start_server(pool_directory, addr, cert, cred, logs string) {
 		return
 	}
 
-	var bbs = &Bb_server{pool_path: wd, logger: logger, keypair: keypair}
+	var bbs = &Bb_server{
+		pool_path: wd,
+		cert_pair: certpair,
+		cred_pair: credpair,
+		config:    config,
+		logger:    logger}
 	bbs.suffixes = make(map[string]suffix_record)
 	bbs.server_quit = make(chan struct{})
 	bbs.monitor1 = new_monitor()
 	go bbs.monitor1.guard_loop()
 
-	if cert != "" {
-		logger.Info("Starting Baby-server (https)", "address", addr,
-			"access-key", keypair[0], "version", Bb_version)
-	} else {
-		logger.Info("Starting Baby-server (http)", "address", addr,
-			"access-key", keypair[0], "version", Bb_version)
+	if bbs.config.Limit_of_xml_parameters != 0 {
+		h_limit_of_xml_parameters = bbs.config.Limit_of_xml_parameters
 	}
 
-	if bbs.conf.Limit_of_xml_parameters != 0 {
-		h_limit_of_xml_parameters = bbs.conf.Limit_of_xml_parameters
-	}
-
+	var control = "POST /" + config.Server_control_path + "/{$}"
 	var sx = http.NewServeMux()
-	sx.HandleFunc("POST /bbs.ctl/{$}", func(w http.ResponseWriter, r *http.Request) {
+	sx.HandleFunc(control, func(w http.ResponseWriter, r *http.Request) {
 		bbs.server_control(w, r)
 	})
 	register_dispatcher(bbs, sx)
@@ -171,21 +207,27 @@ func Start_server(pool_directory, addr, cert, cred, logs string) {
 		Addr:     addr,
 		Handler:  sv,
 		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
-		// ReadTimeout time.Duration
-		// ReadHeaderTimeout time.Duration
-		// WriteTimeout time.Duration
-		// IdleTimeout time.Duration
-		// MaxHeaderBytes int
+
+		ReadTimeout:       bbs.config.ReadTimeout,
+		ReadHeaderTimeout: bbs.config.ReadHeaderTimeout,
+		WriteTimeout:      bbs.config.WriteTimeout,
+		IdleTimeout:       bbs.config.IdleTimeout,
+		MaxHeaderBytes:    bbs.config.MaxHeaderBytes,
 	}
 
-	var err2 error
-	if cert != "" {
-		var crt = cert + ".crt"
-		var key = cert + ".key"
-		err2 = bbs.server.ListenAndServeTLS(crt, key)
-
+	var proto string
+	if certpair[0] != "" {
+		proto = "(https)"
 	} else {
-		//var err2 = http.ListenAndServe(addr, sv)
+		proto = "(http)"
+	}
+	logger.Info(("Starting Baby-server " + proto), "address", addr,
+		"access-key", credpair[0], "version", Bb_version)
+
+	var err2 error
+	if certpair[0] != "" {
+		err2 = bbs.server.ListenAndServeTLS(certpair[0], certpair[1])
+	} else {
 		err2 = bbs.server.ListenAndServe()
 	}
 	if err2 != nil {
@@ -209,8 +251,7 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 }
 
 func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Request) (string, error) {
-	var keypair = bbs.keypair
-	var key, reason = awss3aide.Check_credential_is_okay(r, keypair)
+	var key, reason = awss3aide.Check_credential_is_okay(r, bbs.cred_pair)
 	if reason != nil {
 		bbs.logger.Info("Bad authorization", "key", key, "reason", reason)
 		time.Sleep(1 * time.Second)

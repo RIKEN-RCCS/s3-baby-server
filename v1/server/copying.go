@@ -741,7 +741,7 @@ func (bbs *Bb_server) compare_checksums(object string, scratch string, checksum1
 
 	var checksum2 = types.ChecksumAlgorithmCrc64nvme
 	var csum2 []byte
-	if bbs.conf.Verify_fs_write || checksum1 != checksum2 {
+	if bbs.config.Verify_fs_write || checksum1 != checksum2 {
 		// HERE NEEDS A FS CACHE PURGE CALL (or flock for NFS).
 
 		var md5b, crc, err1 = bbs.calculate_csum2(object, checksum2, scratch)
