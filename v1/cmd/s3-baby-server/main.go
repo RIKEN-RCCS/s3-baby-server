@@ -3,7 +3,7 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Command line is: ./s3-baby-server serve url path options...
+// Command line is: ./s3-baby-server serve addr path options...
 
 package main
 
@@ -18,10 +18,13 @@ import (
 func main() {
 	var options = flag.NewFlagSet("", flag.ExitOnError)
 	options.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s serve url path options...\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Other commands:\n")
-		fmt.Fprintf(os.Stderr, "\tversion:\tPrint version.\n")
-		fmt.Fprintf(os.Stderr, "\thelp:\tPrint help.\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s serve addr path options...\n",
+			os.Args[0])
+		fmt.Fprintf(os.Stderr, ("\tArgument ADDR is host:port" +
+			" and PATH is a pool-directory.\n"))
+		fmt.Fprintf(os.Stderr, "Commands other than serve:\n")
+		fmt.Fprintf(os.Stderr, "\thelp: Print help.\n")
+		fmt.Fprintf(os.Stderr, "\tversion: Print version.\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		options.PrintDefaults()
 	}
@@ -38,7 +41,7 @@ func main() {
 	var flag_logs = options.String("log", "",
 		"Log-level, one of debug/info/warn.")
 	var flag_conf = options.String("conf", "",
-		"Conf file in json.")
+		"Configuration file in json.")
 
 	var args = os.Args
 	var url string = ""
