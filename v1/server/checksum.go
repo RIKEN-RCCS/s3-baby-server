@@ -57,19 +57,21 @@ func checksum_algorithm(checksum types.ChecksumAlgorithm) hash.Hash {
 	return hash2
 }
 
-func fill_checksum_record(csumset *types.Checksum, checksum types.ChecksumAlgorithm, csum []byte) {
-	var csum1 = base64.StdEncoding.EncodeToString(csum)
+func fill_checksum_record(checksum types.ChecksumAlgorithm, csum []byte) *types.Checksum {
+	var csumset types.Checksum
+	var cs = base64.StdEncoding.EncodeToString(csum)
 	csumset.ChecksumType = types.ChecksumTypeFullObject
 	switch checksum {
 	case types.ChecksumAlgorithmCrc32:
-		csumset.ChecksumCRC32 = &csum1
+		csumset.ChecksumCRC32 = &cs
 	case types.ChecksumAlgorithmCrc32c:
-		csumset.ChecksumCRC32C = &csum1
+		csumset.ChecksumCRC32C = &cs
 	case types.ChecksumAlgorithmCrc64nvme:
-		csumset.ChecksumCRC64NVME = &csum1
+		csumset.ChecksumCRC64NVME = &cs
 	case types.ChecksumAlgorithmSha1:
-		csumset.ChecksumSHA1 = &csum1
+		csumset.ChecksumSHA1 = &cs
 	case types.ChecksumAlgorithmSha256:
-		csumset.ChecksumSHA256 = &csum1
+		csumset.ChecksumSHA256 = &cs
 	}
+	return &csumset
 }

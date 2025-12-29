@@ -298,14 +298,16 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err8
 	}
 
-	if checksum != "" && checksum != mpul.ChecksumAlgorithm {
-		bbs.logger.Info("Checksum algorithm mismatch",
-			"checksum-algorithm MPUL creation", mpul.ChecksumAlgorithm,
-			"checksum-algorithm MPUL completion", checksum)
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "Checksum algorithm mismatch in MPUL creation and completion",
-			Resource: location}
-		return nil, errz
+	if false {
+		if checksum != "" && checksum != mpul.ChecksumAlgorithm {
+			bbs.logger.Info("Checksum algorithm mismatch",
+				"checksum-algorithm MPUL creation", mpul.ChecksumAlgorithm,
+				"checksum-algorithm MPUL completion", checksum)
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message:  "Checksum algorithm mismatch in MPUL creation and completion",
+				Resource: location}
+			return nil, errz
+		}
 	}
 
 	// SERIALIZE-ACCESSES (in the concatenation routine).
@@ -342,9 +344,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	o.Location = &address
 
 	{
-		var csumset2 = types.Checksum{}
 		var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		fill_checksum_record(&csumset2, checksum2, csum2)
+		var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
 		o.ChecksumType = csumset2.ChecksumType
 		o.ChecksumCRC32 = csumset2.ChecksumCRC32
 		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
@@ -509,13 +510,13 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 
 	// NOTE: Checking conditionals on the source is not serialized.
 
-	var err5 = bbs.check_request_conditionals(source, "read",
-		copy_conditionals{
-			some_match:      i.CopySourceIfMatch,
-			none_match:      i.CopySourceIfNoneMatch,
-			modified_after:  i.CopySourceIfModifiedSince,
-			modified_before: i.CopySourceIfUnmodifiedSince,
-		})
+	var conditionals = copy_conditionals{
+		some_match:      i.CopySourceIfMatch,
+		none_match:      i.CopySourceIfNoneMatch,
+		modified_after:  i.CopySourceIfModifiedSince,
+		modified_before: i.CopySourceIfUnmodifiedSince,
+	}
+	var err5 = bbs.check_request_conditionals(source, "read", conditionals)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -531,15 +532,14 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var upload_id = ""
 	var extent *[2]int64 = nil
 	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, part, upload_id,
-		source, extent, info, checksum2)
+		source, extent, info, checksum2, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
 
 	var mtime = stat.ModTime()
 
-	var csumset2 = types.Checksum{}
-	fill_checksum_record(&csumset2, checksum2, csum2)
+	var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
 
 	o.CopyObjectResult = &types.CopyObjectResult{
 		// types.CopyObjectResult:
@@ -1371,9 +1371,8 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		if err6 != nil {
 			return nil, err6
 		}
-		var csumset types.Checksum
-		fill_checksum_record(&csumset, checksum, csum)
-		o.Checksum = &csumset
+		var csumset *types.Checksum = fill_checksum_record(checksum, csum)
+		o.Checksum = csumset
 	}
 	if slices.Contains(attributes, types.ObjectAttributesObjectParts) {
 		o.ObjectParts = nil
@@ -1585,8 +1584,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		if err1 != nil {
 			return nil, err1
 		}
-		var csumset types.Checksum
-		fill_checksum_record(&csumset, checksum, csum)
+		var csumset *types.Checksum = fill_checksum_record(checksum, csum)
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -2132,8 +2130,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		if err5 != nil {
 			// IGNORE-ERRORS.
 		}
-		var csumset types.Checksum
-		fill_checksum_record(&csumset, checksum, csum)
+		var csumset *types.Checksum = fill_checksum_record(checksum, csum)
 		// Part is counted by base one.
 		var no = int32(i + 1)
 		var p = types.Part{
@@ -2340,9 +2337,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	o.Size = &size
 
 	{
-		var csumset2 = types.Checksum{}
 		var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		fill_checksum_record(&csumset2, checksum2, csum2)
+		var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
 		o.ChecksumType = csumset2.ChecksumType
 		o.ChecksumCRC32 = csumset2.ChecksumCRC32
 		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
@@ -2555,9 +2551,8 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	o.ETag = &etag
 
 	{
-		var csumset2 = types.Checksum{}
 		var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		fill_checksum_record(&csumset2, checksum2, csum2)
+		var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
 		o.ChecksumCRC32 = csumset2.ChecksumCRC32
 		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
 		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
@@ -2645,13 +2640,13 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 
 	// NOTE: Checking conditionals on the source is not serialized.
 
-	var err15 = bbs.check_request_conditionals(source, "read",
-		copy_conditionals{
-			some_match:      i.CopySourceIfMatch,
-			none_match:      i.CopySourceIfNoneMatch,
-			modified_after:  i.CopySourceIfModifiedSince,
-			modified_before: i.CopySourceIfUnmodifiedSince,
-		})
+	var conditionals = copy_conditionals{
+		some_match:      i.CopySourceIfMatch,
+		none_match:      i.CopySourceIfNoneMatch,
+		modified_after:  i.CopySourceIfModifiedSince,
+		modified_before: i.CopySourceIfUnmodifiedSince,
+	}
+	var err15 = bbs.check_request_conditionals(source, "read", conditionals)
 	if err15 != nil {
 		return nil, err15
 	}
@@ -2673,15 +2668,14 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 
 	var info *Meta_info = nil
 	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, part, upload_id,
-		source, extent, info, checksum2)
+		source, extent, info, checksum2, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
 
 	var mtime = stat.ModTime()
 
-	var csumset2 = types.Checksum{}
-	fill_checksum_record(&csumset2, checksum2, csum2)
+	var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
 
 	o.CopyPartResult = &types.CopyPartResult{
 		// - ChecksumCRC32 *string

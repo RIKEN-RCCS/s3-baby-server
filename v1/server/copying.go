@@ -176,8 +176,8 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 // object or a MPUL part.  It returns stat, etag, and csum.  A
 // checksum value is by the algorithm of CHECKSUM, which is one for
 // MPUL when copying is for MPUL.  Note checksum checks are not
-// applied on copying.
-func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32, upload_id string, source string, extent *[2]int64, info *Meta_info, checksum types.ChecksumAlgorithm) (fs.FileInfo, string, []byte, *Aws_s3_error) {
+// applied on copying.  CONDITIONALS are on the source object.
+func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32, upload_id string, source string, extent *[2]int64, info *Meta_info, checksum types.ChecksumAlgorithm, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
 	//var location = "/" + object
 	var _, rid = get_request_action(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
@@ -240,6 +240,11 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		}
 	}
 
+	var err5 = bbs.check_request_conditionals(source, "read", conditionals)
+	if err5 != nil {
+		return nil, "", nil, err5
+	}
+
 	{
 		var err6 = bbs.place_scratch_file(object, scratch, target, info)
 		if err6 != nil {
@@ -276,7 +281,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 }
 
 // CONCATENATE_OBJECT concatenates the parts to an object.  It returns
-// stat, etag, and csum (of CRC64NVME).
+// stat, etag, and csum of CRC64NVME.
 func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
 	//var location = "/" + object
 	var _, rid = get_request_action(ctx)
