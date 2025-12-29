@@ -409,9 +409,12 @@ func (bbs *Bb_server) check_options_ignored(action, resource string, i *option_c
 	return nil
 }
 
-// SCAN_RANGE parses ranges in rfc9110.  It returns a single range.
-// Ranges exceeding the file size are rejected.
-func scan_range(rangestring *string, size int64, location string) (*[2]int64, *Aws_s3_error) {
+// SCAN_RANGE parses ranges in rfc9110.  It returns a single range, or
+// it returns nil when no range is specified.  Returned range is
+// bounded by the file size.  A range exceeding the file size are
+// rejected.  Multiple ranges are rejected, too.
+func scan_range(object string, rangestring *string, size int64) (*[2]int64, *Aws_s3_error) {
+	var location = "/" + object
 	if rangestring == nil {
 		return nil, nil
 	} else {

@@ -1192,7 +1192,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	if err2 != nil {
 		return nil, err2
 	}
-	var location = "/" + object
+	//var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
@@ -1221,7 +1221,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	}
 
 	var size = stat.Size()
-	var extent, err4 = scan_range(i.Range, size, location)
+	var extent, err4 = scan_range(object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
 	}
@@ -1243,16 +1243,12 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	var csum []byte
 	if i.ChecksumMode == types.ChecksumModeEnabled {
-		if i.Range == nil {
-			var checksum = types.ChecksumAlgorithmCrc64nvme
-			var _, csum1, err1 = bbs.calculate_csum2(object, checksum, object)
-			if err1 != nil {
-				return nil, err1
-			}
-			csum = csum1
-		} else {
-			bbs.logger.Error("CHECKSUM NOT RETURNED")
+		var checksum = types.ChecksumAlgorithmCrc64nvme
+		var _, csum1, err1 = bbs.calculate_csum2(object, checksum, object, extent)
+		if err1 != nil {
+			return nil, err1
 		}
+		csum = csum1
 	}
 
 	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
@@ -1372,7 +1368,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum, err6 = bbs.calculate_csum2(object, checksum, object)
+		var _, csum, err6 = bbs.calculate_csum2(object, checksum, object, nil)
 		if err6 != nil {
 			return nil, err6
 		}
@@ -1534,7 +1530,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	if err2 != nil {
 		return nil, err2
 	}
-	var location = "/" + object
+	//var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
@@ -1563,7 +1559,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	}
 
 	var size = stat.Size()
-	var extent, err4 = scan_range(i.Range, size, location)
+	var extent, err4 = scan_range(object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
 	}
@@ -1585,7 +1581,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum, err1 = bbs.calculate_csum2(object, checksum, object)
+		var _, csum, err1 = bbs.calculate_csum2(object, checksum, object, nil)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2606,7 +2602,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	if err2 != nil {
 		return nil, err2
 	}
-	var location = "/" + object
+	//var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
@@ -2658,7 +2654,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	}
 
 	var size = s_stat.Size()
-	var extent, err24 = scan_range(i.CopySourceRange, size, location)
+	var extent, err24 = scan_range(object, i.CopySourceRange, size)
 	if err24 != nil {
 		return nil, err24
 	}

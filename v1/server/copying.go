@@ -428,7 +428,7 @@ func (bbs *Bb_server) copy_file_as_scratch(object string, scratch string, source
 			return nil, nil, map_os_error(location, err4, nil)
 		}
 
-		var md5, csum, err1 = bbs.calculate_csum2(object, checksum2, scratch)
+		var md5, csum, err1 = bbs.calculate_csum2(object, checksum2, scratch, nil)
 		if err1 != nil {
 			return nil, nil, err1
 		}
@@ -661,7 +661,7 @@ func (bbs *Bb_server) discard_scratch_file(object string, scratch string) error 
 // It skips one when algorithm="".  An algorithm is
 // types.ChecksumAlgorithm and one of {CRC32, CRC32C, CRC64NVME, SHA1,
 // SHA256}.
-func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgorithm, target string) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgorithm, target string, extent *[2]int64) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(target, "")
 
@@ -676,6 +676,7 @@ func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgo
 		bbs.logger.Warn("os.Open() failed", "path", path, "error", err2)
 		return nil, nil, map_os_error(location, err2, nil)
 	}
+	var f2 = New_range_reader(f1, extent)
 	defer func() {
 		var err3 = f1.Close()
 		if err3 != nil {
@@ -685,15 +686,15 @@ func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgo
 
 	var hash1 hash.Hash = md5.New()
 	var hash2 hash.Hash = checksum_algorithm(checksum)
-	var f2 io.Writer
+	var f3 io.Writer
 	{
 		if hash2 != nil {
-			f2 = io.MultiWriter(hash1, hash2)
+			f3 = io.MultiWriter(hash1, hash2)
 		} else {
-			f2 = hash1
+			f3 = hash1
 		}
 	}
-	var count, err4 = io.Copy(f2, f1)
+	var count, err4 = io.Copy(f3, f2)
 	if err4 != nil {
 		return nil, nil, map_os_error(location, err4, nil)
 	}
@@ -744,7 +745,7 @@ func (bbs *Bb_server) compare_checksums(object string, scratch string, checksum1
 	if bbs.config.Verify_fs_write || checksum1 != checksum2 {
 		// HERE NEEDS A FS CACHE PURGE CALL (or flock for NFS).
 
-		var md5b, crc, err1 = bbs.calculate_csum2(object, checksum2, scratch)
+		var md5b, crc, err1 = bbs.calculate_csum2(object, checksum2, scratch, nil)
 		if err1 != nil {
 			return nil, err1
 		}
