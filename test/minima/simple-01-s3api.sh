@@ -40,7 +40,7 @@ EXEC_ECHO aws s3api create-bucket --no-cli-pager --bucket "mybucket2" --create-b
 
 cat "zzz" | tr '\n' '@' | grep -ae '{@ *"Location": "/mybucket2"@}@' > /dev/null
 
-ECHO 'aws s3api create-bucket --no-cli-pager --bucket "mybucket3" --object-ownership "BAD-OWNERSHIP-TO_ERR"'
+ECHO 'aws s3api create-bucket --no-cli-pager --bucket "mybucket3" --object-ownership "BAD-OWNERSHIP-TO-ERR"'
 
 aws s3api create-bucket --no-cli-pager --bucket "mybucket3" --object-ownership "BAD-OWNERSHIP-TO_ERR" || true
 
@@ -78,9 +78,9 @@ EXEC_ECHO aws s3api head-object --no-cli-pager --bucket "mybucket1" --key "objec
 
 ECHO "*** Test get-object"
 
-EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" "zzz.object1.txt"
+EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" "zzz"
 
-cmp data-01k.txt "zzz.object1.txt"
+cmp data-01k.txt "zzz"
 
 ECHO "*** Test list-objects"
 
@@ -128,9 +128,9 @@ EXEC_ECHO aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "objec
 
 EXEC_ECHO aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object4.txt" --part-number 2 --copy-source "mybucket1"/"object2.txt" --upload-id $UPLOAD_ID
 
-# Failing upload-part...
+# Failing upload-part (using a bad key)...
 
-EXEC_ECHO aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object1.txt" --part-number 1 --body data-08k.txt --upload-id $UPLOAD_ID || true
+EXEC_ECHO aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "bad-object.txt" --part-number 1 --body data-08k.txt --upload-id $UPLOAD_ID || true
 
 ECHO "*** Test list-multipart-uploads"
 

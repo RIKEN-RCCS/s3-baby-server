@@ -576,17 +576,19 @@ func (bbs *Bb_server) concat_parts_as_scratch(object string, scratch string, par
 				"path", partpath, "error", err1)
 			return nil, nil, map_os_error(location, err1, nil)
 		}
+		defer func() {
+			var err3 = f3.Close()
+			if err3 != nil {
+				bbs.logger.Warn("op.Close() failed",
+					"path", partpath, "error", err3)
+				// IGNORE-ERRORS.
+			}
+		}()
 		var _, err2 = io.Copy(f2, f3)
 		if err2 != nil {
 			bbs.logger.Warn("io.Copy() failed for MPUL data",
 				"path", partpath, "error", err2)
 			return nil, nil, map_os_error(location, err2, nil)
-		}
-		var err3 = f3.Close()
-		if err3 != nil {
-			bbs.logger.Warn("op.Close() failed",
-				"path", partpath, "error", err3)
-			// IGNORE-ERRORS.
 		}
 
 		//bbs.logger.Debug("concat copied", "count", cc)

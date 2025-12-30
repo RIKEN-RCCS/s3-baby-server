@@ -16,16 +16,17 @@ import (
 )
 
 func main() {
+	var o = os.Stdout
 	var options = flag.NewFlagSet("", flag.ExitOnError)
 	options.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s serve addr path options...\n",
+		fmt.Fprintf(o, "Usage: %s serve addr path options...\n",
 			os.Args[0])
-		fmt.Fprintf(os.Stderr, ("\tArgument ADDR is host:port" +
+		fmt.Fprintf(o, ("\tArgument ADDR is host:port" +
 			" and PATH is a pool-directory.\n"))
-		fmt.Fprintf(os.Stderr, "Commands other than serve:\n")
-		fmt.Fprintf(os.Stderr, "\thelp: Print help.\n")
-		fmt.Fprintf(os.Stderr, "\tversion: Print version.\n")
-		fmt.Fprintf(os.Stderr, "Options:\n")
+		fmt.Fprintf(o, "Commands other than serve:\n")
+		fmt.Fprintf(o, "\thelp: Print help.\n")
+		fmt.Fprintf(o, "\tversion: Print version.\n")
+		fmt.Fprintf(o, "Options:\n")
 		options.PrintDefaults()
 	}
 	var print_help = options.Bool("help", false,
@@ -40,6 +41,9 @@ func main() {
 			" separated by a comma."))
 	var flag_logs = options.String("log", "",
 		"Log-level, one of debug/info/warn.")
+	var flag_log_access = options.Bool("log-access", false,
+		"Output access logs to stdout, unless logging in a file.")
+
 	var flag_conf = options.String("conf", "",
 		"Configuration file in json.")
 
@@ -85,7 +89,7 @@ func main() {
 	}
 
 	if options.NArg() != 0 {
-		fmt.Fprintf(os.Stdout, "Unrecognized options exit.\n")
+		fmt.Fprintf(o, "Unrecognized options exit.\n")
 		options.Usage()
 		os.Exit(2)
 	}
@@ -95,7 +99,7 @@ func main() {
 		cred = *flag_cred
 	}
 	if len(cred) == 0 {
-		fmt.Fprintf(os.Stderr, "Credential not specified, use --cred.\n")
+		fmt.Fprintf(o, "Credential not specified, use --cred.\n")
 		os.Exit(2)
 	}
 
@@ -106,6 +110,7 @@ func main() {
 
 	var conf = *flag_conf
 	var logs = *flag_logs
+	var loga = *flag_log_access
 
-	server.Start_server(path, url, cred, cert, conf, logs)
+	server.Start_server(path, url, cred, cert, conf, logs, loga)
 }

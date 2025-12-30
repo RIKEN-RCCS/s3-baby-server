@@ -1,4 +1,4 @@
-// handler.go (2025-12-27)
+// handler.go (2025-12-30)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -903,6 +903,7 @@ ho.Add("x-amz-object-lock-legal-hold", string(o.ObjectLockLegalHoldStatus))}
 ho.Set("Content-Type", "binary/octet-stream")
 var status int = 200
 w.WriteHeader(status)
+defer o.Body.Close()
 var _, err7 = io.Copy(w, o.Body)
 if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 }
