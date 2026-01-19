@@ -34,12 +34,12 @@ func main() {
 	var print_version = options.Bool("version", false,
 		"Print version.")
 	var flag_cred = options.String("cred", "",
-		"Credential access-key and secret-key pair"+
-			" separated by a comma.")
-	var flag_cert = options.String("cert", "",
-		("Certificate and key for https, paths to files" +
-			" separated by a comma."))
-	var flag_logs = options.String("log", "",
+		"Credential access-key and secret-key pair, separated by a comma.")
+	var flag_ssl_crt = options.String("ssl-crt", "",
+		("Certificate for https, a path to a certificate file."))
+	var flag_ssl_key = options.String("ssl-key", "",
+		("Key for the certificate, a path to a key file."))
+	var flag_slog = options.String("log", "",
 		"Log-level, one of debug/info/warn.")
 	var flag_log_access = options.Bool("log-access", false,
 		"Output access logs to stdout, unless logging in a file.")
@@ -104,13 +104,13 @@ func main() {
 	}
 
 	var cert = os.Getenv("S3BBS_CERT")
-	if len(cert) == 0 {
-		cert = *flag_cert
+	if len(cert) == 0 && *flag_ssl_crt != "" && *flag_ssl_key != "" {
+		cert = *flag_ssl_crt + "," + *flag_ssl_key
 	}
 
 	var conf = *flag_conf
-	var logs = *flag_logs
-	var loga = *flag_log_access
+	var slog = *flag_slog
+	var alog = *flag_log_access
 
-	server.Start_server(path, url, cred, cert, conf, logs, loga)
+	server.Start_server(path, url, cred, cert, conf, slog, alog)
 }

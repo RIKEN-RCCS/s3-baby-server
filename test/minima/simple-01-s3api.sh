@@ -9,12 +9,12 @@
 #
 # It uses a temporary file "zzz" and "zzz.data1" and leaves them.
 
-# Setting "pipefail" makes exit status consider all commands, not the
-# rightmost one.
+# Setting "-e" makes exit on errors, and "-E" makes trap on ERR is
+# inherited.  Setting "pipefail" makes exit status consider all
+# commands, not the rightmost one.
 
-set -eE
 trap 'echo "TEST FAIL."' ERR
-
+set -eE
 set -o pipefail
 
 alias ECHO=echo

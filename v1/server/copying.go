@@ -436,6 +436,8 @@ func (bbs *Bb_server) copy_file_as_scratch(object string, scratch string, source
 	}
 }
 
+// COPY_CONTENT_STREAM copies the stream data (for upload or copy) to
+// a temporary file.
 func (bbs *Bb_server) copy_content_stream(object string, scratch string, source string, size int64, checksum2 types.ChecksumAlgorithm, body io.Reader) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(scratch, "")
@@ -660,16 +662,16 @@ func (bbs *Bb_server) discard_scratch_file(object string, scratch string) error 
 }
 
 // CALCULATE_CSUM2 calculates two checksums, md5 and one requested.
-// It skips one when algorithm="".  An algorithm is
-// types.ChecksumAlgorithm and one of {CRC32, CRC32C, CRC64NVME, SHA1,
-// SHA256}.
+// It skips one when a checksum algorithm CHECKSUM="".  An algorithm
+// is one of {CRC32, CRC32C, CRC64NVME, SHA1, SHA256}.  The file range
+// EXTENT is checked being within the file size by the caller.
 func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgorithm, target string, extent *[2]int64) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(target, "")
 
 	var stat, err1 = os.Lstat(path)
 	if err1 != nil {
-		bbs.logger.Info("os.Lstat() failed in calculate_csum2",
+		bbs.logger.Info("os.Lstat() failed in calculating csum",
 			"path", path, "error", err1)
 		return nil, nil, map_os_error(location, err1, nil)
 	}
@@ -686,6 +688,13 @@ func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgo
 		}
 	}()
 
+	var size int64
+	if extent == nil {
+		size = stat.Size()
+	} else {
+		size = extent[1] - extent[0]
+	}
+
 	var hash1 hash.Hash = md5.New()
 	var hash2 hash.Hash = checksum_algorithm(checksum)
 	var f3 io.Writer
@@ -696,12 +705,13 @@ func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgo
 			f3 = hash1
 		}
 	}
-	var count, err4 = io.Copy(f3, f2)
+	var cc, err4 = io.Copy(f3, f2)
 	if err4 != nil {
 		return nil, nil, map_os_error(location, err4, nil)
 	}
-	if count != stat.Size() {
-		bbs.logger.Info("io.Copy() failed, bad copy size")
+	if cc != size {
+		bbs.logger.Info("io.Copy() failed in calculating csum, bad copy size",
+			"path", path, "extent-size", size, "copied-size", cc)
 		var err5 = &Aws_s3_error{Code: InternalError,
 			Message:  "io.Copy() failed, incomplete copy",
 			Resource: location}
@@ -772,13 +782,11 @@ func (bbs *Bb_server) compare_checksums(object string, scratch string, checksum1
 func make_etag_from_stat(stat fs.FileInfo, ino uint64) string {
 	var size = stat.Size()
 	var mtime = stat.ModTime().UnixMicro()
-	var b1 = []byte("The quick brown fox jumps over the lazy dog")
-	var c = len(b1)
-	var b2 = make([]byte, c+24)
+	var b2 = make([]byte, 32)
 	binary.LittleEndian.PutUint64(b2[0:], uint64(size))
 	binary.LittleEndian.PutUint64(b2[8:], uint64(mtime))
 	binary.LittleEndian.PutUint64(b2[16:], ino)
-	copy(b2[24:], b1)
+	binary.LittleEndian.PutUint64(b2[24:], uint64(0xdeadbeefdeadbeef))
 	var md5v = md5.Sum(b2)
 	return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
 }

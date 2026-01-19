@@ -198,3 +198,9 @@ the following actions.
 ### (MEMO) Logging
 
 Server logs from Golang's http library is printed at level=ERROR.
+
+### I/O Error Handling
+
+- Baby-server does not check fully transferring data by io.Copy() on
+  GetObject.  Also, it does not check on concatenating part files of
+  MPUL.  It ignores the count.
