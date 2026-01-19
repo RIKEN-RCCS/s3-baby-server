@@ -122,15 +122,15 @@ ECHO "*** Test create-multipart-upload, upload-part, upload-part-copy"
 
 EXEC_ECHO aws s3api create-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object4.txt" --tagging "mykey41=myvalue41&mykey42=myvalue42" | tee "zzz"
 
-UPLOAD_ID=$(jq -r '.UploadId' < "zzz")
+UPLOADID=$(jq -r '.UploadId' < "zzz")
 
-EXEC_ECHO aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object4.txt" --part-number 1 --body data-08k.txt --upload-id $UPLOAD_ID
+EXEC_ECHO aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOADID --part-number 1 --body data-08k.txt
 
-EXEC_ECHO aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object4.txt" --part-number 2 --copy-source "mybucket1"/"object2.txt" --upload-id $UPLOAD_ID
+EXEC_ECHO aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOADID --part-number 2 --copy-source "mybucket1"/"object2.txt"
 
 # Failing upload-part (using a bad key)...
 
-EXEC_ECHO aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "bad-object.txt" --part-number 1 --body data-08k.txt --upload-id $UPLOAD_ID || true
+EXEC_ECHO aws s3api upload-part --no-cli-pager --bucket "mybucket1" --key "bad-object.txt" --upload-id $UPLOADID --part-number 1 --body data-08k.txt || true
 
 ECHO "*** Test list-multipart-uploads"
 
@@ -140,20 +140,20 @@ EXEC_ECHO aws s3api list-multipart-uploads --no-cli-pager --bucket "mybucket1"
 
 ECHO "*** Test list-parts, complete-multipart-upload"
 
-EXEC_ECHO aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOAD_ID | tee "zzz"
+EXEC_ECHO aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOADID | tee "zzz"
 
 ETAG1=$(jq '.Parts[0].ETag' < "zzz")
 ETAG2=$(jq '.Parts[1].ETag' < "zzz")
 
-EXEC_ECHO aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOAD_ID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
+EXEC_ECHO aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOADID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
 
 ECHO "*** Test abort-multipart-upload"
 
 EXEC_ECHO aws s3api create-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object5.txt" | tee "zzz"
 
-UPLOAD_ID=$(jq -r '.UploadId' < "zzz")
+UPLOADID=$(jq -r '.UploadId' < "zzz")
 
-EXEC_ECHO aws s3api abort-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object5.txt" --upload-id $UPLOAD_ID
+EXEC_ECHO aws s3api abort-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object5.txt" --upload-id $UPLOADID
 
 ECHO "*** Test delete-object"
 
