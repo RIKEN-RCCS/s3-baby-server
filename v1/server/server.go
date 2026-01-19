@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
+	//"strings"
 	//"strconv"
 	"sync"
 	"time"
@@ -114,7 +114,7 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Start_server(pool_directory, addr, cred, cert, conf, logs string, loga bool) {
+func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string, loga bool) {
 
 	// Run in UTC time zone instead of local time zone.
 
@@ -135,27 +135,6 @@ func Start_server(pool_directory, addr, cred, cert, conf, logs string, loga bool
 	}
 	var logger = slog.New(slog.NewTextHandler(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel}))
-
-	var credpair [2]string
-	{
-		var access, secret, ok = strings.Cut(cred, ",")
-		if !ok || len(access) == 0 || len(secret) == 0 {
-			logger.Info("Bad authorization key pair", "pair", cred)
-			return
-		}
-		credpair = [2]string{access, secret}
-	}
-
-	var certpair [2]string
-	if cert != "" {
-		var crt, key, ok = strings.Cut(cert, ",")
-		if !ok || len(crt) == 0 || len(key) == 0 {
-			logger.Error("Bad certificate and key pair for https",
-				"pair", cert)
-			return
-		}
-		certpair = [2]string{crt, key}
-	}
 
 	// Set default configurations, then read a configuration file.
 
@@ -232,8 +211,8 @@ func Start_server(pool_directory, addr, cred, cert, conf, logs string, loga bool
 
 	var bbs = &Bb_server{
 		pool_path:      wd,
-		cert_pair:      certpair,
-		cred_pair:      credpair,
+		cert_pair:      cert,
+		cred_pair:      cred,
 		config:         config,
 		logger:         logger,
 		access_logging: access_logging}
@@ -267,17 +246,17 @@ func Start_server(pool_directory, addr, cred, cert, conf, logs string, loga bool
 	}
 
 	var proto string
-	if certpair[0] != "" {
+	if cert[0] != "" {
 		proto = "(https)"
 	} else {
 		proto = "(http)"
 	}
 	logger.Info(("Starting Baby-server " + proto), "address", addr,
-		"access-key", credpair[0], "version", Bb_version)
+		"access-key", cred[0], "version", Bb_version)
 
 	var err2 error
-	if certpair[0] != "" {
-		err2 = bbs.server.ListenAndServeTLS(certpair[0], certpair[1])
+	if cert[0] != "" {
+		err2 = bbs.server.ListenAndServeTLS(cert[0], cert[1])
 	} else {
 		err2 = bbs.server.ListenAndServe()
 	}

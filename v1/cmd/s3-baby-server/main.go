@@ -10,7 +10,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	//"time"
 	"s3-baby-server/server"
 )
@@ -39,7 +41,7 @@ func main() {
 		("Certificate for https, a path to a certificate file."))
 	var flag_ssl_key = options.String("ssl-key", "",
 		("Key for the certificate, a path to a key file."))
-	var flag_slog = options.String("log", "",
+	var flag_logs = options.String("log", "",
 		"Log-level, one of debug/info/warn.")
 	var flag_log_access = options.Bool("log-access", false,
 		"Output access logs to stdout, unless logging in a file.")
@@ -94,23 +96,51 @@ func main() {
 		os.Exit(2)
 	}
 
-	var cred = os.Getenv("S3BBS_CRED")
-	if len(cred) == 0 {
-		cred = *flag_cred
-	}
-	if len(cred) == 0 {
-		fmt.Fprintf(o, "Credential not specified, use --cred.\n")
-		os.Exit(2)
+	var cred [2]string
+	{
+		var credpair = os.Getenv("S3BBS_CRED")
+		if len(credpair) == 0 {
+			credpair = *flag_cred
+		}
+		if len(credpair) == 0 {
+			slog.Error("Credential not specified, it is required.\n")
+			os.Exit(2)
+		}
+
+		var access, secret, ok = strings.Cut(credpair, ",")
+		if !ok || len(access) == 0 || len(secret) == 0 {
+			slog.Error("Bad authorization key pair", "pair", credpair)
+			os.Exit(2)
+		}
+		cred = [2]string{access, secret}
 	}
 
-	var cert = os.Getenv("S3BBS_CERT")
-	if len(cert) == 0 && *flag_ssl_crt != "" && *flag_ssl_key != "" {
-		cert = *flag_ssl_crt + "," + *flag_ssl_key
+	var cert [2]string
+	{
+		var certpair = os.Getenv("S3BBS_CERT")
+		if len(certpair) != 0 {
+			var crt, key, ok = strings.Cut(certpair, ",")
+			if !ok || len(crt) == 0 || len(key) == 0 {
+				slog.Error("Bad certificate and key pair for https",
+					"pair", cert)
+				os.Exit(2)
+			}
+			cert = [2]string{crt, key}
+		} else if *flag_ssl_crt != "" || *flag_ssl_key != "" {
+			var crt = *flag_ssl_crt
+			var key = *flag_ssl_key
+			if len(crt) == 0 || len(key) == 0 {
+				slog.Error("Both certificate and key needed for https",
+					"crt", crt, "key", key)
+				os.Exit(2)
+			}
+			cert = [2]string{crt, key}
+		}
 	}
 
 	var conf = *flag_conf
-	var slog = *flag_slog
-	var alog = *flag_log_access
+	var logs = *flag_logs
+	var loga = *flag_log_access
 
-	server.Start_server(path, url, cred, cert, conf, slog, alog)
+	server.Start_server(cred, cert, path, url, conf, logs, loga)
 }

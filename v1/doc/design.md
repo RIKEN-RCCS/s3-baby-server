@@ -82,9 +82,10 @@ document string in "s3.json".  They are in "shapes" /
 
 ## Upload-ID
 
-Uniqueness of an upload-id is not guaranteed.  Baby-server does not
-check the records of currently on-going MPUL's, although they are
-stored in files.  It is guaranteed by probability.
+Uniqueness of upload-ids is not guaranteed.  Baby-server does not
+check the ID's of the currently on-going MPUL, although they are
+stored in files.  It is only guaranteed by probabilistically as
+upload-ids are generated randomly.
 
 ## Multipart-Upload (MPUL)
 
