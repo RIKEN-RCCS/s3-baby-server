@@ -496,6 +496,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 	if conditionals.some_match != nil {
 		var m1, err1 = httpaide.Scan_rfc7232_etags(*conditionals.some_match)
 		if err1 != nil {
+			bbs.logger.Info("Bad conditional format (if-match)",
+				"error", err1)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: "Bad if-match."}
 			return errz
@@ -505,6 +507,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 	if conditionals.none_match != nil {
 		var m2, err2 = httpaide.Scan_rfc7232_etags(*conditionals.none_match)
 		if err2 != nil {
+			bbs.logger.Info("Bad conditional format (if-none-match)",
+				"error", err2)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: "Bad if-none-match."}
 			return errz
@@ -516,6 +520,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 
 	var stat, etag, err1 = bbs.fetch_object_status(object, false)
 	if err1 != nil {
+		bbs.logger.Info("Bad conditional, object missing",
+			"error", err1)
 		return err1
 	}
 	var nonexist = (stat == nil)
@@ -542,6 +548,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		if !nonexist && match_etags_is_star(etags_include) {
 			// Always matches.
 		} else if nonexist || !slices.Contains(etags_include, etag) {
+			bbs.logger.Info("Conditional fails (if-match)",
+				"etag", etag, "etags_include", etags_include)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition if-match fails."}
 			return errz
@@ -549,6 +557,9 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 	} else if conditionals.modified_before != nil {
 		// "if-unmodified-since"
 		if nonexist || !(mtime.Compare(*conditionals.modified_before) <= 0) {
+			bbs.logger.Info("Conditional fails (if-unmodified-since)",
+				"mtime", mtime,
+				"modified_before", *conditionals.modified_before)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition if-unmodified-since fails."}
 			return errz
@@ -566,10 +577,14 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		if nonexist {
 			// OK.
 		} else if match_etags_is_star(etags_include) {
+			bbs.logger.Info("Conditional fails (if-none-match)",
+				"etag", etag, "etags_include", etags_include)
 			var errz = &Aws_s3_error{Code: errorcode,
 				Message: "Condition if-none-match fails."}
 			return errz
 		} else if slices.Contains(etags_exclude, etag) {
+			bbs.logger.Info("Conditional fails (if-none-match)",
+				"etag", etag, "etags_include", etags_include)
 			var errz = &Aws_s3_error{Code: errorcode,
 				Message: "Condition if-none-match fails."}
 			return errz
@@ -577,6 +592,9 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 	} else if conditionals.modified_after != nil {
 		// "if-modified-since"
 		if nonexist || !(conditionals.modified_after.Compare(mtime) <= 0) {
+			bbs.logger.Info("Conditional fails (if-modified-since)",
+				"mtime", mtime,
+				"modified_after", *conditionals.modified_after)
 			var errz = &Aws_s3_error{Code: NotModified,
 				Message: "Condition if-modified-since fails."}
 			return errz
@@ -589,6 +607,9 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		if nonexist {
 			// OK.
 		} else if !conditionals.modified_time.Equal(mtime) {
+			bbs.logger.Info("Conditional fails (if-match-last-modified-time)",
+				"mtime", mtime,
+				"modified_time", *conditionals.modified_time)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition x-amz-if-match-last-modified-time fails."}
 			return errz
@@ -600,6 +621,9 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		if nonexist {
 			// OK.
 		} else if !(*conditionals.size == size) {
+			bbs.logger.Info("Conditional fails (if-match-size)",
+				"size", size,
+				"specified_size", *conditionals.size)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition x-amz-if-match-size fails."}
 			return errz

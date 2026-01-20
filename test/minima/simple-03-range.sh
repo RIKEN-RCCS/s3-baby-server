@@ -1,8 +1,10 @@
 #!/bin/ksh
 
-# Simple tests with AWS CLI.
+# Simple tests with AWS CLI.  This is for file ranges.  A range can be
+# specified in actions GetObject, HeadObject, and UploadPartCopy.
 
-# Start with an empty pool.
+# Precondition: Start with an empty pool.
+# Side-effects: Make files "zzz*".
 
 # Setting "-e" makes exit on errors, and "-E" makes trap on ERR is
 # inherited.  Setting "pipefail" makes exit status consider all
@@ -27,7 +29,7 @@ EXEC_ECHO aws s3 cp --no-cli-pager --no-progress data-04m.txt s3://mybucket1/obj
 
 dd if="data-04m.txt" of="zzz1" bs=1M skip=1 count=1
 
-ECHO "Download a range of a file 1MB at 1MB offset."
+ECHO "Download a range of a file 1MB length at 1MB offset."
 
 EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --range "bytes=1048576-2097151" "zzz2"
 
@@ -41,9 +43,11 @@ UPLOADID=$(jq -r '.UploadId' < "zzz")
 
 EXEC_ECHO aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object2.txt" --upload-id $UPLOADID --part-number 1 --copy-source "mybucket1"/"object1.txt" --copy-source-range "bytes=1048576-2097151" | tee "zzz"
 
-ETAG1=$(jq '.CopyPartResult.ETag' < "zzz")
+## Note "QETAG1" is an etag quote-escaped.
+ETAG1=$(jq -r '.CopyPartResult.ETag' < "zzz")
+QETAG1=$(echo $ETAG1 | jq -R '.')
 
-EXEC_ECHO aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object2.txt" --upload-id $UPLOADID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1}]}"
+EXEC_ECHO aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object2.txt" --upload-id $UPLOADID --multipart-upload "{\"Parts\":[{\"ETag\":$QETAG1,\"PartNumber\":1}]}"
 
 EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object2.txt" "zzz3"
 

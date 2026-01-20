@@ -736,7 +736,7 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 		}
 	}
 	if extent == nil {
-		fmt.Printf("extent==nil\n")
+		//fmt.Printf("extent==nil\n")
 		return f1, nil
 	} else {
 		var f2 = New_range_reader(f1, extent)
