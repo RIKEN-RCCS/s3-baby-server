@@ -4,7 +4,10 @@
 # specified in actions GetObject, HeadObject, and UploadPartCopy.
 
 # Precondition: Start with an empty pool.
-# Side-effects: Make files "zzz*".
+# Side-effects: Make temporary files "zzz*".
+
+# Note command "jq -R" is used to quote-escape a string.  It is
+# needed in passing ETags.
 
 # Setting "-e" makes exit on errors, and "-E" makes trap on ERR is
 # inherited.  Setting "pipefail" makes exit status consider all
@@ -43,7 +46,6 @@ UPLOADID=$(jq -r '.UploadId' < "zzz")
 
 EXEC_ECHO aws s3api upload-part-copy --no-cli-pager --bucket "mybucket1" --key "object2.txt" --upload-id $UPLOADID --part-number 1 --copy-source "mybucket1"/"object1.txt" --copy-source-range "bytes=1048576-2097151" | tee "zzz"
 
-## Note "QETAG1" is an etag quote-escaped.
 ETAG1=$(jq -r '.CopyPartResult.ETag' < "zzz")
 QETAG1=$(echo $ETAG1 | jq -R '.')
 

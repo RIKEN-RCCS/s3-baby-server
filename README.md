@@ -43,7 +43,8 @@ specifies a credential pair separated by a comma.
 - Tags are not supported on buckets.  Tags on a CreateBucket request
   are ignored.
 
-- ETags of Baby-server is always strong.
+- ETags are not MD5.  Baby-server generates an ETag from an inode
+  number, mtime, and a size.  ETags are always strong.
 
 - GetObjectAttributes returns no "ObjectParts" infomation.
   Baby-server does not retain parts information after finishing
@@ -99,6 +100,8 @@ Baby-server uses inode numbers to generate ETags.  There is a concern
 that some may consider inode numbers are sensitive.
 
 ## Implemented API Actions
+
+Baby-server is based on 2019-03-27 Release of AWS-S3 API.
 
 - AbortMultipartUpload
 - CompleteMultipartUpload

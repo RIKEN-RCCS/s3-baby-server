@@ -17,7 +17,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/binary"
-	//"encoding/hex"
+	"encoding/hex"
 	//"encoding/json"
 	//"encoding/xml"
 	"errors"
@@ -788,5 +788,6 @@ func make_etag_from_stat(stat fs.FileInfo, ino uint64) string {
 	binary.LittleEndian.PutUint64(b2[16:], ino)
 	binary.LittleEndian.PutUint64(b2[24:], uint64(0xdeadbeefdeadbeef))
 	var md5v = md5.Sum(b2)
-	return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
+	// return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
+	return "\"" + hex.EncodeToString(md5v[:]) + "\""
 }

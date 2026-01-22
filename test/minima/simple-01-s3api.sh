@@ -6,8 +6,14 @@
 # It sets shell "-e" to stop on an error.  Start with nothing in the
 # pool.  No "mybucket1" in particular.  It is tested with AWS CLI
 # v2.31.13.
-#
+
+# Precondition: Start with an empty pool.
+# Side-effects: Make temporary files "zzz*".
+
 # It uses a temporary file "zzz" and "zzz.data1" and leaves them.
+
+# Note command "jq -R" is used to quote-escape a string.  It is needed
+# in passing ETags.
 
 # Setting "-e" makes exit on errors, and "-E" makes trap on ERR is
 # inherited.  Setting "pipefail" makes exit status consider all
@@ -142,10 +148,12 @@ ECHO "*** Test list-parts, complete-multipart-upload"
 
 EXEC_ECHO aws s3api list-parts --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOADID | tee "zzz"
 
-ETAG1=$(jq '.Parts[0].ETag' < "zzz")
-ETAG2=$(jq '.Parts[1].ETag' < "zzz")
+ETAG1=$(jq -r '.Parts[0].ETag' < "zzz")
+ETAG2=$(jq -r '.Parts[1].ETag' < "zzz")
+QETAG1=$(echo $ETAG1 | jq -R '.')
+QETAG2=$(echo $ETAG2 | jq -R '.')
 
-EXEC_ECHO aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOADID --multipart-upload "{\"Parts\":[{\"ETag\":$ETAG1,\"PartNumber\":1},{\"ETag\":$ETAG2,\"PartNumber\":2}]}"
+EXEC_ECHO aws s3api complete-multipart-upload --no-cli-pager --bucket "mybucket1" --key "object4.txt" --upload-id $UPLOADID --multipart-upload "{\"Parts\":[{\"ETag\":$QETAG1,\"PartNumber\":1},{\"ETag\":$QETAG2,\"PartNumber\":2}]}"
 
 ECHO "*** Test abort-multipart-upload"
 
