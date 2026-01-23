@@ -16,19 +16,42 @@
 // rather long are shortened by hand.  Entries may have -1 for http
 // status-code, which corresponds to "N/A" in the specification.
 
+// Errors extending smithy.APIError are defined as listed (14 types).
+//
+//  - types.BucketAlreadyExists
+//  - types.BucketAlreadyOwnedByYou
+//  - types.EncryptionTypeMismatch
+//  - types.IdempotencyParameterMismatch
+//  - types.InvalidObjectState
+//  - types.InvalidRequest
+//  - types.InvalidWriteOffset
+//  - types.NoSuchBucket
+//  - types.NoSuchKey
+//  - types.NoSuchUpload
+//  - types.NotFound
+//  - types.ObjectAlreadyInActiveTierError
+//  - types.ObjectNotInActiveTierError
+//  - types.TooManyParts
+
 package server
 
 import (
 	"encoding/xml"
 	"fmt"
 	smithy "github.com/aws/smithy-go"
+	"net/http"
 )
 
-// Common elements of errors.  Attached xml-tag makes extending
-// structures will be marshaled with "Error" tag.  It mimics a record
-// described in "Error responses" section, but it is different from
-// types.Error.  It implements smithy.APIError.  Code is string but
-// not enumeration for copying to types.Error.
+// Elements of Errors.  It mimics a record described in "Error
+// responses" section, but it is different from types.Error.  This
+// implements smithy.APIError.  The Code slot is a string (not an
+// enumeration) as it is copied to types.Error.  The headers slot is
+// to set appropriate response headers.  It is only used on errors of
+// NotModified and PreconditionFailed (although it is not required to
+// return the specific headers in PreconditionFailed).  Note that
+// attached xml-tag forces structures that extend this to be marshaled
+// with the "Error" tag, too (although none extends Aws_s3_error,
+// currently).
 type Aws_s3_error struct {
 	XMLName xml.Name `xml:"Error"`
 	//Code Aws_s3_error_code
@@ -36,6 +59,7 @@ type Aws_s3_error struct {
 	Message   string
 	Resource  string
 	RequestId string
+	headers   http.Header `json:"-"`
 }
 
 func (e *Aws_s3_error) Error() string {
@@ -61,22 +85,6 @@ func (e *Aws_s3_error) ErrorFault() smithy.ErrorFault {
 }
 
 type Aws_s3_error_code string
-
-// Errors extending smithy.APIError type defined in types (N=14).
-//  - types.BucketAlreadyExists
-//  - types.BucketAlreadyOwnedByYou
-//  - types.EncryptionTypeMismatch
-//  - types.IdempotencyParameterMismatch
-//  - types.InvalidObjectState
-//  - types.InvalidRequest
-//  - types.InvalidWriteOffset
-//  - types.NoSuchBucket
-//  - types.NoSuchKey
-//  - types.NoSuchUpload
-//  - types.NotFound
-//  - types.ObjectAlreadyInActiveTierError
-//  - types.ObjectNotInActiveTierError
-//  - types.TooManyParts
 
 // Information on errors.  It is a pair of an http status-code and a
 // message.

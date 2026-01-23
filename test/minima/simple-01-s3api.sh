@@ -3,8 +3,8 @@
 # Simple tests with AWS CLI.
 
 # It runs AWS CLI s3api commands and expects the commands succeeds.
-# It sets shell "-e" to stop on an error.  Start with nothing in the
-# pool.  No "mybucket1" in particular.  It is tested with AWS CLI
+# It stops on an error as it sets shell "-e".  Start with nothing in
+# the pool.  No "mybucket1" in particular.  It is tested with AWS CLI
 # v2.31.13.
 
 # Precondition: Start with an empty pool.

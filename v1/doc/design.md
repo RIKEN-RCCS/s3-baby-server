@@ -1,4 +1,4 @@
-# README.md
+# Design Memo of Baby-Server
 
 ## Error Responses
 
@@ -184,6 +184,21 @@ headers are received.
 
 Baby-server does not set a timeout for request handlers.
 
+### Response with 304-Not-Modified
+
+Baby-server only issues 304 among 3xx status codes.
+respond_on_action_error() handles errors with status=304
+exceptionally.  It returns a response with headers "ETag" and
+"Last-Modified".
+
+Note that a 304 response cannot have a content, and it is required to
+have a header from {Content-Location, Date, ETag, Vary}.
+
+https://www.rfc-editor.org/rfc/rfc9110#status.304
+
+Baby-server returns header ""ETag" and "Last-Modified" on
+412-Precondition-Failed, too.
+
 ## MEMO
 
 Baby-server ignores "x-amz-sdk-checksum-algorithm" (note it is with
@@ -196,12 +211,18 @@ the following actions.
 - PutObjectTagging
 - UploadPart
 
+### I/O Error Handling
+
+- Baby-server does not check fully transferring data by io.Copy() in
+  GetObject.  Also, it does not check on concatenating part files of
+  MPUL.  It ignores the count.
+
 ### (MEMO) Logging
 
 Server logs from Golang's http library is printed at level=ERROR.
 
-### I/O Error Handling
+## References
 
-- Baby-server does not check fully transferring data by io.Copy() on
-  GetObject.  Also, it does not check on concatenating part files of
-  MPUL.  It ignores the count.
+https://docs.aws.amazon.com/s3/
+
+https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3

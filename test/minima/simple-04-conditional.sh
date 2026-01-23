@@ -35,18 +35,30 @@ ETAG1=$(jq -r '.Contents[0].ETag' < "zzz")
 
 ECHO "Download a file when conditionals match."
 
-EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --if-match "BAD-UNMATCHING-ETAG" "zzz1" 2>&1 | tee "zzz" || true
+# [--if-match <value>]
+# [--if-none-match <value>]
+# [--if-modified-since <value>]
+# [--if-unmodified-since <value>]
+
+EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --if-match 'INVALID-ETAG' "zzz1" 2>&1 | tee "zzz" || true
 
 grep 'InvalidArgument' "zzz" > /dev/null
 
-EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --if-match $ETAG1 "zzz1"
+EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --if-match '"BAD-ETAG"' "zzz1" 2>&1 | tee "zzz" || true
+
+grep 'PreconditionFailed' "zzz" > /dev/null
+
+EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --if-none-match $ETAG1 "zzz1" 2>&1 | tee "zzz" || true
+
+grep '304' "zzz" > /dev/null
+
+EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --if-none-match '*' "zzz1" 2>&1 | tee "zzz" || true
+
+grep '304' "zzz" > /dev/null
+
+EXEC_ECHO aws s3api get-object --no-cli-pager --bucket "mybucket1" --key "object1.txt" --if-match '"BAD-ETAG1"',$ETAG1,'"BAD-ETAG2"' "zzz1" | tee "zzz"
 
 cmp data-04m.txt "zzz1"
-
-# [--if-match <value>]
-# [--if-modified-since <value>]
-# [--if-none-match <value>]
-# [--if-unmodified-since <value>]
 
 ECHO "Clean up."
 

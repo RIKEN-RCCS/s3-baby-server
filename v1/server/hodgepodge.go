@@ -62,8 +62,11 @@ func (bbs *Bb_server) make_request_id() uint64 {
 	return t
 }
 
-// RESPOND_ON_ACTION_ERROR is called on an action error and
-// makes a response for it.
+// RESPOND_ON_ACTION_ERROR is called on an action error and makes a
+// response for it.  Note on a status=304 error, it cannot have a
+// response body.  In addition, such an error is required to return
+// some headers ("ETag" for instance).  An error record may contain
+// values for the headers.
 func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
 	var e1, ok = e.(*Aws_s3_error)
 	if !ok {
@@ -77,17 +80,32 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	var m = Aws_s3_error_to_message[e1.Code]
 	if len(e1.Message) == 0 {
 		e1.Message = m.Message
-		//fmt.Printf("e1=%#v\n", e1)
 	}
-	w.Header().Set("Content-Type", "application/xml")
-	w.WriteHeader(m.Status)
-	var w1 = http.NewResponseController(w)
-	var err1 = xml.NewEncoder(w).Encode(e1)
-	if err1 != nil {
-		bbs.logger.Error("xml-encoder failure", "error", err1)
-		panic(fmt.Errorf("xml-encoder failure: %w", err1))
+
+	if e1.headers != nil {
+		for k, vv := range e1.headers {
+			for _, v := range vv {
+				w.Header().Set(k, v)
+			}
+		}
 	}
-	w1.Flush()
+
+	switch m.Status {
+	case 304:
+		w.WriteHeader(m.Status)
+
+	default:
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(m.Status)
+		var w1 = http.NewResponseController(w)
+		var err1 = xml.NewEncoder(w).Encode(e1)
+		if err1 != nil {
+			bbs.logger.Error("xml-encode failed in writing a response",
+				"action", action, "rid", rid, "error", err1)
+			/*panic(fmt.Errorf("xml-encode failed: %w", err1))*/
+		}
+		w1.Flush()
+	}
 }
 
 // RESPOND_ON_INPUT_ERROR is an action error and makes a
@@ -451,7 +469,7 @@ func scan_range(object string, rangestring *string, size int64) (*[2]int64, *Aws
 	}
 }
 
-// Request condition handling described in RFC-7232.
+// Request Condition Handling -- It is described in RFC-7232.
 //
 // https://datatracker.ietf.org/doc/html/rfc7232
 //
@@ -541,6 +559,13 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		return nil
 	}
 
+	// Header values returned on an error.
+
+	var mtimes = mtime.UTC().Format(time.RFC1123)
+	var headers = map[string][]string{
+		"ETag": []string{etag},
+		"Last-Modified": []string{mtimes}}
+
 	// Evaluate conditions in the order specified in RFC-7232.
 
 	if etags_include != nil {
@@ -551,7 +576,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 			bbs.logger.Info("Conditional fails (if-match)",
 				"etag", etag, "etags_include", etags_include)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
-				Message: "Condition if-match fails."}
+				Message: "Condition if-match fails.",
+				headers: headers}
 			return errz
 		}
 	} else if conditionals.modified_before != nil {
@@ -561,7 +587,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 				"mtime", mtime,
 				"modified_before", *conditionals.modified_before)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
-				Message: "Condition if-unmodified-since fails."}
+				Message: "Condition if-unmodified-since fails.",
+				headers: headers}
 			return errz
 		}
 	}
@@ -576,17 +603,19 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 		}
 		if nonexist {
 			// OK.
-		} else if match_etags_is_star(etags_include) {
+		} else if match_etags_is_star(etags_exclude) {
 			bbs.logger.Info("Conditional fails (if-none-match)",
-				"etag", etag, "etags_include", etags_include)
+				"etag", etag, "etags_exclude", etags_exclude)
 			var errz = &Aws_s3_error{Code: errorcode,
-				Message: "Condition if-none-match fails."}
+				Message: "Condition if-none-match fails.",
+				headers: headers}
 			return errz
 		} else if slices.Contains(etags_exclude, etag) {
 			bbs.logger.Info("Conditional fails (if-none-match)",
-				"etag", etag, "etags_include", etags_include)
+				"etag", etag, "etags_exclude", etags_exclude)
 			var errz = &Aws_s3_error{Code: errorcode,
-				Message: "Condition if-none-match fails."}
+				Message: "Condition if-none-match fails.",
+				headers: headers}
 			return errz
 		}
 	} else if conditionals.modified_after != nil {
@@ -596,7 +625,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 				"mtime", mtime,
 				"modified_after", *conditionals.modified_after)
 			var errz = &Aws_s3_error{Code: NotModified,
-				Message: "Condition if-modified-since fails."}
+				Message: "Condition if-modified-since fails.",
+				headers: headers}
 			return errz
 		}
 	}
@@ -611,7 +641,8 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 				"mtime", mtime,
 				"modified_time", *conditionals.modified_time)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
-				Message: "Condition x-amz-if-match-last-modified-time fails."}
+				Message: "Condition x-amz-if-match-last-modified-time fails.",
+				headers: headers}
 			return errz
 		}
 	}
