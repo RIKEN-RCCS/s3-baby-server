@@ -53,14 +53,14 @@ cat "zzz" | tr '\n' '@' | grep -ae '^ *PRE english/@.*entlebucher\.txt@.*eurasie
 
 ECHO "*** Remove files."
 
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/akita.txt
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/beagle.txt
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/chihuahua.txt
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/dachshund.txt
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/entlebucher.txt
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/eurasier.txt
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/english/setter.txt
-EXEC_ECHO aws s3 rm s3://mybucket1/dog/english/terrier.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/akita.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/beagle.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/chihuahua.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/dachshund.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/entlebucher.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/eurasier.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/english/setter.txt
+# EXEC_ECHO aws s3 rm s3://mybucket1/dog/english/terrier.txt
 
 EXEC_ECHO aws s3 rm --recursive s3://mybucket1/dog/
 
@@ -74,6 +74,14 @@ EXEC_ECHO aws s3 rm --recursive s3://mybucket1/dog/
 # OUTPUT: delete: s3://mybucket1/dog/eurasier.txt
 
 EXEC_ECHO aws s3 ls --no-cli-pager s3://mybucket1
+
+ECHO "*** Unicode file names."
+
+EXEC_ECHO aws s3 cp --no-progress data-01k.txt 's3://mybucket1/ファイル.txt'
+
+EXEC_ECHO aws s3 ls --no-cli-pager s3://mybucket1
+
+EXEC_ECHO aws s3 rm 's3://mybucket1/ファイル.txt'
 
 EXEC_ECHO aws s3 rb --no-cli-pager s3://mybucket1
 
