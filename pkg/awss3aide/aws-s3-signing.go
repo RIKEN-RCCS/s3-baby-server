@@ -3,10 +3,11 @@
 // Copyright 2022-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// This verifies a sign by AWS-S3 signing.
+// This verifies a sign by AWS-S3 signing.  DEFICIENCY: Note that this
+// does not calculate the message digest and uses a passed one.
 
-// An AWS-S3 V4 authorization-header ("Authorization=") starts with a
-// keyword "AWS4-HMAC-SHA256", and consists of three subentries
+// MEMO: An AWS-S3 V4 authorization-header ("Authorization=") starts
+// with a keyword "AWS4-HMAC-SHA256", and consists of three subentries
 // separated by "," with zero or more whitespaces.  A "Credential="
 // subentry is a five fields separated by "/" as
 // KEY/DATE/REGION/SERVICE/USAGE, with DATE="yyyymmdd", SERVICE="s3",
@@ -22,9 +23,9 @@
 //	 Signature={signature}"
 
 // Some reference documents are:
-//   https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
-//   https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
-//   https://docs.aws.amazon.com/AmazonS3/latest/API/RESTCommonRequestHeaders.html
+//  - https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+//  - https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
+//  - https://docs.aws.amazon.com/AmazonS3/latest/API/RESTCommonRequestHeaders.html
 
 package awss3aide
 
@@ -63,7 +64,7 @@ var required_headers = [3]string{
 
 const aws_s3v4_authorization = "AWS4-HMAC-SHA256"
 const aws_s3_region_default = "us-east-1"
-const x_amz_date_layout = "20060102T150405Z"
+const amz_date_layout = "20060102T150405Z"
 const (
 	empty_payload_hash_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
@@ -92,16 +93,17 @@ func signing_verbose(msg ...any) {
 	}
 }
 
-// CHECK_CREDENTIAL_IS_OKAY checks the sign in an http request.  It
-// returns an access-key and a simple failure reason.  It once signs a
-// request by using AWS-SDK, and compares it with the one in the
-// request.  Note it does not calculate the message digest and uses
-// the given one.  It returns "anon" as an access-key when nothing is
-// found.  It substitutes "Host" by "X-Forwarded-Host" if it is
-// missing.  It copies a request before modifying it.  Returned errors
-// are one of {"bad-auth", "bad-date", "bad-key", "bad-sign",
-// "cannot-sign", "no-auth"}.
-func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, error) {
+// CHECK_CREDENTIAL checks a signing in an http request.  It returns
+// an access-key and a simple failure reason.  It once signs a request
+// by using AWS-SDK, and compares it with the one in the request.
+// Note it does not calculate the message digest and uses a given one.
+// Date in "X-Amz-Date" should be around the present time within a
+// timewindow tolerance.  It returns "anon" as an access-key when no
+// key is found.  Failure reasons are one of {"no-auth", "bad-auth",
+// "bad-date", "outdated-date", "wrong-key", "cannot-sign",
+// "bad-sign"}.  It substitutes "Host" by "X-Forwarded-Host" if it is
+// missing.  It copies a request before modifying it.
+func Check_credential(rqst1 *http.Request, keypair [2]string, timewindow time.Duration) (string, error) {
 	var header1 = rqst1.Header.Get("Authorization")
 	signing_verbose("*** authorization=", header1)
 	if header1 == "" {
@@ -110,14 +112,14 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, e
 	}
 	var auth_passed = Scan_aws_authorization(header1)
 	if auth_passed == nil {
-		signing_verbose("*** bad auth=", header1)
+		signing_verbose("*** bad-auth=", header1)
 		return "anon", fmt.Errorf("bad-auth")
 	}
 
 	var access_key = auth_passed.credential[0]
 	if access_key != keypair[0] {
-		signing_verbose("*** bad key=", access_key)
-		return access_key, fmt.Errorf("bad-key")
+		signing_verbose("*** wrong-key=", access_key)
+		return access_key, fmt.Errorf("wrong-key")
 	}
 
 	// Copy the request.  Note Golang's copy is shallow.
@@ -139,11 +141,18 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, e
 
 	var service = auth_passed.credential[3]
 	var region = auth_passed.credential[2]
-	var datestring = adjust_x_amz_date(rqst1.Header.Get("X-Amz-Date"))
-	var date, err1 = time.Parse(time.RFC3339, datestring)
+	//var datestring = adjust_x_amz_date(rqst1.Header.Get("X-Amz-Date"))
+	//var date, err1 = time.Parse(time.RFC3339, datestring)
+	var datestring = rqst1.Header.Get("X-Amz-Date")
+	var date, err1 = time.Parse(amz_date_layout, datestring)
 	if err1 != nil {
-		signing_verbose("*** bad date=", auth_passed)
+		signing_verbose("*** bad-date=", auth_passed)
 		return access_key, fmt.Errorf("bad-date")
+	}
+	var now = time.Now()
+	if !(now.Sub(date).Abs() <= timewindow) {
+		signing_verbose("*** outdated-date=", auth_passed)
+		return access_key, fmt.Errorf("outdated-date")
 	}
 
 	var credentials = aws.Credentials{
@@ -176,7 +185,7 @@ func Check_credential_is_okay(rqst1 *http.Request, keypair [2]string) (string, e
 	var header2 = rqst2.Header.Get("Authorization")
 	var auth_forged = Scan_aws_authorization(header2)
 	if auth_forged == nil {
-		signing_verbose("*** bad auth=", header2)
+		signing_verbose("*** bad-auth=", header2)
 		return access_key, fmt.Errorf("bad-auth")
 	}
 
@@ -273,9 +282,9 @@ func check_all_digits(s string) bool {
 }
 
 // ADJUST_X_AMZ_DATE converts an X-Amz-Date string to be parsable in
-// RFC3339.  It returns "" if a string is ill formed.  It should use
-// the date format for X-Amz-Date.  It is
-// x_amz_date_layout="20060102T150405Z".  (* Note X-Amz-Date is an
+// RFC3339.  It returns "" if a string is ill formed.  DO NOT USE
+// THIS.  Instead, it should use the date format for "X-Amz-Date".  It
+// is amz_date_layout="20060102T150405Z".  (* Note X-Amz-Date is an
 // acceptable string by ISO-8601 *).
 func adjust_x_amz_date(d string) string {
 	if len(d) != 16 {

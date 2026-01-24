@@ -281,7 +281,8 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 }
 
 func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Request) (string, error) {
-	var key, reason = awss3aide.Check_credential_is_okay(r, bbs.cred_pair)
+	var timewindow = 20 * time.Second
+	var key, reason = awss3aide.Check_credential(r, bbs.cred_pair, timewindow)
 	if reason != nil {
 		bbs.logger.Info("Bad authorization", "key", key, "reason", reason)
 		time.Sleep(1 * time.Second)
