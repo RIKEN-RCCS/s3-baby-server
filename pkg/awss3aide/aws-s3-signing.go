@@ -16,7 +16,7 @@
 // "Authorization=" starts with a keyword "AWS4-HMAC-SHA256" and three
 // subentries separated by "," with zero or more whitespaces.  A
 // "Credential=" subentry is a five fields separated by "/" as
-// KEY/DATE/REGION/SERVICE/USAGE, with KEY as a signing key, DATE as
+// KEY/DATE/REGION/SERVICE/USAGE, with KEY as an access key, DATE as
 // "yyyymmdd", REGION as a S3 region, SERVICE="s3", and
 // USAGE="aws4_request".  A "SignedHeaders=" subentry is a list of
 // header keys separated by ";" as

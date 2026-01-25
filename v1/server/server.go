@@ -227,8 +227,8 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 		h_limit_of_xml_parameters = bbs.config.Limit_of_xml_parameters
 	}
 
-	var control = "POST /" + config.Server_control_path + "/{$}"
 	var sx = http.NewServeMux()
+	var control = "POST /" + config.Server_control_path
 	sx.HandleFunc(control, func(w http.ResponseWriter, r *http.Request) {
 		bbs.server_control(w, r)
 	})
@@ -267,7 +267,7 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 	}
 }
 
-// SERVER_CONTROL handles requests to shutdown.  It is hooked at
+// SERVER_CONTROL handles requests to control.  It is hooked at
 // "POST_/bbs.ctl/".
 func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	var ctx = r.Context()
