@@ -3,24 +3,25 @@
 // Copyright 2022-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// This verifies a sign by AWS-S3 signing.  DEFICIENCY: Note that this
-// does not calculate the message digest and uses a passed one.
+// This verifies a sign by AWS-S3 signing.  DEFICIENCY: This does not
+// calculate the message digest and uses a passed one.
 
-// MEMO: An AWS-S3 V4 authorization-header ("Authorization=") starts
-// with a keyword "AWS4-HMAC-SHA256", and consists of three subentries
-// separated by "," with zero or more whitespaces.  A "Credential="
-// subentry is a five fields separated by "/" as
-// KEY/DATE/REGION/SERVICE/USAGE, with DATE="yyyymmdd", SERVICE="s3",
-// and USAGE="aws4_request".  A "SignedHeaders=" subentry is a list of
+// MEMO: An AWS-S3 V4 authorization-header looks like:
+//
+//	 Authorization=AWS4-HMAC-SHA256
+//     Credential={key}/20240511/us-east-1/s3/aws4_request,
+//	   SignedHeaders=host;x-amz-content-sha256;x-amz-date,
+//	   Signature={signature}
+//
+// "Authorization=" starts with a keyword "AWS4-HMAC-SHA256" and three
+// subentries separated by "," with zero or more whitespaces.  A
+// "Credential=" subentry is a five fields separated by "/" as
+// KEY/DATE/REGION/SERVICE/USAGE, with KEY as a signing key, DATE as
+// "yyyymmdd", REGION as a S3 region, SERVICE="s3", and
+// USAGE="aws4_request".  A "SignedHeaders=" subentry is a list of
 // header keys separated by ";" as
 // "host;x-amz-content-sha256;x-amz-date".  A "Signature=" subentry is
 // a string.
-//
-// An authorization-header looks like:
-//	 Authorization=
-//   "AWS4-HMAC-SHA256 Credential={key}/20240511/us-east-1/s3/aws4_request,
-//	 SignedHeaders=host;x-amz-content-sha256;x-amz-date,
-//	 Signature={signature}"
 
 // Some reference documents are:
 //  - https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html

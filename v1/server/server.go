@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	//"strings"
 	//"strconv"
 	"sync"
@@ -270,13 +272,16 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	var ctx = r.Context()
 	var q = r.URL.Query()
-	if q.Has("quit") {
+	switch {
+	case q.Has("quit"):
 		bbs.logger.Info("Shutdown requested")
 		var err1 = bbs.server.Shutdown(ctx)
 		if err1 != nil {
 			bbs.logger.Info("Shutdown failed", "error", err1)
-			log.Fatal("SHUTDOWN FORCED")
+			log.Fatal("SHUTDOWN FORCED QUIT")
 		}
+	case q.Has("stat"):
+		dump_memory_statistics(bbs.logger, false)
 	}
 }
 
@@ -289,4 +294,39 @@ func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Bad authorization", 401)
 	}
 	return key, reason
+}
+
+func dump_memory_statistics(logger *slog.Logger, details bool) {
+	//runtime.MemProfile()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	if !details {
+		var ms = struct {
+			HeapAlloc   uint64
+			HeapSys     uint64
+			HeapObjects uint64
+			HeapInuse   uint64
+			StackInuse  uint64
+			OtherSys    uint64
+			NumGC       uint32
+			NumForcedGC uint32
+		}{
+			HeapAlloc:   m.HeapAlloc,
+			HeapInuse:   m.HeapInuse,
+			HeapSys:     m.HeapSys,
+			StackInuse:  m.StackInuse,
+			OtherSys:    m.OtherSys,
+			HeapObjects: m.HeapObjects,
+			NumGC:       m.NumGC,
+			NumForcedGC: m.NumForcedGC,
+		}
+		logger.Info("MemStats", "Summary", ms)
+	} else {
+		logger.Info("MemStats", "MemStats", m)
+	}
+	if details {
+		var g debug.GCStats
+		debug.ReadGCStats(&g)
+		logger.Info("GCStats", "GCStats", g)
+	}
 }
