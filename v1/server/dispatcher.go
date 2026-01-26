@@ -1,4 +1,4 @@
-// dispatcher.go (2025-12-30)
+// dispatcher.go (2026-01-26)
 // API-STUB.  A dispatcher for net/http.ServeMux.  It
 // switches handlers with regard to method-path patterns
 // and parameters marked as required in API.

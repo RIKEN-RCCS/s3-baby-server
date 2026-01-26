@@ -1,4 +1,4 @@
-// handler.go (2025-12-30)
+// handler.go (2026-01-26)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -55,7 +55,7 @@ if len(hi.Values("x-amz-expected-bucket-owner")) != 0 {
 i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(hi.Values("x-amz-if-match-initiated-time")) != 0 {
 var s = hi.Get("x-amz-if-match-initiated-time")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-if-match-initiated-time"] = err2} else {i.IfMatchInitiatedTime = &x}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
@@ -209,17 +209,17 @@ if len(hi.Values("x-amz-copy-source-if-match")) != 0 {
 i.CopySourceIfMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-match"))}
 if len(hi.Values("x-amz-copy-source-if-modified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-modified-since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-copy-source-if-modified-since"] = err2} else {i.CopySourceIfModifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-none-match")) != 0 {
 i.CopySourceIfNoneMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-none-match"))}
 if len(hi.Values("x-amz-copy-source-if-unmodified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-unmodified-since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-copy-source-if-unmodified-since"] = err2} else {i.CopySourceIfUnmodifiedSince = &x}}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["Expires"] = err2} else {i.Expires = &x}}
 if len(hi.Values("x-amz-grant-full-control")) != 0 {
 i.GrantFullControl = h_thing_pointer(hi.Get("x-amz-grant-full-control"))}
@@ -287,7 +287,7 @@ var x, err2 = intern_ObjectLockMode(s)
 if err2 != nil {input_errors["x-amz-object-lock-mode"] = err2} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = err2} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
@@ -434,7 +434,7 @@ if len(hi.Values("Content-Type")) != 0 {
 i.ContentType = h_thing_pointer(hi.Get("Content-Type"))}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["Expires"] = err2} else {i.Expires = &x}}
 if len(hi.Values("x-amz-grant-full-control")) != 0 {
 i.GrantFullControl = h_thing_pointer(hi.Get("x-amz-grant-full-control"))}
@@ -488,7 +488,7 @@ var x, err2 = intern_ObjectLockMode(s)
 if err2 != nil {input_errors["x-amz-object-lock-mode"] = err2} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = err2} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
@@ -515,7 +515,7 @@ if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 if o.AbortDate != nil {
-ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
+ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC1123))}
 if o.AbortRuleId != nil {
 ho.Add("x-amz-abort-rule-id", string(*o.AbortRuleId))}
 if o.ServerSideEncryption != "" {
@@ -618,7 +618,7 @@ if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("x-amz-if-match-last-modified-time")) != 0 {
 var s = hi.Get("x-amz-if-match-last-modified-time")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-if-match-last-modified-time"] = err2} else {i.IfMatchLastModifiedTime = &x}}
 if len(hi.Values("x-amz-if-match-size")) != 0 {
 var s = hi.Get("x-amz-if-match-size")
@@ -767,13 +767,13 @@ if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("If-Modified-Since")) != 0 {
 var s = hi.Get("If-Modified-Since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["If-Modified-Since"] = err2} else {i.IfModifiedSince = &x}}
 if len(hi.Values("If-None-Match")) != 0 {
 i.IfNoneMatch = h_thing_pointer(hi.Get("If-None-Match"))}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var s = hi.Get("If-Unmodified-Since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["If-Unmodified-Since"] = err2} else {i.IfUnmodifiedSince = &x}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
@@ -791,7 +791,7 @@ if qi.Has("response-content-type") {
 i.ResponseContentType = h_thing_pointer(qi.Get("response-content-type"))}
 if qi.Has("response-expires") {
 var s = qi.Get("response-expires")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["response-expires"] = err2} else {i.ResponseExpires = &x}}
 if qi.Has("versionId") {
 i.VersionId = h_thing_pointer(qi.Get("versionId"))}
@@ -835,7 +835,7 @@ ho.Add("x-amz-expiration", string(*o.Expiration))}
 if o.Restore != nil {
 ho.Add("x-amz-restore", string(*o.Restore))}
 if o.LastModified != nil {
-ho.Add("Last-Modified", o.LastModified.Format(time.RFC3339))}
+ho.Add("Last-Modified", o.LastModified.Format(time.RFC1123))}
 if o.ContentLength != nil {
 ho.Add("Content-Length", strconv.FormatInt(*o.ContentLength, 10))}
 if o.ETag != nil {
@@ -869,7 +869,7 @@ ho.Add("Content-Range", string(*o.ContentRange))}
 if o.ContentType != nil {
 ho.Add("Content-Type", string(*o.ContentType))}
 if o.Expires != nil {
-ho.Add("Expires", o.Expires.Format(time.RFC3339))}
+ho.Add("Expires", o.Expires.Format(time.RFC1123))}
 if o.WebsiteRedirectLocation != nil {
 ho.Add("x-amz-website-redirect-location", string(*o.WebsiteRedirectLocation))}
 if o.ServerSideEncryption != "" {
@@ -897,7 +897,7 @@ ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*o.TagCount), 10))}
 if o.ObjectLockMode != "" {
 ho.Add("x-amz-object-lock-mode", string(o.ObjectLockMode))}
 if o.ObjectLockRetainUntilDate != nil {
-ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.Format(time.RFC3339))}
+ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.Format(time.RFC1123))}
 if o.ObjectLockLegalHoldStatus != "" {
 ho.Add("x-amz-object-lock-legal-hold", string(o.ObjectLockLegalHoldStatus))}
 ho.Set("Content-Type", "binary/octet-stream")
@@ -971,7 +971,7 @@ return}
 if o.DeleteMarker != nil {
 ho.Add("x-amz-delete-marker", strconv.FormatBool(*o.DeleteMarker))}
 if o.LastModified != nil {
-ho.Add("Last-Modified", o.LastModified.Format(time.RFC3339))}
+ho.Add("Last-Modified", o.LastModified.Format(time.RFC1123))}
 if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 if o.RequestCharged != "" {
@@ -1103,13 +1103,13 @@ if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
 if len(hi.Values("If-Modified-Since")) != 0 {
 var s = hi.Get("If-Modified-Since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["If-Modified-Since"] = err2} else {i.IfModifiedSince = &x}}
 if len(hi.Values("If-None-Match")) != 0 {
 i.IfNoneMatch = h_thing_pointer(hi.Get("If-None-Match"))}
 if len(hi.Values("If-Unmodified-Since")) != 0 {
 var s = hi.Get("If-Unmodified-Since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["If-Unmodified-Since"] = err2} else {i.IfUnmodifiedSince = &x}}
 {var x = r.PathValue("key")
 if x != "" {i.Key = &x}}
@@ -1127,7 +1127,7 @@ if qi.Has("response-content-type") {
 i.ResponseContentType = h_thing_pointer(qi.Get("response-content-type"))}
 if qi.Has("response-expires") {
 var s = qi.Get("response-expires")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["response-expires"] = err2} else {i.ResponseExpires = &x}}
 if qi.Has("versionId") {
 i.VersionId = h_thing_pointer(qi.Get("versionId"))}
@@ -1173,7 +1173,7 @@ ho.Add("x-amz-restore", string(*o.Restore))}
 if o.ArchiveStatus != "" {
 ho.Add("x-amz-archive-status", string(o.ArchiveStatus))}
 if o.LastModified != nil {
-ho.Add("Last-Modified", o.LastModified.Format(time.RFC3339))}
+ho.Add("Last-Modified", o.LastModified.Format(time.RFC1123))}
 if o.ContentLength != nil {
 ho.Add("Content-Length", strconv.FormatInt(*o.ContentLength, 10))}
 if o.ChecksumCRC32 != nil {
@@ -1207,7 +1207,7 @@ ho.Add("Content-Type", string(*o.ContentType))}
 if o.ContentRange != nil {
 ho.Add("Content-Range", string(*o.ContentRange))}
 if o.Expires != nil {
-ho.Add("Expires", o.Expires.Format(time.RFC3339))}
+ho.Add("Expires", o.Expires.Format(time.RFC1123))}
 if o.WebsiteRedirectLocation != nil {
 ho.Add("x-amz-website-redirect-location", string(*o.WebsiteRedirectLocation))}
 if o.ServerSideEncryption != "" {
@@ -1235,7 +1235,7 @@ ho.Add("x-amz-tagging-count", strconv.FormatInt(int64(*o.TagCount), 10))}
 if o.ObjectLockMode != "" {
 ho.Add("x-amz-object-lock-mode", string(o.ObjectLockMode))}
 if o.ObjectLockRetainUntilDate != nil {
-ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.Format(time.RFC3339))}
+ho.Add("x-amz-object-lock-retain-until-date", o.ObjectLockRetainUntilDate.Format(time.RFC1123))}
 if o.ObjectLockLegalHoldStatus != "" {
 ho.Add("x-amz-object-lock-legal-hold", string(o.ObjectLockLegalHoldStatus))}
 var status int = 200
@@ -1555,7 +1555,7 @@ if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 if o.AbortDate != nil {
-ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC3339))}
+ho.Add("x-amz-abort-date", o.AbortDate.Format(time.RFC1123))}
 if o.AbortRuleId != nil {
 ho.Add("x-amz-abort-rule-id", string(*o.AbortRuleId))}
 if o.RequestCharged != "" {
@@ -1625,7 +1625,7 @@ if len(hi.Values("x-amz-checksum-sha256")) != 0 {
 i.ChecksumSHA256 = h_thing_pointer(hi.Get("x-amz-checksum-sha256"))}
 if len(hi.Values("Expires")) != 0 {
 var s = hi.Get("Expires")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["Expires"] = err2} else {i.Expires = &x}}
 if len(hi.Values("If-Match")) != 0 {
 i.IfMatch = h_thing_pointer(hi.Get("If-Match"))}
@@ -1687,7 +1687,7 @@ var x, err2 = intern_ObjectLockMode(s)
 if err2 != nil {input_errors["x-amz-object-lock-mode"] = err2} else {i.ObjectLockMode = x}}
 if len(hi.Values("x-amz-object-lock-retain-until-date")) != 0 {
 var s = hi.Get("x-amz-object-lock-retain-until-date")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-object-lock-retain-until-date"] = err2} else {i.ObjectLockRetainUntilDate = &x}}
 if len(hi.Values("x-amz-object-lock-legal-hold")) != 0 {
 var s = hi.Get("x-amz-object-lock-legal-hold")
@@ -1919,13 +1919,13 @@ if len(hi.Values("x-amz-copy-source-if-match")) != 0 {
 i.CopySourceIfMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-match"))}
 if len(hi.Values("x-amz-copy-source-if-modified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-modified-since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-copy-source-if-modified-since"] = err2} else {i.CopySourceIfModifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-if-none-match")) != 0 {
 i.CopySourceIfNoneMatch = h_thing_pointer(hi.Get("x-amz-copy-source-if-none-match"))}
 if len(hi.Values("x-amz-copy-source-if-unmodified-since")) != 0 {
 var s = hi.Get("x-amz-copy-source-if-unmodified-since")
-var x, err2 = time.Parse(time.RFC3339, s)
+var x, err2 = time.Parse(time.RFC1123, s)
 if err2 != nil {input_errors["x-amz-copy-source-if-unmodified-since"] = err2} else {i.CopySourceIfUnmodifiedSince = &x}}
 if len(hi.Values("x-amz-copy-source-range")) != 0 {
 i.CopySourceRange = h_thing_pointer(hi.Get("x-amz-copy-source-range"))}

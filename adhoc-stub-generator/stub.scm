@@ -1202,7 +1202,7 @@
        ((string=? type-kind "timestamp")
 	(list
 	 (format #f "var s = ~a" rhs)
-	 (format #f "var x, err2 = time.Parse(time.RFC3339, s)")
+	 (format #f "var x, err2 = time.Parse(time.RFC1123, s)")
 	 (string-append
 	  error-record-clause
 	  " else {"
@@ -1263,7 +1263,7 @@
        (assigner (format #f "string(*~a)" rhs))))
      ((string=? type-kind "timestamp")
       (list
-       (assigner (format #f "~a.Format(time.RFC3339)" rhs))))
+       (assigner (format #f "~a.Format(time.RFC1123)" rhs))))
      ;; Composite-types:
      ((string=? type-kind "enum")
       (list

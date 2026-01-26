@@ -9,6 +9,6 @@ set -eE
 set -o pipefail
 
 alias ECHO=echo
-EXEC_ECHO() { (echo "$*" 1>&2) ; "$@" ; }
+EXEC_ECHO() { (echo ">> $@" 1>&2) ; "$@" ; }
 
 export AWS_EC2_METADATA_DISABLED=true
