@@ -217,6 +217,11 @@ the following actions.
   GetObject.  Also, it does not check on concatenating part files of
   MPUL.  It ignores the count.
 
+### Time Format
+
+Times in http headers are parsed in Golang's time.RFC1123.  Note the
+RFC-1123 uses three letter time-zone.
+
 ### (MEMO) Logging
 
 Server logs from Golang's http library is printed at level=ERROR.

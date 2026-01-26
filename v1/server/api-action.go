@@ -1302,7 +1302,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		o.ContentLanguage = i.ResponseContentLanguage
 		o.ContentType = i.ResponseContentType
 		if i.ResponseExpires != nil {
-			var expires = i.ResponseExpires.Format(time.RFC3339)
+			var expires = i.ResponseExpires.Format(time.RFC1123)
 			o.ExpiresString = &expires
 		}
 	}
@@ -1629,7 +1629,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		o.ContentLanguage = i.ResponseContentLanguage
 		o.ContentType = i.ResponseContentType
 		if i.ResponseExpires != nil {
-			var expires = i.ResponseExpires.Format(time.RFC3339)
+			var expires = i.ResponseExpires.Format(time.RFC1123)
 			o.ExpiresString = &expires
 		}
 	}
