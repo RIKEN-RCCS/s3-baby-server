@@ -16,13 +16,16 @@ import (
 	"io/fs"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	//runtimepprof "runtime/pprof"
 	//"strings"
-	//"strconv"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -116,7 +119,7 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string, loga bool) {
+func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string, loga bool, prof int) {
 
 	// Run in UTC time zone instead of local time zone.
 
@@ -247,6 +250,10 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 		MaxHeaderBytes:    bbs.config.MaxHeaderBytes,
 	}
 
+	if prof != 0 {
+		go service_profiler(logger, prof)
+	}
+
 	var proto string
 	if cert[0] != "" {
 		proto = "(https)"
@@ -329,4 +336,14 @@ func dump_memory_statistics(logger *slog.Logger, details bool) {
 		debug.ReadGCStats(&g)
 		logger.Info("GCStats", "GCStats", g)
 	}
+}
+
+// SERVICE_PROFILER starts the http server for "go tool pprof".  Note
+// importing "net/http/pprof" initializes profiler in DefaultServeMux.
+func service_profiler(logger *slog.Logger, port int) {
+	var ep = net.JoinHostPort("", strconv.Itoa(port))
+	var router = http.DefaultServeMux
+	logger.Info("Enabling pprof", "port", port)
+	var err1 = http.ListenAndServe(ep, router)
+	logger.Error("Enabling pprof failed", "error", err1)
 }

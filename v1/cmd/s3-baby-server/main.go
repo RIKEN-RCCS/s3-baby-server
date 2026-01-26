@@ -44,10 +44,13 @@ func main() {
 	var flag_logs = options.String("log", "",
 		"Log-level, one of debug/info/warn.")
 	var flag_log_access = options.Bool("log-access", false,
-		"Output access logs to stdout, unless logging in a file.")
+		"Logging access logs to stdout, unless logging directed to a file.")
 
 	var flag_conf = options.String("conf", "",
 		"Configuration file in json.")
+
+	var flag_prof = options.Int("prof", 0,
+		"Port to enable pprof service for 'go tool pprof'.")
 
 	var args = os.Args
 	var url string = ""
@@ -141,6 +144,7 @@ func main() {
 	var conf = *flag_conf
 	var logs = *flag_logs
 	var loga = *flag_log_access
+	var prof = *flag_prof
 
-	server.Start_server(cred, cert, path, url, conf, logs, loga)
+	server.Start_server(cred, cert, path, url, conf, logs, loga, prof)
 }
