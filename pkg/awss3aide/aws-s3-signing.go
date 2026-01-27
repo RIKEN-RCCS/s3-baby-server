@@ -306,12 +306,12 @@ type Signing_credential struct {
 }
 */
 
-// SIGN_BY_GIVEN_CREDENTIAL replaces an authorization header in a
-// request for the given key-pair. keypair[0] is an access-key and
-// keypair[1] is a secret-key.  It returns an error from
-// Signer.SignHTTP().  Note that it drops the headers attached by a
-// proxy, which would confuse the signer.
-func Sign_by_given_credential(r *http.Request, host string, keypair [2]string) error {
+// SIGN_BY_CREDENTIAL replaces an authorization header in a request
+// for the given key-pair.  keypair[0] is an access-key and keypair[1]
+// is a secret-key.  It returns an error from Signer.SignHTTP().  Note
+// that it drops the headers attached by a proxy, which would confuse
+// the signer.
+func Sign_by_credential(r *http.Request, host string, keypair [2]string) error {
 	if false {
 		fmt.Printf("*** r.Host(1)=%v\n", r.Host)
 		fmt.Printf("*** Authorization(1)=%v\n", r.Header.Get("Authorization"))

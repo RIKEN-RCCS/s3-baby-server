@@ -8,6 +8,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -231,7 +232,7 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 	}
 
 	var sx = http.NewServeMux()
-	var control = "POST /" + config.Server_control_path
+	var control = "POST /" + config.Server_control_path + "/{command}"
 	sx.HandleFunc(control, func(w http.ResponseWriter, r *http.Request) {
 		bbs.server_control(w, r)
 	})
@@ -270,25 +271,7 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 		err2 = bbs.server.ListenAndServe()
 	}
 	if err2 != nil {
-		bbs.logger.Info("http.ListenAndServe() returns", "error", err2)
-	}
-}
-
-// SERVER_CONTROL handles requests to control.  It is hooked at
-// "POST_/bbs.ctl/".
-func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
-	var ctx = r.Context()
-	var q = r.URL.Query()
-	switch {
-	case q.Has("quit"):
-		bbs.logger.Info("Shutdown requested")
-		var err1 = bbs.server.Shutdown(ctx)
-		if err1 != nil {
-			bbs.logger.Info("Shutdown failed", "error", err1)
-			log.Fatal("SHUTDOWN FORCED QUIT")
-		}
-	case q.Has("stat"):
-		dump_memory_statistics(bbs.logger, false)
+		bbs.logger.Warn("http.ListenAndServe() returns", "error", err2)
 	}
 }
 
@@ -301,6 +284,34 @@ func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Bad authorization", 401)
 	}
 	return key, reason
+}
+
+// SERVER_CONTROL handles requests to control.  It is hooked on
+// "POST_/bbs.ctl/{command}".  While starting a shutdown, it will send
+// an empty OK return.
+func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
+	var ctx = r.Context()
+	//var q = r.URL.Query()
+	var q = r.PathValue("command")
+	switch q {
+	case "quit":
+		go shutdown_server(bbs, ctx)
+	case "stat":
+		dump_memory_statistics(bbs.logger, false)
+	}
+	// It will send an empty return.
+	var status int = 200
+	w.WriteHeader(status)
+}
+
+func shutdown_server(bbs *Bb_server, ctx context.Context) {
+	bbs.logger.Warn("Shutdown requested")
+	var err1 = bbs.server.Shutdown(ctx)
+	if err1 != nil {
+		bbs.logger.Error("Shutdown failed", "error", err1)
+		time.Sleep(3 * time.Second)
+		log.Fatal("SHUTDOWN FORCED QUIT")
+	}
 }
 
 func dump_memory_statistics(logger *slog.Logger, details bool) {

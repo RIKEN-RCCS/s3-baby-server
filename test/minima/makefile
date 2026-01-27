@@ -1,7 +1,13 @@
 # makefile
 
 all::
-	@echo "Usage: make download-srfi-180"
+	@echo "Usage: make control or data-files"
+
+control::
+	go build .
+
+get::
+	go get
 
 data-files: data-01k.txt data-08k.txt data-04m.txt data-20m.txt
 
