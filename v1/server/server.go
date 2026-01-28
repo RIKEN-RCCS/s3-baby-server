@@ -299,7 +299,7 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	case "stat":
 		dump_memory_statistics(bbs.logger, false)
 	}
-	// It will send an empty return.
+	// Send an empty return.
 	var status int = 200
 	w.WriteHeader(status)
 }

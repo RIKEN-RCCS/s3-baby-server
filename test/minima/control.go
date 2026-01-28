@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
@@ -13,8 +14,8 @@ import (
 	"net/http"
 	"os"
 	"slices"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,9 +24,9 @@ var empty_payload_hash_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934
 func main() {
 	var options = flag.NewFlagSet("", flag.ExitOnError)
 	options.Usage = func() {
-		fmt.Fprintf(os.Stdout, "Usage: %s cmd host port options ...\n",
+		fmt.Fprintf(os.Stdout, "Usage: %s command host port options ...\n",
 			os.Args[0])
-		fmt.Fprintf(os.Stdout, "\tcmd is one of quit, ...\n")
+		fmt.Fprintf(os.Stdout, "\tcommand is one of {quit, stat}.\n")
 		fmt.Fprintf(os.Stdout, "Options:\n")
 		options.PrintDefaults()
 	}
@@ -33,6 +34,8 @@ func main() {
 		"Print help.")
 	var flag_cred = options.String("cred", "",
 		"Pair of access-key and secret-key, separated by a comma.")
+	var flag_https = options.Bool("https", false,
+		"Use https to talk to the server.")
 
 	var args = os.Args
 	if len(args) < 4 {
@@ -83,16 +86,23 @@ func main() {
 		cred = [2]string{access, secret}
 	}
 
-	access_server(cmd, host, port, cred)
+	var https = *flag_https
+
+	access_server(cmd, host, port, cred, https)
 }
 
-func access_server(command string, host string, port int, keypair [2]string) error {
+func access_server(command string, host string, port int, keypair [2]string, https bool) error {
 	var timeout = time.Duration(60000 * time.Millisecond)
 	var ctx, cancel = context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	var ep = net.JoinHostPort(host, strconv.Itoa(port))
-	var url1 = ("http://" + ep + "/bbs.ctl/" + command)
+	var url1 string
+	if !https {
+		url1 = ("http://" + ep + "/bbs.ctl/" + command)
+	} else {
+		url1 = ("https://" + ep + "/bbs.ctl/" + command)
+	}
 	var body io.Reader = nil
 
 	var r, err4 = http.NewRequestWithContext(ctx, http.MethodPost, url1, body)
@@ -113,8 +123,14 @@ func access_server(command string, host string, port int, keypair [2]string) err
 		return err5
 	}
 
+	// Set to skip https server certificate verification.
+
+	var xport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 	var c = &http.Client{
-		Timeout: timeout,
+		Transport: xport,
+		Timeout:   timeout,
 	}
 	var rspn, err6 = c.Do(r)
 	if err6 != nil {
