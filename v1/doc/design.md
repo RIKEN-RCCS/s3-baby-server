@@ -2,10 +2,10 @@
 
 ## Server Control
 
-Baby-server handles POST calls on /bbs.ctl/quit and /bbs.ctl/stat,
+Baby-server handles POST calls on "/bbs.ctl/quit" and "/bbs.ctl/stat",
 where "quit" stops the server, and "stat" dumps memory usage to logger
 at level=INFO.  Since these commands are not AWS-S3 operations, it
-cannot be requested by AWS-CLI.  See "control.go" code in
+cannot be requested by AWS-CLI.  See "control-client.go" code in
 "test/minima" to issue the commands.
 
 ## Error Responses
