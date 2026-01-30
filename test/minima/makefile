@@ -1,9 +1,9 @@
 # makefile
 
 all::
-	@echo "Usage: make control or data-files"
+	@echo "Usage: make bbs-ctl or data-files"
 
-control::
+bbs-ctl::
 	go build .
 
 get::

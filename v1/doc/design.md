@@ -1,5 +1,13 @@
 # Design Memo of Baby-Server
 
+## Server Control
+
+Baby-server handles POST calls on /bbs.ctl/quit and /bbs.ctl/stat,
+where "quit" stops the server, and "stat" dumps memory usage to logger
+at level=INFO.  Since these commands are not AWS-S3 operations, it
+cannot be requested by AWS-CLI.  See "control.go" code in
+"test/minima" to issue the commands.
+
 ## Error Responses
 
 Error responses are defined in
@@ -157,15 +165,15 @@ accesses and its life time is limited while processing a request.
 Baby-server creates scratch files for part-files for MPUL, too.
 Although a temporary directory for MPUL is created to store
 part-files, scratch files are not stored in that directory.  Instead,
-scratch files are stored in the same directory where the object will
-be created.
+scratch files are stored in the same directory where the MPUL object
+will be created.
 
-Placement of scratch files for MPUL is to allow removal of the
-temporary directory.  On aborting MPUL, it is necessary to remove the
-directory, but on-going copying would prevent removal of the
-directory.  It is the behavior on handling removal of directories
-while some files are open (especially on NFS).  Placing scratch files
-outside the temporary directory will avoid such prevention.
+The above mentioned placement of scratch files for MPUL is to allow
+removal of the temporary directory.  On aborting MPUL, it is necessary
+to remove the directory, but on-going copying would prevent removal of
+the directory.  (Such prevention behavior is found on NFS).  Placing
+scratch files outside the temporary directory will avoid that
+behavior.
 
 ## Implementation Limitations
 
@@ -177,8 +185,8 @@ headers are received.
 
 ### Assuptions on http Server in Golang stdlib
 
-- Baby-server assumes key part is clean as a filesystem path, as
-  ServMux() handles it.
+Baby-server assumes key part is clean as a filesystem path, as
+ServMux() handles it.
 
 ### No Request Timeout
 
@@ -201,6 +209,8 @@ Baby-server returns header ""ETag" and "Last-Modified" on
 
 ## MEMO
 
+### Header "x-amz-sdk-checksum-algorithm"
+
 Baby-server ignores "x-amz-sdk-checksum-algorithm" (note it is with
 "sdk").  This header is said to be a marker used in AWS-SDK.  Note
 "x-amz-sdk-checksum-algorithm" is passed as param.ChecksumAlgorithm in
@@ -213,9 +223,16 @@ the following actions.
 
 ### I/O Error Handling
 
-- Baby-server does not check fully transferring data by io.Copy() in
-  GetObject.  Also, it does not check on concatenating part files of
-  MPUL.  It ignores the count.
+Baby-server does not check fully transferring data by io.Copy() in
+GetObject.  Also, it does not check on concatenating part files of
+MPUL.  It ignores the count.
+
+### Cancellation in Service
+
+Baby-server does not handle contexts by itself, and assumes the
+libraries (stdlib and AWS-SDK) handle them.  In addition, Baby-server
+would wait indefinitely, because the timeout values on the http server
+are not changed from the default.
 
 ### Time Format
 
