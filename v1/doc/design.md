@@ -243,6 +243,14 @@ RFC-1123 uses three letter time-zone.
 
 Server logs from Golang's http library is printed at level=ERROR.
 
+### Wait Time Limit of Serialization
+
+Actions of modifying the filesystem are serialized.  Baby-server uses
+100 msec as a limit of wait time for exclusion (The value can be found
+in "Exclusion_wait").  During developing Baby-server, it was noticed
+that the wait limit of 10 msec was not enough, although a serialized
+part of an operation is small.
+
 ## References
 
 https://docs.aws.amazon.com/s3/

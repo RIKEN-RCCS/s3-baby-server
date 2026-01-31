@@ -59,7 +59,7 @@ type copy_conditionals struct {
 // csum (of CRC64NVME).
 func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
 	//var location = "/" + object
-	var _, rid = get_request_action(ctx)
+	var _, rid = get_action_name(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
@@ -179,7 +179,7 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 // applied on copying.  CONDITIONALS are on the source object.
 func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32, upload_id string, source string, extent *[2]int64, info *Meta_info, checksum types.ChecksumAlgorithm, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
 	//var location = "/" + object
-	var _, rid = get_request_action(ctx)
+	var _, rid = get_action_name(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
@@ -284,7 +284,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 // stat, etag, and csum of CRC64NVME.
 func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
 	//var location = "/" + object
-	var _, rid = get_request_action(ctx)
+	var _, rid = get_action_name(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
 
@@ -515,7 +515,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(object string, scratch string, par
 	var location = "/" + object
 	var path = bbs.make_path_of_object(scratch, "")
 
-	bbs.logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")
+	/*bbs.logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")*/
 
 	// Copy data to a temporary file.
 

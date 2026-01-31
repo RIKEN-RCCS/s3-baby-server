@@ -54,29 +54,37 @@ type Bb_server struct {
 	pool_path string
 }
 
-type Bb_configuration struct {
-	// Access_logging bool
-	// Pending_upload_expiration time.Duration
+type msec_duration int64
 
-	Server_control_path     string
-	Site_base_url           *string
-	Verify_fs_write         bool
-	Limit_of_xml_parameters int64
+func time_duration(v msec_duration) time.Duration {
+	return time.Duration(v) * time.Millisecond
+}
+
+// BB_CONFIGURATION is the configuration.  It may be loaded from a
+// specified file.  Parameters from "ReadTimeout" to "MaxHeaderBytes"
+// are set to Golang's http.Server.  Values in time.Duration cannot be
+// represented in json (unless encoding/json/v2).  Integers in
+// msec_duration are used instead.
+type Bb_configuration struct {
+	Server_control_path     string        `json:"server_control_path"`
+	Site_base_url           *string       `json:"site_base_url"`
+	Limit_of_xml_parameters int64         `json:"limit_of_xml_parameters"`
+	Exclusion_wait          msec_duration `json:"exclusion_wait"`
+	Verify_fs_write         bool          `json:"verify_fs_write"`
 
 	// Anonymize_ower bool
 	// File_creation_mode fs.FileMode
 
-	ReadTimeout       time.Duration
-	ReadHeaderTimeout time.Duration
-	WriteTimeout      time.Duration
-	IdleTimeout       time.Duration
-	MaxHeaderBytes    int
+	ReadTimeout       msec_duration `json:"ReadTimeout"`
+	ReadHeaderTimeout msec_duration `json:"ReadHeaderTimeout"`
+	WriteTimeout      msec_duration `json:"WriteTimeout"`
+	IdleTimeout       msec_duration `json:"IdleTimeout"`
+	MaxHeaderBytes    int           `json:"MaxHeaderBytes"`
 }
 
 // HANDLER_DATA is a record of handler context.
 type Handler_data struct {
 	Request_id     uint64
-	Action_name    string
 	ResponseWriter http.ResponseWriter
 	Request        *http.Request
 }
@@ -94,6 +102,7 @@ type prior_handler struct {
 }
 
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var rid = sv.bbs.make_request_id()
 	var start_time = time.Now()
 
 	var auth, err1 = sv.bbs.attest_authorization(w, r)
@@ -102,7 +111,17 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var w2 = &httpaide.ResponseWriter2{ResponseWriter: w}
-	sv.sx.ServeHTTP(w2, r)
+	var ctx1 = r.Context()
+	var frame = &Handler_data{
+		Request_id:     rid,
+		ResponseWriter: w,
+		Request:        r}
+	var ctx2 = context.WithValue(ctx1, "handler-data", frame)
+	var r2 = r.WithContext(ctx2)
+
+	// Call the service dispatcher.
+
+	sv.sx.ServeHTTP(w2, r2)
 
 	var user = auth[:min(len(auth), 16)]
 	var code = w2.Status_code
@@ -110,8 +129,8 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var elapse_time = time.Since(start_time)
 	var request = fmt.Sprintf("%s %s", r.Method, r.URL)
-	sv.bbs.logger.Debug("Handling timing",
-		"request", request, "code", code, "length", length,
+	sv.bbs.logger.Debug("Handling time",
+		"request", request, "rid", rid, "code", code, "length", length,
 		"elapse", elapse_time)
 
 	if sv.bbs.access_logging != nil {
@@ -142,11 +161,13 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 	var logger = slog.New(slog.NewTextHandler(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel}))
 
-	// Set default configurations, then read a configuration file.
+	// Set default configurations, or read it from a file.
 
 	var config = Bb_configuration{
 		Server_control_path: "bbs.ctl",
+		Exclusion_wait:      100,
 	}
+
 	if conf != "" {
 		var path = filepath.Clean(conf)
 		var f1, err1 = os.Open(path)
@@ -244,10 +265,10 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 		Handler:  sv,
 		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 
-		ReadTimeout:       bbs.config.ReadTimeout,
-		ReadHeaderTimeout: bbs.config.ReadHeaderTimeout,
-		WriteTimeout:      bbs.config.WriteTimeout,
-		IdleTimeout:       bbs.config.IdleTimeout,
+		ReadTimeout:       time_duration(bbs.config.ReadTimeout),
+		ReadHeaderTimeout: time_duration(bbs.config.ReadHeaderTimeout),
+		WriteTimeout:      time_duration(bbs.config.WriteTimeout),
+		IdleTimeout:       time_duration(bbs.config.IdleTimeout),
 		MaxHeaderBytes:    bbs.config.MaxHeaderBytes,
 	}
 
@@ -273,6 +294,29 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 	if err2 != nil {
 		bbs.logger.Warn("http.ListenAndServe() returns", "error", err2)
 	}
+}
+
+func get_action_name(ctx context.Context) (string, uint64) {
+	var action = ctx.Value("action-name").(*string)
+	if action == nil {
+		log.Fatal("BAD-IMPL: action-name not set")
+		return "", 0
+	}
+	var frame = ctx.Value("handler-data").(*Handler_data)
+	if frame == nil {
+		log.Fatal("BAD-IMPL: handler-data not set")
+		return "", 0
+	}
+	return *action, frame.Request_id
+}
+
+func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Request) {
+	var frame = ctx.Value("handler-data").(*Handler_data)
+	if frame == nil {
+		log.Fatal("BAD-IMPL: handler-data not set")
+		return nil, nil
+	}
+	return frame.ResponseWriter, frame.Request
 }
 
 func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Request) (string, error) {

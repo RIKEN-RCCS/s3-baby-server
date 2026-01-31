@@ -72,7 +72,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
-	var action, rid = get_request_action(ctx)
+	var action, rid = get_action_name(ctx)
 	bbs.logger.Info("Error in action",
 		"action", action, "rid", rid, "code", string(e1.Code), "error", e1)
 
@@ -125,27 +125,9 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 // COPE_WITH_WRITE_ERROR is called on a write error of response
 // payload and makes a response for it.
 func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	var action, rid = get_request_action(ctx)
+	var action, rid = get_action_name(ctx)
 	bbs.logger.Info("Writing response failed",
 		"action", action, "rid", rid, "error", e)
-}
-
-func get_request_action(ctx context.Context) (string, uint64) {
-	var frame = ctx.Value("handler-data").(*Handler_data)
-	if frame == nil {
-		log.Fatal("BAD-IMPL: handler-data not set")
-		return "", 0
-	}
-	return frame.Action_name, frame.Request_id
-}
-
-func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Request) {
-	var frame = ctx.Value("handler-data").(*Handler_data)
-	if frame == nil {
-		log.Fatal("BAD-IMPL: handler-data not set")
-		return nil, nil
-	}
-	return frame.ResponseWriter, frame.Request
 }
 
 // MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
@@ -190,7 +172,8 @@ func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
 }
 
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
-	var ok = bbs.monitor1.enter(object, rid, (10 * time.Millisecond))
+	var duration = time_duration(bbs.config.Exclusion_wait)
+	var ok = bbs.monitor1.enter(object, rid, duration)
 	if !ok {
 		return &Aws_s3_error{Code: RequestTimeout}
 	}
@@ -563,7 +546,7 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 
 	var mtimes = mtime.UTC().Format(time.RFC1123)
 	var headers = map[string][]string{
-		"ETag": []string{etag},
+		"ETag":          []string{etag},
 		"Last-Modified": []string{mtimes}}
 
 	// Evaluate conditions in the order specified in RFC-7232.

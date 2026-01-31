@@ -117,11 +117,6 @@
   (if (not (string=? bb-server-package bb-dispatcher-package))
       (string-append bb-server-package "." bb-server-name)
       bb-server-name))
-(define handler-data-name "Handler_data")
-(define handler-data-type
-  (if (not (string=? bb-server-package bb-dispatcher-package))
-      (string-append bb-server-package "." handler-data-name)
-      handler-data-name))
 
 ;; List of implemented actions of s3-baby-server.  The full list of S3
 ;; actions are listed in "shapes" / "com.amazonaws.s3#AmazonS3" /
@@ -1558,17 +1553,13 @@
 	   "var ho = w.Header()"
 	   "// Mark variables used to avoid unused errors:"
 	   "var _, _, _ = qi, hi, ho"
-	   (format #f "var handler_data = &~a{" handler-data-type)
-	   (format #f "Request_id: bbs.make_request_id(),")
-	   (format #f "Action_name: ~s," name)
-	   (format #f "ResponseWriter: w,")
-	   (format #f "Request: r}")
+	   (format #f "var action = ~s" name)
 	   "var input_errors = map[string]error{}"
 	   "var ctx1 = r.Context()"
-	   "var ctx2 = context.WithValue(ctx1, \"handler-data\", handler_data)"
-	   (string-append
-	    "var ctx = context.WithValue(ctx2, \"input-errors\","
-	    " input_errors)"))
+	   (format #f "var ctx2 = context.WithValue(ctx1, ~s, ~a)"
+		   "action-name" "&action")
+	   (format #f "var ctx = context.WithValue(ctx2, ~s, ~a)"
+		   "input-errors" "input_errors"))
      ;; Input accessors:
      (list (format #f "var i = s3.~a{}" input-type))
      (apply-append (map make-input-import import-properties))

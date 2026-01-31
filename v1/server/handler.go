@@ -1,4 +1,4 @@
-// handler.go (2026-01-26)
+// handler.go (2026-01-31)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -31,14 +31,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "AbortMultipartUpload",
-ResponseWriter: w,
-Request: r}
+var action = "AbortMultipartUpload"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.AbortMultipartUploadInput{}
 {var x = r.PathValue("bucket")
@@ -78,14 +74,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "CompleteMultipartUpload",
-ResponseWriter: w,
-Request: r}
+var action = "CompleteMultipartUpload"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CompleteMultipartUploadInput{}
 {var x = r.PathValue("bucket")
@@ -173,14 +165,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "CopyObject",
-ResponseWriter: w,
-Request: r}
+var action = "CopyObject"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CopyObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
@@ -343,14 +331,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "CreateBucket",
-ResponseWriter: w,
-Request: r}
+var action = "CreateBucket"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CreateBucketInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
@@ -406,14 +390,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "CreateMultipartUpload",
-ResponseWriter: w,
-Request: r}
+var action = "CreateMultipartUpload"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.CreateMultipartUploadInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
@@ -553,14 +533,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "DeleteBucket",
-ResponseWriter: w,
-Request: r}
+var action = "DeleteBucket"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteBucketInput{}
 {var x = r.PathValue("bucket")
@@ -586,14 +562,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "DeleteObject",
-ResponseWriter: w,
-Request: r}
+var action = "DeleteObject"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteObjectInput{}
 {var x = r.PathValue("bucket")
@@ -649,14 +621,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "DeleteObjects",
-ResponseWriter: w,
-Request: r}
+var action = "DeleteObjects"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteObjectsInput{}
 {var x = r.PathValue("bucket")
@@ -712,14 +680,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "DeleteObjectTagging",
-ResponseWriter: w,
-Request: r}
+var action = "DeleteObjectTagging"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.DeleteObjectTaggingInput{}
 {var x = r.PathValue("bucket")
@@ -751,14 +715,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "GetObject",
-ResponseWriter: w,
-Request: r}
+var action = "GetObject"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.GetObjectInput{}
 {var x = r.PathValue("bucket")
@@ -913,14 +873,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "GetObjectAttributes",
-ResponseWriter: w,
-Request: r}
+var action = "GetObjectAttributes"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.GetObjectAttributesInput{}
 {var x = r.PathValue("bucket")
@@ -993,14 +949,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "GetObjectTagging",
-ResponseWriter: w,
-Request: r}
+var action = "GetObjectTagging"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.GetObjectTaggingInput{}
 {var x = r.PathValue("bucket")
@@ -1044,14 +996,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "HeadBucket",
-ResponseWriter: w,
-Request: r}
+var action = "HeadBucket"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.HeadBucketInput{}
 {var x = r.PathValue("bucket")
@@ -1087,14 +1035,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "HeadObject",
-ResponseWriter: w,
-Request: r}
+var action = "HeadObject"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.HeadObjectInput{}
 {var x = r.PathValue("bucket")
@@ -1247,14 +1191,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "ListBuckets",
-ResponseWriter: w,
-Request: r}
+var action = "ListBuckets"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListBucketsInput{}
 if qi.Has("max-buckets") {
@@ -1295,14 +1235,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "ListMultipartUploads",
-ResponseWriter: w,
-Request: r}
+var action = "ListMultipartUploads"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListMultipartUploadsInput{}
 {var x = r.PathValue("bucket")
@@ -1359,14 +1295,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "ListObjects",
-ResponseWriter: w,
-Request: r}
+var action = "ListObjects"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListObjectsInput{}
 {var x = r.PathValue("bucket")
@@ -1431,14 +1363,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "ListObjectsV2",
-ResponseWriter: w,
-Request: r}
+var action = "ListObjectsV2"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListObjectsV2Input{}
 {var x = r.PathValue("bucket")
@@ -1509,14 +1437,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "ListParts",
-ResponseWriter: w,
-Request: r}
+var action = "ListParts"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.ListPartsInput{}
 {var x = r.PathValue("bucket")
@@ -1577,14 +1501,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "PutObject",
-ResponseWriter: w,
-Request: r}
+var action = "PutObject"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.PutObjectInput{}
 if len(hi.Values("x-amz-acl")) != 0 {
@@ -1749,14 +1669,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "PutObjectTagging",
-ResponseWriter: w,
-Request: r}
+var action = "PutObjectTagging"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.PutObjectTaggingInput{}
 {var x = r.PathValue("bucket")
@@ -1804,14 +1720,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "UploadPart",
-ResponseWriter: w,
-Request: r}
+var action = "UploadPart"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.UploadPartInput{}
 {var x = r.PathValue("bucket")
@@ -1901,14 +1813,10 @@ var hi = r.Header
 var ho = w.Header()
 // Mark variables used to avoid unused errors:
 var _, _, _ = qi, hi, ho
-var handler_data = &Handler_data{
-Request_id: bbs.make_request_id(),
-Action_name: "UploadPartCopy",
-ResponseWriter: w,
-Request: r}
+var action = "UploadPartCopy"
 var input_errors = map[string]error{}
 var ctx1 = r.Context()
-var ctx2 = context.WithValue(ctx1, "handler-data", handler_data)
+var ctx2 = context.WithValue(ctx1, "action-name", &action)
 var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.UploadPartCopyInput{}
 {var x = r.PathValue("bucket")
