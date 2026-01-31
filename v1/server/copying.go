@@ -27,8 +27,10 @@ import (
 	"io"
 	"io/fs"
 	//"log"
+	"strings"
 	"time"
 	//"net/url"
+	"net/http/httputil"
 	"os"
 	//"path"
 	"path/filepath"
@@ -65,6 +67,17 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 
 	bb_assert(!(part != 0) || upload_id != "")
 
+	// Modify reader of the body when Transfer-Encoding is chunked.
+
+	var body2 io.Reader
+	var _, r = get_handler_arguments(ctx)
+	var enc = r.TransferEncoding
+	if len(enc) == 1 && strings.EqualFold(enc[0], "chunked") {
+		body2 = httputil.NewChunkedReader(body)
+	} else {
+		body2 = body
+	}
+
 	// TARGET is the copy destination.  It can be either an object or
 	// a MPUL part file.
 
@@ -90,7 +103,7 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 	}
 
 	var md5a, csum1, err2 = bbs.upload_file_as_scratch(object, scratch,
-		checks.size_to_check, checksum1, body)
+		checks.size_to_check, checksum1, body2)
 	if err2 != nil {
 		return nil, "", nil, err2
 	}

@@ -24,8 +24,8 @@ cmp "zzz1" data-20m.txt
 
 ECHO "Clean up."
 
-EXEC_ECHO aws s3 rm --no-cli-pager s3://mybucket1/object1.txt
-EXEC_ECHO aws s3 rb --no-cli-pager s3://mybucket1
+EXEC_ECHO aws s3 rm --no-verify-ssl --no-cli-pager s3://mybucket1/object1.txt
+EXEC_ECHO aws s3 rb --no-verify-ssl --no-cli-pager s3://mybucket1
 
 rm -f zzz zzz[123]
 

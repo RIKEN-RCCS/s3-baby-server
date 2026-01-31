@@ -1259,8 +1259,9 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	if extent != nil {
 		var length = extent[1] - extent[0]
 		o.ContentLength = &length
-		var rangei = fmt.Sprintf("bytes %d-%d/%d", extent[0], extent[1], size)
-		o.ContentRange = &rangei
+		var subrange = fmt.Sprintf("bytes %d-%d/%d",
+			extent[0], (extent[1] - 1), size)
+		o.ContentRange = &subrange
 	} else {
 		o.ContentLength = &size
 	}
@@ -1597,8 +1598,9 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	if extent != nil {
 		var length = extent[1] - extent[0]
 		o.ContentLength = &length
-		var srange = fmt.Sprintf("bytes %d-%d/%d", extent[0], extent[1], size)
-		o.ContentRange = &srange
+		var subrange = fmt.Sprintf("bytes %d-%d/%d",
+			extent[0], (extent[1] - 1), size)
+		o.ContentRange = &subrange
 	} else {
 		o.ContentLength = &size
 	}

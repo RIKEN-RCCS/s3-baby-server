@@ -11,6 +11,4 @@ set -o pipefail
 alias ECHO=echo
 EXEC_ECHO() { (echo ">> $@" 1>&2) ; "$@" ; }
 
-no-verify-ssl="--no-verify-ssl"
-
 export AWS_EC2_METADATA_DISABLED=true

@@ -251,6 +251,12 @@ in "Exclusion_wait").  During developing Baby-server, it was noticed
 that the wait limit of 10 msec was not enough, although a serialized
 part of an operation is small.
 
+### Chunked Encoding
+
+Baby-server uses "httputil.NewChunkedReader" for chunked transfer.  It
+only checks Transfer-Encoding as it is a single entry "chunked".  This
+restriction is like http.parseTransferEncoding().
+
 ## References
 
 https://docs.aws.amazon.com/s3/
