@@ -1,0 +1,830 @@
+// hodgepodge.go
+
+// Copyright 2025-2026 RIKEN R-CCS
+// SPDX-License-Identifier: BSD-2-Clause
+
+package server
+
+import (
+	"context"
+	"encoding/base64"
+	//"errors"
+	"fmt"
+	//"io/fs"
+	//"os"
+	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
+	"path"
+	"time"
+	//"bytes"
+	//"encoding/base64"
+	//"encoding/binary"
+	//"encoding/hex"
+	"encoding/xml"
+	//"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"log"
+	//"log/slog"
+	"math/rand"
+	"net/http"
+	"net/url"
+	"slices"
+	//"strconv"
+	"strings"
+	//"sync"
+)
+
+func bb_assert(c bool) {
+	if !c {
+		panic("assertion")
+	}
+}
+
+type suffix_record struct {
+	rid       uint64
+	timestamp time.Time
+}
+
+// MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
+// does not advance, uses the last value plus one.  It is strictly
+// increasing.
+func (bbs *Bb_server) make_request_id() uint64 {
+	var t uint64 = uint64(time.Now().UnixMicro())
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	if bbs.rid_past < t {
+		bbs.rid_past = t
+	} else {
+		t = bbs.rid_past + 1
+		bbs.rid_past = t
+	}
+	//return strconv.FormatInt(t, 16)
+	//return fmt.Sprintf("%016x", t)
+	return t
+}
+
+// RESPOND_ON_ACTION_ERROR is called on an action error and makes a
+// response for it.  Note on a status=304 error, it cannot have a
+// response body.  In addition, such an error is required to return
+// some headers ("ETag" for instance).  An error record may contain
+// values for the headers.
+func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
+	var e1, ok = e.(*Aws_s3_error)
+	if !ok {
+		log.Fatalf("Bad error from action: %#v", e)
+	}
+	var action, rid = get_action_name(ctx)
+	bbs.logger.Info("Error in action",
+		"action", action, "rid", rid, "code", string(e1.Code), "error", e1)
+
+	e1.RequestId = fmt.Sprintf("%016x", rid)
+	var m = Aws_s3_error_to_message[e1.Code]
+	if len(e1.Message) == 0 {
+		e1.Message = m.Message
+	}
+
+	if e1.headers != nil {
+		for k, vv := range e1.headers {
+			for _, v := range vv {
+				w.Header().Set(k, v)
+			}
+		}
+	}
+
+	switch m.Status {
+	case 304:
+		w.WriteHeader(m.Status)
+
+	default:
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(m.Status)
+		var w1 = http.NewResponseController(w)
+		var err1 = xml.NewEncoder(w).Encode(e1)
+		if err1 != nil {
+			bbs.logger.Error("xml-encode failed in writing a response",
+				"action", action, "rid", rid, "error", err1)
+			/*panic(fmt.Errorf("xml-encode failed: %w", err1))*/
+		}
+		w1.Flush()
+	}
+}
+
+// RESPOND_ON_INPUT_ERROR is an action error and makes a
+// response for it.
+func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, m map[string]error) {
+	if len(m) == 0 {
+		log.Fatalf("BAD-IMPL: error handler is called without errors: %#v", m)
+	}
+	var e error
+	for _, e = range m {
+		break
+	}
+	var err1 = &Aws_s3_error{Code: InvalidArgument, Message: e.Error()}
+	bbs.respond_on_action_error(ctx, w, r, err1)
+}
+
+// COPE_WITH_WRITE_ERROR is called on a write error of response
+// payload and makes a response for it.
+func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
+	var action, rid = get_action_name(ctx)
+	bbs.logger.Info("Writing response failed",
+		"action", action, "rid", rid, "error", e)
+}
+
+// MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
+// takes a request-id.  A key is valid during request processing with
+// a request-id.  It returns a string of 6 hex-digits.
+func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	var loops int = 0
+	for true {
+		var r = rand.Int63()
+		var s = fmt.Sprintf("%06x", r)[:6]
+		var _, ok = bbs.suffixes[s]
+		if !ok {
+			bbs.suffixes[s] = suffix_record{rid, time.Now()}
+			return s
+		}
+		loops++
+		if loops >= 10 {
+			log.Fatal("BAD-IMPL: unique key generation loops forever")
+		}
+	}
+	panic("NEVER")
+}
+
+// MAKE_NEW_UPLOAD_ID makes a key string for a upload-id.  Its
+// uniqueness is NOT guaranteed.  It is only by probability.
+func (bbs *Bb_server) make_new_upload_id() string {
+	var r = rand.Uint32()
+	var s = fmt.Sprintf("%08x", r)
+	return s
+}
+
+func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
+	bbs.mutex.Lock()
+	defer bbs.mutex.Unlock()
+	for k, v := range bbs.suffixes {
+		if v.rid == rid {
+			delete(bbs.suffixes, k)
+		}
+	}
+}
+
+func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
+	var duration = time_duration(bbs.config.Exclusion_wait)
+	var ok = bbs.monitor1.enter(object, rid, duration)
+	if !ok {
+		return &Aws_s3_error{Code: RequestTimeout}
+	}
+	return nil
+}
+
+func (bbs *Bb_server) release_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
+	bbs.monitor1.exit(object, rid)
+	return nil
+}
+
+func (bbs *Bb_server) test_access_serialized(ctx context.Context, object string, rid uint64) bool {
+	var ok = bbs.monitor1.attest(object, rid)
+	return ok
+}
+
+func make_parameter_error(name string, err error) error {
+	return fmt.Errorf(("Parameter \"" + name + "\" error: %w"), err)
+}
+
+func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
+	if bucket1 == nil {
+		log.Fatalf("BAD-IMPL: Bucket parameter missing")
+	}
+	var bucket = *bucket1
+	if !check_bucket_naming(bucket) {
+		var errz = &Aws_s3_error{Code: InvalidBucketName}
+		return "", errz
+	}
+
+	if key1 == nil {
+		log.Fatalf("BAD-IMPL: Key parameter missing")
+	}
+	var key = *key1
+	if strings.HasPrefix(key, "..") {
+		log.Fatalf("BAD-IMPL: Key parameter not clean")
+	}
+	if !check_object_naming(key) {
+		var errz = &Aws_s3_error{Code: InvalidArgument}
+		return "", errz
+	}
+
+	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
+	if err2 != nil {
+		return "", err2
+	}
+
+	var object = path.Join(bucket, key)
+	return object, nil
+}
+
+func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *string) (string, *Aws_s3_error) {
+	if bucket1 == nil {
+		log.Fatalf("BAD-IMPL: Bucket parameter missing")
+	}
+	var bucket = *bucket1
+	if !check_bucket_naming(bucket) {
+		var errz = &Aws_s3_error{Code: InvalidBucketName}
+		return "", errz
+	}
+
+	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
+	if err2 != nil {
+		return "", err2
+	}
+
+	return bucket, nil
+}
+
+type option_check_list struct {
+	ACL_bucket_canned              types.BucketCannedACL
+	ACL_object_canned              types.ObjectCannedACL
+	BucketKeyEnabled               *bool
+	BucketRegion                   *string
+	BypassGovernanceRetention      *bool
+	CacheControl                   *string
+	ChecksumAlgorithm              types.ChecksumAlgorithm
+	ChecksumCRC32                  *string
+	ChecksumCRC32C                 *string
+	ChecksumCRC64NVME              *string
+	ChecksumMode                   types.ChecksumMode
+	ChecksumSHA1                   *string
+	ChecksumSHA256                 *string
+	ChecksumType                   types.ChecksumType
+	ContentDisposition             *string
+	ContentEncoding                *string
+	ContentLanguage                *string
+	ContentLength                  *int64
+	ContentMD5                     *string
+	ContentType                    *string
+	ContinuationToken              *string
+	CopySourceIfMatch              *string
+	CopySourceIfModifiedSince      *time.Time
+	CopySourceIfNoneMatch          *string
+	CopySourceIfUnmodifiedSince    *time.Time
+	CopySourceRange                *string
+	CopySourceSSECustomerAlgorithm *string
+	CopySourceSSECustomerKey       *string
+	CopySourceSSECustomerKeyMD5    *string
+	CreateBucketConfiguration      *types.CreateBucketConfiguration
+	Delete                         *types.Delete
+	Delimiter                      *string
+	EncodingType                   types.EncodingType
+	ExpectedBucketOwner            *string
+	ExpectedSourceBucketOwner      *string
+	Expires                        *time.Time
+	FetchOwner                     *bool
+	GrantFullControl               *string
+	GrantRead                      *string
+	GrantReadACP                   *string
+	GrantWrite                     *string
+	GrantWriteACP                  *string
+	IfMatch                        *string
+	IfMatchInitiatedTime           *time.Time
+	IfMatchLastModifiedTime        *time.Time
+	IfMatchSize                    *int64
+	IfModifiedSince                *time.Time
+	IfNoneMatch                    *string
+	IfUnmodifiedSince              *time.Time
+	KeyMarker                      *string
+	MFA                            *string
+	Marker                         *string
+	MaxBuckets                     *int32
+	MaxKeys                        *int32
+	MaxParts                       *int32
+	MaxUploads                     *int32
+	Metadata                       map[string]string
+	MetadataDirective              types.MetadataDirective
+	MpuObjectSize                  *int64
+	MultipartUpload                *types.CompletedMultipartUpload
+	ObjectAttributes               []types.ObjectAttributes
+	ObjectLockEnabledForBucket     *bool
+	ObjectLockLegalHoldStatus      types.ObjectLockLegalHoldStatus
+	ObjectLockMode                 types.ObjectLockMode
+	ObjectLockRetainUntilDate      *time.Time
+	ObjectOwnership                types.ObjectOwnership
+	OptionalObjectAttributes       []types.OptionalObjectAttributes
+	PartNumber                     *int32
+	PartNumberMarker               *string
+	Prefix                         *string
+	Range                          *string
+	RequestPayer                   types.RequestPayer
+	ResponseCacheControl           *string
+	ResponseContentDisposition     *string
+	ResponseContentEncoding        *string
+	ResponseContentLanguage        *string
+	ResponseContentType            *string
+	ResponseExpires                *time.Time
+	SSECustomerAlgorithm           *string
+	SSECustomerKey                 *string
+	SSECustomerKeyMD5              *string
+	SSEKMSEncryptionContext        *string
+	SSEKMSKeyId                    *string
+	ServerSideEncryption           types.ServerSideEncryption
+	StartAfter                     *string
+	StorageClass                   types.StorageClass
+	Tagging_string                 *string
+	Tagging_tagging                *types.Tagging
+	TaggingDirective               types.TaggingDirective
+	UploadId                       *string
+	UploadIdMarker                 *string
+	VersionId                      *string
+	WebsiteRedirectLocation        *string
+	WriteOffsetBytes               *int64
+}
+
+func check_options_unsupported(action string, i *option_check_list) *Aws_s3_error {
+	if i.ExpectedBucketOwner != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "expected-bucket-owner is not supported."}
+		return errz
+	}
+	if i.MFA != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "MFA is not supported."}
+		return errz
+	}
+	if i.PartNumber != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "PartNumber is not supported."}
+		return errz
+	}
+	if i.VersionId != nil {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message: "Version-ID is not supported."}
+		return errz
+	}
+
+	if i.ExpectedBucketOwner != nil {
+		return &Aws_s3_error{Code: AccessDenied}
+	}
+
+	if i.FetchOwner != nil && *i.FetchOwner == true {
+		return &Aws_s3_error{Code: AccessDenied}
+	}
+
+	// Options that support only the restricted set.
+
+	if i.StorageClass != "" {
+		if i.StorageClass != types.StorageClassStandard {
+			var errz = &Aws_s3_error{Code: InvalidStorageClass,
+				Message: "Bad x-amz-storage-class."}
+			return errz
+		}
+	}
+
+	return nil
+}
+
+func (bbs *Bb_server) check_options_ignored(action, resource string, i *option_check_list) *Aws_s3_error {
+	if i.ACL_bucket_canned != "" {
+		bbs.logger.Debug("x-amz-acl ignored",
+			"action", action, "resource", resource)
+	}
+	if i.CreateBucketConfiguration != nil {
+		bbs.logger.Debug("CreateBucketConfiguration ignored",
+			"action", action, "resource", resource)
+	}
+	if i.ObjectOwnership != types.ObjectOwnershipBucketOwnerEnforced {
+		bbs.logger.Debug("x-amz-object-ownership ignored",
+			"action", action, "resource", resource)
+	}
+
+	// Ignore "Cache-Control" totally.
+
+	if i.CacheControl != nil {
+		if !strings.EqualFold(*i.CacheControl, "no-cache") {
+			bbs.logger.Info("Cache-Control header ignored",
+				"action", action, "resource", resource,
+				"directive", *i.CacheControl)
+		}
+	}
+
+	return nil
+}
+
+// SCAN_RANGE parses ranges in rfc-9110.  It returns a single range,
+// or it returns nil when no range is specified.  A returned range is
+// bounded by the file size.  A range exceeding the file size are
+// rejected.  Multiple ranges are rejected, too.  Note it fixes the
+// upper bound of rfc-9110 which is inclusive.
+func scan_range(object string, rangestring *string, size int64) (*[2]int64, *Aws_s3_error) {
+	var location = "/" + object
+	if rangestring == nil {
+		return nil, nil
+	} else {
+		var r, err3 = httpaide.Scan_rfc9110_ranges(*rangestring)
+		if err3 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message:  "Range format is illegal.",
+				Resource: location}
+			return nil, errz
+		}
+		if len(r) != 1 {
+			var errz = &Aws_s3_error{Code: InvalidRange,
+				Message:  "Range is not more than one.",
+				Resource: location}
+			return nil, errz
+		}
+
+		if r[0][1] > size {
+			var errz = &Aws_s3_error{Code: InvalidRange,
+				Resource: location}
+			return nil, errz
+		}
+
+		// Fix an unspecified upper bound.
+
+		var extent *[2]int64
+		if r[0][1] == -1 {
+			extent = &[2]int64{r[0][0], size}
+		} else {
+			extent = &[2]int64{r[0][0], (r[0][1] + 1)}
+		}
+		return extent, nil
+	}
+}
+
+// Request Condition Handling -- It is described in RFC-7232.
+//
+// https://datatracker.ietf.org/doc/html/rfc7232
+//
+// The order of evaluating conditions:
+// If-Match < If-Unmodified-Since (skip if If-Match exists)
+// < If-None-Match < If-Modified-Since (skip if If-None-Match exists)
+//
+// Status code to be returned on failure:
+//   - ¬If-Match → 412 Precondition Failed
+//   - ¬If-Unmodified-Since → 412 Precondition Failed
+//   - ¬If-None-Match (GET/HEAD) → 304 Not Modified
+//   - ¬If-None-Match (other) → 412 Precondition Failed
+//   - ¬If-Modified-Since → 304 Not Modified
+//
+// The simplified rule described in the AWS-S3 API document is below.
+// It somewhat differs from RFC-7232:
+//   - If-Match ∧ ¬If-Unmodified-Since → 200 OK
+//   - ¬If-None-Match ∧ If-Modified-Since → 304 Not Modified
+
+// MEMO: It should ignore a bad format http-date.  However, the header
+// scanner generated by the stub-generator signals an error.
+
+// CHECK_REQUEST_CONDITIONALS checks conditions of "if-match",
+// "if-none-match", "if-modified-since", and "if-unmodified-since".
+// Conditionals are classified by a mode: "read" (GET/HEAD), "write"
+// (PUT/POST), and "delete" (DELETE).  A mode may disagree with the
+// method, when the object is a copy source.  It considers the equal
+// time as included.
+func (bbs *Bb_server) check_request_conditionals(object string, mode string, conditionals copy_conditionals) *Aws_s3_error {
+	bb_assert(slices.Contains([]string{"read", "write", "delete"}, mode))
+
+	// No conditions are unconditionally Okay.
+
+	if conditionals == (copy_conditionals{}) {
+		return nil
+	}
+
+	// Scan list of etags in the headers.
+
+	var etags_include []string
+	var etags_exclude []string
+	if conditionals.some_match != nil {
+		var m1, err1 = httpaide.Scan_rfc7232_etags(*conditionals.some_match)
+		if err1 != nil {
+			bbs.logger.Info("Bad conditional format (if-match)",
+				"error", err1)
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad if-match."}
+			return errz
+		}
+		etags_include = m1
+	}
+	if conditionals.none_match != nil {
+		var m2, err2 = httpaide.Scan_rfc7232_etags(*conditionals.none_match)
+		if err2 != nil {
+			bbs.logger.Info("Bad conditional format (if-none-match)",
+				"error", err2)
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Bad if-none-match."}
+			return errz
+		}
+		etags_exclude = m2
+	}
+
+	// Fetch status of an object.  It accepts non-existing case.
+
+	var stat, etag, err1 = bbs.fetch_object_status(object, false)
+	if err1 != nil {
+		bbs.logger.Info("Bad conditional, object missing",
+			"error", err1)
+		return err1
+	}
+	var nonexist = (stat == nil)
+
+	var mtime time.Time
+	var size int64
+	if stat != nil {
+		mtime = stat.ModTime()
+		size = stat.Size()
+	} else {
+		mtime = time.Time{}
+		size = -1
+	}
+
+	if nonexist && mode == "delete" {
+		// OK.
+		return nil
+	}
+
+	// Header values returned on an error.
+
+	var mtimes = mtime.UTC().Format(time.RFC1123)
+	var headers = map[string][]string{
+		"ETag":          []string{etag},
+		"Last-Modified": []string{mtimes}}
+
+	// Evaluate conditions in the order specified in RFC-7232.
+
+	if etags_include != nil {
+		// "if-match" and "e.ETag" in DeleteObjects.
+		if !nonexist && match_etags_is_star(etags_include) {
+			// Always matches.
+		} else if nonexist || !slices.Contains(etags_include, etag) {
+			bbs.logger.Info("Conditional fails (if-match)",
+				"etag", etag, "etags_include", etags_include)
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "Condition if-match fails.",
+				headers: headers}
+			return errz
+		}
+	} else if conditionals.modified_before != nil {
+		// "if-unmodified-since"
+		if nonexist || !(mtime.Compare(*conditionals.modified_before) <= 0) {
+			bbs.logger.Info("Conditional fails (if-unmodified-since)",
+				"mtime", mtime,
+				"modified_before", *conditionals.modified_before)
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "Condition if-unmodified-since fails.",
+				headers: headers}
+			return errz
+		}
+	}
+
+	if etags_exclude != nil {
+		// "if-none-match",
+		var errorcode string
+		if mode == "read" {
+			errorcode = NotModified
+		} else {
+			errorcode = PreconditionFailed
+		}
+		if nonexist {
+			// OK.
+		} else if match_etags_is_star(etags_exclude) {
+			bbs.logger.Info("Conditional fails (if-none-match)",
+				"etag", etag, "etags_exclude", etags_exclude)
+			var errz = &Aws_s3_error{Code: errorcode,
+				Message: "Condition if-none-match fails.",
+				headers: headers}
+			return errz
+		} else if slices.Contains(etags_exclude, etag) {
+			bbs.logger.Info("Conditional fails (if-none-match)",
+				"etag", etag, "etags_exclude", etags_exclude)
+			var errz = &Aws_s3_error{Code: errorcode,
+				Message: "Condition if-none-match fails.",
+				headers: headers}
+			return errz
+		}
+	} else if conditionals.modified_after != nil {
+		// "if-modified-since"
+		if nonexist || !(conditionals.modified_after.Compare(mtime) <= 0) {
+			bbs.logger.Info("Conditional fails (if-modified-since)",
+				"mtime", mtime,
+				"modified_after", *conditionals.modified_after)
+			var errz = &Aws_s3_error{Code: NotModified,
+				Message: "Condition if-modified-since fails.",
+				headers: headers}
+			return errz
+		}
+	}
+
+	if conditionals.modified_time != nil {
+		// "x-amz-if-match-last-modified-time" and
+		// "e.LastModifiedTime" in DeleteObjects.
+		if nonexist {
+			// OK.
+		} else if !conditionals.modified_time.Equal(mtime) {
+			bbs.logger.Info("Conditional fails (if-match-last-modified-time)",
+				"mtime", mtime,
+				"modified_time", *conditionals.modified_time)
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "Condition x-amz-if-match-last-modified-time fails.",
+				headers: headers}
+			return errz
+		}
+	}
+
+	if conditionals.size != nil {
+		// "x-amz-if-match-size" and "e.Size" in DeleteObjects.
+		if nonexist {
+			// OK.
+		} else if !(*conditionals.size == size) {
+			bbs.logger.Info("Conditional fails (if-match-size)",
+				"size", size,
+				"specified_size", *conditionals.size)
+			var errz = &Aws_s3_error{Code: PreconditionFailed,
+				Message: "Condition x-amz-if-match-size fails."}
+			return errz
+		}
+	}
+
+	return nil
+}
+
+func match_etags_is_star(etags []string) bool {
+	return len(etags) == 1 && etags[0] == "*"
+}
+
+// MAKE_METAINFO makes a metainfo from i.Metadata and i.Tagging.
+func (bbs *Bb_server) make_metainfo(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
+	var tags, err1 = bbs.parse_tags(tagging, location)
+	if err1 != nil {
+		return nil, err1
+	}
+	if tags != nil || headers != nil {
+		return &Meta_info{Headers: headers, Tags: tags}, nil
+	} else {
+		return nil, nil
+	}
+}
+
+// PARSE_TAGS scans tags in a request.  Note a tag-set is encoded as
+// URL query parameters.
+func (bbs *Bb_server) parse_tags(s *string, location string) (*types.Tagging, *Aws_s3_error) {
+	if s == nil {
+		return nil, nil
+	}
+	var m, err1 = url.ParseQuery(*s)
+	if err1 != nil {
+		bbs.logger.Info("Parse_tags: .ParseQuery() failed",
+			"error", err1)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Tag format error.",
+			Resource: location}
+		return nil, errz
+	}
+	var tags = []types.Tag{}
+	for k, v := range m {
+		if len(v) != 1 {
+			bbs.logger.Info("Parse_tags: Multiple values in tags, ignored")
+		}
+		var value string
+		if len(v) == 0 {
+			value = ""
+		} else {
+			value = v[0]
+		}
+		tags = append(tags, types.Tag{Key: &k, Value: &value})
+	}
+	if len(tags) == 0 {
+		return nil, nil
+	} else {
+		var tagging = types.Tagging{TagSet: tags}
+		return &tagging, nil
+	}
+}
+
+func (bbs *Bb_server) lookat_part_number(object string, partnumber *int32) (int32, *Aws_s3_error) {
+	var location = "/" + object
+	if partnumber == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "PartNumber missing.",
+			Resource: location}
+		return 0, errz
+	} else {
+		var part = *partnumber
+		if part < 1 || max_part_number < part {
+			var errz = &Aws_s3_error{Code: InvalidPart,
+				Resource: location}
+			return 0, errz
+		}
+		return part, nil
+	}
+}
+
+func (bbs *Bb_server) lookat_copy_source(object string, copysource *string) (string, *Aws_s3_error) {
+	if copysource == nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "No x-amz-copy-source supplied."}
+		return "", errz
+	}
+	var u, err3 = url.Parse(*copysource)
+	if err3 != nil {
+		bbs.logger.Debug("url.Parse() fail",
+			"string", *copysource, "error", err3)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "Bad x-amz-copy-source."}
+		return "", errz
+	}
+	var source = u.Path
+	if !check_object_naming(source) {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "Bad x-amz-copy-source, bad naming."}
+		return "", errz
+	}
+	var d1 = strings.Split(object, "/")
+	var s1 = strings.Split(source, "/")
+	if !(len(d1) >= 2 && len(s1) >= 2 && d1[0] == s1[0]) {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "x-amz-copy-source must be in the same bucket."}
+		return "", errz
+	}
+	return source, nil
+}
+
+func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
+	if csum == nil {
+		return nil, nil
+	} else {
+		var location = "/" + object
+		var csum2, err5 = base64.StdEncoding.DecodeString(*csum)
+		if err5 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message:  "Bad base64 (MD5) encoding.",
+				Resource: location}
+			return nil, errz
+		}
+		return csum2, nil
+	}
+}
+
+// DECODE_CHECKSUM_RECORD decodes a checksum record.  It will return
+// nothing silently when no checksum is given.
+func decode_checksum_record(object string, csumset *types.Checksum) (types.ChecksumAlgorithm, []byte, *Aws_s3_error) {
+	var location = "/" + object
+	var checksum types.ChecksumAlgorithm
+	var csum1 *string
+	var count = 0
+	if csumset.ChecksumCRC32 != nil {
+		checksum = types.ChecksumAlgorithmCrc32
+		csum1 = csumset.ChecksumCRC32
+		count++
+	}
+	if csumset.ChecksumCRC32C != nil {
+		checksum = types.ChecksumAlgorithmCrc32c
+		csum1 = csumset.ChecksumCRC32C
+		count++
+	}
+	if csumset.ChecksumCRC64NVME != nil {
+		checksum = types.ChecksumAlgorithmCrc64nvme
+		csum1 = csumset.ChecksumCRC64NVME
+		count++
+	}
+	if csumset.ChecksumSHA1 != nil {
+		checksum = types.ChecksumAlgorithmSha1
+		csum1 = csumset.ChecksumSHA1
+		count++
+	}
+	if csumset.ChecksumSHA256 != nil {
+		checksum = types.ChecksumAlgorithmSha256
+		csum1 = csumset.ChecksumSHA256
+		count++
+	}
+	if csum1 == nil {
+		// No checksum is given.
+		return "", nil, nil
+	}
+	if count >= 2 {
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message:  "Checksum value is multiple times specified.",
+			Resource: location}
+		return "", nil, errz
+	}
+	var csum, err5 = base64.StdEncoding.DecodeString(*csum1)
+	if err5 != nil {
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Bad checksum encoding.",
+			Resource: location}
+		return "", nil, errz
+	}
+	return checksum, csum, nil
+}
+
+func metainfo_zero(m *Meta_info) bool {
+	if m == nil {
+		return true
+	}
+	//m.ContentDisposition == nil &&
+	//m.ContentEncoding == nil &&
+	//m.ContentLanguage == nil &&
+	//m.ContentType == nil &&
+	//m.Expires == nil &&
+	return (m.Headers == nil &&
+		m.Tags == nil)
+}
