@@ -37,7 +37,8 @@ func main() {
 		fmt.Fprintf(os.Stdout, "Options:\n")
 		options.PrintDefaults()
 		fmt.Fprintf(os.Stdout,
-			"Note %s reads '~/.aws/config', and it should have the entries:\n",
+			("Note %s reads '~/.aws/config'." +
+				" Following entries are required.\n"),
 			command_name)
 		fmt.Fprintf(os.Stdout,
 			("" +
@@ -48,7 +49,9 @@ func main() {
 	var flag_help = options.Bool("help", false,
 		"Print help.")
 	var flag_verbose = options.Bool("v", false,
-		"Verbose.")
+		"Be verbose.")
+	var flag_http2 = options.Bool("http2", false,
+		"Use http/2.")
 
 	var args = os.Args
 	if len(args) < 2 {
@@ -70,6 +73,7 @@ func main() {
 		options.Usage()
 		os.Exit(2)
 	}
+	var http2 = *flag_http2
 	var verbose = *flag_verbose
 
 	var cmd = args[1]
@@ -78,7 +82,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	var cfg, err3 = load_aws_config(verbose)
+	var cfg, err3 = load_aws_config(http2, verbose)
 	if err3 != nil {
 		options.Usage()
 		os.Exit(2)
@@ -88,11 +92,11 @@ func main() {
 	case "quit", "stat":
 		control_server(cmd, cfg)
 	case "test-buckets":
-		test_with_many_buckets(cfg, 10)
+		test_with_many_buckets(cfg, 1000)
 	}
 }
 
-func load_aws_config(verbose bool) (*aws.Config, error) {
+func load_aws_config(http2 bool, verbose bool) (*aws.Config, error) {
 	/* var c1 = awshttp.NewBuildableClient().WithTransportOptions(...) */
 	var timeout = time.Duration(60000 * time.Millisecond)
 	var xport = &http.Transport{
@@ -100,6 +104,15 @@ func load_aws_config(verbose bool) (*aws.Config, error) {
 		MaxIdleConns:    60,
 		IdleConnTimeout: 30 * time.Second,
 	}
+
+	if http2 {
+		//fmt.Printf("xport.Protocols=%v\n", xport.Protocols)
+		xport.Protocols = new(http.Protocols)
+		xport.Protocols.SetHTTP1(false)
+		xport.Protocols.SetHTTP2(true)
+		xport.Protocols.SetUnencryptedHTTP2(true)
+	}
+
 	var c = &http.Client{
 		Transport: xport,
 		Timeout:   timeout,

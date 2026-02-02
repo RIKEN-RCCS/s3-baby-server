@@ -384,17 +384,19 @@ func check_options_unsupported(action string, i *option_check_list) *Aws_s3_erro
 }
 
 func (bbs *Bb_server) check_options_ignored(action, resource string, i *option_check_list) *Aws_s3_error {
-	if i.ACL_bucket_canned != "" {
-		bbs.logger.Debug("x-amz-acl ignored",
-			"action", action, "resource", resource)
-	}
-	if i.CreateBucketConfiguration != nil {
-		bbs.logger.Debug("CreateBucketConfiguration ignored",
-			"action", action, "resource", resource)
-	}
-	if i.ObjectOwnership != types.ObjectOwnershipBucketOwnerEnforced {
-		bbs.logger.Debug("x-amz-object-ownership ignored",
-			"action", action, "resource", resource)
+	if false {
+		if i.ACL_bucket_canned != "" {
+			bbs.logger.Debug("x-amz-acl ignored",
+				"action", action, "resource", resource)
+		}
+		if i.CreateBucketConfiguration != nil {
+			bbs.logger.Debug("CreateBucketConfiguration ignored",
+				"action", action, "resource", resource)
+		}
+		if i.ObjectOwnership != types.ObjectOwnershipBucketOwnerEnforced {
+			bbs.logger.Debug("x-amz-object-ownership ignored",
+				"action", action, "resource", resource)
+		}
 	}
 
 	// Ignore "Cache-Control" totally.
