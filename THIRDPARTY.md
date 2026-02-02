@@ -12,7 +12,8 @@ tools and their transitive dependings.
 ## Development Tools
 
 - Golang
-- jq http://stedolan.github.io/jq/
 - GNU Guile
 - Scheme srfi-180 implementation
+- rclone
 - nmap-ncat
+- jq http://stedolan.github.io/jq/

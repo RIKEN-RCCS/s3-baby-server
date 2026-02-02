@@ -34,16 +34,28 @@ import (
 )
 
 // var aws_s3_region = "us-east-1"
-var operation_timeout = 10 * time.Second
 
 func test_with_many_buckets(cfg *aws.Config, n int) error {
+	log.Printf("Testing create-bucket n=%d\n", n)
+
 	var client = s3.NewFromConfig(*cfg)
 	//log.Printf("AWS-S3 client=%#v\n", client)
+
+	var err1 = control_server("stat", cfg)
+	if err1 != nil {
+		log.Fatal("control_server(stat) failed; error=%v", err1)
+	}
 
 	var err2 = create_many_buckets(client, "bkt", n)
 	if err2 != nil {
 		log.Fatal("create_many_buckets failed; error=%v", err2)
 	}
+
+	var err3 = control_server("stat", cfg)
+	if err3 != nil {
+		log.Fatal("control_server(stat) failed; error=%v", err3)
+	}
+
 	return nil
 }
 
@@ -97,6 +109,8 @@ func create_many_buckets(client *s3.Client, prefix string, n int) error {
 
 func op_create_bucket(ctx context.Context, client *s3.Client, name string) error {
 	//var ctx1 = context.TODO()
+	var operation_timeout = 30 * time.Second
+
 	var ctx2, cancel = context.WithTimeout(ctx, operation_timeout)
 	defer cancel()
 

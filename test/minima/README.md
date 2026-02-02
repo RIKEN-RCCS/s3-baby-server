@@ -12,6 +12,13 @@ the enviroment variable:
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
+## Tests by RCLONE
+
+rclone uses http/2.0, while AWS-CLI uses http/1.1.  I cannot find a
+way to make AWS-CLI use http/2.0.
+
+~/.config/rclone/rclone.conf
+
 ## Tests by bbs-ctl
 
 "bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress

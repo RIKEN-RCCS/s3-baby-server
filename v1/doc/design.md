@@ -257,6 +257,11 @@ Baby-server uses "httputil.NewChunkedReader" for chunked transfer.  It
 only checks Transfer-Encoding as it is a single entry "chunked".  This
 restriction is like http.parseTransferEncoding().
 
+### Time Format (time.RFC1123)
+
+rclone does not accept "UTC" for "GMT" in time strings, although it
+seems to try a couple of time formats.
+
 ## References
 
 https://docs.aws.amazon.com/s3/

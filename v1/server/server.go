@@ -141,9 +141,11 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string, loga bool, prof int) {
 
-	// Run in UTC time zone instead of local time zone.
+	// Run in GMT time zone instead of the local time zone.  The time
+	// format RFC-1123 requires GMT, and time.UTC does not work here.
 
-	time.Local = time.UTC
+	// time.Local = time.UTC
+	time.Local = time.FixedZone("GMT", 0)
 
 	// Create logger.
 
