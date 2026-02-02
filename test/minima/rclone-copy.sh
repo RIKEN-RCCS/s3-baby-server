@@ -15,5 +15,9 @@
 
 EXEC_ECHO rclone --no-check-certificate -v lsd s3bbs:
 
+# --s3-use-multipart-etag=false
+
 EXEC_ECHO rclone --no-check-certificate -v mkdir s3bbs:mybucket1
-EXEC_ECHO rclone --no-check-certificate -v copy data-20m.txt s3bbs://mybucket1/
+EXEC_ECHO rclone --no-check-certificate --ignore-checksum -v copy data-20m.txt s3bbs:mybucket1/data
+
+EXEC_ECHO rclone --no-check-certificate -v copy data-01g.txt s3bbs:mybucket1/data

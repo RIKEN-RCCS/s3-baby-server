@@ -9,7 +9,7 @@ bbs-ctl::
 get::
 	go get
 
-data-files: data-01k.txt data-08k.txt data-04m.txt data-20m.txt
+data-files: data-01k.txt data-08k.txt data-04m.txt data-20m.txt data-01g.txt
 
 data-01k.txt:
 	cp ../../LICENSE data-01k.txt
@@ -25,6 +25,13 @@ data-04m.txt:
 data-20m.txt:
 	touch data-20m.txt
 	shred -n 1 -s 20M data-20m.txt
+
+data-01g.txt:
+	touch data-01g.txt
+	shred -n 1 -s 1G data-01g.txt
+
+clean-data::
+	rm -f data-01k.txt data-08k.txt data-04m.txt data-20m.txt data-01g.txt
 
 # Download "srfi-180" (json library) which is not avaialble in
 # Guile-3.0.10 yet.  We use the latest one commit="725372e" on

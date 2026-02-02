@@ -1,5 +1,22 @@
 # Design Memo of Baby-Server
 
+## Overall Work
+
+Baby-server implements the actions following the API defined by
+AWS-SDK.  Whereas the SDK is defined for the client side, it is
+identical for the server side.  Especially, it uses the functions and
+their input/output structures unchanged.  The implementation of the
+actions are in "api-action.go".
+
+Baby-server uses an RPC stubs generator which generates the server
+side stub from the definition in Smithy.  The stubs are in
+"dispatcher.go", "handler.go", and "marshaler.go".  The stub generator
+is "stub.scm" in "adhoc-stub-generator" directory.  "stub.scm" runs
+with Gnu-Guile which is a dialect of Scheme language.
+
+The main behaviors of the actions are in "copying.go", "listing.go",
+and "deleting.go".
+
 ## Server Control
 
 Baby-server handles POST calls on "/bbs.ctl/quit" and "/bbs.ctl/stat",

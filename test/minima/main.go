@@ -50,8 +50,10 @@ func main() {
 		"Print help.")
 	var flag_verbose = options.Bool("v", false,
 		"Be verbose.")
+	var flag_http1 = options.Bool("http1", false,
+		"Use http/1.  Options http1 and http2 are not exclusive.")
 	var flag_http2 = options.Bool("http2", false,
-		"Use http/2.")
+		"Use http/2.  It is likely http1 has precedence over http2.")
 
 	var args = os.Args
 	if len(args) < 2 {
@@ -73,6 +75,7 @@ func main() {
 		options.Usage()
 		os.Exit(2)
 	}
+	var http1 = *flag_http1
 	var http2 = *flag_http2
 	var verbose = *flag_verbose
 
@@ -82,7 +85,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	var cfg, err3 = load_aws_config(http2, verbose)
+	var cfg, err3 = load_aws_config(http1, http2, verbose)
 	if err3 != nil {
 		options.Usage()
 		os.Exit(2)
@@ -96,7 +99,7 @@ func main() {
 	}
 }
 
-func load_aws_config(http2 bool, verbose bool) (*aws.Config, error) {
+func load_aws_config(http1, http2 bool, verbose bool) (*aws.Config, error) {
 	/* var c1 = awshttp.NewBuildableClient().WithTransportOptions(...) */
 	var timeout = time.Duration(60000 * time.Millisecond)
 	var xport = &http.Transport{
@@ -105,7 +108,17 @@ func load_aws_config(http2 bool, verbose bool) (*aws.Config, error) {
 		IdleConnTimeout: 30 * time.Second,
 	}
 
-	if http2 {
+	if http1 && http2 {
+		xport.Protocols = new(http.Protocols)
+		xport.Protocols.SetHTTP1(true)
+		xport.Protocols.SetHTTP2(true)
+		xport.Protocols.SetUnencryptedHTTP2(true)
+	} else if http1 {
+		xport.Protocols = new(http.Protocols)
+		xport.Protocols.SetHTTP1(true)
+		xport.Protocols.SetHTTP2(false)
+		xport.Protocols.SetUnencryptedHTTP2(false)
+	} else if http2 {
 		//fmt.Printf("xport.Protocols=%v\n", xport.Protocols)
 		xport.Protocols = new(http.Protocols)
 		xport.Protocols.SetHTTP1(false)
