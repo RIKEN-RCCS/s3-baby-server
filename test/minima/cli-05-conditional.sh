@@ -16,7 +16,7 @@
 
 . ./cli-fn.sh
 
-ECHO "Make a bucket for testing, assuming no buckets exists at the start."
+ECHO "Make a bucket for testing, assuming no buckets exist at the start."
 
 EXEC_ECHO aws s3 ls --no-verify-ssl --no-cli-pager s3://
 

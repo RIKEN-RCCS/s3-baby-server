@@ -12,7 +12,6 @@ package server
 
 import (
 	"io"
-	//"log"
 	"os"
 )
 

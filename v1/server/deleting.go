@@ -9,27 +9,8 @@
 package server
 
 import (
-	//"bytes"
 	"context"
-	//"crypto/md5"
-	//"encoding/base64"
-	//"encoding/binary"
-	//"encoding/hex"
-	//"encoding/json"
-	//"encoding/xml"
-	//"errors"
-	//"fmt"
-	//"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	//"hash"
-	//"io"
-	//"io/fs"
-	//"log"
-	//"time"
-	//"net/url"
 	"os"
-	//"path"
-	//"path/filepath"
-	//"strings"
 )
 
 func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditionals copy_conditionals) *Aws_s3_error {

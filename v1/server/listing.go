@@ -14,9 +14,6 @@
 package server
 
 import (
-	//"fmt"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	//"io"
 	"io/fs"
 	"log"
 	"net/url"
@@ -25,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type object_list_entry struct {
@@ -504,11 +503,11 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 					// - StorageClass StorageClass
 					// - UploadId *string
 					Key:               &fixedkey,
-					UploadId:          mpul.UploadId,
-					Initiated:         mpul.Initiated,
+					UploadId:          mpul.Upload_id,
+					Initiated:         mpul.Initiate_time,
 					StorageClass:      types.StorageClassStandard,
-					ChecksumAlgorithm: mpul.ChecksumAlgorithm,
-					ChecksumType:      mpul.ChecksumType,
+					ChecksumAlgorithm: mpul.Checksum,
+					ChecksumType:      mpul.Checksum_type,
 				}
 				objects = append(objects, s)
 			} else {

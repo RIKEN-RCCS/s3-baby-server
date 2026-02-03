@@ -9,21 +9,14 @@
 package server
 
 import (
-	//"bytes"
-	//"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
-	//"errors"
 	"hash"
 	"hash/crc32"
 	"hash/crc64"
-	//"crypto/rand"
-	//"fmt"
-	//"io"
 	"log"
-	//"os"
-	//"github.com/aws/aws-sdk-go-v2/service/s3"
+
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 

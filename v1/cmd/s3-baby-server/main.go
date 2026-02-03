@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	//"time"
+
 	"s3-baby-server/server"
 )
 
@@ -22,13 +22,14 @@ func main() {
 	var o = os.Stdout
 	var options = flag.NewFlagSet("", flag.ExitOnError)
 	options.Usage = func() {
-		fmt.Fprintf(o, "Usage: %s serve addr path options...\n",
+		fmt.Fprintf(o, "Usage: %s serve ADDR PATH options ...\n",
 			os.Args[0])
-		fmt.Fprintf(o, ("\tArgument ADDR is host:port" +
-			" and PATH is a pool-directory.\n"))
+		fmt.Fprintf(o, ("  Argument ADDR is host:port" +
+			" and PATH is a directory where buckets inhabit.\n"))
 		fmt.Fprintf(o, "Commands other than serve:\n")
-		fmt.Fprintf(o, "\thelp: Print help.\n")
-		fmt.Fprintf(o, "\tversion: Print version.\n")
+		fmt.Fprintf(o, "  help: Print help.\n")
+		fmt.Fprintf(o, "  version: Print version.\n")
+		fmt.Fprintf(o, "  dump-conf: Dump configuaration and exit.\n")
 		fmt.Fprintf(o, "Options:\n")
 		options.PrintDefaults()
 	}
@@ -37,7 +38,9 @@ func main() {
 	var print_version = options.Bool("version", false,
 		"Print version.")
 	var flag_cred = options.String("cred", "",
-		"Credential access-key and secret-key pair, separated by a comma.")
+		("Credential access+secret keys, separated by a comma." +
+			" It is required.\n" +
+			"It can be passed by an environment variable S3BBS_CRED."))
 	var flag_https_crt = options.String("https-crt", "",
 		("Certificate for https, a path to a certificate file."))
 	var flag_https_key = options.String("https-key", "",
@@ -54,35 +57,53 @@ func main() {
 		"Port to enable pprof service for 'go tool pprof'.")
 
 	var args = os.Args
-	var url string = ""
-	var path string = ""
 
+	var addr string = ""
+	var path string = ""
 	if len(args) <= 1 {
 		options.Usage()
 		os.Exit(2)
 	}
+
+	var dump_conf = false
+	var cred_pair = ""
+	var args_optional []string
+
 	switch args[1] {
 	case "serve":
 		if len(args) < 4 {
 			options.Usage()
 			os.Exit(2)
 		}
-		url = args[2]
+		addr = args[2]
 		path = args[3]
+		args_optional = args[4:]
+	case "dump-conf":
+		dump_conf = true
+		if len(args) < 2 {
+			options.Usage()
+			os.Exit(2)
+		}
+		addr = "--"
+		path = "--"
+		cred_pair = "--,--"
+		args_optional = args[2:]
 	case "version":
 		fmt.Fprintf(os.Stdout, "%s\n", server.Bb_version)
+		args_optional = []string{}
 		os.Exit(0)
 	case "help":
 		fallthrough
 	default:
 		options.Usage()
+		args_optional = []string{}
 		os.Exit(2)
 	}
 
-	var err1 = options.Parse(args[4:])
+	var err1 = options.Parse(args_optional)
 	if err1 != nil {
 		fmt.Printf("error: %s", err1)
-		return
+		os.Exit(2)
 	}
 
 	if *print_help {
@@ -95,25 +116,27 @@ func main() {
 	}
 
 	if options.NArg() != 0 {
-		fmt.Fprintf(o, "Unrecognized options exit.\n")
+		fmt.Fprintf(o, "Unrecognized options.\n")
 		options.Usage()
 		os.Exit(2)
 	}
 
 	var cred [2]string
 	{
-		var credpair = os.Getenv("S3BBS_CRED")
-		if len(credpair) == 0 {
-			credpair = *flag_cred
+		if len(cred_pair) == 0 {
+			cred_pair = os.Getenv("S3BBS_CRED")
 		}
-		if len(credpair) == 0 {
+		if len(cred_pair) == 0 {
+			cred_pair = *flag_cred
+		}
+		if len(cred_pair) == 0 {
 			slog.Error("Credential not specified, it is required.\n")
 			os.Exit(2)
 		}
 
-		var access, secret, ok = strings.Cut(credpair, ",")
+		var access, secret, ok = strings.Cut(cred_pair, ",")
 		if !ok || len(access) == 0 || len(secret) == 0 {
-			slog.Error("Bad authorization key pair", "pair", credpair)
+			slog.Error("Bad credential key pair", "pair", cred_pair)
 			os.Exit(2)
 		}
 		cred = [2]string{access, secret}
@@ -154,5 +177,5 @@ func main() {
 	var loga = *flag_log_access
 	var prof = *flag_prof
 
-	server.Start_server(cred, cert, path, url, conf, logs, loga, prof)
+	server.Start_server(dump_conf, cred, cert, path, addr, conf, logs, loga, prof)
 }

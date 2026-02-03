@@ -1,15 +1,12 @@
 package server
 
 import (
-	//"encoding/xml"
 	"fmt"
-	//"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	//"io"
 	"log"
 	"strings"
 	"testing"
-	//"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 var body1 = `<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">

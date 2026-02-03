@@ -12,8 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
-	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 	"io/fs"
 	"log"
 	"log/slog"
@@ -24,11 +22,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	//runtimepprof "runtime/pprof"
-	//"strings"
 	"strconv"
 	"sync"
 	"time"
+	//runtimepprof "runtime/pprof"
+
+	"github.com/riken-rccs/s3-baby-server/pkg/awss3aide"
+	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 )
 
 const Bb_version = "v1.2.1"
@@ -62,9 +62,9 @@ func time_duration(v msec_duration) time.Duration {
 
 // BB_CONFIGURATION is the configuration.  It may be loaded from a
 // specified file.  Parameters from "ReadTimeout" to "MaxHeaderBytes"
-// are set to Golang's http.Server.  Values in time.Duration cannot be
-// represented in json (unless encoding/json/v2).  Integers in
-// msec_duration are used instead.
+// are set to Golang's http.Server.  Time values are in msec duration,
+// because time.Duration are in large numbers that are not an
+// appropriate representation in a configuration file.
 type Bb_configuration struct {
 	Server_control_path     string        `json:"server_control_path"`
 	Site_base_url           *string       `json:"site_base_url"`
@@ -139,7 +139,7 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string, loga bool, prof int) {
+func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, conf, logs string, loga bool, prof int) {
 
 	// Run in GMT time zone instead of the local time zone.  The time
 	// format RFC-1123 requires GMT, and time.UTC does not work here.
@@ -197,6 +197,20 @@ func Start_server(cred, cert [2]string, pool_directory, addr, conf, logs string,
 				"path", path, "error", err3)
 			return
 		}
+	}
+
+	// Dump configuration and exit.
+
+	if dump_conf {
+		var e = json.NewEncoder(os.Stdout)
+		e.SetIndent("", "  ")
+		var err4 = e.Encode(&config)
+		if err4 != nil {
+			logger.Error("json.Encoder.Encode() failed",
+				"error", err4)
+			return
+		}
+		return
 	}
 
 	// Change the working directory to the pool-directory.  It is to

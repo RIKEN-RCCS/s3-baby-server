@@ -8,31 +8,29 @@
 package server
 
 import (
-	//"bytes"
 	"context"
-	//"encoding/base64"
-	//"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"io"
 	"io/fs"
 	"log"
-	"time"
-	//"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // Meta-information associated to an object.  It is stored in a hidden
 // file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
 // will be encoded in json.
 type Meta_info struct {
-	Headers map[string]string
-	Tags    *types.Tagging
+	Headers map[string]string `json:"headers"`
+	Tags    *types.Tagging    `json:"tags"`
+
 	//ETag *string
 	//Checksum_algorithm types.ChecksumAlgorithm
 	//Checksum *string
@@ -46,32 +44,41 @@ type Meta_info struct {
 
 // MPUL-information.  It is stored in a file "info".  It corresponds
 // to "types.MultipartUpload".
+//
+// "types.MultipartUpload" has fields:
+//   - ChecksumAlgorithm ChecksumAlgorithm
+//   - ChecksumType ChecksumType
+//   - Initiated *time.Time
+//   - Initiator *Initiator
+//   - Key *string
+//   - Owner *Owner
+//   - StorageClass StorageClass
+//   - UploadId *string
 type Mpul_info struct {
-	types.MultipartUpload
-	MetaInfo *Meta_info
-	// "types.MultipartUpload":
-	// - ChecksumAlgorithm ChecksumAlgorithm
-	// - ChecksumType ChecksumType
-	// - Initiated *time.Time
-	// - Initiator *Initiator
-	// - Key *string
-	// - Owner *Owner
-	// - StorageClass StorageClass
-	// - UploadId *string
+	// MEMO: Used fields in types.MultipartUpload are:
+	// UploadId *string
+	// Initiated *time.Time
+	// ChecksumAlgorithm ChecksumAlgorithm
+	// ChecksumType ChecksumType
+	Upload_id     *string                 `json:"upload_id"`
+	Initiate_time *time.Time              `json:"initiate_time"`
+	Checksum      types.ChecksumAlgorithm `json:"checksum"`
+	Checksum_type types.ChecksumType      `json:"checksum_type"`
+	Metainfo      *Meta_info              `json:"metainfo"`
 }
 
 // MPUL-catalog.  It is stored in a file "list".
 type Mpul_catalog struct {
 	//ChecksumAlgorithm types.ChecksumAlgorithm
-	Parts []Mpul_part
+	Parts []Mpul_part `json:"parts"`
 }
 
 // (types.CopyObjectResult, CopyPartResult)
 type Mpul_part struct {
-	Size     int64
-	ETag     string
-	Checksum string
-	Mtime    time.Time
+	Size     int64     `json:"size"`
+	ETag     string    `json:"etag"`
+	Checksum string    `json:"checksum"`
+	Mtime    time.Time `json:"mtime"`
 }
 
 func os_error_name(err error) string {
@@ -298,7 +305,7 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 
 		var oldmpul, err4 = bbs.fetch_mpul_info(object, false)
 		if err4 == nil {
-			if *oldmpul.UploadId == *mpul.UploadId {
+			if *oldmpul.Upload_id == *mpul.Upload_id {
 				bbs.logger.Error("Upload-ID conflicting (should never happen)",
 					"object", object)
 				var errz = &Aws_s3_error{Code: InternalError,
@@ -509,7 +516,7 @@ func (bbs *Bb_server) fetch_mpul_info(object string, serializing bool) (*Mpul_in
 
 	// Check if the fields of MPUL info is Okay.
 
-	if mpul.Initiated == nil || mpul.UploadId == nil {
+	if mpul.Initiate_time == nil || mpul.Upload_id == nil {
 		bbs.logger.Error("MPUL info file broken",
 			"path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
@@ -704,7 +711,7 @@ func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string, seri
 		return nil, errz
 	}
 	var mpul, err1 = bbs.fetch_mpul_info(object, false)
-	if err1 != nil || *mpul.UploadId != *uploadid {
+	if err1 != nil || *mpul.Upload_id != *uploadid {
 		if serializing {
 			bbs.logger.Info("Race on MPUL, MPUL gone",
 				"object", object)

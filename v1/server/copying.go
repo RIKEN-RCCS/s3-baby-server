@@ -18,23 +18,17 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	//"encoding/json"
-	//"encoding/xml"
 	"errors"
-	//"fmt"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"hash"
 	"io"
 	"io/fs"
-	//"log"
-	"strings"
-	"time"
-	//"net/url"
 	"net/http/httputil"
 	"os"
-	//"path"
 	"path/filepath"
-	//"strings"
+	"strings"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 const generate_md5_on_copy = true
@@ -341,11 +335,11 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 	// Re-check the MPUL upload-id after exclusion.
 
 	{
-		var mpul2, err3 = bbs.check_upload_ongoing(object, mpul.UploadId, true)
+		var mpul2, err3 = bbs.check_upload_ongoing(object, mpul.Upload_id, true)
 		if err3 != nil {
 			return nil, "", nil, err3
 		}
-		var info = mpul2.MetaInfo
+		var info = mpul2.Metainfo
 
 		var err7 = bbs.check_request_conditionals(object, "write",
 			conditionals)
@@ -611,9 +605,9 @@ func (bbs *Bb_server) concat_parts_as_scratch(object string, scratch string, par
 
 	cleanup_needed = false
 
-	bb_assert(mpul.Initiated != nil)
+	bb_assert(mpul.Initiate_time != nil)
 
-	var err5 = os.Chtimes(path, time.Time{}, *mpul.Initiated)
+	var err5 = os.Chtimes(path, time.Time{}, *mpul.Initiate_time)
 	if err5 != nil {
 		bbs.logger.Warn("op.Chtimes() failed",
 			"path", path, "error", err5)

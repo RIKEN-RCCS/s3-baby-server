@@ -38,8 +38,9 @@ package server
 import (
 	"encoding/xml"
 	"fmt"
-	smithy "github.com/aws/smithy-go"
 	"net/http"
+
+	smithy "github.com/aws/smithy-go"
 )
 
 // Elements of Errors.  It mimics a record described in "Error

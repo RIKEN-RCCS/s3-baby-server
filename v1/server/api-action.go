@@ -10,29 +10,19 @@ package server
 import (
 	"bytes"
 	"context"
-	//"errors"
+	"encoding/base64"
 	"fmt"
 	"io/fs"
+	"log"
+	"net/url"
 	"os"
 	"path"
+	"slices"
+	"strconv"
 	"time"
-	//"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
-	//"bytes"
-	"encoding/base64"
-	//"encoding/binary"
-	//"encoding/hex"
-	//"encoding/xml"
+
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"log"
-	"slices"
-	//"log/slog"
-	//"math/rand"
-	//"net/http"
-	"net/url"
-	"strconv"
-	//"strings"
-	//"sync"
 )
 
 func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, *Aws_s3_error) {
@@ -82,7 +72,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 
 	if i.IfMatchInitiatedTime != nil {
 		var itime = *i.IfMatchInitiatedTime
-		if !mpul.Initiated.Equal(itime) {
+		if !mpul.Initiate_time.Equal(itime) {
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Resource: location}
 			return nil, errz
@@ -241,7 +231,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				// IGNORE-ERRORS.
 			}
 			if csum_to_check != nil {
-				if checksum != mpul.ChecksumAlgorithm {
+				if checksum != mpul.Checksum {
 					bbs.logger.Info("Checksum algorithm mismatch",
 						"action", action)
 					error_in_checking = &Aws_s3_error{Code: InvalidPart,
@@ -299,9 +289,9 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	}
 
 	if false {
-		if checksum != "" && checksum != mpul.ChecksumAlgorithm {
+		if checksum != "" && checksum != mpul.Checksum {
 			bbs.logger.Info("Checksum algorithm mismatch",
-				"checksum-algorithm MPUL creation", mpul.ChecksumAlgorithm,
+				"checksum-algorithm MPUL creation", mpul.Checksum,
 				"checksum-algorithm MPUL completion", checksum)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message:  "Checksum algorithm mismatch in MPUL creation and completion",
@@ -757,13 +747,12 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 
 	var now = time.Now()
 	var mpul = &Mpul_info{
-		MultipartUpload: types.MultipartUpload{
-			UploadId:          &uploadid,
-			Initiated:         &now,
-			ChecksumAlgorithm: checksum,
-			ChecksumType:      checksumtype,
-		},
-		MetaInfo: info,
+		//MultipartUpload: types.MultipartUpload{}
+		Upload_id:     &uploadid,
+		Initiate_time: &now,
+		Checksum:      checksum,
+		Checksum_type: checksumtype,
+		Metainfo:      info,
 	}
 
 	{
@@ -2113,7 +2102,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	// Copy MPUL catalog to a result record.
 
 	var partlist []types.Part
-	var checksum = mpul.ChecksumAlgorithm
+	var checksum = mpul.Checksum
 	var parts = catalog.Parts
 	var endindex int32
 	if count != -1 {
@@ -2532,8 +2521,8 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 	// It is sure mpul.UploadId is non-nil that is checked already.
 
-	bb_assert(mpul.UploadId != nil)
-	var upload_id = *mpul.UploadId
+	bb_assert(mpul.Upload_id != nil)
+	var upload_id = *mpul.Upload_id
 
 	// SERIALIZE-ACCESSES (in the uploading routine).
 
@@ -2661,12 +2650,12 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err24
 	}
 
-	var checksum2 types.ChecksumAlgorithm = mpul.ChecksumAlgorithm
+	var checksum2 types.ChecksumAlgorithm = mpul.Checksum
 
 	// It is sure mpul.UploadId is non-nil that is checked already.
 
-	bb_assert(mpul.UploadId != nil)
-	var upload_id = *mpul.UploadId
+	bb_assert(mpul.Upload_id != nil)
+	var upload_id = *mpul.Upload_id
 
 	// SERIALIZE-ACCESSES (in the copying routine)
 
