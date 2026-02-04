@@ -16,8 +16,8 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
-	"encoding/binary"
-	"encoding/hex"
+	//"encoding/binary"
+	//"encoding/hex"
 	"errors"
 	"hash"
 	"io"
@@ -54,7 +54,7 @@ type copy_conditionals struct {
 // of an object or a file of a MPUL part.  It returns stat, etag, and
 // csum (of CRC64NVME).
 func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int32, upload_id string, body io.Reader, info *Meta_info, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
-	//var location = "/" + object
+	var location = "/" + object
 	var _, rid = get_action_name(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
 	defer bbs.discharge_scratch_suffix(rid)
@@ -114,6 +114,31 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 		return nil, "", nil, err3
 	}
 
+	var target_etag string
+	var target_entity string
+	if conditionals == (copy_conditionals{}) {
+		target_etag = ""
+		target_entity = ""
+	} else {
+		bb_assert(part == 0 && target == object)
+
+		var stat1, entity1, err12 = bbs.fetch_object_status(target, false)
+		if err12 != nil {
+			// IGNORE-ERRORS.
+		}
+		if stat1 == nil {
+			target_etag = ""
+			target_entity = ""
+		} else {
+			var etag1, err31 = bbs.fetch_object_etag(target)
+			if err31 != nil {
+				// IGNORE-ERRORS.
+			}
+			target_etag = etag1
+			target_entity = entity1
+		}
+	}
+
 	// SERIALIZE-ACCESSES.
 
 	{
@@ -136,8 +161,24 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 
 	// Conditionals for uploading are i.IfMatch or i.IfNoneMatch.
 
-	if part == 0 {
-		var err15 = bbs.check_request_conditionals(target, "write",
+	if conditionals != (copy_conditionals{}) {
+		bb_assert(part == 0 && target == object)
+
+		var _, entity2, err12 = bbs.fetch_object_status(target, true)
+		if err12 != nil {
+			// IGNORE-ERRORS.
+		}
+		if target_entity != entity2 {
+			// The target object changed before/after serialization.
+			bbs.logger.Error("RACE: Target object gone while serialized",
+				"object", object)
+			var errz = &Aws_s3_error{Code: InternalError,
+				Message:  "Target object gone.",
+				Resource: location}
+			return nil, "", nil, errz
+		}
+
+		var err15 = bbs.check_conditionals(target, target_etag, "write",
 			conditionals)
 		if err15 != nil {
 			return nil, "", nil, err15
@@ -152,11 +193,13 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 		cleanup_needed = false
 	}
 
-	var stat, etag, err7 = bbs.fetch_object_status(target, true)
+	var stat, _, err7 = bbs.fetch_object_status(target, true)
 	if err7 != nil {
 		return nil, "", nil, err7
 	}
 	bb_assert(stat != nil)
+
+	var etag = make_etag_from_md5(md5a)
 
 	// Update MPUL catatlog information.
 
@@ -179,11 +222,11 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, part int
 	return stat, etag, csum2, nil
 }
 
-// COPY_OBJECT performs copying.  Copying is either for a file of an
-// object or a MPUL part.  It returns stat, etag, and csum.  A
-// checksum value is by the algorithm of CHECKSUM, which is one for
-// MPUL when copying is for MPUL.  Note checksum checks are not
-// applied on copying.  CONDITIONALS are on the source object.
+// COPY_OBJECT performs copying.  A copying target is either an object
+// or an MPUL part file.  It returns stat and csum.  A checksum value
+// is by the algorithm of CHECKSUM when copying is for MPUL.  Note
+// checksum checks are not applied on copying.  CONDITIONALS are on
+// the source object.
 func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32, upload_id string, source string, extent *[2]int64, info *Meta_info, checksum types.ChecksumAlgorithm, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
 	//var location = "/" + object
 	var _, rid = get_action_name(ctx)
@@ -227,6 +270,8 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		return nil, "", nil, err3
 	}
 
+	var etag = make_etag_from_md5(md5a)
+
 	// SERIALIZE-ACCESSES.
 
 	{
@@ -247,7 +292,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		}
 	}
 
-	var err5 = bbs.check_request_conditionals(source, "read", conditionals)
+	var err5 = bbs.check_conditionals(source, etag, "read", conditionals)
 	if err5 != nil {
 		return nil, "", nil, err5
 	}
@@ -260,7 +305,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, part int32
 		cleanup_needed = false
 	}
 
-	var stat, etag, err7 = bbs.fetch_object_status(target, true)
+	var stat, _, err7 = bbs.fetch_object_status(target, true)
 	if err7 != nil {
 		return nil, "", nil, err7
 	}
@@ -322,6 +367,8 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		return nil, "", nil, err3
 	}
 
+	var etag = make_etag_from_md5(md5a)
+
 	// SERIALIZE-ACCESSES.
 
 	{
@@ -341,7 +388,7 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		}
 		var info = mpul2.Metainfo
 
-		var err7 = bbs.check_request_conditionals(object, "write",
+		var err7 = bbs.check_conditionals(object, etag, "write",
 			conditionals)
 		if err7 != nil {
 			return nil, "", nil, err7
@@ -359,7 +406,7 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		}
 	}
 
-	var stat, etag, err7 = bbs.fetch_object_status(object, true)
+	var stat, _, err7 = bbs.fetch_object_status(object, true)
 	if err7 != nil {
 		return nil, "", nil, err7
 	}
@@ -668,10 +715,11 @@ func (bbs *Bb_server) discard_scratch_file(object string, scratch string) error 
 	return nil
 }
 
-// CALCULATE_CSUM2 calculates two checksums, md5 and one requested.
-// It skips one when a checksum algorithm CHECKSUM="".  An algorithm
-// is one of {CRC32, CRC32C, CRC64NVME, SHA1, SHA256}.  The file range
-// EXTENT is checked being within the file size by the caller.
+// CALCULATE_CSUM2 calculates two checksums of a file TARGET, md5 and
+// one requested.  It skips one when a checksum algorithm CHECKSUM="".
+// An algorithm is one of {CRC32, CRC32C, CRC64NVME, SHA1, SHA256}.
+// The file range EXTENT is checked being within the file size by the
+// caller.
 func (bbs *Bb_server) calculate_csum2(object string, checksum types.ChecksumAlgorithm, target string, extent *[2]int64) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(target, "")
@@ -782,19 +830,4 @@ func (bbs *Bb_server) compare_checksums(object string, scratch string, checksum1
 		csum2 = csum1
 	}
 	return csum2, nil
-}
-
-// Note ETags are strong always.  Do not confuse md5.Sum(b) and
-// md5.New().Sum(b).
-func make_etag_from_stat(stat fs.FileInfo, ino uint64) string {
-	var size = stat.Size()
-	var mtime = stat.ModTime().UnixMicro()
-	var b2 = make([]byte, 32)
-	binary.LittleEndian.PutUint64(b2[0:], uint64(size))
-	binary.LittleEndian.PutUint64(b2[8:], uint64(mtime))
-	binary.LittleEndian.PutUint64(b2[16:], ino)
-	binary.LittleEndian.PutUint64(b2[24:], uint64(0xdeadbeefdeadbeef))
-	var md5v = md5.Sum(b2)
-	// return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
-	return "\"" + hex.EncodeToString(md5v[:]) + "\""
 }

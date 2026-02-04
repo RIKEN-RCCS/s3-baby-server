@@ -3,12 +3,15 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// MEMO: It avoids using "filepath" in other files that is OS dependent.
+// MEMO: Note "filepath" is OS dependent.
 
 package server
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,7 +46,8 @@ type Meta_info struct {
 }
 
 // MPUL-information.  It is stored in a file "info".  It corresponds
-// to "types.MultipartUpload".
+// to "types.MultipartUpload".  Fields used in types.MultipartUpload
+// are: {UploadId, Initiated, ChecksumAlgorithm, ChecksumType}.
 //
 // "types.MultipartUpload" has fields:
 //   - ChecksumAlgorithm ChecksumAlgorithm
@@ -55,11 +59,6 @@ type Meta_info struct {
 //   - StorageClass StorageClass
 //   - UploadId *string
 type Mpul_info struct {
-	// MEMO: Used fields in types.MultipartUpload are:
-	// UploadId *string
-	// Initiated *time.Time
-	// ChecksumAlgorithm ChecksumAlgorithm
-	// ChecksumType ChecksumType
 	Upload_id     *string                 `json:"upload_id"`
 	Initiate_time *time.Time              `json:"initiate_time"`
 	Checksum      types.ChecksumAlgorithm `json:"checksum"`
@@ -69,7 +68,6 @@ type Mpul_info struct {
 
 // MPUL-catalog.  It is stored in a file "list".
 type Mpul_catalog struct {
-	//ChecksumAlgorithm types.ChecksumAlgorithm
 	Parts []Mpul_part `json:"parts"`
 }
 
@@ -751,28 +749,29 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 	}
 }
 
-// CHECK_OBJECT_EXISTS takes a stat() and etag on an object.  It
-// differs from fetch_object_status() as it returns an error, when an
-// object does not exist.
-func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, string, *Aws_s3_error) {
+// CHECK_OBJECT_EXISTS takes a stat() on an object.  It differs from
+// fetch_object_status() as it returns an error, when an object does
+// not exist.
+func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, *Aws_s3_error) {
 	var location = "/" + object
-	var stat, etag, err1 = bbs.fetch_object_status(object, false)
+	var stat, _, err1 = bbs.fetch_object_status(object, false)
 	if err1 != nil {
-		return stat, etag, err1
+		return stat, err1
 	}
 	if stat == nil {
 		var errz = &Aws_s3_error{Code: NoSuchKey,
 			Resource: location}
-		return stat, etag, errz
+		return stat, errz
 	}
-	return stat, etag, err1
+	return stat, err1
 }
 
-// FETCH_OBJECT_STATUS takes a stat() and etag on an object.  It can
-// be used for checking existence.  It may return stat=nil when an
-// object does not exist.  Note non-regular files are never an object.
-// SERIALIZING is the serialization status.  Fetching should not fail
-// when serializing.
+// FETCH_OBJECT_STATUS takes a stat() on an object.  It also returns
+// an entity-key of an object.  It will return (stat=nil,err=nil) when
+// an object does not exist.  It can be used for checking existence.
+// Note non-regular files are never an object.  SERIALIZING is the
+// status of access serialization.  Fetching should not fail when
+// serializing.
 func (bbs *Bb_server) fetch_object_status(object string, serializing bool) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
@@ -817,7 +816,56 @@ func (bbs *Bb_server) fetch_object_status(object string, serializing bool) (fs.F
 	if !ok {
 		log.Fatal("BAD-IMPL: Cannot take inode number")
 	}
-	var etag = make_etag_from_stat(stat, ino)
+	var entity = hash_entity_key(stat, ino)
 
-	return stat, etag, nil
+	return stat, entity, nil
+}
+
+// MAKE_ETAG_FROM_MD5 makes an ETag string from an MD5 value.  Note
+// ETags are strong always.
+func make_etag_from_md5(md5v []byte) string {
+	// return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
+	return "\"" + hex.EncodeToString(md5v[:]) + "\""
+}
+
+// FETCH_OBJECT_ETAG returns an ETag by calculating an MD5 value of an
+// object.  IT TOOK TIME!
+func (bbs *Bb_server) fetch_object_etag(object string) (string, *Aws_s3_error) {
+	var checksum types.ChecksumAlgorithm = ""
+	var md5v, _, err1 = bbs.calculate_csum2(object, checksum, object, nil)
+	if err1 != nil {
+		return "", err1
+	}
+	var etag = make_etag_from_md5(md5v)
+	return etag, nil
+}
+
+// FETCH_ENTITY_KEY returns a key of an object similar to an etag but
+// internally used.
+func (bbs *Bb_server) make_entity_key(object string, stat fs.FileInfo) (string, *Aws_s3_error) {
+	//var location = "/" + object
+	var path = bbs.make_path_of_object(object, "")
+
+	var ino, ok = file_ino(stat, path)
+	if !ok {
+		log.Fatal("BAD-IMPL: Cannot take inode number")
+	}
+	var entitykey = hash_entity_key(stat, ino)
+
+	return entitykey, nil
+}
+
+// MEMO: Do not confuse md5.Sum(b) and md5.New().Sum(b).
+func hash_entity_key(stat fs.FileInfo, ino uint64) string {
+	var size = stat.Size()
+	var mtime = stat.ModTime().UnixMicro()
+	var b2 = make([]byte, 32)
+	binary.LittleEndian.PutUint64(b2[0:], uint64(size))
+	binary.LittleEndian.PutUint64(b2[8:], uint64(mtime))
+	binary.LittleEndian.PutUint64(b2[16:], ino)
+	binary.LittleEndian.PutUint64(b2[24:], uint64(0xdeadbeefdeadbeef))
+	var md5v = md5.Sum(b2)
+	// return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
+	return hex.EncodeToString(md5v[:])
+	//return md5v[:]
 }

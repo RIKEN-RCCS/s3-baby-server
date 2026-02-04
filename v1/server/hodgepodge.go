@@ -471,9 +471,9 @@ func scan_range(object string, rangestring *string, size int64) (*[2]int64, *Aws
 // "if-none-match", "if-modified-since", and "if-unmodified-since".
 // Conditionals are classified by a mode: "read" (GET/HEAD), "write"
 // (PUT/POST), and "delete" (DELETE).  A mode may disagree with the
-// method, when the object is a copy source.  It considers the equal
+// method, when the object is a copy source.  It considers an equal
 // time as included.
-func (bbs *Bb_server) check_request_conditionals(object string, mode string, conditionals copy_conditionals) *Aws_s3_error {
+func (bbs *Bb_server) check_conditionals(object string, etag string, mode string, conditionals copy_conditionals) *Aws_s3_error {
 	bb_assert(slices.Contains([]string{"read", "write", "delete"}, mode))
 
 	// No conditions are unconditionally Okay.
@@ -511,7 +511,7 @@ func (bbs *Bb_server) check_request_conditionals(object string, mode string, con
 
 	// Fetch status of an object.  It accepts non-existing case.
 
-	var stat, etag, err1 = bbs.fetch_object_status(object, false)
+	var stat, _, err1 = bbs.fetch_object_status(object, false)
 	if err1 != nil {
 		bbs.logger.Info("Bad conditional, object missing",
 			"error", err1)

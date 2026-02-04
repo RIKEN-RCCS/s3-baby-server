@@ -1,6 +1,6 @@
 #!/bin/ksh
 
-# Simple tests with AWS CLI.
+# Simple tests using AWS-CLI.
 
 # Start with an empty pool.
 
@@ -51,7 +51,11 @@ EXEC_ECHO aws s3 ls --no-verify-ssl --no-cli-pager s3://mybucket1/dog/e | tee "z
 
 cat "zzz" | tr '\n' '@' | grep -ae '^ *PRE english/@.*entlebucher\.txt@.*eurasier\.txt@' > /dev/null
 
-ECHO "*** Remove files."
+ECHO "(Check HEAD on a directory)."
+
+EXEC_ECHO aws s3api head-object --no-verify-ssl --no-cli-pager --bucket "mybucket1" --key "dog"
+
+ECHO "*** Clean up files."
 
 # EXEC_ECHO aws s3 rm s3://mybucket1/dog/akita.txt
 # EXEC_ECHO aws s3 rm s3://mybucket1/dog/beagle.txt

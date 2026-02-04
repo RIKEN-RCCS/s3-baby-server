@@ -458,9 +458,13 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err15 != nil {
 		return nil, err15
 	}
-	var _, _, err3 = bbs.check_object_exists(source)
+	var _, err3 = bbs.check_object_exists(source)
 	if err3 != nil {
 		return nil, err3
+	}
+	var source_etag, err31 = bbs.fetch_object_etag(source)
+	if err31 != nil {
+		return nil, err31
 	}
 
 	var info *Meta_info
@@ -506,7 +510,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		modified_after:  i.CopySourceIfModifiedSince,
 		modified_before: i.CopySourceIfUnmodifiedSince,
 	}
-	var err5 = bbs.check_request_conditionals(source, "read", conditionals)
+	var err5 = bbs.check_conditionals(source, source_etag, "read", conditionals)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -1121,7 +1125,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var _, _, err3 = bbs.check_object_exists(object)
+	var _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1199,7 +1203,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		}
 	}
 
-	var stat, etag, err3 = bbs.check_object_exists(object)
+	var stat, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1207,6 +1211,11 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var info, err5 = bbs.fetch_metainfo(object)
 	if err5 != nil {
 		return nil, err5
+	}
+
+	var etag, err31 = bbs.fetch_object_etag(object)
+	if err31 != nil {
+		return nil, err31
 	}
 
 	var size = stat.Size()
@@ -1219,7 +1228,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	// NO SERIALIZE-ACCESS.
 
-	var err6 = bbs.check_request_conditionals(object, "read",
+	var err6 = bbs.check_conditionals(object, etag, "read",
 		copy_conditionals{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
@@ -1345,7 +1354,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var stat, etag, err3 = bbs.check_object_exists(object)
+	var stat, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1354,6 +1363,10 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 
 	var attributes = i.ObjectAttributes
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
+		var etag, err31 = bbs.fetch_object_etag(object)
+		if err31 != nil {
+			return nil, err31
+		}
 		o.ETag = &etag
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
@@ -1432,7 +1445,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		}
 	}
 
-	var _, _, err3 = bbs.check_object_exists(object)
+	var _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1538,7 +1551,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		}
 	}
 
-	var stat, etag, err3 = bbs.check_object_exists(object)
+	var stat, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1546,6 +1559,11 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	var info, err5 = bbs.fetch_metainfo(object)
 	if err5 != nil {
 		return nil, err5
+	}
+
+	var etag, err31 = bbs.fetch_object_etag(object)
+	if err31 != nil {
+		return nil, err31
 	}
 
 	var size = stat.Size()
@@ -1558,7 +1576,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	// NO SERIALIZE-ACCESS.
 
-	var err6 = bbs.check_request_conditionals(object, "read",
+	var err6 = bbs.check_conditionals(object, etag, "read",
 		copy_conditionals{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
@@ -2411,7 +2429,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	}
 
 	{
-		var _, _, err3 = bbs.check_object_exists(object)
+		var _, err3 = bbs.check_object_exists(object)
 		if err3 != nil {
 			return nil, err3
 		}
@@ -2626,9 +2644,14 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	if err5 != nil {
 		return nil, err5
 	}
-	var s_stat, _, err13 = bbs.check_object_exists(source)
+	var s_stat, err13 = bbs.check_object_exists(source)
 	if err13 != nil {
 		return nil, err13
+	}
+
+	var source_etag, err31 = bbs.fetch_object_etag(source)
+	if err31 != nil {
+		return nil, err31
 	}
 
 	// NOTE: Checking conditionals on the source is not serialized.
@@ -2639,7 +2662,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		modified_after:  i.CopySourceIfModifiedSince,
 		modified_before: i.CopySourceIfUnmodifiedSince,
 	}
-	var err15 = bbs.check_request_conditionals(source, "read", conditionals)
+	var err15 = bbs.check_conditionals(source, source_etag, "read", conditionals)
 	if err15 != nil {
 		return nil, err15
 	}

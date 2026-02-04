@@ -18,6 +18,26 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 	var _, rid = get_action_name(ctx)
 	// var rid uint64 = get_request_id(ctx)
 
+	var object_etag string
+	var object_entity string
+	{
+		var stat1, entity1, err12 = bbs.fetch_object_status(object, false)
+		if err12 != nil {
+			// IGNORE-ERRORS.
+		}
+		if stat1 == nil {
+			object_etag = ""
+			object_entity = ""
+		} else {
+			var etag1, err31 = bbs.fetch_object_etag(object)
+			if err31 != nil {
+				// IGNORE-ERRORS.
+			}
+			object_etag = etag1
+			object_entity = entity1
+		}
+	}
+
 	// SERIALIZE-ACCESSES.
 
 	{
@@ -29,12 +49,26 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 	}
 
 	{
-		var _, _, err3 = bbs.check_object_exists(object)
+		var _, err3 = bbs.check_object_exists(object)
 		if err3 != nil {
 			return err3
 		}
 
-		var err5 = bbs.check_request_conditionals(object, "delete",
+		var _, entity2, err12 = bbs.fetch_object_status(object, true)
+		if err12 != nil {
+			// IGNORE-ERRORS.
+		}
+		if object_entity != entity2 {
+			// The target object changed before/after serialization.
+			bbs.logger.Error("RACE: Target object gone while serialized",
+				"object", object)
+			var errz = &Aws_s3_error{Code: InternalError,
+				Message:  "Target object gone.",
+				Resource: location}
+			return errz
+		}
+
+		var err5 = bbs.check_conditionals(object, object_etag, "delete",
 			conditionals)
 		if err5 != nil {
 			return err5

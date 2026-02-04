@@ -244,6 +244,11 @@ Baby-server does not check fully transferring data by io.Copy() in
 GetObject.  Also, it does not check on concatenating part files of
 MPUL.  It ignores the count.
 
+### File Concatenation in MPUL
+
+Baby-server concatenates parts of MPUL by copying.  In addition, it
+calculates an MD5 checksum while concatenating.
+
 ### Cancellation in Service
 
 Baby-server does not handle contexts by itself, and assumes the
