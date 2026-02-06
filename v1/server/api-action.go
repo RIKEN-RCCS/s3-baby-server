@@ -458,7 +458,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err15 != nil {
 		return nil, err15
 	}
-	var _, err3 = bbs.check_object_exists(source)
+	var _, source_entity, err3 = bbs.check_object_exists(source)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -504,15 +504,18 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 
 	// NOTE: Checking conditionals on the source is not serialized.
 
-	var conditionals = copy_conditionals{
-		some_match:      i.CopySourceIfMatch,
-		none_match:      i.CopySourceIfNoneMatch,
-		modified_after:  i.CopySourceIfModifiedSince,
-		modified_before: i.CopySourceIfUnmodifiedSince,
-	}
-	var err5 = bbs.check_conditionals(source, source_etag, "read", conditionals)
-	if err5 != nil {
-		return nil, err5
+	{
+		var conditionals = copy_conditionals{
+			some_match:      i.CopySourceIfMatch,
+			none_match:      i.CopySourceIfNoneMatch,
+			modified_after:  i.CopySourceIfModifiedSince,
+			modified_before: i.CopySourceIfUnmodifiedSince,
+		}
+		var err7 = bbs.check_conditionals(source, source_etag, "read",
+			conditionals)
+		if err7 != nil {
+			return nil, err7
+		}
 	}
 
 	var checksum2 types.ChecksumAlgorithm = i.ChecksumAlgorithm
@@ -520,13 +523,14 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		checksum2 = types.ChecksumAlgorithmCrc64nvme
 	}
 
-	// SERIALIZE-ACCESSES (in the copying routine)
+	// SERIALIZE-ACCESSES (in the copying routine).
 
-	var part int32 = 0
 	var upload_id = ""
+	var part int32 = 0
 	var extent *[2]int64 = nil
-	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, part, upload_id,
-		source, extent, info, checksum2, conditionals)
+	//var conditionals = copy_conditionals{}
+	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
+		source, source_entity, extent, info, checksum2)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -1125,7 +1129,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var _, err3 = bbs.check_object_exists(object)
+	var _, _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1203,7 +1207,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		}
 	}
 
-	var stat, err3 = bbs.check_object_exists(object)
+	var stat, entity, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1226,32 +1230,51 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	var mtime = stat.ModTime()
 
-	// NO SERIALIZE-ACCESS.
+	// Store an ETag value in metainfo when the file is large.
+	// Storing metainfo serializes inside the routine.
 
-	var err6 = bbs.check_conditionals(object, etag, "read",
+	if info == nil && size >= (bbs.config.Record_etag_threshold*1024*1024) {
+		var info2 = &Meta_info{
+			Headers:    nil,
+			Tags:       nil,
+			ETag:       etag,
+			Entity_key: entity,
+		}
+		var err6 = bbs.store_metainfo_serialized(ctx, rid, object, info2)
+		if err6 != nil {
+			return nil, err6
+		}
+	}
+
+	// NO SERIALIZE-ACCESSES.
+
+	var err7 = bbs.check_conditionals(object, etag, "read",
 		copy_conditionals{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
 			modified_after:  i.IfModifiedSince,
 			modified_before: i.IfUnmodifiedSince,
 		})
-	if err6 != nil {
-		return nil, err6
+	if err7 != nil {
+		return nil, err7
 	}
 
 	var csum []byte
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum1, err1 = bbs.calculate_csum2(object, checksum, object, extent)
-		if err1 != nil {
-			return nil, err1
+		var _, crc1, _, err8 = bbs.calculate_csum2(object, checksum, object, extent)
+		if err8 != nil {
+			return nil, err8
 		}
-		csum = csum1
+		csum = crc1
 	}
 
-	var f1, err7 = bbs.make_file_stream(ctx, object, extent)
-	if err7 != nil {
-		return nil, err7
+	{
+		var f1, err9 = bbs.make_file_stream(ctx, object, extent, entity)
+		if err9 != nil {
+			return nil, err9
+		}
+		o.Body = f1
 	}
 
 	if extent != nil {
@@ -1289,8 +1312,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 			o.TagCount = &count
 		}
 	}
-
-	o.Body = f1
 
 	{
 		o.StorageClass = types.StorageClassStandard
@@ -1354,12 +1375,12 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var stat, err3 = bbs.check_object_exists(object)
+	var stat, _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	var attributes = i.ObjectAttributes
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
@@ -1371,11 +1392,11 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum, err6 = bbs.calculate_csum2(object, checksum, object, nil)
-		if err6 != nil {
-			return nil, err6
+		var _, crc1, _, err8 = bbs.calculate_csum2(object, checksum, object, nil)
+		if err8 != nil {
+			return nil, err8
 		}
-		var csumset *types.Checksum = fill_checksum_record(checksum, csum)
+		var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
 		o.Checksum = csumset
 	}
 	if slices.Contains(attributes, types.ObjectAttributesObjectParts) {
@@ -1445,7 +1466,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		}
 	}
 
-	var _, err3 = bbs.check_object_exists(object)
+	var _, _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1455,7 +1476,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		return nil, err5
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	if info != nil && info.Tags != nil {
 		o.TagSet = info.Tags.TagSet
@@ -1490,7 +1511,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 		}
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	// o.AccessPointAlias *bool
 	// o.BucketArn *string
@@ -1551,7 +1572,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		}
 	}
 
-	var stat, err3 = bbs.check_object_exists(object)
+	var stat, _, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1574,26 +1595,26 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	var mtime = stat.ModTime()
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
-	var err6 = bbs.check_conditionals(object, etag, "read",
+	var err7 = bbs.check_conditionals(object, etag, "read",
 		copy_conditionals{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
 			modified_after:  i.IfModifiedSince,
 			modified_before: i.IfUnmodifiedSince,
 		})
-	if err6 != nil {
-		return nil, err6
+	if err7 != nil {
+		return nil, err7
 	}
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, csum, err1 = bbs.calculate_csum2(object, checksum, object, nil)
-		if err1 != nil {
-			return nil, err1
+		var _, crc1, _, err8 = bbs.calculate_csum2(object, checksum, object, nil)
+		if err8 != nil {
+			return nil, err8
 		}
-		var csumset *types.Checksum = fill_checksum_record(checksum, csum)
+		var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -1718,7 +1739,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 		prefix = ""
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	var buckets, continuation, err3 = bbs.list_buckets(start, max_buckets,
 		prefix)
@@ -1799,7 +1820,7 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 		urlencode = true
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	var objects, commons, nextmarker, err5 = bbs.list_mpuls_flat(
 		bucket, marker, maxkeys, delimiter, prefix, urlencode)
@@ -1889,7 +1910,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 		urlencode = true
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	var entries []object_list_entry
 	var nextindex int
@@ -2003,7 +2024,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 		urlencode = true
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	var entries []object_list_entry
 	var nextindex int
@@ -2115,7 +2136,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		return nil, err4
 	}
 
-	// NO SERIALIZE-ACCESS.
+	// NO SERIALIZE-ACCESSES.
 
 	// Copy MPUL catalog to a result record.
 
@@ -2337,7 +2358,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		none_match: i.IfNoneMatch,
 	}
 	var stat, etag, csum2, err6 = bbs.upload_object(ctx, object,
-		part, upload_id, i.Body, info, checks, conditionals)
+		upload_id, part, i.Body, info, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2429,7 +2450,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	}
 
 	{
-		var _, err3 = bbs.check_object_exists(object)
+		var _, _, err3 = bbs.check_object_exists(object)
 		if err3 != nil {
 			return nil, err3
 		}
@@ -2553,7 +2574,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	}
 	var conditionals = copy_conditionals{}
 	var _, etag, csum2, err6 = bbs.upload_object(ctx, object,
-		part, upload_id, i.Body, info, checks, conditionals)
+		upload_id, part, i.Body, info, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2644,7 +2665,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	if err5 != nil {
 		return nil, err5
 	}
-	var s_stat, err13 = bbs.check_object_exists(source)
+	var s_stat, source_entity, err13 = bbs.check_object_exists(source)
 	if err13 != nil {
 		return nil, err13
 	}
@@ -2656,15 +2677,18 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 
 	// NOTE: Checking conditionals on the source is not serialized.
 
-	var conditionals = copy_conditionals{
-		some_match:      i.CopySourceIfMatch,
-		none_match:      i.CopySourceIfNoneMatch,
-		modified_after:  i.CopySourceIfModifiedSince,
-		modified_before: i.CopySourceIfUnmodifiedSince,
-	}
-	var err15 = bbs.check_conditionals(source, source_etag, "read", conditionals)
-	if err15 != nil {
-		return nil, err15
+	{
+		var conditionals = copy_conditionals{
+			some_match:      i.CopySourceIfMatch,
+			none_match:      i.CopySourceIfNoneMatch,
+			modified_after:  i.CopySourceIfModifiedSince,
+			modified_before: i.CopySourceIfUnmodifiedSince,
+		}
+		var err7 = bbs.check_conditionals(source, source_etag, "read",
+			conditionals)
+		if err7 != nil {
+			return nil, err7
+		}
 	}
 
 	var size = s_stat.Size()
@@ -2683,8 +2707,9 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	// SERIALIZE-ACCESSES (in the copying routine)
 
 	var info *Meta_info = nil
-	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, part, upload_id,
-		source, extent, info, checksum2, conditionals)
+	//var conditionals = copy_conditionals{}
+	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
+		source, source_entity, extent, info, checksum2)
 	if err6 != nil {
 		return nil, err6
 	}

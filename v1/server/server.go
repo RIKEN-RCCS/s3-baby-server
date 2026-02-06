@@ -68,8 +68,9 @@ func time_duration(v msec_duration) time.Duration {
 type Bb_configuration struct {
 	Server_control_path     string        `json:"server_control_path"`
 	Site_base_url           *string       `json:"site_base_url"`
-	Limit_of_xml_parameters int64         `json:"limit_of_xml_parameters"`
 	Exclusion_wait          msec_duration `json:"exclusion_wait"`
+	Record_etag_threshold   int64         `json:"record_etag_threshold"`
+	Limit_of_xml_parameters int64         `json:"limit_of_xml_parameters"`
 	Verify_fs_write         bool          `json:"verify_fs_write"`
 
 	// Anonymize_ower bool
@@ -166,8 +167,12 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	// Set default configurations, or read it from a file.
 
 	var config = Bb_configuration{
-		Server_control_path: "bbs.ctl",
-		Exclusion_wait:      100,
+		Server_control_path:     "bbs.ctl",
+		Site_base_url:           nil,
+		Exclusion_wait:          100,
+		Record_etag_threshold:   20,
+		Limit_of_xml_parameters: 2,
+		Verify_fs_write:         false,
 	}
 
 	if conf != "" {
@@ -264,9 +269,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	bbs.monitor1 = new_monitor()
 	go bbs.monitor1.guard_loop()
 
-	if bbs.config.Limit_of_xml_parameters != 0 {
-		h_limit_of_xml_parameters = bbs.config.Limit_of_xml_parameters
-	}
+	h_limit_of_xml_parameters = (config.Limit_of_xml_parameters * 1024 * 1024)
 
 	var sx = http.NewServeMux()
 	var control = "POST /" + config.Server_control_path + "/{command}"

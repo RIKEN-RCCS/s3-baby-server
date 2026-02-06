@@ -49,29 +49,23 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 	}
 
 	{
-		var _, err3 = bbs.check_object_exists(object)
-		if err3 != nil {
-			return err3
-		}
-
 		var _, entity2, err12 = bbs.fetch_object_status(object, true)
 		if err12 != nil {
 			// IGNORE-ERRORS.
 		}
-		if object_entity != entity2 {
-			// The target object changed before/after serialization.
-			bbs.logger.Error("RACE: Target object gone while serialized",
+		if entity2 != object_entity {
+			bbs.logger.Info("Race: Target object changed during operation",
 				"object", object)
 			var errz = &Aws_s3_error{Code: InternalError,
-				Message:  "Target object gone.",
+				Message:  "Target object changed during operation.",
 				Resource: location}
 			return errz
 		}
 
-		var err5 = bbs.check_conditionals(object, object_etag, "delete",
+		var err7 = bbs.check_conditionals(object, object_etag, "delete",
 			conditionals)
-		if err5 != nil {
-			return err5
+		if err7 != nil {
+			return err7
 		}
 
 		var err1 = bbs.store_metainfo(object, nil)

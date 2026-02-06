@@ -1,12 +1,12 @@
 # README
 
-S3-Baby-server is a file server via AWS-S3 protocol.  It is designed
-to share existing files in a usual filesystem via AWS-S3.  Note
+S3 Baby-server is a server via AWS-S3 protocol.  It is designed to
+share existing files in a usual filesystem via AWS-S3.  Note
 full-fledged servers are not adequate for the purpose as they store
 files in chunks (of manageable sizes).  It is similar to "rclone serve
 s3".  Baby-server can be used in combination with "Lens3" to run
-multiple servers at a single http end-point
-(https://github.com/RIKEN-RCCS/lens3).
+multiple servers at a single http end-point.  See for Lens3
+https://github.com/RIKEN-RCCS/lens3.
 
 ## Running a server
 
@@ -16,7 +16,8 @@ multiple servers at a single http end-point
 
 where "~/pool" specifies a pool directory where buckets are created.
 Existing directories in the pool are considered as buckets.  "--cred"
-specifies a credential pair separated by a comma.
+specifies a credential pair separated by a comma (access-key and
+secret-access-key).
 
 ## Restrictions
 

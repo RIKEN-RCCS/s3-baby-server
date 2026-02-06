@@ -1,29 +1,75 @@
-# Design Memo of Baby-Server
+# Design Memo of Baby-server
 
-## Overall Work
+## Overall Implementation
 
 Baby-server implements the actions following the API defined by
-AWS-SDK.  Whereas the SDK is defined for the client side, it is
-identical for the server side.  Especially, it uses the functions and
-their input/output structures unchanged.  The implementation of the
-actions are in "api-action.go".
-
-Baby-server uses an RPC stubs generator which generates the server
-side stub from the definition in Smithy.  The stubs are in
-"dispatcher.go", "handler.go", and "marshaler.go".  The stub generator
-is "stub.scm" in "adhoc-stub-generator" directory.  "stub.scm" runs
-with Gnu-Guile which is a dialect of Scheme language.
+AWS-SDK.  Whereas AWS-SDK defines the client side, it is identical to
+the server side.  Especially, SDK's function signatures of the actions
+with their input/output records are likely to be used unchanged (or
+with little tweaks).  Baby-server uses those function signatures, and
+provides implementations of them in "api-action.go".
 
 The main behaviors of the actions are in "copying.go", "listing.go",
 and "deleting.go".
 
+Baby-server uses an RPC (remote procedure call) stub generator which
+generates the server side stubs from the definition in Smithy IDL
+(interface definition language).  The stubs are in "dispatcher.go",
+"handler.go", and "marshaler.go".  The stub generator is "stub.scm" in
+"adhoc-stub-generator" directory.  Use Gnu-Guile (v3) to run
+"stub.scm".  Guile is a dialect of Scheme language.
+
+----------------
+
 ## Server Control
 
 Baby-server handles POST calls on "/bbs.ctl/quit" and "/bbs.ctl/stat",
-where "quit" stops the server, and "stat" dumps memory usage to logger
-at level=INFO.  Since these commands are not AWS-S3 operations, it
-cannot be requested by AWS-CLI.  See "control-client.go" code in
-"test/minima" to issue the commands.
+where "quit" stops the server, and "stat" dumps memory usage to the
+logger at level=INFO.  Since these commands are not AWS-S3 operations,
+it cannot be requested by AWS-CLI.  See "control-client.go" code in
+"test/minima" to issue these commands.
+
+----------------
+
+## Serialization (Exclusion)
+
+Baby-server only excludes modifications on the filesystem.  That is,
+listing and downloading are not exclusive with uploading and copying.
+
+In most cases, operations are prepared outside of exclusion and
+continue inside of exclusion.  It is necessary to keep consistency of
+file identity across exclusion regions.  Baby-server internally uses
+file identity, an "entity-key", which is based on an inode number and
+an mtime, since ETags are MD5 sums and take to time calculate.  (Note
+uniqueness of entity-key is probabilistic).
+
+Operations inside of exclusion are renaming a file from a scratch-pad
+name to an actual object name, and updating its metainfo file.  Other
+operations should be outside of exclusion.  In paricular, calculation
+of an ETag, which will take time.
+
+- Accesses to an object file and a meta-info file are serialized by an
+  object name.  It is needed to keep correspondence between an object
+  and its meta-info.  Deletion of an object and its meta-info is not
+  atomic.  Baby-server performs a deletion of a meta-info first and a
+  failure of a deletion of an object may leave an object without
+  meta-info.
+
+- Downloading of an object is not excluded by other operations such as
+  deletion.  Thus, an object can be truncated while downloading.
+
+- Deletion of buckets/objects are slack.  Deletion is serialized after
+  checking conditions.  ETag calculation takes time and it is placed
+  out size of serialization.
+
+- Listing of objects and parts (of multipart uploads) are slack.
+  Listing is performed without serialization.
+
+- Operations between buckets and objects are not serialized.
+  Exclusion is based on a bucket or on an object.  A bucket can be
+  removed while operations on objects are in progress.
+
+----------------
 
 ## Error Responses
 
@@ -78,41 +124,24 @@ document string in "s3.json".  They are in "shapes" /
 "com.amazonaws.s3#Error" / "Code" / "traits" /
 "smithy.api#documentation".
 
+----------------
+
 ## Name Restrictions
 
 [Naming Amazon S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html)
 
-## Serialization (Criticals)
+----------------
 
-- Accesses to an object file and a meta-info file are serialized by an
-  object name.  It is needed to keep correspondence between an object
-  and its meta-info.  Deletion of an object and its meta-info is not
-  atomic.  Baby-server performs a deletion of a meta-info first and a
-  failure of a deletion of an object may leave an object without
-  meta-info.
+## Multipart-Upload (MPUL)
 
-- Downloading of an object is not excluded by other operations such as
-  deletion.  Thus, an object can be truncated while downloading.
-
-- Deletion of buckets/objects are slack.  Deletion is serialized after
-  checking conditions.  ETag calculation takes time and it is placed
-  out size of serialization.
-
-- Listing of objects and parts (of multipart uploads) are slack.
-  Listing is performed without serialization.
-
-- Operations between buckets and objects are not serialized.
-  Exclusion is based on a bucket or on an object.  A bucket can be
-  removed while operations on objects are in progress.
-
-## Upload-ID
+### Upload-ID
 
 Uniqueness of upload-ids is not guaranteed.  Baby-server does not
 check the ID's of the currently on-going MPUL, although they are
 stored in files.  It is only guaranteed by probabilistically as
 upload-ids are generated randomly.
 
-## Multipart-Upload (MPUL)
+### Multipart-Upload (MPUL)
 
 It creates a temporary directory (named "."+filename+"@mpul") and
 stores files "info", "list", "partNNNNN".
@@ -129,16 +158,22 @@ ListMultipartUploads never returns NextUploadIdMarker in the output.
 
 The saved array of parts are indexed in zero origin (part - 1).
 
+----------------
+
 ## Copying a file
 
 Baby-server copies a file by linking a file.  The mtime of a new file
 is not updated.
+
+----------------
 
 ## Timestamps of objects
 
 AWS-S3 only manages timestamps of objects in mtime.  Only buckets
 needs ctime and mtime.  An object's mtime is amended when it is
 created with multipart upload.
+
+----------------
 
 ## Checksums
 
@@ -154,6 +189,8 @@ CRC64NVME in spite of an algorithm specified at "PutObject".
 Note multiple checksum algorithms can be specified in internal types
 in: types.Object and types.ObjectVersion.
 
+----------------
+
 ## Responses
 
 Baby-server does not add "xmlns".  It should be something like:
@@ -164,11 +201,15 @@ Following lines are needed to add "xmlns", in type definition,
 and in data,
   Xmlns: "http://s3.amazonaws.com/doc/2006-03-01/"
 
+----------------
+
 ## Request Checks
 
 Baby-server does not check properness of enumerators in XML payload,
 while it checks that in headers.  Baby-server uses the standard
 unmarshaler and it does not know about enumerators.
+
+----------------
 
 ## Temporary "Scratch" Files
 
@@ -191,6 +232,8 @@ to remove the directory, but on-going copying would prevent removal of
 the directory.  (Such prevention behavior is found on NFS).  Placing
 scratch files outside the temporary directory will avoid that
 behavior.
+
+----------------
 
 ## Implementation Limitations
 
@@ -223,6 +266,8 @@ https://www.rfc-editor.org/rfc/rfc9110#status.304
 
 Baby-server returns header ""ETag" and "Last-Modified" on
 412-Precondition-Failed, too.
+
+----------------
 
 ## MEMO
 
@@ -283,6 +328,8 @@ restriction is like http.parseTransferEncoding().
 
 rclone does not accept "UTC" for "GMT" in time strings, although it
 seems to try a couple of time formats.
+
+----------------
 
 ## References
 

@@ -1,8 +1,10 @@
 # test/minima
 
-## Tests by AWS-CLI
+## Tests by S3 Clients
 
-### Note on Running AWS CLI
+### Tests by AWS-CLI
+
+#### Note on Running AWS CLI
 
 AWS-CLI accesses "http://169.254.169.254/latest/api/token" for
 metadata.  It slows tests.  To disable metadata service request, set
@@ -12,7 +14,12 @@ the enviroment variable:
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
-## Tests by RCLONE
+### Tests by bbs-ctl
+
+"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
+the server.
+
+### Tests by RCLONE
 
 RCLONE assumes an ETag is an MD5 sum.  However, an ETag in Baby-server
 is calculated from an inode number, a date, and a size.  Using RCLONE
@@ -24,14 +31,44 @@ find a way to make AWS-CLI use http/2.0.
 
 ~/.config/rclone/rclone.conf
 
-## Tests by Google Cloud CLI
+#### Installing RCLONE
+
+### Tests by Google Cloud CLI
+
+gsutil
+or
+gcloud storage
+
+#### Installing gcloud (and gsutil)
 
 https://docs.cloud.google.com/sdk/docs/install-sdk
 
-## Tests by bbs-ctl
+$ gcloud config set storage/s3_endpoint_url https://localhost:9000
+$ gcloud config set auth/disable_ssl_validation True
 
-"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
-the server.
+#### gcloud-storage Command Usage
+
+https://docs.cloud.google.com/sdk/gcloud/reference/storage
+
+### (Tests by WinSCP)
+
+### Tests by s3cmd
+
+#### Installing s3cmd
+
+  pip install s3cmd
+
+### Tests by MinIO Client (mc)
+
+#### Installing "mc"
+
+  wget https://dl.min.io/client/mc/release/linux-amd64/mc
+
+### Tests by s3fs-fuse
+
+#### Installing s3fs-fuse
+
+  apt install s3fs
 
 ----------------
 

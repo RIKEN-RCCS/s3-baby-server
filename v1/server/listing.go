@@ -540,7 +540,7 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 
 // CHECK_BUCKET_EMPTY makes sure the emptiness of a bucket for
 // deleting it.  It concerns only regular files, but excludes scratch
-// files whose name begins with a dot.  Note a MPUL directory is named
+// files whose name begins with a dot.  Note an MPUL directory is named
 // ".objectname@mpul".
 func (bbs *Bb_server) check_bucket_empty(bucket string) *Aws_s3_error {
 	var path1 = bbs.make_path_of_bucket(bucket)

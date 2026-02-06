@@ -22,62 +22,10 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
-
-// Meta-information associated to an object.  It is stored in a hidden
-// file.  Headers stores "x-amz-meta-".  Tags stores tagging tags.  It
-// will be encoded in json.
-type Meta_info struct {
-	Headers map[string]string `json:"headers"`
-	Tags    *types.Tagging    `json:"tags"`
-
-	//ETag *string
-	//Checksum_algorithm types.ChecksumAlgorithm
-	//Checksum *string
-
-	//ContentDisposition *string
-	//ContentEncoding    *string
-	//ContentLanguage    *string
-	//ContentType        *string
-	//Expires            *time.Time
-}
-
-// MPUL-information.  It is stored in a file "info".  It corresponds
-// to "types.MultipartUpload".  Fields used in types.MultipartUpload
-// are: {UploadId, Initiated, ChecksumAlgorithm, ChecksumType}.
-//
-// "types.MultipartUpload" has fields:
-//   - ChecksumAlgorithm ChecksumAlgorithm
-//   - ChecksumType ChecksumType
-//   - Initiated *time.Time
-//   - Initiator *Initiator
-//   - Key *string
-//   - Owner *Owner
-//   - StorageClass StorageClass
-//   - UploadId *string
-type Mpul_info struct {
-	Upload_id     *string                 `json:"upload_id"`
-	Initiate_time *time.Time              `json:"initiate_time"`
-	Checksum      types.ChecksumAlgorithm `json:"checksum"`
-	Checksum_type types.ChecksumType      `json:"checksum_type"`
-	Metainfo      *Meta_info              `json:"metainfo"`
-}
-
-// MPUL-catalog.  It is stored in a file "list".
-type Mpul_catalog struct {
-	Parts []Mpul_part `json:"parts"`
-}
-
-// (types.CopyObjectResult, CopyPartResult)
-type Mpul_part struct {
-	Size     int64     `json:"size"`
-	ETag     string    `json:"etag"`
-	Checksum string    `json:"checksum"`
-	Mtime    time.Time `json:"mtime"`
-}
 
 func os_error_name(err error) string {
 	if errors.Is(err, fs.ErrInvalid) {
@@ -272,13 +220,13 @@ func (bbs *Bb_server) create_mpul_directory(ctx context.Context, object string, 
 		return err1
 	}
 
-	// Make or overtake a MPUL directory.
+	// Make or overtake an MPUL directory.
 
 	var stat, err2 = os.Lstat(path)
 	if err2 == nil && stat != nil && !stat.IsDir() {
-		bbs.logger.Warn("A MPUL path is not a directory", "path", path)
+		bbs.logger.Warn("An MPUL path is not a directory", "path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "A MPUL path is not a directory",
+			Message:  "An MPUL path is not a directory",
 			Resource: location}
 		return errz
 	}
@@ -352,9 +300,9 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 				"path", path, "error", err2)
 		}
 	} else if !stat.IsDir() {
-		bbs.logger.Warn("A MPUL path is not a directory", "path", path)
+		bbs.logger.Warn("An MPUL path is not a directory", "path", path)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "A MPUL path is not a directory",
+			Message:  "An MPUL path is not a directory",
 			Resource: location}
 		return errz
 	}
@@ -371,7 +319,7 @@ func (bbs *Bb_server) discard_mpul_directory(object string) error {
 		bbs.logger.Info("os.RemoveAll() failed on MPUL directory",
 			"path", path, "error", err4)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "Removing a MPUL scratch directory failed.",
+			Message:  "Removing an MPUL scratch directory failed.",
 			Resource: location}
 		return errz
 	}
@@ -449,8 +397,8 @@ func (bbs *Bb_server) check_path_is_link_free(object string) *Aws_s3_error {
 }
 
 // FETCH_METAINFO fetches a metainfo file.  It returns nil if metainfo
-// file does not exist.  (The object path is guaranteed its
-// properness).
+// file does not exist.  (The object path is guaranteed for its
+// properness by the caller).
 func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) {
 	//var location = "/" + object
 	var path = bbs.make_path_of_object(object, "@meta")
@@ -464,6 +412,35 @@ func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) 
 		return nil, errz
 	}
 	return &info, nil
+}
+
+func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, rid uint64, object string, info *Meta_info) *Aws_s3_error {
+	var location = "/" + object
+
+	// SERIALIZE-ACCESSES.
+
+	{
+		var timeout = bbs.serialize_access(ctx, object, rid)
+		if timeout != nil {
+			return timeout
+		}
+		defer bbs.release_access(ctx, object, rid)
+	}
+
+	var _, entity, err3 = bbs.check_object_exists(object)
+	if err3 != nil {
+		return err3
+	}
+	if entity != info.Entity_key {
+		bbs.logger.Info("Race: Source object changed during operation",
+			"object", object)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message:  "Source object changed during operation.",
+			Resource: location}
+		return errz
+	}
+	var err7 = bbs.store_metainfo(object, info)
+	return err7
 }
 
 // STORE_METAINFO stores a metainfo file.  Passing nil deletes a
@@ -489,7 +466,7 @@ func (bbs *Bb_server) store_metainfo(object string, info *Meta_info) *Aws_s3_err
 }
 
 // FETCH_MPUL_INFO fetches the stored MPUL information file.  It
-// checks the required fields are non-nil.  It would remove a MPUL
+// checks the required fields are non-nil.  It would remove an MPUL
 // scratch directory when the content is broken (should never happen).
 // SERIALIZING indicates it is called in access serialization.  The
 // serializing status can be imprecise, and it is acceptable calling
@@ -721,27 +698,49 @@ func (bbs *Bb_server) check_upload_ongoing(object string, uploadid *string, seri
 	return mpul, nil
 }
 
-func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent *[2]int64) (io.ReadCloser, *Aws_s3_error) {
+// MAKE_FILE_STREAM makes a file stream of an object.  It obtains an
+// entity-key after making a stream for checking consistency.  It
+// fails when it detects changes on the object after checking
+// conditionals.
+func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, extent *[2]int64, entity string) (io.ReadCloser, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
 	var f1, err2 = os.Open(path)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
-			// OK.
-			bbs.logger.Info("os.Open() failed for payload",
+			bbs.logger.Info("os.Open() for payload failed",
 				"path", path, "error", err2)
 			var errz = &Aws_s3_error{Code: NoSuchKey,
 				Resource: location}
 			return nil, errz
 		} else {
-			bbs.logger.Warn("os.Open() failed for payload",
+			bbs.logger.Warn("os.Open() for payload failed",
 				"path", path, "error", err2)
 			return nil, map_os_error(location, err2, nil)
 		}
 	}
+
+	var entity2, err3 = bbs.make_entity_key(object, f1)
+	if err3 != nil {
+		return nil, err3
+	}
+	if entity2 != entity {
+		var err4 = f1.Close()
+		if err4 != nil {
+			bbs.logger.Warn("op.Close() for payload failed",
+				"path", path, "error", err4)
+			// IGNORE-ERRORS.
+		}
+		bbs.logger.Info("Race: Source object changed during operation",
+			"object", object)
+		var errz = &Aws_s3_error{Code: InternalError,
+			Message:  "Source object changed during operation.",
+			Resource: location}
+		return nil, errz
+	}
+
 	if extent == nil {
-		//fmt.Printf("extent==nil\n")
 		return f1, nil
 	} else {
 		var f2 = New_range_reader(f1, extent)
@@ -752,26 +751,25 @@ func (bbs *Bb_server) make_file_stream(ctx context.Context, object string, exten
 // CHECK_OBJECT_EXISTS takes a stat() on an object.  It differs from
 // fetch_object_status() as it returns an error, when an object does
 // not exist.
-func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, *Aws_s3_error) {
+func (bbs *Bb_server) check_object_exists(object string) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
-	var stat, _, err1 = bbs.fetch_object_status(object, false)
+	var stat, entity, err1 = bbs.fetch_object_status(object, false)
 	if err1 != nil {
-		return stat, err1
+		return stat, entity, err1
 	}
 	if stat == nil {
 		var errz = &Aws_s3_error{Code: NoSuchKey,
 			Resource: location}
-		return stat, errz
+		return stat, entity, errz
 	}
-	return stat, err1
+	return stat, entity, err1
 }
 
-// FETCH_OBJECT_STATUS takes a stat() on an object.  It also returns
-// an entity-key of an object.  It will return (stat=nil,err=nil) when
-// an object does not exist.  It can be used for checking existence.
-// Note non-regular files are never an object.  SERIALIZING is the
-// status of access serialization.  Fetching should not fail when
-// serializing.
+// FETCH_OBJECT_STATUS takes a stat() and an entity-key on an object.
+// It will return (stat=nil,entity="",error=nil) when an object does not
+// exist.  It can be used for checking existence.  Note non-regular
+// files are never an object.  SERIALIZING is the status of access
+// serialization.  Fetching should not fail when serializing.
 func (bbs *Bb_server) fetch_object_status(object string, serializing bool) (fs.FileInfo, string, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
@@ -784,10 +782,10 @@ func (bbs *Bb_server) fetch_object_status(object string, serializing bool) (fs.F
 	}
 	if err1 != nil && errors.Is(err1, fs.ErrNotExist) {
 		if serializing {
-			bbs.logger.Error("RACE: Object gone while serialized",
+			bbs.logger.Error("Race: Target object changed during operation",
 				"object", object)
 			var errz = &Aws_s3_error{Code: InternalError,
-				Message:  "Uploaded object gone.",
+				Message:  "Target object changed during operation.",
 				Resource: location}
 			return nil, "", errz
 		} else {
@@ -821,38 +819,55 @@ func (bbs *Bb_server) fetch_object_status(object string, serializing bool) (fs.F
 	return stat, entity, nil
 }
 
-// MAKE_ETAG_FROM_MD5 makes an ETag string from an MD5 value.  Note
-// ETags are strong always.
-func make_etag_from_md5(md5v []byte) string {
+// MAKE_OBJECT_ETAG_FROM_MD5 makes an ETag string from an MD5 value.
+// Note ETags are strong always.
+func make_object_etag_from_md5(md5v []byte) string {
 	// return "\"" + base64.StdEncoding.EncodeToString(md5v[:]) + "\""
 	return "\"" + hex.EncodeToString(md5v[:]) + "\""
 }
 
-// FETCH_OBJECT_ETAG returns an ETag by calculating an MD5 value of an
+// FETCH_OBJECT_ETAG returns an ETag by calculating an MD5 sum of an
 // object.  IT TOOK TIME!
 func (bbs *Bb_server) fetch_object_etag(object string) (string, *Aws_s3_error) {
-	var checksum types.ChecksumAlgorithm = ""
-	var md5v, _, err1 = bbs.calculate_csum2(object, checksum, object, nil)
+	var _, entity, err1 = bbs.fetch_object_status(object, false)
 	if err1 != nil {
+		// The object is missing.
 		return "", err1
 	}
-	var etag = make_etag_from_md5(md5v)
+	var info, err2 = bbs.fetch_metainfo(object)
+	if err2 != nil {
+		// IGNORE-ERRORS.
+	}
+	if info != nil && info.ETag != "" && info.Entity_key == entity {
+		return info.ETag, nil
+	}
+
+	var checksum types.ChecksumAlgorithm = ""
+	var md5v, _, _, err8 = bbs.calculate_csum2(object, checksum, object, nil)
+	if err8 != nil {
+		return "", err8
+	}
+	var etag = make_object_etag_from_md5(md5v)
 	return etag, nil
 }
 
-// FETCH_ENTITY_KEY returns a key of an object similar to an etag but
-// internally used.
-func (bbs *Bb_server) make_entity_key(object string, stat fs.FileInfo) (string, *Aws_s3_error) {
-	//var location = "/" + object
+// MAKE_ENTITY_KEY returns an entity-key of a stream.
+func (bbs *Bb_server) make_entity_key(object string, f fs.File) (string, *Aws_s3_error) {
+	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
-
+	var stat, err1 = f.Stat()
+	if err1 != nil {
+		bbs.logger.Warn("fs.File.Stat() failed",
+			"path", path, "error", err1)
+		return "", map_os_error(location, err1, nil)
+	}
 	var ino, ok = file_ino(stat, path)
 	if !ok {
 		log.Fatal("BAD-IMPL: Cannot take inode number")
 	}
-	var entitykey = hash_entity_key(stat, ino)
+	var entity = hash_entity_key(stat, ino)
 
-	return entitykey, nil
+	return entity, nil
 }
 
 // MEMO: Do not confuse md5.Sum(b) and md5.New().Sum(b).
