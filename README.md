@@ -44,8 +44,8 @@ secret-access-key).
 - Tags are not supported on buckets.  Tags on a CreateBucket request
   are ignored.
 
-- ETags are not MD5.  Baby-server generates an ETag from an inode
-  number, mtime, and a size.  ETags are always strong.
+- ETags are MD5.  ETags are always strong.  Baby-server may record an
+  ETag as object's metainfo, when the file size is large.
 
 - GetObjectAttributes returns no "ObjectParts" infomation.
   Baby-server does not retain parts information after finishing
@@ -92,13 +92,10 @@ The mtime of an object may not correct when copying.  As Baby-server
 performs simple copying by making a hard-link of a file, mtime is not
 updated.
 
-### Security
+### Security (IMPORTANT)
 
-Baby-server does not check the hash in signing.  It uses the given
-hash without checking it.
-
-Baby-server uses inode numbers to generate ETags.  There is a concern
-that some may consider inode numbers are sensitive.
+Baby-server does not check the message hash in signing.  It uses the
+given hash without checking it.
 
 ## Implemented API Actions
 

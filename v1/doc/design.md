@@ -37,16 +37,17 @@ Baby-server only excludes modifications on the filesystem.  That is,
 listing and downloading are not exclusive with uploading and copying.
 
 In most cases, operations are prepared outside of exclusion and
-continue inside of exclusion.  It is necessary to keep consistency of
-file identity across exclusion regions.  Baby-server internally uses
-file identity, an "entity-key", which is based on an inode number and
-an mtime, since ETags are MD5 sums and take to time calculate.  (Note
-uniqueness of entity-key is probabilistic).
+continue inside of exclusion.  Thus, it needs a mechanism to keep
+consistency of identity of a file across exclusion regions.
+Baby-server internally uses file identity, an "entity-key", which is
+based on an inode number and an mtime.  An entity-key is similar to an
+ETag, but it is calculated fast.  (Note uniqueness of entity-keys is
+probabilistic).
 
-Operations inside of exclusion are renaming a file from a scratch-pad
-name to an actual object name, and updating its metainfo file.  Other
-operations should be outside of exclusion.  In paricular, calculation
-of an ETag, which will take time.
+Operations performed inside of exclusion are (1) renaming a
+scratch-pad file to an actual object, and (2) updating its metainfo
+file.  Other operations should be performed outside of exclusion.  In
+paricular, calculation of an ETag is outside of exclusion.
 
 - Accesses to an object file and a meta-info file are serialized by an
   object name.  It is needed to keep correspondence between an object
@@ -59,8 +60,7 @@ of an ETag, which will take time.
   deletion.  Thus, an object can be truncated while downloading.
 
 - Deletion of buckets/objects are slack.  Deletion is serialized after
-  checking conditions.  ETag calculation takes time and it is placed
-  out size of serialization.
+  checking conditions.
 
 - Listing of objects and parts (of multipart uploads) are slack.
   Listing is performed without serialization.
@@ -264,7 +264,7 @@ have a header from {Content-Location, Date, ETag, Vary}.
 
 https://www.rfc-editor.org/rfc/rfc9110#status.304
 
-Baby-server returns header ""ETag" and "Last-Modified" on
+Baby-server returns header "ETag" and "Last-Modified" on
 412-Precondition-Failed, too.
 
 ----------------
