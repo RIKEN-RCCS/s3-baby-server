@@ -399,19 +399,25 @@ func (bbs *Bb_server) check_path_is_link_free(object string) *Aws_s3_error {
 // FETCH_METAINFO fetches a metainfo file.  It returns nil if metainfo
 // file does not exist.  (The object path is guaranteed for its
 // properness by the caller).
-func (bbs *Bb_server) fetch_metainfo(object string) (*Meta_info, *Aws_s3_error) {
+func (bbs *Bb_server) fetch_metainfo(object string, entity string) (*Meta_info, *Aws_s3_error) {
 	//var location = "/" + object
 	var path = bbs.make_path_of_object(object, "@meta")
 
-	var info Meta_info
-	var err5 = bbs.fetch_json_data(object, path, &info)
+	var metainfo Meta_info
+	var err5 = bbs.fetch_json_data(object, path, &metainfo)
 	if err5 == io.EOF {
 		return nil, nil
 	} else if err5 != nil {
 		var errz = err5.(*Aws_s3_error)
 		return nil, errz
 	}
-	return &info, nil
+	if metainfo.Entity_key != entity {
+		bbs.logger.Info("Metainfo file outdated",
+			"object", object, "entity1", entity,
+			"entity2", metainfo.Entity_key)
+		return nil, nil
+	}
+	return &metainfo, nil
 }
 
 func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, rid uint64, object string, info *Meta_info) *Aws_s3_error {
@@ -828,18 +834,23 @@ func make_object_etag_from_md5(md5v []byte) string {
 
 // FETCH_OBJECT_ETAG returns an ETag by calculating an MD5 sum of an
 // object.  IT TOOK TIME!
-func (bbs *Bb_server) fetch_object_etag(object string) (string, *Aws_s3_error) {
-	var _, entity, err1 = bbs.fetch_object_status(object, false)
-	if err1 != nil {
-		// The object is missing.
-		return "", err1
-	}
-	var info, err2 = bbs.fetch_metainfo(object)
+func (bbs *Bb_server) fetch_object_etag(object string, entity string) (string, *Aws_s3_error) {
+	// var location = "/" + object
+
+	/*
+		var _, entity2, err1 = bbs.fetch_object_status(object, false)
+		if err1 != nil {
+			// The object is missing.
+			return "", err1
+		}
+	*/
+
+	var metainfo, err2 = bbs.fetch_metainfo(object, entity)
 	if err2 != nil {
 		// IGNORE-ERRORS.
 	}
-	if info != nil && info.ETag != "" && info.Entity_key == entity {
-		return info.ETag, nil
+	if metainfo != nil && metainfo.Entity_key == entity {
+		return metainfo.ETag, nil
 	}
 
 	var checksum types.ChecksumAlgorithm = ""

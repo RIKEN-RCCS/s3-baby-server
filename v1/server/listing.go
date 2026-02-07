@@ -351,7 +351,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 		var object = path.Join(bucket, e.key)
 		var commonpart = check_common_prefix(e.key, delimiter, prefix)
 		if commonpart == "" {
-			var stat, _, err7 = bbs.fetch_object_status(object, false)
+			var stat, entity, err7 = bbs.fetch_object_status(object, false)
 			if err7 != nil {
 				return nil, nil, err7
 			}
@@ -362,7 +362,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 				continue
 			}
 
-			var etag, err31 = bbs.fetch_object_etag(object)
+			var etag, err31 = bbs.fetch_object_etag(object, entity)
 			if err31 != nil {
 				// Skip this entry.
 				continue

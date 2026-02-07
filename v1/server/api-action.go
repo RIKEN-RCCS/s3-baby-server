@@ -462,44 +462,49 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	if err3 != nil {
 		return nil, err3
 	}
-	var source_etag, err31 = bbs.fetch_object_etag(source)
+	var source_etag, err31 = bbs.fetch_object_etag(source, source_entity)
 	if err31 != nil {
 		return nil, err31
 	}
 
-	var info *Meta_info
+	var metainfo *Meta_info
 	{
-		var info1 Meta_info
-		var s_info, err2 = bbs.fetch_metainfo(source)
+		var s_info, err2 = bbs.fetch_metainfo(source, source_entity)
 		if err2 != nil {
 			return nil, err2
 		}
-		var tags, err1 = bbs.parse_tags(i.Tagging, location)
+		var tags, err1 = bbs.parse_tags(object, i.Tagging)
 		if err1 != nil {
 			return nil, err1
 		}
+		var metainfo1 = Meta_info{
+			Entity_key: s_info.Entity_key,
+			ETag:       s_info.ETag,
+		}
 		switch i.MetadataDirective {
 		case "COPY":
-			info1.Headers = s_info.Headers
+			metainfo1.Headers = s_info.Headers
 		case "REPLACE":
-			info1.Headers = i.Metadata
+			metainfo1.Headers = i.Metadata
 		}
 		switch i.TaggingDirective {
 		case "COPY":
-			info1.Tags = s_info.Tags
+			metainfo1.Tags = s_info.Tags
 		case "REPLACE":
-			info1.Tags = tags
+			metainfo1.Tags = tags
 		}
-		//info1.ContentDisposition = i.ContentDisposition
-		//info1.ContentEncoding = i.ContentEncoding
-		//info1.ContentLanguage = i.ContentLanguage
-		//info1.ContentType = i.ContentType
-		//info1.Expires = i.Expires
-		if metainfo_zero(&info1) {
-			info = nil
-		} else {
-			info = &info1
-		}
+		//metainfo1.ContentDisposition = i.ContentDisposition
+		//metainfo1.ContentEncoding = i.ContentEncoding
+		//metainfo1.ContentLanguage = i.ContentLanguage
+		//metainfo1.ContentType = i.ContentType
+		//metainfo1.Expires = i.Expires
+
+		// A metainfo file is never deleted, once created.
+
+		// if metainfo_zero(&metainfo1) {
+		// metainfo = nil
+		// }
+		metainfo = &metainfo1
 	}
 
 	// NOTE: Checking conditionals on the source is not serialized.
@@ -530,7 +535,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var extent *[2]int64 = nil
 	//var conditionals = copy_conditionals{}
 	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
-		source, source_entity, extent, info, checksum2)
+		source, source_entity, extent, metainfo, checksum2)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -722,9 +727,18 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var info, err3 = bbs.make_metainfo(i.Metadata, i.Tagging, location)
-	if err3 != nil {
-		return nil, err3
+	var metainfo *Meta_info
+
+	{
+		var tags, err1 = bbs.parse_tags(object, i.Tagging)
+		if err1 != nil {
+			return nil, err1
+		}
+		var info, err3 = bbs.make_partial_metainfo(i.Metadata, tags)
+		if err3 != nil {
+			return nil, err3
+		}
+		metainfo = info
 	}
 
 	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
@@ -760,7 +774,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		Initiate_time: &now,
 		Checksum:      checksum,
 		Checksum_type: checksumtype,
-		Metainfo:      info,
+		Metainfo:      metainfo,
 	}
 
 	{
@@ -1129,24 +1143,24 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var _, _, err3 = bbs.check_object_exists(object)
+	var _, entity, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	var info, err5 = bbs.fetch_metainfo(object)
+	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
 
 	// Modify metainfo, and remove the file when it become nothing.
 
-	if info != nil && info.Tags != nil {
-		info.Tags = nil
-		if info.Headers == nil {
-			info = nil
+	if metainfo != nil && metainfo.Tags != nil {
+		metainfo.Tags = nil
+		if metainfo.Headers == nil {
+			metainfo = nil
 		}
-		var err7 = bbs.store_metainfo(object, info)
+		var err7 = bbs.store_metainfo(object, metainfo)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -1212,12 +1226,12 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err3
 	}
 
-	var info, err5 = bbs.fetch_metainfo(object)
+	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
 
-	var etag, err31 = bbs.fetch_object_etag(object)
+	var etag, err31 = bbs.fetch_object_etag(object, entity)
 	if err31 != nil {
 		return nil, err31
 	}
@@ -1230,17 +1244,17 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	var mtime = stat.ModTime()
 
-	// Store an ETag value in metainfo when the file is large.
-	// Storing metainfo serializes inside the routine.
+	// Store an ETag in metainfo when the file is large.  Storing
+	// metainfo serializes inside the routine.
 
-	if info == nil && size >= (bbs.config.Record_etag_threshold*1024*1024) {
-		var info2 = &Meta_info{
+	if metainfo == nil && size >= byte_size(bbs.config.Record_etag_threshold) {
+		var metainfo2 = &Meta_info{
+			Entity_key: entity,
+			ETag:       etag,
 			Headers:    nil,
 			Tags:       nil,
-			ETag:       etag,
-			Entity_key: entity,
 		}
-		var err6 = bbs.store_metainfo_serialized(ctx, rid, object, info2)
+		var err6 = bbs.store_metainfo_serialized(ctx, rid, object, metainfo2)
 		if err6 != nil {
 			return nil, err6
 		}
@@ -1301,13 +1315,13 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		o.ChecksumSHA256 = csumset.ChecksumSHA256
 	}
 
-	if info != nil && info.Headers != nil {
+	if metainfo != nil && metainfo.Headers != nil {
 		// Always leave "MissingMeta" nil for zero.
-		o.Metadata = info.Headers
+		o.Metadata = metainfo.Headers
 		o.MissingMeta = nil
 	}
-	if info != nil && info.Tags != nil {
-		var count = int32(len(info.Tags.TagSet))
+	if metainfo != nil && metainfo.Tags != nil {
+		var count = int32(len(metainfo.Tags.TagSet))
 		if count > 0 {
 			o.TagCount = &count
 		}
@@ -1375,7 +1389,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		bbs.check_options_ignored(action, location, &ignored)
 	}
 
-	var stat, _, err3 = bbs.check_object_exists(object)
+	var stat, entity, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1384,7 +1398,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 
 	var attributes = i.ObjectAttributes
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
-		var etag, err31 = bbs.fetch_object_etag(object)
+		var etag, err31 = bbs.fetch_object_etag(object, entity)
 		if err31 != nil {
 			return nil, err31
 		}
@@ -1466,20 +1480,20 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		}
 	}
 
-	var _, _, err3 = bbs.check_object_exists(object)
+	var _, entity, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	var info, err5 = bbs.fetch_metainfo(object)
+	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
 
 	// NO SERIALIZE-ACCESSES.
 
-	if info != nil && info.Tags != nil {
-		o.TagSet = info.Tags.TagSet
+	if metainfo != nil && metainfo.Tags != nil {
+		o.TagSet = metainfo.Tags.TagSet
 	}
 
 	// o.VersionId *string
@@ -1572,17 +1586,17 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		}
 	}
 
-	var stat, _, err3 = bbs.check_object_exists(object)
+	var stat, entity, err3 = bbs.check_object_exists(object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	var info, err5 = bbs.fetch_metainfo(object)
+	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
 
-	var etag, err31 = bbs.fetch_object_etag(object)
+	var etag, err31 = bbs.fetch_object_etag(object, entity)
 	if err31 != nil {
 		return nil, err31
 	}
@@ -1638,12 +1652,12 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	o.ETag = &etag
 	o.LastModified = &mtime
 
-	if info != nil {
+	if metainfo != nil {
 		// Always leave "MissingMeta" nil for zero.
-		o.Metadata = info.Headers
+		o.Metadata = metainfo.Headers
 		o.MissingMeta = nil
-		if info.Tags != nil {
-			var count = int32(len(info.Tags.TagSet))
+		if metainfo.Tags != nil {
+			var count = int32(len(metainfo.Tags.TagSet))
 			if count > 0 {
 				o.TagCount = &count
 			}
@@ -2338,9 +2352,18 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		return nil, err8
 	}
 
-	var info, err3 = bbs.make_metainfo(i.Metadata, i.Tagging, location)
-	if err3 != nil {
-		return nil, err3
+	var metainfo *Meta_info
+
+	{
+		var tags, err1 = bbs.parse_tags(object, i.Tagging)
+		if err1 != nil {
+			return nil, err1
+		}
+		var info, err3 = bbs.make_partial_metainfo(i.Metadata, tags)
+		if err3 != nil {
+			return nil, err3
+		}
+		metainfo = info
 	}
 
 	// SERIALIZE-ACCESSES (in the uploading routine).
@@ -2358,7 +2381,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		none_match: i.IfNoneMatch,
 	}
 	var stat, etag, csum2, err6 = bbs.upload_object(ctx, object,
-		upload_id, part, i.Body, info, checks, conditionals)
+		upload_id, part, i.Body, metainfo, checks, conditionals)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2450,23 +2473,25 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	}
 
 	{
-		var _, _, err3 = bbs.check_object_exists(object)
+		var _, entity, err3 = bbs.check_object_exists(object)
 		if err3 != nil {
 			return nil, err3
 		}
 
-		var info, err2 = bbs.fetch_metainfo(object)
+		var metainfo, err2 = bbs.fetch_metainfo(object, entity)
 		if err2 != nil {
 			return nil, err2
 		}
-		if info == nil {
-			info = &Meta_info{
-				Headers: nil,
-				Tags:    nil,
+		if metainfo == nil {
+			metainfo = &Meta_info{
+				Entity_key: "",
+				ETag:       "",
+				Headers:    nil,
+				Tags:       nil,
 			}
 		}
-		info.Tags = i.Tagging
-		var err7 = bbs.store_metainfo(object, info)
+		metainfo.Tags = i.Tagging
+		var err7 = bbs.store_metainfo(object, metainfo)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -2670,7 +2695,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err13
 	}
 
-	var source_etag, err31 = bbs.fetch_object_etag(source)
+	var source_etag, err31 = bbs.fetch_object_etag(source, source_entity)
 	if err31 != nil {
 		return nil, err31
 	}

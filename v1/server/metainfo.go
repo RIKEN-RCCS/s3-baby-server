@@ -14,16 +14,15 @@ import (
 )
 
 // Meta-information associated to an object.  It is stored in a hidden
-// file in json.  Headers stores "x-amz-meta-".  Tags stores tagging
-// tags.  ETag stores an MD5 sum of a large file (beyond some
-// threshold), and Entity_key is used to check the validity of ETag.
+// file in json.  Entity_key is used to check the validity of
+// information.  ETag stores an MD5 sum.  Headers stores
+// "x-amz-meta-".  Tags stores tagging tags.
 type Meta_info struct {
+	Entity_key string            `json:"entity-key"`
+	ETag       string            `json:"etag"`
 	Headers    map[string]string `json:"headers"`
 	Tags       *types.Tagging    `json:"tags"`
-	ETag       string            `json:"etag"`
-	Entity_key string            `json:"entity-key"`
 
-	//ETag *string
 	//Checksum_algorithm types.ChecksumAlgorithm
 	//Checksum *string
 
@@ -38,7 +37,8 @@ type Meta_info struct {
 // temporary directory.  It corresponds to the fields of
 // "types.MultipartUpload", where used ones are: {UploadId, Initiated,
 // ChecksumAlgorithm, ChecksumType}.  Metainfo keeps a record which
-// will be restored at MPUL completion.
+// will be restored at MPUL completion.  Metainfo is only partially
+// filled (missing ETag and entity-key slots).
 //
 // The "types.MultipartUpload" has fields:
 //   - ChecksumAlgorithm ChecksumAlgorithm
@@ -65,9 +65,9 @@ type Mpul_catalog struct {
 
 // (types.CopyObjectResult, CopyPartResult)
 type Mpul_part struct {
+	Entity_key string    `json:"entity-key"`
 	Size       int64     `json:"size"`
 	ETag       string    `json:"etag"`
 	Checksum   string    `json:"checksum"`
 	Mtime      time.Time `json:"mtime"`
-	Entity_key string    `json:"entity-key"`
 }

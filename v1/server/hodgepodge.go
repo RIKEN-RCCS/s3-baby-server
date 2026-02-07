@@ -643,14 +643,15 @@ func match_etags_is_star(etags []string) bool {
 	return len(etags) == 1 && etags[0] == "*"
 }
 
-// MAKE_METAINFO makes a metainfo from i.Metadata and i.Tagging.
-func (bbs *Bb_server) make_metainfo(headers map[string]string, tagging *string, location string) (*Meta_info, *Aws_s3_error) {
-	var tags, err1 = bbs.parse_tags(tagging, location)
-	if err1 != nil {
-		return nil, err1
-	}
-	if tags != nil || headers != nil {
-		return &Meta_info{Headers: headers, Tags: tags}, nil
+// MAKE_METAINFO makes a metainfo PARTIALLY filled with i.Metadata and
+// i.Tagging.
+func (bbs *Bb_server) make_partial_metainfo(headers map[string]string, tagging *types.Tagging) (*Meta_info, *Aws_s3_error) {
+	if headers != nil || tagging != nil {
+		var metainfo = &Meta_info{
+			Headers: headers,
+			Tags:    tagging,
+		}
+		return metainfo, nil
 	} else {
 		return nil, nil
 	}
@@ -658,13 +659,14 @@ func (bbs *Bb_server) make_metainfo(headers map[string]string, tagging *string, 
 
 // PARSE_TAGS scans tags in a request.  Note a tag-set is encoded as
 // URL query parameters.
-func (bbs *Bb_server) parse_tags(s *string, location string) (*types.Tagging, *Aws_s3_error) {
+func (bbs *Bb_server) parse_tags(object string, s *string) (*types.Tagging, *Aws_s3_error) {
+	var location = "/" + object
 	if s == nil {
 		return nil, nil
 	}
 	var m, err1 = url.ParseQuery(*s)
 	if err1 != nil {
-		bbs.logger.Info("Parse_tags: .ParseQuery() failed",
+		bbs.logger.Info("url.ParseQuery() in parsing tags failed",
 			"error", err1)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message:  "Tag format error.",
@@ -674,7 +676,7 @@ func (bbs *Bb_server) parse_tags(s *string, location string) (*types.Tagging, *A
 	var tags = []types.Tag{}
 	for k, v := range m {
 		if len(v) != 1 {
-			bbs.logger.Info("Parse_tags: Multiple values in tags, ignored")
+			bbs.logger.Info("Multiple values in tags, ignored")
 		}
 		var value string
 		if len(v) == 0 {

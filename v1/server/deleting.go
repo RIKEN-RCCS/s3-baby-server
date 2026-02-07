@@ -29,7 +29,7 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 			object_etag = ""
 			object_entity = ""
 		} else {
-			var etag1, err31 = bbs.fetch_object_etag(object)
+			var etag1, err31 = bbs.fetch_object_etag(object, entity1)
 			if err31 != nil {
 				// IGNORE-ERRORS.
 			}

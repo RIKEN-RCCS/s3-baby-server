@@ -55,22 +55,27 @@ type Bb_server struct {
 }
 
 type msec_duration int64
+type mbyte_size int64
 
 func time_duration(v msec_duration) time.Duration {
 	return time.Duration(v) * time.Millisecond
 }
 
+func byte_size(v mbyte_size) int64 {
+	return int64(v) * 1024 * 1024
+}
+
 // BB_CONFIGURATION is the configuration.  It may be loaded from a
 // specified file.  Parameters from "ReadTimeout" to "MaxHeaderBytes"
 // are set to Golang's http.Server.  Time values are in msec duration,
-// because time.Duration are in large numbers that are not an
+// because they get large numbers in time.Duration that are not an
 // appropriate representation in a configuration file.
 type Bb_configuration struct {
 	Server_control_path     string        `json:"server_control_path"`
 	Site_base_url           *string       `json:"site_base_url"`
 	Exclusion_wait          msec_duration `json:"exclusion_wait"`
-	Record_etag_threshold   int64         `json:"record_etag_threshold"`
-	Limit_of_xml_parameters int64         `json:"limit_of_xml_parameters"`
+	Record_etag_threshold   mbyte_size    `json:"record_etag_threshold"`
+	Limit_of_xml_parameters mbyte_size    `json:"limit_of_xml_parameters"`
 	Verify_fs_write         bool          `json:"verify_fs_write"`
 
 	// Anonymize_ower bool
@@ -269,7 +274,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	bbs.monitor1 = new_monitor()
 	go bbs.monitor1.guard_loop()
 
-	h_limit_of_xml_parameters = (config.Limit_of_xml_parameters * 1024 * 1024)
+	h_limit_of_xml_parameters = byte_size(config.Limit_of_xml_parameters)
 
 	var sx = http.NewServeMux()
 	var control = "POST /" + config.Server_control_path + "/{command}"
