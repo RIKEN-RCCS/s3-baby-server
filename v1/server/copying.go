@@ -16,6 +16,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"hash"
 	"io"
@@ -29,8 +30,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
-
-const generate_md5_on_copy = true
 
 type copy_checks struct {
 	size_to_check int64
@@ -177,6 +176,10 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 	var stat, etag, csum2, err1 = bbs.build_object(ctx, object, upload_id,
 		part, build, info, checksum2, checks, conditionals)
 
+	if err1 != nil {
+		return stat, etag, csum2, err1
+	}
+
 	{
 		var err2 = bbs.discard_mpul_directory(rid, object)
 		if err2 != nil {
@@ -184,7 +187,7 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, par
 		}
 	}
 
-	return stat, etag, csum2, err1
+	return stat, etag, csum2, nil
 }
 
 func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id string, part int32, build build_source, metainfo *Meta_info, checksum2 types.ChecksumAlgorithm, checks copy_checks, conditionals copy_conditionals) (fs.FileInfo, string, []byte, *Aws_s3_error) {
@@ -539,18 +542,18 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string
 	}()
 
 	var f2 io.Writer
-	var hash1 hash.Hash
-	var hash2 hash.Hash
+	var hash_md5 hash.Hash
+	var hash_crc hash.Hash
 	{
 		var writers []io.Writer
 		writers = append(writers, f1)
-		if checksum2 != "" {
-			hash1 = checksum_algorithm(checksum2)
-			writers = append(writers, hash1)
+		if true {
+			hash_md5 = md5.New()
+			writers = append(writers, hash_md5)
 		}
-		if generate_md5_on_copy {
-			hash2 = md5.New()
-			writers = append(writers, hash2)
+		if checksum2 != "" {
+			hash_crc = checksum_algorithm(checksum2)
+			writers = append(writers, hash_crc)
 		}
 		if len(writers) == 1 {
 			f2 = f1
@@ -610,11 +613,11 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string
 
 	var md5 []byte
 	var csum []byte
-	if hash1 != nil {
-		md5 = hash1.Sum(nil)
+	if hash_md5 != nil {
+		md5 = hash_md5.Sum(nil)
 	}
-	if hash2 != nil {
-		csum = hash2.Sum(nil)
+	if hash_crc != nil {
+		csum = hash_crc.Sum(nil)
 	}
 	return md5, csum, nil
 }
@@ -842,7 +845,9 @@ func (bbs *Bb_server) compare_checksums(rid uint64, object string, scratch strin
 		}
 		if bytes.Compare(md5a, md5b) != 0 {
 			bbs.logger.Error("Copying file unverified, MD5 values differ",
-				"rid", rid, "object", object)
+				"rid", rid, "object", object,
+				"md5", hex.EncodeToString(md5a[:]),
+				"md5", hex.EncodeToString(md5b[:]))
 			var errz = &Aws_s3_error{
 				Code:     InternalError,
 				Message:  "Copying file unverified",

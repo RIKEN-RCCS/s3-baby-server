@@ -39,7 +39,7 @@ cat "zzz" | tr '\n' '@' | grep -ae '{@ *"Location": "/mybucket2"@}@' > /dev/null
 
 #   ECHO 'aws s3api create-bucket --no-verify-ssl --no-cli-pager --bucket "mybucket3" --object-ownership "BAD-OWNERSHIP-TO-ERR"'
 
-EXEC_ECHO aws s3api create-bucket --no-verify-ssl --no-cli-pager --bucket "mybucket3" --object-ownership "BAD-OWNERSHIP-TO_ERR" || true
+EXEC_ECHO aws s3api create-bucket --no-verify-ssl --no-cli-pager --bucket "mybucket3" --object-ownership "BAD-OWNERSHIP-TO-ERR" || true
 
 ECHO "*** Test head-bucket"
 
