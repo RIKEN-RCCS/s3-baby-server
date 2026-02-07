@@ -21,7 +21,7 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 	var object_etag string
 	var object_entity string
 	{
-		var stat1, entity1, err12 = bbs.fetch_object_status(object, false)
+		var stat1, entity1, err12 = bbs.fetch_object_status(rid, object, false)
 		if err12 != nil {
 			// IGNORE-ERRORS.
 		}
@@ -29,7 +29,7 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 			object_etag = ""
 			object_entity = ""
 		} else {
-			var etag1, err31 = bbs.fetch_object_etag(object, entity1)
+			var etag1, err31 = bbs.fetch_object_etag(rid, object, entity1)
 			if err31 != nil {
 				// IGNORE-ERRORS.
 			}
@@ -49,34 +49,34 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 	}
 
 	{
-		var _, entity2, err12 = bbs.fetch_object_status(object, true)
+		var _, entity2, err12 = bbs.fetch_object_status(rid, object, true)
 		if err12 != nil {
 			// IGNORE-ERRORS.
 		}
 		if entity2 != object_entity {
 			bbs.logger.Info("Race: Target object changed during operation",
-				"object", object)
+				"rid", rid, "object", object)
 			var errz = &Aws_s3_error{Code: InternalError,
 				Message:  "Target object changed during operation.",
 				Resource: location}
 			return errz
 		}
 
-		var err7 = bbs.check_conditionals(object, object_etag, "delete",
+		var err7 = bbs.check_conditionals(rid, object, object_etag, "delete",
 			conditionals)
 		if err7 != nil {
 			return err7
 		}
 
-		var err1 = bbs.store_metainfo(object, nil)
+		var err1 = bbs.store_metainfo(rid, object, nil)
 		if err1 != nil {
 			// IGNORE-ERRORS.
 		}
 		var path = bbs.make_path_of_object(object, "")
 		var err2 = os.Remove(path)
 		if err2 != nil {
-			bbs.logger.Warn("os.Remove() failed on an object",
-				"path", path, "error", err2)
+			bbs.logger.Warn("os.Remove() on an object failed",
+				"rid", rid, "path", path, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
 	}

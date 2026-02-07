@@ -37,11 +37,12 @@ var mpul_scratch_pattern = ".*@mpul"
 var scratch_file_pattern = ".*"
 
 // LIST_BUCKETS makes a list of buckets.
-func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types.Bucket, int, *Aws_s3_error) {
+func (bbs *Bb_server) list_buckets(rid uint64, start int, count int, prefix string) ([]types.Bucket, int, *Aws_s3_error) {
 	var pool_path = "."
 	var entries1, err1 = os.ReadDir(pool_path)
 	if err1 != nil {
-		bbs.logger.Warn("os.ReadDir() failed in ListBuckets", "error", err1)
+		bbs.logger.Warn("os.ReadDir() failed in ListBuckets",
+			"rid", rid, "error", err1)
 		var errz = map_os_error("/", err1, nil)
 		return nil, 0, errz
 	}
@@ -56,7 +57,7 @@ func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types
 		var stat, err2 = e.Info()
 		if err2 != nil {
 			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
-				"direntry", e, "error", err2)
+				"rid", rid, "direntry", e, "error", err2)
 			// IGNORE-ERRORS.
 			continue
 		}
@@ -129,7 +130,7 @@ func (bbs *Bb_server) list_buckets(start int, count int, prefix string) ([]types
 // returns are sorted.  It returns a next start-index and a next
 // start-marker, in addition to the entries.  THE ENTRIES INCLUDE
 // DIRECTORIES EVEN IF THEY ARE EMPTY.
-func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
+func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
 	if delimiter != "/" {
 		log.Fatalf("BAD-IMPL: list_objects_delimited with non-slash")
 	}
@@ -150,7 +151,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 	var entries1, err1 = os.ReadDir(directory)
 	if err1 != nil {
 		bbs.logger.Info("os.ReadDir() failed",
-			"path", directory, "error", err1)
+			"rid", rid, "path", directory, "error", err1)
 		return nil, 0, "", map_os_error(location, err1, nil)
 	}
 
@@ -163,7 +164,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 			var stat, err2 = e.Info()
 			if err2 != nil {
 				bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
-					"direntry", e, "error", err2)
+					"rid", rid, "direntry", e, "error", err2)
 				// IGNORE-ERRORS.
 				continue
 			}
@@ -222,7 +223,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 		var stat, err2 = e.Info()
 		if err2 != nil {
 			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
-				"direntry", e, "error", err2)
+				"rid", rid, "direntry", e, "error", err2)
 			continue
 		}
 		entries5 = append(entries5, object_list_entry{key, stat})
@@ -238,7 +239,7 @@ func (bbs *Bb_server) list_objects_delimited(bucket string, index int, marker st
 // count directory entries.  COUNT counts files visited and it is used
 // to check a start-index.  MEMO: A prefix should not have a
 // preceeding delimiter.  A common-prefix has a trailing delimiter.
-func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
+func (bbs *Bb_server) list_objects_flat(rid uint64, bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
 	var location = "/" + bucket
 	var pool_path = "."
 	var b = path.Join(pool_path, bucket)
@@ -256,15 +257,15 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 
 		if err1 != nil {
 			bbs.logger.Warn("os.DirFS() callbacks with error",
-				"bucket", bucket, "path", key1, "error", err1)
+				"rid", rid, "bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
 
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
-				"direntry", e, "error", err2)
+			bbs.logger.Warn("os.Lstat() on fs.DirEntry failed",
+				"rid", rid, "direntry", e, "error", err2)
 			// IGNORE-ERRORS.
 			return nil
 		}
@@ -344,25 +345,25 @@ func (bbs *Bb_server) list_objects_flat(bucket string, index int, marker string,
 
 // MAKE_LIST_OBJECTS_ENTRIES converts a list of objects to response
 // entries.  It calculates MD5.
-func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
+func (bbs *Bb_server) make_list_objects_entries(rid uint64, entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
 	var contents []types.Object
 	var commonprefixes []types.CommonPrefix
 	for _, e := range entries {
 		var object = path.Join(bucket, e.key)
 		var commonpart = check_common_prefix(e.key, delimiter, prefix)
 		if commonpart == "" {
-			var stat, entity, err7 = bbs.fetch_object_status(object, false)
+			var stat, entity, err7 = bbs.fetch_object_status(rid, object, false)
 			if err7 != nil {
 				return nil, nil, err7
 			}
 			if stat == nil {
 				bbs.logger.Warn("Race in listing",
-					"object", object)
+					"rid", rid, "object", object)
 				// Skip this entry.
 				continue
 			}
 
-			var etag, err31 = bbs.fetch_object_etag(object, entity)
+			var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
 			if err31 != nil {
 				// Skip this entry.
 				continue
@@ -403,7 +404,7 @@ func (bbs *Bb_server) make_list_objects_entries(entries []object_list_entry, buc
 	return contents, commonprefixes, nil
 }
 
-func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, *Aws_s3_error) {
+func (bbs *Bb_server) list_mpuls_flat(rid uint64, bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, *Aws_s3_error) {
 	var location = "/" + bucket
 	var pool_path = "."
 	var b = path.Join(pool_path, bucket)
@@ -421,7 +422,7 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 
 		if err1 != nil {
 			bbs.logger.Warn("os.DirFS() callbacks with error",
-				"bucket", bucket, "path", key1, "error", err1)
+				"rid", rid, "bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
 
@@ -484,13 +485,13 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 		if len(objects) < maxkeys {
 			if commonpart == "" {
 				var object = path.Join(bucket, key2)
-				var mpul, err4 = bbs.fetch_mpul_info(object, false)
+				var mpul, err4 = bbs.fetch_mpul_info(rid, object, false)
 				if err4 != nil {
 					// IGNORE-ERRORS.
 					// Race among listing and others.
-					bbs.logger.Info("Race in accessing MPUL,"+
-						" listing and others",
-						"func", "fetch_mpul_info", "error", err4)
+					bbs.logger.Info(("Race in accessing MPUL," +
+						" listing and others"),
+						"rid", rid, "func", "fetch_mpul_info", "error", err4)
 					return nil
 				}
 				var fixedkey string
@@ -542,19 +543,19 @@ func (bbs *Bb_server) list_mpuls_flat(bucket string, marker string, maxkeys int,
 // deleting it.  It concerns only regular files, but excludes scratch
 // files whose name begins with a dot.  Note an MPUL directory is named
 // ".objectname@mpul".
-func (bbs *Bb_server) check_bucket_empty(bucket string) *Aws_s3_error {
+func (bbs *Bb_server) check_bucket_empty(rid uint64, bucket string) *Aws_s3_error {
 	var path1 = bbs.make_path_of_bucket(bucket)
-	var err1 = bbs.check_directory_empty(bucket, path1)
+	var err1 = bbs.check_directory_empty(rid, bucket, path1)
 	return err1
 }
 
-func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) *Aws_s3_error {
+func (bbs *Bb_server) check_directory_empty(rid uint64, bucket string, path1 string) *Aws_s3_error {
 	var location = "/" + bucket
 	var filelist, err1 = os.ReadDir(path1)
 	if err1 != nil {
 		//if errors.Is(err1, fs.ErrNotExist)
 		bbs.logger.Info("os.ReadDir() in a bucket failed",
-			"path", path1, "error", err1)
+			"rid", rid, "path", path1, "error", err1)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message:  "Listing in a bucket failed.",
 			Resource: location}
@@ -564,8 +565,8 @@ func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) *Aws_s3
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
-				"direntry", e, "error", err2)
+			bbs.logger.Warn("os.Lstat() on fs.DirEntry failed",
+				"rid", rid, "direntry", e, "error", err2)
 			// IGNORE-ERRORS.
 			continue
 		}
@@ -595,7 +596,7 @@ func (bbs *Bb_server) check_directory_empty(bucket string, path1 string) *Aws_s3
 				return errz
 			}
 			var path2 = filepath.Join(path1, name)
-			var err3 = bbs.check_directory_empty(bucket, path2)
+			var err3 = bbs.check_directory_empty(rid, bucket, path2)
 			if err3 != nil {
 				return err3
 			}

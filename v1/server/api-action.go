@@ -38,7 +38,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	// i.IfMatchInitiatedTime *time.Time
 	// i.RequestPayer types.RequestPayer
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -65,7 +65,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, true)
+	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, true)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -79,7 +79,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 		}
 	}
 
-	var err4 = bbs.discard_mpul_directory(object)
+	var err4 = bbs.discard_mpul_directory(rid, object)
 	if err4 != nil {
 		// IGNORE-ERRORS.
 	}
@@ -117,7 +117,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// Errors: EntityTooSmall, InvalidPart, InvalidPartOrder,
 	// NoSuchUpload
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -137,7 +137,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
+	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -182,7 +182,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	// Check etags and checksums of parts.
 
-	var catalog, err4 = bbs.fetch_mpul_catalog(object)
+	var catalog, err4 = bbs.fetch_mpul_catalog(rid, object)
 	if err4 != nil {
 		return nil, err4
 	}
@@ -203,7 +203,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			if !(0 <= (part-1) && (part-1) < int32(len(catalog.Parts)) &&
 				catalog.Parts[part-1].ETag != "") {
 				bbs.logger.Info("Part not uploaded",
-					"action", action, "part", part)
+					"rid", rid, "part", part)
 				error_in_checking = &Aws_s3_error{Code: NoSuchUpload,
 					Resource: location}
 				// Return true to stop the loop.
@@ -211,7 +211,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			}
 			if catalog.Parts[part-1].ETag != etag {
 				bbs.logger.Info("ETags mismatch",
-					"action", action, "part", part)
+					"rid", rid, "part", part)
 				error_in_checking = &Aws_s3_error{Code: InvalidPart,
 					Resource: location}
 				// Return true to stop the loop.
@@ -233,7 +233,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			if csum_to_check != nil {
 				if checksum != mpul.Checksum {
 					bbs.logger.Info("Checksum algorithm mismatch",
-						"action", action)
+						"rid", rid)
 					error_in_checking = &Aws_s3_error{Code: InvalidPart,
 						Resource: location}
 					// Return true to stop the loop.
@@ -245,7 +245,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				}
 				if bytes.Compare(csum_to_check, csum) != 0 {
 					bbs.logger.Info("Checksums mismatch",
-						"action", action)
+						"rid", rid)
 					error_in_checking = &Aws_s3_error{Code: InvalidPart,
 						Resource: location}
 					// Return true to stop the loop.
@@ -268,7 +268,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
 		bbs.logger.Info("Checksum by not full-object unsuppored",
-			"checksum-type", i.ChecksumType)
+			"rid", rid, "checksum-type", i.ChecksumType)
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message:  "Checksum by not full-object unsuppored.",
 			Resource: location}
@@ -291,6 +291,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	if false {
 		if checksum != "" && checksum != mpul.Checksum {
 			bbs.logger.Info("Checksum algorithm mismatch",
+				"rid", rid,
 				"checksum-algorithm MPUL creation", mpul.Checksum,
 				"checksum-algorithm MPUL completion", checksum)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -407,7 +408,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	// i.TaggingDirective types.TaggingDirective
 	// i.WebsiteRedirectLocation *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -451,60 +452,65 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			// i.ContentType *string
 			// i.Expires *time.Time
 		}
-		bbs.check_options_ignored(action, location, &ignored)
+		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
-	var source, err15 = bbs.lookat_copy_source(object, i.CopySource)
+	var source, err15 = bbs.lookat_copy_source(rid, object, i.CopySource)
 	if err15 != nil {
 		return nil, err15
 	}
-	var _, source_entity, err3 = bbs.check_object_exists(source)
+	var _, source_entity, err3 = bbs.check_object_exists(rid, source)
 	if err3 != nil {
 		return nil, err3
 	}
-	var source_etag, err31 = bbs.fetch_object_etag(source, source_entity)
-	if err31 != nil {
-		return nil, err31
-	}
-
+	var source_etag string
 	var metainfo *Meta_info
 	{
-		var s_info, err2 = bbs.fetch_metainfo(source, source_entity)
-		if err2 != nil {
-			return nil, err2
-		}
-		var tags, err1 = bbs.parse_tags(object, i.Tagging)
+		var source_metainfo, err1 = bbs.fetch_metainfo(rid, source, source_entity)
 		if err1 != nil {
 			return nil, err1
 		}
-		var metainfo1 = Meta_info{
-			Entity_key: s_info.Entity_key,
-			ETag:       s_info.ETag,
+		if source_metainfo != nil {
+			source_etag = source_metainfo.ETag
+		} else {
+			var etag2, err2 = bbs.fetch_object_etag(rid, source, source_entity)
+			if err2 != nil {
+				return nil, err2
+			}
+			source_etag = etag2
+		}
+
+		metainfo = &Meta_info{}
+		var tags, err3 = bbs.parse_tags(rid, object, i.Tagging)
+		if err3 != nil {
+			return nil, err3
 		}
 		switch i.MetadataDirective {
 		case "COPY":
-			metainfo1.Headers = s_info.Headers
+			if source_metainfo != nil {
+				metainfo.Headers = source_metainfo.Headers
+			}
 		case "REPLACE":
-			metainfo1.Headers = i.Metadata
+			metainfo.Headers = i.Metadata
 		}
 		switch i.TaggingDirective {
 		case "COPY":
-			metainfo1.Tags = s_info.Tags
+			if source_metainfo != nil {
+				metainfo.Tags = source_metainfo.Tags
+			}
 		case "REPLACE":
-			metainfo1.Tags = tags
+			metainfo.Tags = tags
 		}
+
 		//metainfo1.ContentDisposition = i.ContentDisposition
 		//metainfo1.ContentEncoding = i.ContentEncoding
 		//metainfo1.ContentLanguage = i.ContentLanguage
 		//metainfo1.ContentType = i.ContentType
 		//metainfo1.Expires = i.Expires
 
-		// A metainfo file is never deleted, once created.
-
-		// if metainfo_zero(&metainfo1) {
-		// metainfo = nil
-		// }
-		metainfo = &metainfo1
+		if metainfo_zero(metainfo) {
+			metainfo = nil
+		}
 	}
 
 	// NOTE: Checking conditionals on the source is not serialized.
@@ -516,7 +522,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			modified_after:  i.CopySourceIfModifiedSince,
 			modified_before: i.CopySourceIfUnmodifiedSince,
 		}
-		var err7 = bbs.check_conditionals(source, source_etag, "read",
+		var err7 = bbs.check_conditionals(rid, source, source_etag, "read",
 			conditionals)
 		if err7 != nil {
 			return nil, err7
@@ -533,7 +539,6 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var upload_id = ""
 	var part int32 = 0
 	var extent *[2]int64 = nil
-	//var conditionals = copy_conditionals{}
 	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
 		source, source_entity, extent, metainfo, checksum2)
 	if err6 != nil {
@@ -624,7 +629,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 			CreateBucketConfiguration: i.CreateBucketConfiguration,
 			ObjectOwnership:           i.ObjectOwnership,
 		}
-		bbs.check_options_ignored(action, location, &ignored)
+		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
 	// Note serialization may not be necessary as mkdir() is atomic.
@@ -649,7 +654,8 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 		/*if !errors.Is(err2, fs.ErrExist) {*/
 		/*var err4, ok = err3.Err.(syscall.Errno)*/
 
-		bbs.logger.Debug("os.Mkdir() failed", "path", path, "error", err3)
+		bbs.logger.Debug("os.Mkdir() failed",
+			"rid", rid, "path", path, "error", err3)
 		var m = map[error]Aws_s3_error_code{
 			fs.ErrExist: BucketAlreadyOwnedByYou}
 		var errz = map_os_error(location, err3, m)
@@ -701,7 +707,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	// i.Tagging *string
 	// i.WebsiteRedirectLocation *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -724,13 +730,13 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 			// i.ContentType *string
 			// i.Expires *time.Time
 		}
-		bbs.check_options_ignored(action, location, &ignored)
+		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
 	var metainfo *Meta_info
 
 	{
-		var tags, err1 = bbs.parse_tags(object, i.Tagging)
+		var tags, err1 = bbs.parse_tags(rid, object, i.Tagging)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -743,7 +749,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 
 	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
 		bbs.logger.Info("Checksum by not full-object unsuppored",
-			"checksum-type", i.ChecksumType)
+			"rid", rid, "checksum-type", i.ChecksumType)
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message:  "Checksum by not full-object unsuppored.",
 			Resource: location}
@@ -778,21 +784,21 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	}
 
 	{
-		var err6 = bbs.create_mpul_directory(ctx, object, mpul)
+		var err6 = bbs.create_mpul_directory(rid, object, mpul)
 		if err6 != nil {
 			return nil, err6
 		}
 		var cleanup_needed = true
 		defer func() {
 			if cleanup_needed {
-				var _ = bbs.discard_mpul_directory(object)
+				var _ = bbs.discard_mpul_directory(rid, object)
 			}
 		}()
 
 		var catalog = &Mpul_catalog{
 			// Empty catalog information.
 		}
-		var err7 = bbs.store_mpul_catalog(object, catalog)
+		var err7 = bbs.store_mpul_catalog(rid, object, catalog)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -830,7 +836,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	// i.Bucket *string
 	// i.ExpectedBucketOwner *string
 
-	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	var bucket, err2 = bbs.check_usual_bucket_setup(rid, i.Bucket)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -864,9 +870,9 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 
 	var err3 = os.Remove(path)
 	if err3 != nil {
-		bbs.logger.Info("os.Remove() failed for DeleteBucket",
-			"path", path, "error", err3)
-		var err4 = bbs.check_bucket_empty(path)
+		bbs.logger.Info("os.Remove() for DeleteBucket failed",
+			"rid", rid, "path", path, "error", err3)
+		var err4 = bbs.check_bucket_empty(rid, path)
 		if err4 != nil {
 			return nil, err4
 		}
@@ -874,12 +880,12 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 		// Only files remain that start with a dot.  Remove them.
 
 		bbs.logger.Info(("Try os.RemoveAll() after removing a bucket failed"),
-			"path", path)
+			"rid", rid, "path", path)
 
 		var err5 = os.RemoveAll(path)
 		if err5 != nil {
-			bbs.logger.Info("os.RemoveAll() failed for DeleteBucket",
-				"path", path, "error", err5)
+			bbs.logger.Info("os.RemoveAll() for DeleteBucket failed",
+				"rid", rid, "path", path, "error", err5)
 			var errz = &Aws_s3_error{Code: BucketNotEmpty,
 				Resource: location}
 			return nil, errz
@@ -906,7 +912,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	// i.RequestPayer types.RequestPayer
 	// i.VersionId *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -962,7 +968,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	// "x-amz-sdk-checksum-algorithm".
 
 	var dummy = "dummy"
-	var _, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, &dummy)
+	var _, err2 = bbs.check_usual_object_setup(rid, i.Bucket, &dummy)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1114,7 +1120,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 	// i.ExpectedBucketOwner *string
 	// i.VersionId *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1143,12 +1149,12 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var _, entity, err3 = bbs.check_object_exists(object)
+	var _, entity, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
+	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -1160,7 +1166,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		if metainfo.Headers == nil {
 			metainfo = nil
 		}
-		var err7 = bbs.store_metainfo(object, metainfo)
+		var err7 = bbs.store_metainfo(rid, object, metainfo)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -1199,7 +1205,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	// i.SSECustomerKeyMD5 *string
 	// i.VersionId *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1221,17 +1227,17 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		}
 	}
 
-	var stat, entity, err3 = bbs.check_object_exists(object)
+	var stat, entity, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
+	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
 
-	var etag, err31 = bbs.fetch_object_etag(object, entity)
+	var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
 	if err31 != nil {
 		return nil, err31
 	}
@@ -1262,7 +1268,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	// NO SERIALIZE-ACCESSES.
 
-	var err7 = bbs.check_conditionals(object, etag, "read",
+	var err7 = bbs.check_conditionals(rid, object, etag, "read",
 		copy_conditionals{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
@@ -1276,7 +1282,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var csum []byte
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, crc1, _, err8 = bbs.calculate_csum2(object, checksum, object, extent)
+		var _, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum, object, extent)
 		if err8 != nil {
 			return nil, err8
 		}
@@ -1284,7 +1290,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	}
 
 	{
-		var f1, err9 = bbs.make_file_stream(ctx, object, extent, entity)
+		var f1, err9 = bbs.make_file_stream(rid, object, extent, entity)
 		if err9 != nil {
 			return nil, err9
 		}
@@ -1362,7 +1368,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	// i.SSECustomerKeyMD5 *string
 	// i.VersionId *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1386,10 +1392,10 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 			MaxParts:         i.MaxParts,
 			PartNumberMarker: i.PartNumberMarker,
 		}
-		bbs.check_options_ignored(action, location, &ignored)
+		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
-	var stat, entity, err3 = bbs.check_object_exists(object)
+	var stat, entity, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1398,7 +1404,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 
 	var attributes = i.ObjectAttributes
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
-		var etag, err31 = bbs.fetch_object_etag(object, entity)
+		var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
 		if err31 != nil {
 			return nil, err31
 		}
@@ -1406,7 +1412,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	}
 	if slices.Contains(attributes, types.ObjectAttributesChecksum) {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, crc1, _, err8 = bbs.calculate_csum2(object, checksum, object, nil)
+		var _, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum, object, nil)
 		if err8 != nil {
 			return nil, err8
 		}
@@ -1462,7 +1468,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 	// i.RequestPayer types.RequestPayer
 	// i.VersionId *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1480,12 +1486,12 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		}
 	}
 
-	var _, entity, err3 = bbs.check_object_exists(object)
+	var _, entity, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
+	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -1510,7 +1516,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 	// i.Bucket *string
 	// i.ExpectedBucketOwner *string
 
-	var _, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	var _, err2 = bbs.check_usual_bucket_setup(rid, i.Bucket)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1564,7 +1570,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	// i.SSECustomerKeyMD5 *string
 	// i.VersionId *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1586,17 +1592,17 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		}
 	}
 
-	var stat, entity, err3 = bbs.check_object_exists(object)
+	var stat, entity, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
 
-	var metainfo, err5 = bbs.fetch_metainfo(object, entity)
+	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
 
-	var etag, err31 = bbs.fetch_object_etag(object, entity)
+	var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
 	if err31 != nil {
 		return nil, err31
 	}
@@ -1611,7 +1617,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	// NO SERIALIZE-ACCESSES.
 
-	var err7 = bbs.check_conditionals(object, etag, "read",
+	var err7 = bbs.check_conditionals(rid, object, etag, "read",
 		copy_conditionals{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
@@ -1624,7 +1630,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, crc1, _, err8 = bbs.calculate_csum2(object, checksum, object, nil)
+		var _, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum, object, nil)
 		if err8 != nil {
 			return nil, err8
 		}
@@ -1755,7 +1761,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 
 	// NO SERIALIZE-ACCESSES.
 
-	var buckets, continuation, err3 = bbs.list_buckets(start, max_buckets,
+	var buckets, continuation, err3 = bbs.list_buckets(rid, start, max_buckets,
 		prefix)
 	if err3 != nil {
 		return nil, err3
@@ -1792,7 +1798,7 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 	// i.RequestPayer types.RequestPayer
 	// i.UploadIdMarker *string
 
-	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	var bucket, err2 = bbs.check_usual_bucket_setup(rid, i.Bucket)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1837,7 +1843,7 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 	// NO SERIALIZE-ACCESSES.
 
 	var objects, commons, nextmarker, err5 = bbs.list_mpuls_flat(
-		bucket, marker, maxkeys, delimiter, prefix, urlencode)
+		rid, bucket, marker, maxkeys, delimiter, prefix, urlencode)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -1880,7 +1886,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	// i.Prefix *string
 	// i.RequestPayer types.RequestPayer
 
-	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	var bucket, err2 = bbs.check_usual_bucket_setup(rid, i.Bucket)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -1932,17 +1938,17 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	var err3 *Aws_s3_error
 	if !always_use_flat_lister && delimiter == "/" {
 		entries, nextindex, nextmarker, err3 = bbs.list_objects_delimited(
-			bucket, index, marker, maxkeys, delimiter, prefix)
+			rid, bucket, index, marker, maxkeys, delimiter, prefix)
 	} else {
 		entries, nextindex, nextmarker, err3 = bbs.list_objects_flat(
-			bucket, index, marker, maxkeys, delimiter, prefix)
+			rid, bucket, index, marker, maxkeys, delimiter, prefix)
 	}
 	if err3 != nil {
 		return nil, err3
 	}
 
 	var contents, commonprefixes, err4 = bbs.make_list_objects_entries(
-		entries, bucket, delimiter, prefix, urlencode)
+		rid, entries, bucket, delimiter, prefix, urlencode)
 	var _ = err4
 	var istruncated = (nextindex != 0)
 
@@ -1983,7 +1989,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	// i.RequestPayer types.RequestPayer
 	// i.StartAfter *string
 
-	var bucket, err2 = check_usual_bucket_setup(ctx, bbs, i.Bucket)
+	var bucket, err2 = bbs.check_usual_bucket_setup(rid, i.Bucket)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -2046,10 +2052,10 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	var err5 *Aws_s3_error
 	if !always_use_flat_lister && delimiter == "/" {
 		entries, nextindex, nextmarker, err5 = bbs.list_objects_delimited(
-			bucket, index, marker, maxkeys, delimiter, prefix)
+			rid, bucket, index, marker, maxkeys, delimiter, prefix)
 	} else {
 		entries, nextindex, nextmarker, err5 = bbs.list_objects_flat(
-			bucket, index, marker, maxkeys, delimiter, prefix)
+			rid, bucket, index, marker, maxkeys, delimiter, prefix)
 	}
 	if err5 != nil {
 		return nil, err5
@@ -2057,7 +2063,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	var _ = nextmarker
 
 	var contents, commonprefixes, err6 = bbs.make_list_objects_entries(
-		entries, bucket, delimiter, prefix, urlencode)
+		rid, entries, bucket, delimiter, prefix, urlencode)
 	var _ = err6
 	var istruncated = (nextindex != 0)
 
@@ -2104,7 +2110,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -2124,7 +2130,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
+	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2145,7 +2151,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		index = int32(n)
 	}
 
-	var catalog, err4 = bbs.fetch_mpul_catalog(object)
+	var catalog, err4 = bbs.fetch_mpul_catalog(rid, object)
 	if err4 != nil {
 		return nil, err4
 	}
@@ -2281,7 +2287,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	// Note i.ChecksumAlgorithm shall be ignored because it is
 	// "x-amz-sdk-checksum-algorithm".
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -2325,7 +2331,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 			// i.GrantWriteACP *string
 			StorageClass: i.StorageClass,
 		}
-		bbs.check_options_ignored(action, location, &ignored)
+		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
 	var size_to_check int64
@@ -2355,7 +2361,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	var metainfo *Meta_info
 
 	{
-		var tags, err1 = bbs.parse_tags(object, i.Tagging)
+		var tags, err1 = bbs.parse_tags(rid, object, i.Tagging)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2440,7 +2446,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 
 	// i.ContentMD5 is implicitly checked in unmarshaling body.
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -2473,12 +2479,12 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	}
 
 	{
-		var _, entity, err3 = bbs.check_object_exists(object)
+		var _, entity, err3 = bbs.check_object_exists(rid, object)
 		if err3 != nil {
 			return nil, err3
 		}
 
-		var metainfo, err2 = bbs.fetch_metainfo(object, entity)
+		var metainfo, err2 = bbs.fetch_metainfo(rid, object, entity)
 		if err2 != nil {
 			return nil, err2
 		}
@@ -2491,7 +2497,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 			}
 		}
 		metainfo.Tags = i.Tagging
-		var err7 = bbs.store_metainfo(object, metainfo)
+		var err7 = bbs.store_metainfo(rid, object, metainfo)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -2530,7 +2536,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	// Note i.ChecksumAlgorithm shall be ignored because it is
 	// "x-amz-sdk-checksum-algorithm".
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -2550,7 +2556,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
+	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2653,7 +2659,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	// i.SSECustomerKey *string
 	// i.SSECustomerKeyMD5 *string
 
-	var object, err2 = check_usual_object_setup(ctx, bbs, i.Bucket, i.Key)
+	var object, err2 = bbs.check_usual_object_setup(rid, i.Bucket, i.Key)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -2677,7 +2683,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(object, i.UploadId, false)
+	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2686,16 +2692,16 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err14
 	}
 
-	var source, err5 = bbs.lookat_copy_source(object, i.CopySource)
+	var source, err5 = bbs.lookat_copy_source(rid, object, i.CopySource)
 	if err5 != nil {
 		return nil, err5
 	}
-	var s_stat, source_entity, err13 = bbs.check_object_exists(source)
+	var s_stat, source_entity, err13 = bbs.check_object_exists(rid, source)
 	if err13 != nil {
 		return nil, err13
 	}
 
-	var source_etag, err31 = bbs.fetch_object_etag(source, source_entity)
+	var source_etag, err31 = bbs.fetch_object_etag(rid, source, source_entity)
 	if err31 != nil {
 		return nil, err31
 	}
@@ -2709,7 +2715,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 			modified_after:  i.CopySourceIfModifiedSince,
 			modified_before: i.CopySourceIfUnmodifiedSince,
 		}
-		var err7 = bbs.check_conditionals(source, source_etag, "read",
+		var err7 = bbs.check_conditionals(rid, source, source_etag, "read",
 			conditionals)
 		if err7 != nil {
 			return nil, err7

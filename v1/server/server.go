@@ -136,7 +136,7 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var elapse_time = time.Since(start_time)
 	var request = fmt.Sprintf("%s %s", r.Method, r.URL)
 	sv.bbs.logger.Debug("Handling time",
-		"request", request, "rid", rid, "code", code, "length", length,
+		"rid", rid, "request", request, "code", code, "length", length,
 		"elapse", elapse_time)
 
 	if sv.bbs.access_logging != nil {
@@ -175,7 +175,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		Server_control_path:     "bbs.ctl",
 		Site_base_url:           nil,
 		Exclusion_wait:          100,
-		Record_etag_threshold:   20,
+		Record_etag_threshold:   1,
 		Limit_of_xml_parameters: 2,
 		Verify_fs_write:         false,
 	}

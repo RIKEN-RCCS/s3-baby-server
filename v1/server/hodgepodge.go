@@ -184,7 +184,7 @@ func make_parameter_error(name string, err error) error {
 	return fmt.Errorf(("Parameter \"" + name + "\" error: %w"), err)
 }
 
-func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
+func (bbs *Bb_server) check_usual_object_setup(rid uint64, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
@@ -206,7 +206,7 @@ func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 		return "", errz
 	}
 
-	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
+	var err2 = bbs.check_bucket_directory_exists(rid, bucket)
 	if err2 != nil {
 		return "", err2
 	}
@@ -215,7 +215,7 @@ func check_usual_object_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 	return object, nil
 }
 
-func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *string) (string, *Aws_s3_error) {
+func (bbs *Bb_server) check_usual_bucket_setup(rid uint64, bucket1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
@@ -225,7 +225,7 @@ func check_usual_bucket_setup(ctx context.Context, bbs *Bb_server, bucket1 *stri
 		return "", errz
 	}
 
-	var err2 = bbs.check_bucket_directory_exists(ctx, bucket)
+	var err2 = bbs.check_bucket_directory_exists(rid, bucket)
 	if err2 != nil {
 		return "", err2
 	}
@@ -373,19 +373,19 @@ func check_options_unsupported(action string, i *option_check_list) *Aws_s3_erro
 	return nil
 }
 
-func (bbs *Bb_server) check_options_ignored(action, resource string, i *option_check_list) *Aws_s3_error {
+func (bbs *Bb_server) check_options_ignored(action string, rid uint64, resource string, i *option_check_list) *Aws_s3_error {
 	if false {
 		if i.ACL_bucket_canned != "" {
 			bbs.logger.Debug("x-amz-acl ignored",
-				"action", action, "resource", resource)
+				"action", action, "rid", rid, "resource", resource)
 		}
 		if i.CreateBucketConfiguration != nil {
 			bbs.logger.Debug("CreateBucketConfiguration ignored",
-				"action", action, "resource", resource)
+				"action", action, "rid", rid, "resource", resource)
 		}
 		if i.ObjectOwnership != types.ObjectOwnershipBucketOwnerEnforced {
 			bbs.logger.Debug("x-amz-object-ownership ignored",
-				"action", action, "resource", resource)
+				"action", action, "rid", rid, "resource", resource)
 		}
 	}
 
@@ -394,7 +394,7 @@ func (bbs *Bb_server) check_options_ignored(action, resource string, i *option_c
 	if i.CacheControl != nil {
 		if !strings.EqualFold(*i.CacheControl, "no-cache") {
 			bbs.logger.Info("Cache-Control header ignored",
-				"action", action, "resource", resource,
+				"action", action, "rid", rid, "resource", resource,
 				"directive", *i.CacheControl)
 		}
 	}
@@ -473,7 +473,7 @@ func scan_range(object string, rangestring *string, size int64) (*[2]int64, *Aws
 // (PUT/POST), and "delete" (DELETE).  A mode may disagree with the
 // method, when the object is a copy source.  It considers an equal
 // time as included.
-func (bbs *Bb_server) check_conditionals(object string, etag string, mode string, conditionals copy_conditionals) *Aws_s3_error {
+func (bbs *Bb_server) check_conditionals(rid uint64, object string, etag string, mode string, conditionals copy_conditionals) *Aws_s3_error {
 	bb_assert(slices.Contains([]string{"read", "write", "delete"}, mode))
 
 	// No conditions are unconditionally Okay.
@@ -490,7 +490,7 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 		var m1, err1 = httpaide.Scan_rfc7232_etags(*conditionals.some_match)
 		if err1 != nil {
 			bbs.logger.Info("Bad conditional format (if-match)",
-				"error", err1)
+				"rid", rid, "error", err1)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: "Bad if-match."}
 			return errz
@@ -501,7 +501,7 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 		var m2, err2 = httpaide.Scan_rfc7232_etags(*conditionals.none_match)
 		if err2 != nil {
 			bbs.logger.Info("Bad conditional format (if-none-match)",
-				"error", err2)
+				"rid", rid, "error", err2)
 			var errz = &Aws_s3_error{Code: InvalidArgument,
 				Message: "Bad if-none-match."}
 			return errz
@@ -511,10 +511,10 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 
 	// Fetch status of an object.  It accepts non-existing case.
 
-	var stat, _, err1 = bbs.fetch_object_status(object, false)
+	var stat, _, err1 = bbs.fetch_object_status(rid, object, false)
 	if err1 != nil {
 		bbs.logger.Info("Bad conditional, object missing",
-			"error", err1)
+			"rid", rid, "error", err1)
 		return err1
 	}
 	var nonexist = (stat == nil)
@@ -549,7 +549,7 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 			// Always matches.
 		} else if nonexist || !slices.Contains(etags_include, etag) {
 			bbs.logger.Info("Conditional fails (if-match)",
-				"etag", etag, "etags_include", etags_include)
+				"rid", rid, "etag", etag, "etags_include", etags_include)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition if-match fails.",
 				headers: headers}
@@ -559,7 +559,7 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 		// "if-unmodified-since"
 		if nonexist || !(mtime.Compare(*conditionals.modified_before) <= 0) {
 			bbs.logger.Info("Conditional fails (if-unmodified-since)",
-				"mtime", mtime,
+				"rid", rid, "mtime", mtime,
 				"modified_before", *conditionals.modified_before)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition if-unmodified-since fails.",
@@ -580,14 +580,14 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 			// OK.
 		} else if match_etags_is_star(etags_exclude) {
 			bbs.logger.Info("Conditional fails (if-none-match)",
-				"etag", etag, "etags_exclude", etags_exclude)
+				"rid", rid, "etag", etag, "etags_exclude", etags_exclude)
 			var errz = &Aws_s3_error{Code: errorcode,
 				Message: "Condition if-none-match fails.",
 				headers: headers}
 			return errz
 		} else if slices.Contains(etags_exclude, etag) {
 			bbs.logger.Info("Conditional fails (if-none-match)",
-				"etag", etag, "etags_exclude", etags_exclude)
+				"rid", rid, "etag", etag, "etags_exclude", etags_exclude)
 			var errz = &Aws_s3_error{Code: errorcode,
 				Message: "Condition if-none-match fails.",
 				headers: headers}
@@ -597,7 +597,7 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 		// "if-modified-since"
 		if nonexist || !(conditionals.modified_after.Compare(mtime) <= 0) {
 			bbs.logger.Info("Conditional fails (if-modified-since)",
-				"mtime", mtime,
+				"rid", rid, "mtime", mtime,
 				"modified_after", *conditionals.modified_after)
 			var errz = &Aws_s3_error{Code: NotModified,
 				Message: "Condition if-modified-since fails.",
@@ -613,7 +613,7 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 			// OK.
 		} else if !conditionals.modified_time.Equal(mtime) {
 			bbs.logger.Info("Conditional fails (if-match-last-modified-time)",
-				"mtime", mtime,
+				"rid", rid, "mtime", mtime,
 				"modified_time", *conditionals.modified_time)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition x-amz-if-match-last-modified-time fails.",
@@ -628,7 +628,7 @@ func (bbs *Bb_server) check_conditionals(object string, etag string, mode string
 			// OK.
 		} else if !(*conditionals.size == size) {
 			bbs.logger.Info("Conditional fails (if-match-size)",
-				"size", size,
+				"rid", rid, "size", size,
 				"specified_size", *conditionals.size)
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Message: "Condition x-amz-if-match-size fails."}
@@ -659,7 +659,7 @@ func (bbs *Bb_server) make_partial_metainfo(headers map[string]string, tagging *
 
 // PARSE_TAGS scans tags in a request.  Note a tag-set is encoded as
 // URL query parameters.
-func (bbs *Bb_server) parse_tags(object string, s *string) (*types.Tagging, *Aws_s3_error) {
+func (bbs *Bb_server) parse_tags(rid uint64, object string, s *string) (*types.Tagging, *Aws_s3_error) {
 	var location = "/" + object
 	if s == nil {
 		return nil, nil
@@ -667,7 +667,7 @@ func (bbs *Bb_server) parse_tags(object string, s *string) (*types.Tagging, *Aws
 	var m, err1 = url.ParseQuery(*s)
 	if err1 != nil {
 		bbs.logger.Info("url.ParseQuery() in parsing tags failed",
-			"error", err1)
+			"rid", rid, "error", err1)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message:  "Tag format error.",
 			Resource: location}
@@ -676,7 +676,8 @@ func (bbs *Bb_server) parse_tags(object string, s *string) (*types.Tagging, *Aws
 	var tags = []types.Tag{}
 	for k, v := range m {
 		if len(v) != 1 {
-			bbs.logger.Info("Multiple values in tags, ignored")
+			bbs.logger.Info("Multiple values in tags, ignored",
+				"rid", rid)
 		}
 		var value string
 		if len(v) == 0 {
@@ -712,7 +713,7 @@ func (bbs *Bb_server) lookat_part_number(object string, partnumber *int32) (int3
 	}
 }
 
-func (bbs *Bb_server) lookat_copy_source(object string, copysource *string) (string, *Aws_s3_error) {
+func (bbs *Bb_server) lookat_copy_source(rid uint64, object string, copysource *string) (string, *Aws_s3_error) {
 	if copysource == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message: "No x-amz-copy-source supplied."}
@@ -721,7 +722,7 @@ func (bbs *Bb_server) lookat_copy_source(object string, copysource *string) (str
 	var u, err3 = url.Parse(*copysource)
 	if err3 != nil {
 		bbs.logger.Debug("url.Parse() fail",
-			"string", *copysource, "error", err3)
+			"rid", rid, "string", *copysource, "error", err3)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message: "Bad x-amz-copy-source."}
 		return "", errz
@@ -819,6 +820,5 @@ func metainfo_zero(m *Meta_info) bool {
 	//m.ContentLanguage == nil &&
 	//m.ContentType == nil &&
 	//m.Expires == nil &&
-	return (m.Headers == nil &&
-		m.Tags == nil)
+	return (m.Headers == nil && m.Tags == nil)
 }
