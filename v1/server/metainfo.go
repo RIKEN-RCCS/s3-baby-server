@@ -15,16 +15,15 @@ import (
 
 // Meta-information associated to an object.  It is stored in a hidden
 // file in json.  Entity_key is used to check the validity of
-// information.  ETag stores an MD5 sum.  Headers stores
-// "x-amz-meta-".  Tags stores tagging tags.
+// information.  ETag stores an MD5 sum.  Checksum stores a checksum.
+// Headers stores "x-amz-meta-".  Tags stores tagging tags.
 type Meta_info struct {
-	Entity_key string            `json:"entity-key"`
-	ETag       string            `json:"etag"`
-	Headers    map[string]string `json:"headers"`
-	Tags       *types.Tagging    `json:"tags"`
-
-	//Checksum_algorithm types.ChecksumAlgorithm
-	//Checksum *string
+	Entity_key         string                  `json:"entity-key"`
+	ETag               string                  `json:"etag"`
+	Checksum_algorithm types.ChecksumAlgorithm `json:"checksum_algorithm"`
+	Checksum           string                  `json:"checksum"`
+	Headers            map[string]string       `json:"headers"`
+	Tags               *types.Tagging          `json:"tags"`
 
 	//ContentDisposition *string
 	//ContentEncoding    *string

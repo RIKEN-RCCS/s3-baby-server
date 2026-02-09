@@ -352,18 +352,17 @@ func (bbs *Bb_server) make_list_objects_entries(rid uint64, entries []object_lis
 		var object = path.Join(bucket, e.key)
 		var commonpart = check_common_prefix(e.key, delimiter, prefix)
 		if commonpart == "" {
-			var stat, entity, err7 = bbs.fetch_object_status(rid, object, false)
+			var entity, _, err7 = bbs.fetch_object_status(rid, object, false)
 			if err7 != nil {
 				return nil, nil, err7
 			}
-			if stat == nil {
-				bbs.logger.Warn("Race in listing",
+			if entity == "" {
+				bbs.logger.Warn("Race: Object changed while listing",
 					"rid", rid, "object", object)
 				// Skip this entry.
 				continue
 			}
-
-			var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
+			var etag, _, err31 = bbs.fetch_object_etag(rid, object, entity)
 			if err31 != nil {
 				// Skip this entry.
 				continue
@@ -488,10 +487,10 @@ func (bbs *Bb_server) list_mpuls_flat(rid uint64, bucket string, marker string, 
 				var mpul, err4 = bbs.fetch_mpul_info(rid, object, false)
 				if err4 != nil {
 					// IGNORE-ERRORS.
-					// Race among listing and others.
-					bbs.logger.Info(("Race in accessing MPUL," +
-						" listing and others"),
-						"rid", rid, "func", "fetch_mpul_info", "error", err4)
+					// Race among listing and other actions.
+					bbs.logger.Info("Race: MPUL info changed while listing",
+						"rid", rid, "function", "fetch_mpul_info",
+						"error", err4)
 					return nil
 				}
 				var fixedkey string

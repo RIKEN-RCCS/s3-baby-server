@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"log"
@@ -275,7 +276,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, errz
 	}
 
-	var csumset1 = types.Checksum{
+	var csumset = types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
@@ -283,7 +284,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset1)
+	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -308,12 +309,12 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		checksum:      checksum,
 		csum_to_check: csum_to_check,
 	}
-	var conditionals = copy_conditionals{
+	var conditions = copy_conditions{
 		some_match: i.IfMatch,
 		none_match: i.IfNoneMatch,
 	}
-	var _, etag, csum2, err6 = bbs.concatenate_object(ctx, object,
-		partlist, mpul, checks, conditionals)
+	var etag, _, _, err6 = bbs.concatenate_object(ctx, object,
+		partlist, mpul, checks, conditions)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -335,14 +336,14 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	o.Location = &address
 
 	{
-		var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
-		o.ChecksumType = csumset2.ChecksumType
-		o.ChecksumCRC32 = csumset2.ChecksumCRC32
-		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
-		o.ChecksumSHA1 = csumset2.ChecksumSHA1
-		o.ChecksumSHA256 = csumset2.ChecksumSHA256
+		//var checksum2 = types.ChecksumAlgorithmCrc64nvme
+		//var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+		o.ChecksumType = csumset.ChecksumType
+		o.ChecksumCRC32 = csumset.ChecksumCRC32
+		o.ChecksumCRC32C = csumset.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset.ChecksumSHA1
+		o.ChecksumSHA256 = csumset.ChecksumSHA256
 	}
 
 	{
@@ -455,33 +456,25 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
-	var source, err15 = bbs.lookat_copy_source(rid, object, i.CopySource)
-	if err15 != nil {
-		return nil, err15
+	var source, err25 = bbs.lookat_copy_source(rid, object, i.CopySource)
+	if err25 != nil {
+		return nil, err25
 	}
-	var _, source_entity, err3 = bbs.check_object_exists(rid, source)
-	if err3 != nil {
-		return nil, err3
+	var source_entity, source_stat, err23 = bbs.check_object_exists(rid, source)
+	if err23 != nil {
+		return nil, err23
 	}
-	var source_etag string
-	var metainfo *Meta_info
-	{
-		var source_metainfo, err1 = bbs.fetch_metainfo(rid, source, source_entity)
-		if err1 != nil {
-			return nil, err1
-		}
-		if source_metainfo != nil {
-			source_etag = source_metainfo.ETag
-		} else {
-			var etag2, err2 = bbs.fetch_object_etag(rid, source, source_entity)
-			if err2 != nil {
-				return nil, err2
-			}
-			source_etag = etag2
-		}
+	var source_etag, source_metainfo, err22 = bbs.fetch_object_etag(rid, source, source_entity)
+	if err22 != nil {
+		return nil, err22
+	}
 
+	var metainfo *Meta_info
+
+	{
 		metainfo = &Meta_info{}
-		var tags, err3 = bbs.parse_tags(rid, object, i.Tagging)
+		var headers = i.Metadata
+		var tagging, err3 = bbs.parse_tags(rid, object, i.Tagging)
 		if err3 != nil {
 			return nil, err3
 		}
@@ -491,7 +484,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 				metainfo.Headers = source_metainfo.Headers
 			}
 		case "REPLACE":
-			metainfo.Headers = i.Metadata
+			metainfo.Headers = headers
 		}
 		switch i.TaggingDirective {
 		case "COPY":
@@ -499,7 +492,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 				metainfo.Tags = source_metainfo.Tags
 			}
 		case "REPLACE":
-			metainfo.Tags = tags
+			metainfo.Tags = tagging
 		}
 
 		//metainfo1.ContentDisposition = i.ContentDisposition
@@ -508,22 +501,22 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		//metainfo1.ContentType = i.ContentType
 		//metainfo1.Expires = i.Expires
 
-		if metainfo_zero(metainfo) {
-			metainfo = nil
-		}
+		metainfo = metainfo_null_for_zero(metainfo)
 	}
 
-	// NOTE: Checking conditionals on the source is not serialized.
+	// NOTE: Checking conditions on the source is not serialized.
 
 	{
-		var conditionals = copy_conditionals{
+		var conditions = copy_conditions{
 			some_match:      i.CopySourceIfMatch,
 			none_match:      i.CopySourceIfNoneMatch,
 			modified_after:  i.CopySourceIfModifiedSince,
 			modified_before: i.CopySourceIfUnmodifiedSince,
 		}
-		var err7 = bbs.check_conditionals(rid, source, source_etag, "read",
-			conditionals)
+		var source_mtime = source_stat.ModTime()
+		var source_size = source_stat.Size()
+		var err7 = bbs.check_conditions(rid, source, source_etag,
+			source_mtime, source_size, "read", conditions)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -539,7 +532,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var upload_id = ""
 	var part int32 = 0
 	var extent *[2]int64 = nil
-	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
+	var etag, stat, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
 		source, source_entity, extent, metainfo, checksum2)
 	if err6 != nil {
 		return nil, err6
@@ -736,15 +729,23 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	var metainfo *Meta_info
 
 	{
-		var tags, err1 = bbs.parse_tags(rid, object, i.Tagging)
+		var headers = i.Metadata
+		var tagging, err1 = bbs.parse_tags(rid, object, i.Tagging)
 		if err1 != nil {
 			return nil, err1
 		}
-		var info, err3 = bbs.make_partial_metainfo(i.Metadata, tags)
-		if err3 != nil {
-			return nil, err3
+		if headers != nil || tagging != nil {
+			metainfo = &Meta_info{
+				Entity_key:         "",
+				ETag:               "",
+				Checksum_algorithm: "",
+				Checksum:           "",
+				Headers:            headers,
+				Tags:               tagging,
+			}
+		} else {
+			metainfo = nil
 		}
-		metainfo = info
 	}
 
 	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
@@ -934,12 +935,12 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 
 	// SERIALIZE-ACCESSES (in the deletion routine).
 
-	var conditionals = copy_conditionals{
+	var conditions = copy_conditions{
 		some_match:    i.IfMatch,
 		modified_time: i.IfMatchLastModifiedTime,
 		size:          i.IfMatchSize,
 	}
-	var err6 = bbs.delete_object(ctx, object, conditionals)
+	var err6 = bbs.delete_object(ctx, object, conditions)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -1047,12 +1048,12 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 
 			// SERIALIZE-ACCESSES (in the deletion routine).
 
-			var conditionals = copy_conditionals{
+			var conditions = copy_conditions{
 				some_match:    e.ETag,
 				modified_time: e.LastModifiedTime,
 				size:          e.Size,
 			}
-			var err6 = bbs.delete_object(ctx, object, conditionals)
+			var err6 = bbs.delete_object(ctx, object, conditions)
 			if err6 != nil {
 				deletestate[i].error.Code = &err6.Code
 				deletestate[i].error.Message = &err6.Message
@@ -1149,24 +1150,22 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var _, entity, err3 = bbs.check_object_exists(rid, object)
+	var entity, _, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
-
-	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
+	var metainfo, err5 = bbs.fetch_object_metainfo(rid, object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
 
-	// Modify metainfo, and remove the file when it become nothing.
+	// Modify metainfo, and remove the metainfo file when it become
+	// nothing.
 
 	if metainfo != nil && metainfo.Tags != nil {
 		metainfo.Tags = nil
-		if metainfo.Headers == nil {
-			metainfo = nil
-		}
-		var err7 = bbs.store_metainfo(rid, object, metainfo)
+		//metainfo = metainfo_null_for_zero(metainfo)
+		var err7 = bbs.store_object_metainfo(rid, object, metainfo)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -1227,40 +1226,26 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		}
 	}
 
-	var stat, entity, err3 = bbs.check_object_exists(rid, object)
+	var entity, stat, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
-
-	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
-	if err5 != nil {
-		return nil, err5
-	}
-
-	var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
+	var etag, metainfo, err31 = bbs.fetch_object_etag(rid, object, entity)
 	if err31 != nil {
 		return nil, err31
 	}
-
+	var mtime = stat.ModTime()
 	var size = stat.Size()
 	var extent, err4 = scan_range(object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
 	}
 
-	var mtime = stat.ModTime()
-
-	// Store an ETag in metainfo when the file is large.  Storing
-	// metainfo serializes inside the routine.
+	// Store an ETag in metainfo when the object is large.  Storing
+	// metainfo serializes accesses inside the routine.
 
 	if metainfo == nil && size >= byte_size(bbs.config.Record_etag_threshold) {
-		var metainfo2 = &Meta_info{
-			Entity_key: entity,
-			ETag:       etag,
-			Headers:    nil,
-			Tags:       nil,
-		}
-		var err6 = bbs.store_metainfo_serialized(ctx, rid, object, metainfo2)
+		var err6 = bbs.store_etag_as_metainfo(ctx, object, entity, etag)
 		if err6 != nil {
 			return nil, err6
 		}
@@ -1268,8 +1253,9 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	// NO SERIALIZE-ACCESSES.
 
-	var err7 = bbs.check_conditionals(rid, object, etag, "read",
-		copy_conditionals{
+	var err7 = bbs.check_conditions(rid, object, etag,
+		mtime, size, "read",
+		copy_conditions{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
 			modified_after:  i.IfModifiedSince,
@@ -1395,7 +1381,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
-	var stat, entity, err3 = bbs.check_object_exists(rid, object)
+	var entity, stat, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -1404,7 +1390,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 
 	var attributes = i.ObjectAttributes
 	if slices.Contains(attributes, types.ObjectAttributesEtag) {
-		var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
+		var etag, _, err31 = bbs.fetch_object_etag(rid, object, entity)
 		if err31 != nil {
 			return nil, err31
 		}
@@ -1486,12 +1472,11 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 		}
 	}
 
-	var _, entity, err3 = bbs.check_object_exists(rid, object)
+	var entity, _, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
-
-	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
+	var metainfo, err5 = bbs.fetch_object_metainfo(rid, object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
@@ -1574,7 +1559,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	if err2 != nil {
 		return nil, err2
 	}
-	//var location = "/" + object
+	var location = "/" + object
 
 	{
 		var unsupported = option_check_list{
@@ -1592,33 +1577,36 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		}
 	}
 
-	var stat, entity, err3 = bbs.check_object_exists(rid, object)
+	var entity, stat, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return nil, err3
 	}
-
-	var metainfo, err5 = bbs.fetch_metainfo(rid, object, entity)
+	var etag, metainfo, err5 = bbs.fetch_object_etag(rid, object, entity)
 	if err5 != nil {
 		return nil, err5
 	}
-
-	var etag, err31 = bbs.fetch_object_etag(rid, object, entity)
-	if err31 != nil {
-		return nil, err31
-	}
-
+	var mtime = stat.ModTime()
 	var size = stat.Size()
 	var extent, err4 = scan_range(object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
 	}
 
-	var mtime = stat.ModTime()
+	// Store an ETag in metainfo when the object is large.  Storing
+	// metainfo serializes accesses inside the routine.
+
+	if metainfo == nil && size >= byte_size(bbs.config.Record_etag_threshold) {
+		var err6 = bbs.store_etag_as_metainfo(ctx, object, entity, etag)
+		if err6 != nil {
+			return nil, err6
+		}
+	}
 
 	// NO SERIALIZE-ACCESSES.
 
-	var err7 = bbs.check_conditionals(rid, object, etag, "read",
-		copy_conditionals{
+	var err7 = bbs.check_conditions(rid, object, etag,
+		mtime, size, "read",
+		copy_conditions{
 			some_match:      i.IfMatch,
 			none_match:      i.IfNoneMatch,
 			modified_after:  i.IfModifiedSince,
@@ -1628,13 +1616,29 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 		return nil, err7
 	}
 
-	if i.ChecksumMode == types.ChecksumModeEnabled {
-		var checksum = types.ChecksumAlgorithmCrc64nvme
-		var _, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum, object, nil)
-		if err8 != nil {
-			return nil, err8
+	if i.ChecksumMode == types.ChecksumModeEnabled && metainfo != nil {
+		var checksum = metainfo.Checksum_algorithm
+		var crc1, err1 = hex.DecodeString(metainfo.Checksum)
+		if err1 != nil {
+			bbs.logger.Info("hex.DecodeString() on metainfo checksum failed",
+				"rid", rid, "error", err1)
+			var errz = &Aws_s3_error{
+				Code:     InternalError,
+				Message:  "Metainfo file broken.",
+				Resource: location}
+			return nil, errz
 		}
 		var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
+
+		/*
+			var checksum = types.ChecksumAlgorithmCrc64nvme
+			var _, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum, object, nil)
+			if err8 != nil {
+				return nil, err8
+			}
+			var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
+		*/
+
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -2345,7 +2349,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if err7 != nil {
 		return nil, err7
 	}
-	var csumset1 = types.Checksum{
+	var csumset = types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
@@ -2353,7 +2357,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset1)
+	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2361,15 +2365,20 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	var metainfo *Meta_info
 
 	{
-		var tags, err1 = bbs.parse_tags(rid, object, i.Tagging)
+		var csum = hex.EncodeToString(csum_to_check)
+		var headers = i.Metadata
+		var tagging, err1 = bbs.parse_tags(rid, object, i.Tagging)
 		if err1 != nil {
 			return nil, err1
 		}
-		var info, err3 = bbs.make_partial_metainfo(i.Metadata, tags)
-		if err3 != nil {
-			return nil, err3
-		}
-		metainfo = info
+		metainfo = metainfo_null_for_zero(&Meta_info{
+			Entity_key:         "",
+			ETag:               "",
+			Checksum_algorithm: checksum,
+			Checksum:           csum,
+			Headers:            headers,
+			Tags:               tagging,
+		})
 	}
 
 	// SERIALIZE-ACCESSES (in the uploading routine).
@@ -2382,12 +2391,12 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
-	var conditionals = copy_conditionals{
+	var conditions = copy_conditions{
 		some_match: i.IfMatch,
 		none_match: i.IfNoneMatch,
 	}
-	var stat, etag, csum2, err6 = bbs.upload_object(ctx, object,
-		upload_id, part, i.Body, metainfo, checks, conditionals)
+	var etag, stat, _, err6 = bbs.upload_object(ctx, object,
+		upload_id, part, i.Body, metainfo, checks, conditions)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2397,14 +2406,14 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	o.Size = &size
 
 	{
-		var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
-		o.ChecksumType = csumset2.ChecksumType
-		o.ChecksumCRC32 = csumset2.ChecksumCRC32
-		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
-		o.ChecksumSHA1 = csumset2.ChecksumSHA1
-		o.ChecksumSHA256 = csumset2.ChecksumSHA256
+		//var checksum2 = types.ChecksumAlgorithmCrc64nvme
+		//var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+		o.ChecksumType = csumset.ChecksumType
+		o.ChecksumCRC32 = csumset.ChecksumCRC32
+		o.ChecksumCRC32C = csumset.ChecksumCRC32C
+		o.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+		o.ChecksumSHA1 = csumset.ChecksumSHA1
+		o.ChecksumSHA256 = csumset.ChecksumSHA256
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -2466,8 +2475,6 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 
 	//bbs.logger.Debug("Tagging", "action", action, "tagging", i.Tagging)
 
-	// var rid uint64 = get_request_id(ctx)
-
 	// SERIALIZE-ACCESSES.
 
 	{
@@ -2479,25 +2486,27 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	}
 
 	{
-		var _, entity, err3 = bbs.check_object_exists(rid, object)
+		var entity, _, err3 = bbs.check_object_exists(rid, object)
 		if err3 != nil {
 			return nil, err3
 		}
-
-		var metainfo, err2 = bbs.fetch_metainfo(rid, object, entity)
+		var etag, metainfo, err2 = bbs.fetch_object_etag(rid, object, entity)
 		if err2 != nil {
 			return nil, err2
 		}
+
 		if metainfo == nil {
 			metainfo = &Meta_info{
-				Entity_key: "",
-				ETag:       "",
-				Headers:    nil,
-				Tags:       nil,
+				Entity_key:         entity,
+				ETag:               etag,
+				Checksum_algorithm: "",
+				Checksum:           "",
+				Headers:            nil,
+				Tags:               nil,
 			}
 		}
 		metainfo.Tags = i.Tagging
-		var err7 = bbs.store_metainfo(rid, object, metainfo)
+		var err7 = bbs.store_object_metainfo(rid, object, metainfo)
 		if err7 != nil {
 			return nil, err7
 		}
@@ -2596,16 +2605,16 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 	// SERIALIZE-ACCESSES (in the uploading routine).
 
-	var info *Meta_info = nil
+	var metainfo *Meta_info = nil
 	var checks = copy_checks{
 		size_to_check: size_to_check,
 		checksum:      checksum,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
-	var conditionals = copy_conditionals{}
-	var _, etag, csum2, err6 = bbs.upload_object(ctx, object,
-		upload_id, part, i.Body, info, checks, conditionals)
+	var conditions = copy_conditions{}
+	var etag, _, csum2, err6 = bbs.upload_object(ctx, object,
+		upload_id, part, i.Body, metainfo, checks, conditions)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2692,37 +2701,38 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err14
 	}
 
-	var source, err5 = bbs.lookat_copy_source(rid, object, i.CopySource)
-	if err5 != nil {
-		return nil, err5
+	var source, err25 = bbs.lookat_copy_source(rid, object, i.CopySource)
+	if err25 != nil {
+		return nil, err25
 	}
-	var s_stat, source_entity, err13 = bbs.check_object_exists(rid, source)
-	if err13 != nil {
-		return nil, err13
+	var source_entity, source_stat, err23 = bbs.check_object_exists(rid, source)
+	if err23 != nil {
+		return nil, err23
+	}
+	var source_etag, _, err21 = bbs.fetch_object_etag(rid, source, source_entity)
+	if err21 != nil {
+		return nil, err21
 	}
 
-	var source_etag, err31 = bbs.fetch_object_etag(rid, source, source_entity)
-	if err31 != nil {
-		return nil, err31
-	}
-
-	// NOTE: Checking conditionals on the source is not serialized.
+	// NOTE: Checking conditions on the source is not serialized.
 
 	{
-		var conditionals = copy_conditionals{
-			some_match:      i.CopySourceIfMatch,
-			none_match:      i.CopySourceIfNoneMatch,
-			modified_after:  i.CopySourceIfModifiedSince,
-			modified_before: i.CopySourceIfUnmodifiedSince,
-		}
-		var err7 = bbs.check_conditionals(rid, source, source_etag, "read",
-			conditionals)
+		var source_mtime = source_stat.ModTime()
+		var source_size = source_stat.Size()
+		var err7 = bbs.check_conditions(rid, source, source_etag,
+			source_mtime, source_size, "read",
+			copy_conditions{
+				some_match:      i.CopySourceIfMatch,
+				none_match:      i.CopySourceIfNoneMatch,
+				modified_after:  i.CopySourceIfModifiedSince,
+				modified_before: i.CopySourceIfUnmodifiedSince,
+			})
 		if err7 != nil {
 			return nil, err7
 		}
 	}
 
-	var size = s_stat.Size()
+	var size = source_stat.Size()
 	var extent, err24 = scan_range(object, i.CopySourceRange, size)
 	if err24 != nil {
 		return nil, err24
@@ -2737,10 +2747,10 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 
 	// SERIALIZE-ACCESSES (in the copying routine)
 
-	var info *Meta_info = nil
-	//var conditionals = copy_conditionals{}
-	var stat, etag, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
-		source, source_entity, extent, info, checksum2)
+	var metainfo *Meta_info = nil
+	//var conditions = copy_conditions{}
+	var etag, stat, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
+		source, source_entity, extent, metainfo, checksum2)
 	if err6 != nil {
 		return nil, err6
 	}

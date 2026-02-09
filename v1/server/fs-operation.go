@@ -188,24 +188,6 @@ func (bbs *Bb_server) check_bucket_directory_exists(rid uint64, bucket string) *
 	return nil
 }
 
-// DELETE_FILE removes an object and its metainfo.
-func (bbs *Bb_server) delete_file__(rid uint64, object string) error {
-	var location = "/" + object
-	var err6 = bbs.store_metainfo(rid, object, nil)
-	if err6 != nil {
-		return err6
-	}
-	var path = bbs.make_path_of_object(object, "")
-	var err7 = os.Remove(path)
-	if err7 != nil {
-		bbs.logger.Warn("os.Remove() failed on object",
-			"rid", rid, "path", path, "error", err7)
-		var errz = map_os_error(location, err7, nil)
-		return errz
-	}
-	return nil
-}
-
 // CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL and
 // populates it with an info file.  It may overtake an existing
 // directory when it already exists, and rewrites its upload-id.
@@ -400,10 +382,10 @@ func (bbs *Bb_server) check_path_is_link_free(rid uint64, object string) *Aws_s3
 	return nil
 }
 
-// FETCH_METAINFO fetches a metainfo file.  It returns nil if metainfo
-// file does not exist.  (The object path is guaranteed for its
-// properness by the caller).
-func (bbs *Bb_server) fetch_metainfo(rid uint64, object string, entity string) (*Meta_info, *Aws_s3_error) {
+// FETCH_OBJECT_METAINFO fetches a metainfo file.  It returns nil if
+// metainfo file does not exist or outdated.  (The object path is
+// guaranteed for its properness by the caller).
+func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity string) (*Meta_info, *Aws_s3_error) {
 	//var location = "/" + object
 	var path = bbs.make_path_of_object(object, "@meta")
 
@@ -424,8 +406,31 @@ func (bbs *Bb_server) fetch_metainfo(rid uint64, object string, entity string) (
 	return &metainfo, nil
 }
 
-func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, rid uint64, object string, info *Meta_info) *Aws_s3_error {
+// STORE_ETAG_AS_METAINFO() stores an ETag in metainfo (it is
+// otherwise empty).  It is called when the object is large.  Storing
+// metainfo serializes accesses inside the routine.
+func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string, entity string, etag string) *Aws_s3_error {
+	var metainfo2 = &Meta_info{
+		Entity_key:         entity,
+		ETag:               etag,
+		Checksum_algorithm: "",
+		Checksum:           "",
+		Headers:            nil,
+		Tags:               nil,
+	}
+	var err6 = bbs.store_metainfo_serialized(ctx, object, metainfo2)
+	if err6 != nil {
+		return err6
+	}
+	return nil
+}
+
+// STORE_METAINFO_SERIALIZED calls store_object_metainfo() after
+// serialization.  It check the entity-key as the object is not
+// outdated.
+func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object string, metainfo *Meta_info) *Aws_s3_error {
 	var location = "/" + object
+	var _, rid = get_action_name(ctx)
 
 	// SERIALIZE-ACCESSES.
 
@@ -437,11 +442,11 @@ func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, rid uint64,
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var _, entity, err3 = bbs.check_object_exists(rid, object)
+	var entity, _, err3 = bbs.check_object_exists(rid, object)
 	if err3 != nil {
 		return err3
 	}
-	if entity != info.Entity_key {
+	if entity != metainfo.Entity_key {
 		bbs.logger.Info("Race: Source object changed during operation",
 			"rid", rid, "object", object)
 		var errz = &Aws_s3_error{Code: InternalError,
@@ -449,23 +454,22 @@ func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, rid uint64,
 			Resource: location}
 		return errz
 	}
-	var err7 = bbs.store_metainfo(rid, object, info)
+	var err7 = bbs.store_object_metainfo(rid, object, metainfo)
 	return err7
 }
 
-// STORE_METAINFO stores a metainfo file.  Passing nil deletes a
-// metainfo file.  Also, it deletes a metainfo file when all elements
-// are nil.  IMPLEMENTATION NOTE: Do not assign info=nil, but use
-// data=nil instead.  This is to avoid the issue of typed-nil!=nil.
-func (bbs *Bb_server) store_metainfo(rid uint64, object string, info *Meta_info) *Aws_s3_error {
+// STORE_OBJECT_METAINFO stores a metainfo file.  Passing nil deletes
+// a metainfo file.  IMPORTANT NOTE: USE data=nil HERE FOR CALLING
+// store_json_data().  This is to avoid the issue of typed-nil cannot
+// be compared with untyped-nil.
+func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, metainfo *Meta_info) *Aws_s3_error {
 	//var location = "/" + object
+	// USE UNTYPED-NIL.
 	var data any
-	if info == nil {
-		data = nil
-	} else if info.Headers == nil && info.Tags == nil {
+	if metainfo == nil {
 		data = nil
 	} else {
-		data = info
+		data = metainfo
 	}
 	var path = bbs.make_path_of_object(object, "@meta")
 	var err5 = bbs.store_json_data(rid, object, path, data)
@@ -711,7 +715,7 @@ func (bbs *Bb_server) check_upload_ongoing(rid uint64, object string, uploadid *
 // MAKE_FILE_STREAM makes a file stream of an object.  It obtains an
 // entity-key after making a stream for checking consistency.  It
 // fails when it detects changes on the object after checking
-// conditionals.
+// conditions.
 func (bbs *Bb_server) make_file_stream(rid uint64, object string, extent *[2]int64, entity string) (io.ReadCloser, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
@@ -758,29 +762,30 @@ func (bbs *Bb_server) make_file_stream(rid uint64, object string, extent *[2]int
 	}
 }
 
-// CHECK_OBJECT_EXISTS takes a stat() on an object.  It differs from
-// fetch_object_status() as it returns an error, when an object does
-// not exist.
-func (bbs *Bb_server) check_object_exists(rid uint64, object string) (fs.FileInfo, string, *Aws_s3_error) {
+// CHECK_OBJECT_EXISTS obtains an entity-key and a stat() on an
+// object.  It differs from fetch_object_status() as it returns an
+// error, when an object does not exist.
+func (bbs *Bb_server) check_object_exists(rid uint64, object string) (string, fs.FileInfo, *Aws_s3_error) {
 	var location = "/" + object
-	var stat, entity, err1 = bbs.fetch_object_status(rid, object, false)
+	var entity, stat, err1 = bbs.fetch_object_status(rid, object, false)
 	if err1 != nil {
-		return stat, entity, err1
+		return entity, stat, err1
 	}
 	if stat == nil {
 		var errz = &Aws_s3_error{Code: NoSuchKey,
 			Resource: location}
-		return stat, entity, errz
+		return entity, stat, errz
 	}
-	return stat, entity, err1
+	return entity, stat, err1
 }
 
-// FETCH_OBJECT_STATUS takes a stat() and an entity-key on an object.
-// It will return (stat=nil,entity="",error=nil) when an object does not
-// exist.  It can be used for checking existence.  Note non-regular
-// files are never an object.  SERIALIZING is the status of access
-// serialization.  Fetching should not fail when serializing.
-func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing bool) (fs.FileInfo, string, *Aws_s3_error) {
+// FETCH_OBJECT_STATUS obtains an entity-key and a stat() on an
+// object.  It will return (entity="",stat=nil,error=nil) when an
+// object does not exist.  It can be used for checking existence.
+// Note non-regular files are never an object.  SERIALIZING is the
+// status of access serialization.  Non-existence should be an error
+// while serialization.
+func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing bool) (string, fs.FileInfo, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
@@ -788,7 +793,7 @@ func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing
 	if err1 != nil && !errors.Is(err1, fs.ErrNotExist) {
 		bbs.logger.Error("os.Lstat() failed",
 			"rid", rid, "path", path, "error", err1)
-		return nil, "", map_os_error(location, err1, nil)
+		return "", nil, map_os_error(location, err1, nil)
 	}
 	if err1 != nil && errors.Is(err1, fs.ErrNotExist) {
 		if serializing {
@@ -797,9 +802,9 @@ func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing
 			var errz = &Aws_s3_error{Code: InternalError,
 				Message:  "Target object changed during operation.",
 				Resource: location}
-			return nil, "", errz
+			return "", nil, errz
 		} else {
-			return nil, "", nil
+			return "", nil, nil
 		}
 	}
 
@@ -817,7 +822,7 @@ func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing
 		var errz = &Aws_s3_error{Code: InvalidObjectState,
 			Message:  "Named object is a non-regular file.",
 			Resource: location}
-		return nil, "", errz
+		return "", nil, errz
 	}
 
 	var ino, ok = file_ino(stat, path)
@@ -825,8 +830,7 @@ func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing
 		log.Fatal("BAD-IMPL: Cannot take inode number")
 	}
 	var entity = hash_entity_key(stat, ino)
-
-	return stat, entity, nil
+	return entity, stat, nil
 }
 
 // MAKE_OBJECT_ETAG_FROM_MD5 makes an ETag string from an MD5 value.
@@ -836,34 +840,26 @@ func make_object_etag_from_md5(md5v []byte) string {
 	return "\"" + hex.EncodeToString(md5v[:]) + "\""
 }
 
-// FETCH_OBJECT_ETAG returns an ETag by calculating an MD5 sum of an
-// object.  IT TOOK TIME!
-func (bbs *Bb_server) fetch_object_etag(rid uint64, object string, entity string) (string, *Aws_s3_error) {
+// FETCH_OBJECT_ETAG returns an ETag and metainfo.  It calculates an
+// MD5 sum of an object when metainfo is not stored.  IT TOOK TIME!
+func (bbs *Bb_server) fetch_object_etag(rid uint64, object string, entity string) (string, *Meta_info, *Aws_s3_error) {
 	// var location = "/" + object
-
-	/*
-		var _, entity2, err1 = bbs.fetch_object_status(object, false)
-		if err1 != nil {
-			// The object is missing.
-			return "", err1
-		}
-	*/
-
-	var metainfo, err2 = bbs.fetch_metainfo(rid, object, entity)
+	var metainfo, err2 = bbs.fetch_object_metainfo(rid, object, entity)
 	if err2 != nil {
 		// IGNORE-ERRORS.
 	}
-	if metainfo != nil && metainfo.Entity_key == entity {
-		return metainfo.ETag, nil
+	if metainfo != nil {
+		return metainfo.ETag, metainfo, nil
 	}
 
 	var checksum types.ChecksumAlgorithm = ""
 	var md5v, _, _, err8 = bbs.calculate_csum2(rid, object, checksum, object, nil)
 	if err8 != nil {
-		return "", err8
+		return "", nil, err8
 	}
 	var etag = make_object_etag_from_md5(md5v)
-	return etag, nil
+
+	return etag, nil, nil
 }
 
 // MAKE_ENTITY_KEY returns an entity-key of a stream.

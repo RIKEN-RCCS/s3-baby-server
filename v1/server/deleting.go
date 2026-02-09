@@ -10,31 +10,29 @@ package server
 
 import (
 	"context"
+	"io/fs"
 	"os"
 )
 
-func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditionals copy_conditionals) *Aws_s3_error {
+func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditions copy_conditions) *Aws_s3_error {
 	var location = "/" + object
 	var _, rid = get_action_name(ctx)
-	// var rid uint64 = get_request_id(ctx)
 
-	var object_etag string
-	var object_entity string
+	var entity string
+	var etag string
+	var stat fs.FileInfo
+
 	{
-		var stat1, entity1, err12 = bbs.fetch_object_status(rid, object, false)
-		if err12 != nil {
+		var err1, err2 error
+		entity, stat, err1 = bbs.fetch_object_status(rid, object, false)
+		if err1 != nil {
 			// IGNORE-ERRORS.
 		}
-		if stat1 == nil {
-			object_etag = ""
-			object_entity = ""
-		} else {
-			var etag1, err31 = bbs.fetch_object_etag(rid, object, entity1)
-			if err31 != nil {
+		if entity != "" {
+			etag, _, err2 = bbs.fetch_object_etag(rid, object, entity)
+			if err2 != nil {
 				// IGNORE-ERRORS.
 			}
-			object_etag = etag1
-			object_entity = entity1
 		}
 	}
 
@@ -49,11 +47,11 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 	}
 
 	{
-		var _, entity2, err12 = bbs.fetch_object_status(rid, object, true)
-		if err12 != nil {
+		var entity2, _, err3 = bbs.fetch_object_status(rid, object, true)
+		if err3 != nil {
 			// IGNORE-ERRORS.
 		}
-		if entity2 != object_entity {
+		if entity2 != entity {
 			bbs.logger.Info("Race: Target object changed during operation",
 				"rid", rid, "object", object)
 			var errz = &Aws_s3_error{Code: InternalError,
@@ -62,13 +60,15 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 			return errz
 		}
 
-		var err7 = bbs.check_conditionals(rid, object, object_etag, "delete",
-			conditionals)
+		var mtime = stat.ModTime()
+		var size = stat.Size()
+		var err7 = bbs.check_conditions(rid, object, etag,
+			mtime, size, "delete", conditions)
 		if err7 != nil {
 			return err7
 		}
 
-		var err1 = bbs.store_metainfo(rid, object, nil)
+		var err1 = bbs.store_object_metainfo(rid, object, nil)
 		if err1 != nil {
 			// IGNORE-ERRORS.
 		}
