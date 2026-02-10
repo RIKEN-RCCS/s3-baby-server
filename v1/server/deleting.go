@@ -10,7 +10,6 @@ package server
 
 import (
 	"context"
-	"io/fs"
 	"os"
 )
 
@@ -20,19 +19,16 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 
 	var entity string
 	var etag string
-	var stat fs.FileInfo
 
 	{
-		var err1, err2 error
-		entity, stat, err1 = bbs.fetch_object_status(rid, object, false)
+		var err1, err2 *Aws_s3_error
+		entity, _, err1 = bbs.check_object_exists(rid, object)
 		if err1 != nil {
-			// IGNORE-ERRORS.
+			return err1
 		}
-		if entity != "" {
-			etag, _, err2 = bbs.fetch_object_etag(rid, object, entity)
-			if err2 != nil {
-				// IGNORE-ERRORS.
-			}
+		etag, _, err2 = bbs.fetch_object_etag(rid, object, entity)
+		if err2 != nil {
+			return err2
 		}
 	}
 
@@ -47,7 +43,7 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 	}
 
 	{
-		var entity2, _, err3 = bbs.fetch_object_status(rid, object, true)
+		var entity2, stat, err3 = bbs.fetch_object_status(rid, object, true)
 		if err3 != nil {
 			// IGNORE-ERRORS.
 		}

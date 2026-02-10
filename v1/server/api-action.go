@@ -314,7 +314,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		none_match: i.IfNoneMatch,
 	}
 	var etag, _, _, err6 = bbs.concatenate_object(ctx, object,
-		partlist, mpul, checks, conditions)
+		mpul, partlist, checks, conditions)
 	if err6 != nil {
 		return nil, err6
 	}

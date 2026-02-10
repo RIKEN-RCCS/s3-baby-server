@@ -58,9 +58,14 @@ const (
 )
 
 // BUILD_SOURCE is an argument to copying or uploading.  (It actually
-// be a sum type).  STREAM and LENGTH are effective on uploading.
-// SOURCE, SOURCE_ENTITY, EXTENT are effective on copying/linking.
-// PARTLIST and MPUL are are effective on concat.
+// be a sum type).  The concat part is effective on MPUL.
+
+type build_source struct {
+	op     build_op
+	upload build_upload
+	copy   build_copy
+	concat build_concat
+}
 
 type build_upload struct {
 	stream io.Reader
@@ -78,16 +83,9 @@ type build_concat struct {
 	mpul     *Mpul_info
 }
 
-type build_source struct {
-	op     build_op
-	upload build_upload
-	copy   build_copy
-	concat build_concat
-}
-
-// UPLOAD_OBJECT performs uploading.  Uploading is either for an
-// object or an MPUL part file.  It returns etag, stat, and csum (of
-// CRC64NVME).  Metainfo is only partially filled.
+// UPLOAD_OBJECT performs uploading, where a target of uploading is
+// either for an object or an MPUL part file.  It returns etag, stat,
+// and csum (of CRC64NVME).  Metainfo is only partially filled.
 func (bbs *Bb_server) upload_object(ctx context.Context, object string, upload_id string, part int32, body io.Reader, metainfo *Meta_info, checks copy_checks, conditions copy_conditions) (string, fs.FileInfo, []byte, *Aws_s3_error) {
 	var build = build_source{
 		op: BUILD_UPLOAD,
@@ -112,11 +110,11 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, upload_i
 }
 
 // COPY_OBJECT performs copying.  A copying target is either an object
-// or an MPUL part file.  It returns stat and csum.  A checksum value
-// is by the algorithm of CHECKSUM when copying is for MPUL.  Note
-// checksum checks are not applied on copying.  Conditionals on the
-// source object is checked by the caller.  Metainfo is only partially
-// filled.
+// or an MPUL part file.  It returns etag, stat and csum.  A checksum
+// value is by the algorithm of CHECKSUM when copying is for MPUL.
+// Note checksum checks are not applied on copying.  Metainfo is only
+// partially filled.  Note condition checks are on the source object,
+// and is checked by the caller.
 func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, checksum2 types.ChecksumAlgorithm) (string, fs.FileInfo, []byte, *Aws_s3_error) {
 	var copy_or_link build_op
 	var copy_file_by_linking = (extent == nil)
@@ -150,8 +148,8 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id 
 }
 
 // CONCATENATE_OBJECT concatenates the parts to an MPUL object.  It
-// returns stat, etag, and csum of CRC64NVME.
-func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, partlist *types.CompletedMultipartUpload, mpul *Mpul_info, checks copy_checks, conditions copy_conditions) (string, fs.FileInfo, []byte, *Aws_s3_error) {
+// returns etag, stat, and csum of CRC64NVME.
+func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, mpul *Mpul_info, partlist *types.CompletedMultipartUpload, checks copy_checks, conditions copy_conditions) (string, fs.FileInfo, []byte, *Aws_s3_error) {
 	//var _, rid = get_action_name(ctx)
 	var build = build_source{
 		op: BUILD_CONCAT,
