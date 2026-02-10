@@ -138,8 +138,8 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var elapse_time = time.Since(start_time)
 	var request = fmt.Sprintf("%s %s", r.Method, r.URL)
 	sv.bbs.logger.Info("Handling time",
-		"rid", rid, "request", request, "length", q_length,
-		"code", code, "length", r_length, "elapse", elapse_time)
+		"rid", rid, "request", request, "request-length", q_length,
+		"code", code, "response-length", r_length, "elapse", elapse_time)
 
 	if sv.bbs.access_logging != nil {
 		var m = httpaide.Log_access(r, code, r_length, user)

@@ -6,7 +6,7 @@
 
 #### Installing AWS-CLI
 
-A guide of installation can be found at:
+An installation guide can be found at:
 
 https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 
@@ -91,11 +91,17 @@ https://docs.cloud.google.com/sdk/docs/install-sdk
 $ gcloud config set storage/s3_endpoint_url https://localhost:9000
 $ gcloud config set auth/disable_ssl_validation True
 
-#### gcloud-storage Command Usage
+#### MEMO: gcloud-storage Command Usage
 
 https://docs.cloud.google.com/sdk/gcloud/reference/storage
 
-### (Tests by WinSCP)
+### Tests by MinIO Client (mc)
+
+#### Installing "mc"
+
+```
+wget https://dl.min.io/client/mc/release/linux-amd64/mc
+```
 
 ### Tests by s3cmd
 
@@ -103,17 +109,13 @@ https://docs.cloud.google.com/sdk/gcloud/reference/storage
 
   pip install s3cmd
 
-### Tests by MinIO Client (mc)
-
-#### Installing "mc"
-
-  wget https://dl.min.io/client/mc/release/linux-amd64/mc
-
 ### Tests by s3fs-fuse
 
 #### Installing s3fs-fuse
 
   apt install s3fs
+
+### (Tests by WinSCP)
 
 ----------------
 

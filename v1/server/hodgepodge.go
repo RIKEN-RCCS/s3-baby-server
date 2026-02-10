@@ -121,15 +121,15 @@ func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.Response
 }
 
 // MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
-// takes a request-id.  A key is valid during request processing with
-// a request-id.  It returns a string of 6 hex-digits.
+// returns a string of "@" plus 6 hex-digits.  A key is valid during
+// request processing with a request-id.  It takes a request-id.
 func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	var loops int = 0
 	for true {
 		var r = rand.Int63()
-		var s = fmt.Sprintf("%06x", r)[:6]
+		var s = "@" + fmt.Sprintf("%06x", r)[:6]
 		var _, ok = bbs.suffixes[s]
 		if !ok {
 			bbs.suffixes[s] = suffix_record{rid, time.Now()}

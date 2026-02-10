@@ -211,18 +211,14 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 	var csum1 []byte
 	switch build.op {
 	case BUILD_UPLOAD:
+		fallthrough
+	case BUILD_COPY:
+		// Copy a file from a stream.
 		var err2 *Aws_s3_error
 		md5v, csum1, err2 = bbs.copy_file_as_scratch(ctx, object, scratch,
 			build, checksum2)
 		if err2 != nil {
 			return "", nil, nil, err2
-		}
-	case BUILD_COPY:
-		var err3 *Aws_s3_error
-		md5v, csum1, err3 = bbs.copy_file_as_scratch(ctx, object, scratch,
-			build, checksum2)
-		if err3 != nil {
-			return "", nil, nil, err3
 		}
 	case BUILD_LINK:
 		// Copy a file by linking.
@@ -684,7 +680,12 @@ func (bbs *Bb_server) copy_content_stream(rid uint64, object string, scratch str
 	return md5, csum, nil
 }
 
-// PLACE_SCRATCH_FILE renames a scratch file to a target file.
+// PLACE_SCRATCH_FILE renames a scratch file to a target.  Notice the
+// section of code with os.SameFile().  Copying source=target results
+// in the same file (a scratch file is a hard-link of a source).  And,
+// it causes renaming to fail, because rename(2) in Unix does nothing
+// on the same file (with success).  os.SameFile() checks the
+// condition and it removes the target to handle the case.
 func (bbs *Bb_server) place_scratch_file(rid uint64, object string, scratch string, target string, metainfo *Meta_info) *Aws_s3_error {
 	var location = "/" + object
 	var path1 = bbs.make_path_of_object(scratch, "")
@@ -706,9 +707,37 @@ func (bbs *Bb_server) place_scratch_file(rid uint64, object string, scratch stri
 		}
 	}()
 
+	// Remove the target as os.Rename() fails on the same file.
+
+	{
+		var stat1, err1 = os.Stat(path1)
+		if err1 != nil {
+			bbs.logger.Error("os.Stat() in placing the file failed",
+				"rid", rid, "error", err1)
+			var errz = map_os_error(location, err1, nil)
+			return errz
+		}
+		var stat2, err2 = os.Stat(path2)
+		if err2 != nil {
+			// OK.  A target is missing is normal.
+			// IGNORE-ERRORS.
+		}
+		if stat1 != nil && stat2 != nil && os.SameFile(stat1, stat2) {
+			bbs.logger.Debug("Special handling of the same file in copying",
+				"path1", path1, "path2", path2)
+			var err3 = os.Remove(path2)
+			if err3 != nil {
+				bbs.logger.Error("os.Remove() in placing the same file failed",
+					"rid", rid, "error", err3)
+				var errz = map_os_error(location, err3, nil)
+				return errz
+			}
+		}
+	}
+
 	var err8 = os.Rename(path1, path2)
 	if err8 != nil {
-		bbs.logger.Error("io.Rename() failed",
+		bbs.logger.Error("os.Rename() in placing a scratch file failed",
 			"rid", rid, "error", err8)
 		var errz = map_os_error(location, err8, nil)
 		return errz

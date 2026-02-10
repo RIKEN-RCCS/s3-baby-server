@@ -94,19 +94,18 @@ func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 }
 
 // MAKE_SCRATCH_OBJECT_NAME makes an object name by appending a marker
-// suffix.  A marker can be one of a null string, a random for a
-// scratch file, "@meta", or "@mpul" (mpul is for multipart upload).
+// suffix.  A marker can be one of a null string, "@" plus a random
+// for a scratch file, "@meta", or "@mpul" (mpul is for multipart
+// upload).
 func (bbs *Bb_server) make_scratch_object_name(object string, marker string) string {
 	var prefix, suffix string
 	if marker == "" {
 		prefix = ""
 		suffix = ""
-	} else if marker[0] == '@' {
+	} else {
+		bb_assert(marker[0] == '@')
 		prefix = "."
 		suffix = marker
-	} else {
-		prefix = "."
-		suffix = "@" + marker
 	}
 	var dir, file = path.Split(object)
 	var scratch = path.Join(dir, (prefix + file + suffix))
