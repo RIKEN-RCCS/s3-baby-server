@@ -21,17 +21,29 @@ the server.
 
 ### Tests by RCLONE
 
-RCLONE assumes an ETag is an MD5 sum.  However, an ETag in Baby-server
-is calculated from an inode number, a date, and a size.  Using RCLONE
-needs "--ignore-checksum", otherwise it always fails to check a
-checksum.
+RCLONE assumes an ETag is an MD5 sum, and checks the checksum against
+an ETag.  This assumption can be ignored by "--ignore-checksum".
 
-Note that rclone uses http/2.0, while AWS-CLI uses http/1.1.  I cannot
+Note that RCLONE uses http/2.0, while AWS-CLI uses http/1.1.  I cannot
 find a way to make AWS-CLI use http/2.0.
 
-~/.config/rclone/rclone.conf
-
 #### Installing RCLONE
+
+RCLONE can be installed by `dnf info rclone` on Redhat/Rocky.
+
+Setting for RCLONE can be found in `~/.config/rclone/rclone.conf`.
+The content may look like:
+
+```
+[s3bbs]
+type = s3
+provider = Other
+env_auth = false
+access_key_id = abcdefghijklmnopqrstuvwxyz
+secret_access_key = abcdefghijklmnopqrstuvwxyz
+endpoint = https://localhost:9000
+acl = private
+```
 
 ### Tests by Google Cloud CLI
 

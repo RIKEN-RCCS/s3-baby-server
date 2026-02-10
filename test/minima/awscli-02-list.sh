@@ -87,6 +87,8 @@ EXEC_ECHO aws s3 ls --no-verify-ssl --no-cli-pager s3://mybucket1
 
 EXEC_ECHO aws s3 rm 's3://mybucket1/ファイル.txt'
 
+ECHO "Clean up."
+
 EXEC_ECHO aws s3 rb --no-verify-ssl --no-cli-pager s3://mybucket1
 
 ECHO "TEST DONE."

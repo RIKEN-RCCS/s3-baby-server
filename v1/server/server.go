@@ -129,18 +129,20 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sv.sx.ServeHTTP(w2, r2)
 
+	var q_length = r2.ContentLength
+
 	var user = auth[:min(len(auth), 16)]
 	var code = w2.Status_code
-	var length = w2.Content_length
+	var r_length = w2.Content_length
 
 	var elapse_time = time.Since(start_time)
 	var request = fmt.Sprintf("%s %s", r.Method, r.URL)
-	sv.bbs.logger.Debug("Handling time",
-		"rid", rid, "request", request, "code", code, "length", length,
-		"elapse", elapse_time)
+	sv.bbs.logger.Info("Handling time",
+		"rid", rid, "request", request, "length", q_length,
+		"code", code, "length", r_length, "elapse", elapse_time)
 
 	if sv.bbs.access_logging != nil {
-		var m = httpaide.Log_access(r, code, length, user)
+		var m = httpaide.Log_access(r, code, r_length, user)
 		fmt.Fprintf(sv.bbs.access_logging, "%s\n", m)
 	}
 }

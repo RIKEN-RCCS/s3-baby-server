@@ -3,7 +3,10 @@
 // Copyright 2022-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// httpd-like logging.  It makes a common access-log entry.
+// Apache HTTPD like logging.  It formats a common access-log entry.
+// It also provides "ResponseWriter2" which may be used to replace
+// Golang's http.ResponseWriter to record status-code and
+// content-length.
 
 // MEMO: Apache httpd access log format:
 //
@@ -16,22 +19,6 @@
 //   200 333 "-" "aws-cli/1.18.156 Python/3.6.8
 //   Linux/4.18.0-513.18.1.el8_9.x86_64 botocore/1.18.15"
 
-package httpaide
-
-import (
-	//"context"
-	"fmt"
-	//"log/slog"
-	//"log/syslog"
-	"net/http"
-	//"os"
-	//"path/filepath"
-	//"strings"
-	"time"
-)
-
-const common_log_time_layout = "02/Jan/2006:15:04:05 -0700"
-
 // MEMO: Golang's ResponseWriter typically is an instance of
 // "response" defined in "net/http/server.go".  It implements Flusher,
 // Hijacker and methods:
@@ -43,29 +30,41 @@ const common_log_time_layout = "02/Jan/2006:15:04:05 -0700"
 //   - SetWriteDeadline(deadline time.Time) error
 //   - EnableFullDuplex() error
 
-// ResponseWriter2 is ResponseWriter but records status-code.  It is
-// suggested in https://stackoverflow.com/questions/66528234/.  The
-// type "response", a true type of ResponseWriter (defined in
+package httpaide
+
+import (
+	"fmt"
+	"net/http"
+	"time"
+)
+
+const common_log_time_layout = "02/Jan/2006:15:04:05 -0700"
+
+// ResponseWriter2 is ResponseWriter but records status-code and
+// content-length.  It is suggested in Stackoverflow:
+// https://stackoverflow.com/questions/66528234/.  Content-length of
+// the request side is stored in http.Request.  MEMO: The type
+// "response", a true type of ResponseWriter (defined in
 // "net/http/server.go"), contains "status" and "written" fields but
 // they are not visible.
 type ResponseWriter2 struct {
 	http.ResponseWriter
-    Status_code int
-    Content_length int64
+	Status_code    int
+	Content_length int64
 }
 
 func (w *ResponseWriter2) WriteHeader(code int) {
-    w.Status_code = code
-    w.ResponseWriter.WriteHeader(code)
+	w.Status_code = code
+	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w *ResponseWriter2) Write(s []byte) (int, error) {
 	w.Content_length += int64(len(s))
-    return w.ResponseWriter.Write(s)
+	return w.ResponseWriter.Write(s)
 }
 
-// LOG_ACCESS makes an access log entry.  USER may be an access-key.
-// It generates a line without a newline.
+// LOG_ACCESS formats an access log entry.  It generates a line
+// without a newline.  USER may be an access-key in S3-Baby-server.
 func Log_access(request *http.Request, code int, length int64, user string) string {
 	var uid string
 	if user != "" {
@@ -96,10 +95,10 @@ func Log_access(request *http.Request, code int, length int64, user string) stri
 	return msg1
 
 	/*
-	var _, err1 = f.WriteString(msg1)
-	if err1 != nil {
-		slog.Error("Mux() Wrinting access log failed",
-			"err", err1)
-	}
+		var _, err1 = f.WriteString(msg1)
+		if err1 != nil {
+			slog.Error("Mux() Wrinting access log failed",
+				"err", err1)
+		}
 	*/
 }
