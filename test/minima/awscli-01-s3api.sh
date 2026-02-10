@@ -162,6 +162,19 @@ ECHO "*** Test delete-objects"
 
 EXEC_ECHO aws s3api delete-objects --no-verify-ssl --no-cli-pager --bucket "mybucket1" --delete "{\"Objects\":[{\"Key\":\"object2.txt\"},{\"Key\":\"object3.txt\"},{\"Key\":\"object4.txt\"},{\"Key\":\"object5.txt\"}],\"Quiet\":false}"
 
+ECHO '*** Test Content-MD5 verification is working.'
+
+## Note MD5 sum "aLMp2piT40CZx9itXLnJQA==" is a bad one -- it is for
+## the empty file.
+
+MD5SUM=$(cat data-01k.txt | openssl dgst -md5 -binary | openssl enc -base64)
+
+EXEC_ECHO aws s3api put-object --no-verify-ssl --no-cli-pager --content-md5 "$MD5SUM" --bucket "mybucket1" --key "object6.txt" --body data-01k.txt
+
+EXEC_ECHO aws s3api put-object --no-verify-ssl --no-cli-pager --content-md5 "aLMp2piT40CZx9itXLnJQA==" --bucket "mybucket1" --key "object6.txt" --body data-01k.txt || true
+
+EXEC_ECHO aws s3api delete-object --no-verify-ssl --no-cli-pager --bucket "mybucket1" --key "object6.txt"
+
 ECHO "*** Test delete-bucket"
 
 EXEC_ECHO aws s3api delete-bucket --no-verify-ssl --no-cli-pager --bucket "mybucket1"

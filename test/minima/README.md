@@ -4,7 +4,39 @@
 
 ### Tests by AWS-CLI
 
-#### Note on Running AWS CLI
+#### Installing AWS-CLI
+
+A guide of installation can be found at:
+
+https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+
+It can be installed in user-mode (non-root):
+
+`./aws/install -i ~/opt/aws-cli -b ~/bin`
+
+Setting of `~/.aws/config` may look like:
+
+```
+[default]
+s3 =
+     signature_version = s3v4
+ec2_metadata_disabled = true
+endpoint_url = http://127.0.0.1:9000
+aws_access_key_id = abcdefghijklmnopqrstuvwxyz
+aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
+```
+
+#### MEMO on AWS-CLI vs. RCLONE Differences
+
+- AWS-CLI uses http/1.1 while that RCLONE uses http/2.0.  I cannot
+  find a way to make AWS-CLI use http/2.0.
+
+- AWS-CLI attaches `x-amz-checksum-crc64nvme` by default.  In
+  contrast, RCLONE does not attach `Content-MD5` or
+  `x-amz-checksum-crc64nvme` by default.  RCLONE checks the returned
+  ETag as an MD5 sum.
+
+#### Note on Running AWS-CLI
 
 AWS-CLI accesses "http://169.254.169.254/latest/api/token" for
 metadata.  It slows tests.  To disable metadata service request, set
@@ -14,18 +46,7 @@ the enviroment variable:
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
-### Tests by bbs-ctl
-
-"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
-the server.
-
 ### Tests by RCLONE
-
-RCLONE assumes an ETag is an MD5 sum, and checks the checksum against
-an ETag.  This assumption can be ignored by "--ignore-checksum".
-
-Note that RCLONE uses http/2.0, while AWS-CLI uses http/1.1.  I cannot
-find a way to make AWS-CLI use http/2.0.
 
 #### Installing RCLONE
 
@@ -44,6 +65,18 @@ secret_access_key = abcdefghijklmnopqrstuvwxyz
 endpoint = https://localhost:9000
 acl = private
 ```
+
+#### MEMO on RCLONE Behavior
+
+- RCLONE assumes an ETag is an MD5 sum, and checks the checksum
+  against an ETag.  This behavior can be skipped by
+  "--ignore-checksum".
+
+- RCLONE copies (not upload) an object, when it exists in the remote
+  with a same ETag.
+
+- RCLONE first checks the directory part (prior part of "/") of an
+  object.  It sends a HEAD request on that part.
 
 ### Tests by Google Cloud CLI
 
@@ -81,6 +114,13 @@ https://docs.cloud.google.com/sdk/gcloud/reference/storage
 #### Installing s3fs-fuse
 
   apt install s3fs
+
+----------------
+
+## Tests by bbs-ctl
+
+"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
+the server.
 
 ----------------
 
