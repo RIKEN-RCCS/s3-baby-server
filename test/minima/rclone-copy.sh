@@ -1,6 +1,12 @@
 #!/bin/ksh
 
-# Note command "copy" works on directories.  Use "copyto" for files.
+# Note command "copy" works on directories.  Use "copyto" for files
+# instead.
+
+# The list of commands of RCLONE likely workable with AWS-S3: {copy,
+# copyto, delete, -deletefile (a single file), ls, lsd (list buckets),
+# -lsf, -lsl, mkdir, -move, moveto, rmdir, -rmdirs, -size, -sync,
+# -tree}.
 
 # Configuration File: ~/.config/rclone/rclone.conf
 #
@@ -19,14 +25,16 @@
 # --ignore-checksum
 # --s3-use-multipart-etag=false
 
-ECHO "Make a bucket for testing, assuming no buckets exist at the start."
+ECHO ''
+ECHO 'Make a bucket for testing, assuming no buckets exist at the start'
 
 EXEC_ECHO rclone -v lsd s3bbs:
 
 EXEC_ECHO rclone --no-check-certificate -v mkdir s3bbs:mybucket1
 EXEC_ECHO rclone --no-check-certificate -v ls s3bbs:mybucket1
 
-ECHO "*** Test uploading/downloading."
+ECHO ''
+ECHO '*** Test uploading/downloading'
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-01k.txt s3bbs:mybucket1/object1.txt
 
@@ -40,7 +48,11 @@ EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:mybucket1/object2.txt "z
 
 cmp "zzz1" data-20m.txt
 
-ECHO "*** Test copying directory contents."
+EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:mybucket1/object1.txt
+EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:mybucket1/object2.txt
+
+ECHO ''
+ECHO '*** Test copying directory contents'
 
 rm -rf datafiles
 mkdir datafiles
@@ -54,15 +66,37 @@ EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:mybucket1/data/data01.tx
 
 cmp "zzz1" data-08k.txt
 
-ECHO "*** Clean up files."
+EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:mybucket1/data/
+
+ECHO ''
+ECHO '*** Test uploading/downloading, again'
+
+EXEC_ECHO rclone --no-check-certificate -v copyto data-01g.txt s3bbs:mybucket1/object1.txt
+
+EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:mybucket1/object1.txt "zzz1"
+
+cmp "zzz1" data-01g.txt
 
 EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:mybucket1/object1.txt
+
+ECHO "*** Test move."
+
+EXEC_ECHO rclone --no-check-certificate -v copyto data-01k.txt s3bbs:mybucket1/object1.txt
+
+EXEC_ECHO rclone --no-check-certificate -v moveto s3bbs:mybucket1/object1.txt s3bbs:mybucket1/object2.txt
+
+EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:mybucket1/object2.txt "zzz1"
+
+cmp "zzz1" data-01k.txt
+
 EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:mybucket1/object2.txt
 
-EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:mybucket1/data/
+ECHO ''
+ECHO '*** Clean up files'
+
 EXEC_ECHO rclone --no-check-certificate -v rmdir s3bbs:mybucket1
 
 rm -rf datafiles
 rm -rf "zzz1"
 
-ECHO "TEST DONE."
+ECHO 'TEST DONE.'

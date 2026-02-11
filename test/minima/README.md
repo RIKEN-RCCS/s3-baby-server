@@ -9,7 +9,15 @@ the server.
 
 ## Test by AWS-CLI
 
-#### Installing AWS-CLI
+Run a test by:
+
+```
+$ sh awscli-01-s3api.sh
+```
+
+Test stops on an error.
+
+### Installing AWS-CLI
 
 An installation guide can be found at:
 
@@ -31,7 +39,7 @@ aws_access_key_id = abcdefghijklmnopqrstuvwxyz
 aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
 ```
 
-#### MEMO on AWS-CLI vs. RCLONE Differences
+### MEMO on AWS-CLI vs. RCLONE Differences
 
 - AWS-CLI uses http/1.1 while that RCLONE uses http/2.0.  There is
   likely no way to make AWS-CLI use http/2.0.
@@ -41,7 +49,7 @@ aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
   `x-amz-checksum-crc64nvme` by default.  RCLONE checks the returned
   ETag as an MD5 sum.
 
-#### Note on Running AWS-CLI
+### Note on Running AWS-CLI
 
 AWS-CLI accesses "http://169.254.169.254/latest/api/token" for
 metadata.  It slows tests.  To disable metadata service request, set
@@ -53,7 +61,15 @@ export AWS_EC2_METADATA_DISABLED=true
 
 ## Test by RCLONE
 
-#### Installing RCLONE
+### Running a Simple Test
+
+Run a test by:
+
+```
+$ sh rclone-copy.sh
+```
+
+### Installing RCLONE
 
 RCLONE can be installed by `dnf info rclone` on Redhat/Rocky.
 
@@ -71,7 +87,7 @@ endpoint = https://localhost:9000
 acl = private
 ```
 
-#### MEMO on RCLONE Behavior
+### MEMO on RCLONE Behavior
 
 - RCLONE assumes an ETag is an MD5 sum, and checks the checksum
   against an ETag.  This behavior can be skipped by
@@ -85,20 +101,54 @@ acl = private
 
 ## Test by Google Cloud CLI
 
-gsutil
-or
-gcloud storage
+gcloud storage (or gsutil)
 
-#### Installing gcloud (and gsutil)
+### Installing gcloud (and gsutil)
 
 https://docs.cloud.google.com/sdk/docs/install-sdk
+
+```
+cat <<EOF > cred
+{
+"accessKeyId": "abcdefghijklmnopqrstuvwxyz",
+"secretAccessKey": "abcdefghijklmnopqrstuvwxyz"
+}
+EOF
+gcloud secrets create 'test_secret' --data-file=cred
+```
 
 $ gcloud config set storage/s3_endpoint_url https://localhost:9000
 $ gcloud config set auth/disable_ssl_validation True
 
-#### MEMO: gcloud-storage Command Usage
+Configuration is stored in "~/.boto"
+
+```
+[s3]
+use-sigv4=True
+[Credentials]
+s3_host = localhost
+s3_port = 9000
+aws_access_key_id = abcdefghijklmnopqrstuvwxyz
+aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
+```
+
+Configuration is stored in "~/.config/gcloud/configurations/config_default"
+
+```
+[auth]
+disable_ssl_validation = True
+
+[storage]
+s3_endpoint_url = http://localhost:9000
+```
+
+### MEMO: gcloud-storage Command Usage
 
 https://docs.cloud.google.com/sdk/gcloud/reference/storage
+
+### MEMO: gcloud-storage logs
+
+Logs are stored in "~/.config/gcloud/logs".
 
 ## Test by MinIO Client (mc)
 
