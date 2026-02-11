@@ -186,23 +186,39 @@ func make_parameter_error(name string, err error) error {
 
 func (bbs *Bb_server) check_usual_object_setup(rid uint64, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
-		log.Fatalf("BAD-IMPL: Bucket parameter missing")
+		/*log.Fatalf("BAD-IMPL: Bucket parameter missing")*/
+		bbs.logger.Debug("Bucket parameter missing",
+			"rid", rid)
+		var errz = &Aws_s3_error{Code: InvalidBucketName,
+			Message: "Bucket parameter missing."}
+		return "", errz
+	}
+	if key1 == nil {
+		/*log.Fatalf("BAD-IMPL: Key parameter missing")*/
+		bbs.logger.Debug("Key parameter missing",
+			"rid", rid)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "Key parameter missing."}
+		return "", errz
 	}
 	var bucket = *bucket1
+	var key = *key1
+
 	if !check_bucket_naming(bucket) {
+		bbs.logger.Debug("Invalid bucket naming",
+			"rid", rid, "bucket", bucket, "key", key)
 		var errz = &Aws_s3_error{Code: InvalidBucketName}
 		return "", errz
 	}
 
-	if key1 == nil {
-		log.Fatalf("BAD-IMPL: Key parameter missing")
-	}
-	var key = *key1
 	if strings.HasPrefix(key, "..") {
 		log.Fatalf("BAD-IMPL: Key parameter not clean")
 	}
 	if !check_object_naming(key) {
-		var errz = &Aws_s3_error{Code: InvalidArgument}
+		bbs.logger.Debug("Invalid object naming",
+			"rid", rid, "bucket", bucket, "key", key)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message: "Invalid object naming."}
 		return "", errz
 	}
 

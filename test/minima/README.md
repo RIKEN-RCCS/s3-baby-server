@@ -101,11 +101,24 @@ acl = private
 
 ## Test by Google Cloud CLI
 
-gcloud storage (or gsutil)
+### Running a Simple Test
+
+Run a test by:
+
+```
+$ sh gcloud-copy.sh
+```
 
 ### Installing gcloud (and gsutil)
 
 https://docs.cloud.google.com/sdk/docs/install-sdk
+
+```
+$ gcloud config set storage/s3_endpoint_url https://localhost:9000
+$ gcloud config set auth/disable_ssl_validation True
+```
+
+BELOW DOES NOT WORK:
 
 ```
 cat <<EOF > cred
@@ -117,10 +130,7 @@ EOF
 gcloud secrets create 'test_secret' --data-file=cred
 ```
 
-$ gcloud config set storage/s3_endpoint_url https://localhost:9000
-$ gcloud config set auth/disable_ssl_validation True
-
-Configuration is stored in "~/.boto"
+Configuration stored in "~/.boto":
 
 ```
 [s3]
@@ -132,7 +142,7 @@ aws_access_key_id = abcdefghijklmnopqrstuvwxyz
 aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
 ```
 
-Configuration is stored in "~/.config/gcloud/configurations/config_default"
+Configuration stored in "~/.config/gcloud/configurations/config_default":
 
 ```
 [auth]
@@ -152,7 +162,15 @@ Logs are stored in "~/.config/gcloud/logs".
 
 ## Test by MinIO Client (mc)
 
-#### Installing "mc"
+### Running a Simple Test
+
+Run a test by:
+
+```
+$ sh miniomc-copy.sh
+```
+
+### Installing "mc"
 
 ```
 wget https://dl.min.io/client/mc/release/linux-amd64/mc
