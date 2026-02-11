@@ -19,8 +19,6 @@ generates the server side stubs from the definition in Smithy IDL
 "adhoc-stub-generator" directory.  Use Gnu-Guile (v3) to run
 "stub.scm".  Guile is a dialect of Scheme language.
 
-----------------
-
 ## Server Control
 
 Baby-server handles POST calls on "/bbs.ctl/quit" and "/bbs.ctl/stat",
@@ -29,25 +27,31 @@ logger at level=INFO.  Since these commands are not AWS-S3 operations,
 it cannot be requested by AWS-CLI.  See "control-client.go" code in
 "test/minima" to issue these commands.
 
+## Peculiar Reactions
+
+- An object key ending with a slash "/".
+
+- On a HEAD request on a directory, Baby-server returns NoSuchKey.
+
+
 ----------------
 
-## Serialization (Exclusion)
+## Exclusion (Serialization)
 
 Baby-server only excludes modifications on the filesystem.  That is,
 listing and downloading are not exclusive with uploading and copying.
 
 In most cases, operations are prepared outside of exclusion and
-continue inside of exclusion.  Thus, it needs a mechanism to keep
-consistency of identity of a file across exclusion regions.
-Baby-server internally uses file identity, an "entity-key", which is
-based on an inode number and an mtime.  An entity-key is similar to an
-ETag, but it is calculated fast.  (Note uniqueness of entity-keys is
-probabilistic).
+continue with final renaming in exclusion.  Baby-server keeps
+consistency of identity of a file with an "entity-key". An entity-key
+is an internally used file identity, similar to an ETag, but it is
+based on an inode number and an mtime to calculate it fast.
+(Entity-keys are hashed and uniqueness is probabilistic).
 
-Operations performed inside of exclusion are (1) renaming a
-scratch-pad file to an actual object, and (2) updating its metainfo
-file.  Other operations should be performed outside of exclusion.  In
-paricular, calculation of an ETag is outside of exclusion.
+Operations performed with exclusion are (1) renaming a scratch-pad
+file to an actual object, and (2) updating its metainfo file.  Other
+operations are outside of exclusion.  In paricular, calculation of an
+ETag is outside of exclusion.
 
 - Accesses to an object file and a meta-info file are serialized by an
   object name.  It is needed to keep correspondence between an object

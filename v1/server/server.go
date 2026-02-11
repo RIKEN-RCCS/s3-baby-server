@@ -186,7 +186,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		var path = filepath.Clean(conf)
 		var f1, err1 = os.Open(path)
 		if err1 != nil {
-			logger.Error("os.Open() failed for conf",
+			logger.Error("os.Open() to a conf file failed",
 				"path", path, "error", err1)
 			return
 		}
@@ -199,13 +199,13 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		var d = json.NewDecoder(f1)
 		var err2 = d.Decode(&config)
 		if err2 != nil {
-			logger.Error("json.Decode() failed",
+			logger.Error("json.Decode() on a conf file failed",
 				"path", path, "error", err2)
 			return
 		}
 		var err3 = f1.Close()
 		if err3 != nil {
-			logger.Error("op.Close() failed",
+			logger.Error("op.Close() on a conf file failed",
 				"path", path, "error", err3)
 			return
 		}
@@ -218,7 +218,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		e.SetIndent("", "  ")
 		var err4 = e.Encode(&config)
 		if err4 != nil {
-			logger.Error("json.Encoder.Encode() failed",
+			logger.Error("json.Encoder.Encode() on dumping a conf file failed",
 				"error", err4)
 			return
 		}
@@ -232,7 +232,8 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	var wd = filepath.Clean(pool_directory)
 	var err1 = os.Chdir(wd)
 	if err1 != nil {
-		logger.Info("os.Chdir() failed", "directory", wd, "error", err1)
+		logger.Info("os.Chdir() to pool directory failed",
+			"directory", wd, "error", err1)
 		return
 	}
 
@@ -245,7 +246,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		var path1 = filepath.Join(".", dir1, dir2)
 		var _, err1 = os.Lstat(path1)
 		if err1 != nil && !errors.Is(err1, fs.ErrNotExist) {
-			logger.Info("os.Lstat() failed in checking .s3bbs/log",
+			logger.Info("os.Lstat() in checking .s3bbs/log failed",
 				"path", path1, "error", err1)
 			return
 		}
@@ -254,7 +255,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 			var oappend = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 			var f, err2 = os.OpenFile(path2, oappend, 0644)
 			if err2 != nil {
-				logger.Info("os.OpenFile() failed for access-log",
+				logger.Info("os.OpenFile() to access-log failed",
 					"path", path2, "error", err2)
 				return
 			}

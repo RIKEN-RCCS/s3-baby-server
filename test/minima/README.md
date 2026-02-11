@@ -1,8 +1,13 @@
-# test/minima
+# Test by S3 Clients
 
-## Tests by S3 Clients
+## Prerequisite
 
-### Tests by AWS-CLI
+## Tests by bbs-ctl
+
+"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
+the server.
+
+## Test by AWS-CLI
 
 #### Installing AWS-CLI
 
@@ -10,7 +15,7 @@ An installation guide can be found at:
 
 https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 
-It can be installed in user-mode (non-root):
+The CLI can be installed in user-mode (non-root):
 
 `./aws/install -i ~/opt/aws-cli -b ~/bin`
 
@@ -28,8 +33,8 @@ aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
 
 #### MEMO on AWS-CLI vs. RCLONE Differences
 
-- AWS-CLI uses http/1.1 while that RCLONE uses http/2.0.  I cannot
-  find a way to make AWS-CLI use http/2.0.
+- AWS-CLI uses http/1.1 while that RCLONE uses http/2.0.  There is
+  likely no way to make AWS-CLI use http/2.0.
 
 - AWS-CLI attaches `x-amz-checksum-crc64nvme` by default.  In
   contrast, RCLONE does not attach `Content-MD5` or
@@ -46,7 +51,7 @@ the enviroment variable:
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
-### Tests by RCLONE
+## Test by RCLONE
 
 #### Installing RCLONE
 
@@ -78,7 +83,7 @@ acl = private
 - RCLONE first checks the directory part (prior part of "/") of an
   object.  It sends a HEAD request on that part.
 
-### Tests by Google Cloud CLI
+## Test by Google Cloud CLI
 
 gsutil
 or
@@ -95,7 +100,7 @@ $ gcloud config set auth/disable_ssl_validation True
 
 https://docs.cloud.google.com/sdk/gcloud/reference/storage
 
-### Tests by MinIO Client (mc)
+## Test by MinIO Client (mc)
 
 #### Installing "mc"
 
@@ -103,13 +108,13 @@ https://docs.cloud.google.com/sdk/gcloud/reference/storage
 wget https://dl.min.io/client/mc/release/linux-amd64/mc
 ```
 
-### Tests by s3cmd
+## Test by s3cmd
 
 #### Installing s3cmd
 
   pip install s3cmd
 
-### Tests by s3fs-fuse
+## Test by s3fs-fuse
 
 #### Installing s3fs-fuse
 
@@ -119,14 +124,7 @@ wget https://dl.min.io/client/mc/release/linux-amd64/mc
 
 ----------------
 
-## Tests by bbs-ctl
-
-"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
-the server.
-
-----------------
-
-## Other Tests
+# Other Tests
 
 This uses GNU-Guile (Scheme language), requiring guile-3.0.9 or later,
 as it uses "spawn" to run subprocesses.

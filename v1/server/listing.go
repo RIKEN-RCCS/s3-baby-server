@@ -41,7 +41,7 @@ func (bbs *Bb_server) list_buckets(rid uint64, start int, count int, prefix stri
 	var pool_path = "."
 	var entries1, err1 = os.ReadDir(pool_path)
 	if err1 != nil {
-		bbs.logger.Warn("os.ReadDir() failed in ListBuckets",
+		bbs.logger.Warn("os.ReadDir() in bucket listing failed",
 			"rid", rid, "error", err1)
 		var errz = map_os_error("/", err1, nil)
 		return nil, 0, errz
@@ -56,7 +56,7 @@ func (bbs *Bb_server) list_buckets(rid uint64, start int, count int, prefix stri
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
+			bbs.logger.Warn("fs.DirEntry.Info() in bucket listing failed",
 				"rid", rid, "direntry", e, "error", err2)
 			// IGNORE-ERRORS.
 			continue
@@ -150,8 +150,9 @@ func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index in
 	var directory = filepath.Join(pool_path, bucket, dir1)
 	var entries1, err1 = os.ReadDir(directory)
 	if err1 != nil {
-		bbs.logger.Info("os.ReadDir() failed",
-			"rid", rid, "path", directory, "error", err1)
+		bbs.logger.Info("os.ReadDir() in object listing failed",
+			"rid", rid, "function", "list_objects_delimited",
+			"path", directory, "error", err1)
 		return nil, 0, "", map_os_error(location, err1, nil)
 	}
 
@@ -163,8 +164,9 @@ func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index in
 			var name = e.Name()
 			var stat, err2 = e.Info()
 			if err2 != nil {
-				bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
-					"rid", rid, "direntry", e, "error", err2)
+				bbs.logger.Warn("fs.DirEntry.Info() in object listing failed",
+					"rid", rid, "function", "list_objects_delimited",
+					"direntry", e, "error", err2)
 				// IGNORE-ERRORS.
 				continue
 			}
@@ -222,8 +224,9 @@ func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index in
 		var key = path.Join(dir1, e.Name())
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Warn("os.Lstat() failed on fs.DirEntry",
-				"rid", rid, "direntry", e, "error", err2)
+			bbs.logger.Warn("fs.DirEntry.Info() in object listing failed",
+				"rid", rid, "function", "list_objects_delimited",
+				"direntry", e, "error", err2)
 			continue
 		}
 		entries5 = append(entries5, object_list_entry{key, stat})
@@ -256,16 +259,18 @@ func (bbs *Bb_server) list_objects_flat(rid uint64, bucket string, index int, ma
 		// Skip errors.
 
 		if err1 != nil {
-			bbs.logger.Warn("os.DirFS() callbacks with error",
-				"rid", rid, "bucket", bucket, "path", key1, "error", err1)
+			bbs.logger.Warn("fs.WalkDir() callbacks with error",
+				"rid", rid, "function", "list_objects_flat",
+				"bucket", bucket, "path", key1, "error", err1)
 			return nil
 		}
 
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Warn("os.Lstat() on fs.DirEntry failed",
-				"rid", rid, "direntry", e, "error", err2)
+			bbs.logger.Warn("fs.DirEntry.Info() in object listing failed",
+				"rid", rid, "function", "list_objects_flat",
+				"direntry", e, "error", err2)
 			// IGNORE-ERRORS.
 			return nil
 		}
@@ -553,7 +558,7 @@ func (bbs *Bb_server) check_directory_empty(rid uint64, bucket string, path1 str
 	var filelist, err1 = os.ReadDir(path1)
 	if err1 != nil {
 		//if errors.Is(err1, fs.ErrNotExist)
-		bbs.logger.Info("os.ReadDir() in a bucket failed",
+		bbs.logger.Info("os.ReadDir() in checking emptiness failed",
 			"rid", rid, "path", path1, "error", err1)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message:  "Listing in a bucket failed.",
@@ -564,7 +569,7 @@ func (bbs *Bb_server) check_directory_empty(rid uint64, bucket string, path1 str
 		var name = e.Name()
 		var stat, err2 = e.Info()
 		if err2 != nil {
-			bbs.logger.Warn("os.Lstat() on fs.DirEntry failed",
+			bbs.logger.Warn("fs.DirEntry.Info() in checking emptiness failed",
 				"rid", rid, "direntry", e, "error", err2)
 			// IGNORE-ERRORS.
 			continue

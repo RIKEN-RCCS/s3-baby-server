@@ -11,6 +11,9 @@ set -o pipefail
 alias ECHO=echo
 EXEC_ECHO() { (echo ">> $@" 1>&2) ; "$@" ; }
 EXEC_PASS() { (echo "pass>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
+
+EXPECT_PASS() { (echo "pass>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
 EXEC_FAIL() { (echo "fail>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
+EXPECT_FAIL() { EXEC_FAIL "$@" || true ; [ $statuscode -ne 0 ] ; }
 
 export AWS_EC2_METADATA_DISABLED=true

@@ -90,7 +90,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 		var w1 = http.NewResponseController(w)
 		var err1 = xml.NewEncoder(w).Encode(e1)
 		if err1 != nil {
-			bbs.logger.Error("xml-encode failed in writing a response",
+			bbs.logger.Error("xml.Encode() in writing a response failed",
 				"action", action, "rid", rid, "error", err1)
 			/*panic(fmt.Errorf("xml-encode failed: %w", err1))*/
 		}
