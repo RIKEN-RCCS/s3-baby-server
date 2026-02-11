@@ -167,7 +167,7 @@ Logs are stored in "~/.config/gcloud/logs".
 Run a test by:
 
 ```
-$ sh miniomc-copy.sh
+$ sh minio-mc-copy.sh
 ```
 
 ### Installing "mc"
