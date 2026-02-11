@@ -707,20 +707,24 @@ func (bbs *Bb_server) place_scratch_file(rid uint64, object string, scratch stri
 		}
 	}()
 
-	// Remove the target as os.Rename() fails on the same file.
+	// Remove the target as os.Rename() fails on the same file.  Look
+	// at second file first.
 
 	{
-		var stat1, err1 = os.Stat(path1)
-		if err1 != nil {
-			bbs.logger.Error("os.Stat() in placing the file failed",
-				"rid", rid, "error", err1)
-			var errz = map_os_error(location, err1, nil)
-			return errz
-		}
-		var stat2, err2 = os.Stat(path2)
+		var stat1, stat2 fs.FileInfo
+		var err1, err2 error
+		stat2, err2 = os.Stat(path2)
 		if err2 != nil {
-			// OK.  A target is missing is normal.
+			// A missing target is normal. Okey.
 			// IGNORE-ERRORS.
+		} else {
+			stat1, err1 = os.Stat(path1)
+			if err1 != nil {
+				bbs.logger.Error("os.Stat() in placing the file failed",
+					"rid", rid, "error", err1)
+				var errz = map_os_error(location, err1, nil)
+				return errz
+			}
 		}
 		if stat1 != nil && stat2 != nil && os.SameFile(stat1, stat2) {
 			bbs.logger.Debug("Special handling of the same file in copying",

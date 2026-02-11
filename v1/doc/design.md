@@ -33,7 +33,6 @@ it cannot be requested by AWS-CLI.  See "control-client.go" code in
 
 - On a HEAD request on a directory, Baby-server returns NoSuchKey.
 
-
 ----------------
 
 ## Exclusion (Serialization)
@@ -332,6 +331,22 @@ restriction is like http.parseTransferEncoding().
 
 rclone does not accept "UTC" for "GMT" in time strings, although it
 seems to try a couple of time formats.
+
+----------------
+
+## MEMO CODING CONVENTION
+
+### Variable names for OS-Dependent Paths
+
+OS-independent paths ("/"-paths) are given names avoiding "path" in
+the source code, while OS-dependent paths prefer names including
+"path".  "/"-paths are usually given names such as "object", "source",
+or "target".  OS-dependent paths are the results of filepath.Clean()
+or filepath.Join().
+
+Note OS-dependence of paths by packages.
+  - OS-independent: "path", "io/fs"
+  - OS-dependent: "path/filepath", "os"
 
 ----------------
 

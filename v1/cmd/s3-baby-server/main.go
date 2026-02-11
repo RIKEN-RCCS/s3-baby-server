@@ -59,7 +59,7 @@ func main() {
 	var args = os.Args
 
 	var addr string = ""
-	var path string = ""
+	var pool string = ""
 	if len(args) <= 1 {
 		options.Usage()
 		os.Exit(2)
@@ -76,7 +76,7 @@ func main() {
 			os.Exit(2)
 		}
 		addr = args[2]
-		path = args[3]
+		pool = args[3]
 		args_optional = args[4:]
 	case "dump-conf":
 		dump_conf = true
@@ -85,7 +85,7 @@ func main() {
 			os.Exit(2)
 		}
 		addr = "--"
-		path = "--"
+		pool = "--"
 		cred_pair = "--,--"
 		args_optional = args[2:]
 	case "version":
@@ -177,5 +177,5 @@ func main() {
 	var loga = *flag_log_access
 	var prof = *flag_prof
 
-	server.Start_server(dump_conf, cred, cert, path, addr, conf, logs, loga, prof)
+	server.Start_server(dump_conf, cred, cert, pool, addr, conf, logs, loga, prof)
 }

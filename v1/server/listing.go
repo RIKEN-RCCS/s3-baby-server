@@ -38,8 +38,8 @@ var scratch_file_pattern = ".*"
 
 // LIST_BUCKETS makes a list of buckets.
 func (bbs *Bb_server) list_buckets(rid uint64, start int, count int, prefix string) ([]types.Bucket, int, *Aws_s3_error) {
-	var pool_path = "."
-	var entries1, err1 = os.ReadDir(pool_path)
+	var pool_directory = "."
+	var entries1, err1 = os.ReadDir(pool_directory)
 	if err1 != nil {
 		bbs.logger.Warn("os.ReadDir() in bucket listing failed",
 			"rid", rid, "error", err1)
@@ -146,8 +146,8 @@ func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index in
 		}
 	}
 
-	var pool_path = "."
-	var directory = filepath.Join(pool_path, bucket, dir1)
+	var pool_directory = "."
+	var directory = filepath.Join(pool_directory, bucket, dir1)
 	var entries1, err1 = os.ReadDir(directory)
 	if err1 != nil {
 		bbs.logger.Info("os.ReadDir() in object listing failed",
@@ -244,8 +244,8 @@ func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index in
 // preceeding delimiter.  A common-prefix has a trailing delimiter.
 func (bbs *Bb_server) list_objects_flat(rid uint64, bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
 	var location = "/" + bucket
-	var pool_path = "."
-	var b = path.Join(pool_path, bucket)
+	var pool_directory = "."
+	var b = path.Join(pool_directory, bucket)
 	var bucket1 = os.DirFS(b)
 
 	var entries []object_list_entry
@@ -410,8 +410,8 @@ func (bbs *Bb_server) make_list_objects_entries(rid uint64, entries []object_lis
 
 func (bbs *Bb_server) list_mpuls_flat(rid uint64, bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, *Aws_s3_error) {
 	var location = "/" + bucket
-	var pool_path = "."
-	var b = path.Join(pool_path, bucket)
+	var pool_directory = "."
+	var b = path.Join(pool_directory, bucket)
 	var bucket1 = os.DirFS(b)
 
 	var objects []types.MultipartUpload
@@ -629,13 +629,13 @@ func check_mpul_scratch_name(name string) bool {
 	return m
 }
 
-// CHECK_COMMON_PREFIX checks if a path has common-prefix part.  It
-// returns a common-prefix or "".
-func check_common_prefix(path, delimiter, prefix string) string {
+// CHECK_COMMON_PREFIX checks if an object KEY has a common-prefix
+// part.  It returns a common-prefix or "".
+func check_common_prefix(key, delimiter, prefix string) string {
 	if delimiter == "" {
 		return ""
 	}
-	var suffix = strings.TrimPrefix(path, prefix)
+	var suffix = strings.TrimPrefix(key, prefix)
 	var s2 = strings.SplitAfter(suffix, delimiter)
 	if strings.HasSuffix(s2[0], delimiter) {
 		return strings.Join([]string{prefix, s2[0]}, "")

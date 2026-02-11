@@ -647,7 +647,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 		/*if !errors.Is(err2, fs.ErrExist) {*/
 		/*var err4, ok = err3.Err.(syscall.Errno)*/
 
-		bbs.logger.Debug("os.Mkdir() failed",
+		bbs.logger.Debug("os.Mkdir() for bucket failed",
 			"rid", rid, "path", path, "error", err3)
 		var m = map[error]Aws_s3_error_code{
 			fs.ErrExist: BucketAlreadyOwnedByYou}

@@ -3,8 +3,6 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// MEMO: Note "filepath" is OS dependent.
-
 package server
 
 import (
@@ -81,15 +79,12 @@ func map_os_error(location string, err1 error, m map[error]Aws_s3_error_code) *A
 	}
 }
 
-func map_path_error(ctx context.Context, location string, err1 error, m map[error]Aws_s3_error_code) error {
-	return err1
-}
-
-// MAKE_PATH_OF_BUCKET makes an OS-path to a bucket, by appending a
-// pool-directory and a bucket.  Note Join() calls Clean().
+// MAKE_PATH_OF_BUCKET makes an os-dependent path to a bucket, by
+// appending a pool-directory and a bucket.  Note filepath.Join()
+// calls filepath.Clean().
 func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
-	var pool_path = "."
-	var path = filepath.Join(pool_path, bucket)
+	var pool_directory = "."
+	var path = filepath.Join(pool_directory, bucket)
 	return path
 }
 
@@ -98,6 +93,25 @@ func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 // for a scratch file, "@meta", or "@mpul" (mpul is for multipart
 // upload).
 func (bbs *Bb_server) make_scratch_object_name(object string, marker string) string {
+	var dir, file = path.Split(object)
+	var name = prefix_suffix_by_marker(file, marker)
+	var scratch = path.Join(dir, name)
+	return scratch
+}
+
+// MAKE_PATH_OF_OBJECT makes an os-dependent path to an object, by
+// appending an object name with a marker suffix.  A marker can be one
+// of a null string, a random for a scratch file, "@meta", or "@mpul"
+// (mpul is for multipart upload).
+func (bbs *Bb_server) make_path_of_object(object string, marker string) string {
+	var dir, file = path.Split(object)
+	var pool_directory = "."
+	var name = prefix_suffix_by_marker(file, marker)
+	var path = filepath.Join(pool_directory, dir, name)
+	return path
+}
+
+func prefix_suffix_by_marker(file, marker string) string {
 	var prefix, suffix string
 	if marker == "" {
 		prefix = ""
@@ -107,31 +121,7 @@ func (bbs *Bb_server) make_scratch_object_name(object string, marker string) str
 		prefix = "."
 		suffix = marker
 	}
-	var dir, file = path.Split(object)
-	var scratch = path.Join(dir, (prefix + file + suffix))
-	return scratch
-}
-
-// MAKE_PATH_OF_OBJECT makes an OS-path to an object, by appending an
-// object name with a marker suffix.  A marker can be one of a null
-// string, a random for a scratch file, "@meta", or "@mpul" (mpul is
-// for multipart upload).
-func (bbs *Bb_server) make_path_of_object(object string, marker string) string {
-	var prefix, suffix string
-	if marker == "" {
-		prefix = ""
-		suffix = ""
-	} else if marker[0] == '@' {
-		prefix = "."
-		suffix = marker
-	} else {
-		prefix = "."
-		suffix = "@" + marker
-	}
-	var dir, file = path.Split(object)
-	var pool_path = "."
-	var path = filepath.Join(pool_path, dir, (prefix + file + suffix))
-	return path
+	return (prefix + file + suffix)
 }
 
 func make_mpul_part_name(object string, part int32) string {
@@ -153,10 +143,10 @@ func make_mpul_scratch_name(name string) string {
 	return (prefix + name + suffix)
 }
 
-func adjust_mpul_scratch_to_object_name(path1 string) string {
+func adjust_mpul_scratch_to_object_name(object string) string {
 	var prefix = "."
 	var suffix = "@" + "mpul"
-	var dir, name1 = path.Split(path1)
+	var dir, name1 = path.Split(object)
 	var name2 = strings.TrimSuffix(strings.TrimPrefix(name1, prefix), suffix)
 	var s2 = path.Join(dir, name2)
 	return s2
@@ -321,27 +311,27 @@ func (bbs *Bb_server) make_intervening_directories(rid uint64, object string) *A
 	}
 
 	var path = bbs.make_path_of_object(object, "")
-	var dir, _ = filepath.Split(path)
-	var stat, err2 = os.Lstat(dir)
+	var dirpath, _ = filepath.Split(path)
+	var stat, err2 = os.Lstat(dirpath)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
 			// OK.
-			var err3 = os.MkdirAll(dir, 0755)
+			var err3 = os.MkdirAll(dirpath, 0755)
 			if err3 != nil {
 				bbs.logger.Info("os.MkdirAll() in making directories failed",
-					"rid", rid, "path", dir, "error", err3)
+					"rid", rid, "path", dirpath, "error", err3)
 				return map_os_error(location, err3, nil)
 			}
 			return nil
 		} else {
 			bbs.logger.Warn("os.Lstat() in making directories failed",
-				"rid", rid, "path", dir, "error", err2)
+				"rid", rid, "path", dirpath, "error", err2)
 			return map_os_error(location, err2, nil)
 		}
 	}
 	if !stat.IsDir() {
 		bbs.logger.Warn("Path is not a directory",
-			"rid", rid, "path", dir)
+			"rid", rid, "path", dirpath)
 		var errz = &Aws_s3_error{Code: AccessDenied,
 			Resource: location}
 		return errz
@@ -355,18 +345,18 @@ func (bbs *Bb_server) make_intervening_directories(rid uint64, object string) *A
 func (bbs *Bb_server) check_path_is_link_free(rid uint64, object string) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
-	var pathlist = strings.Split(path, string(os.PathSeparator))
-	var name = ""
-	for _, e := range pathlist {
-		name = filepath.Join(name, e)
-		var info, err1 = os.Lstat(name)
+	var pathparts = strings.Split(path, string(os.PathSeparator))
+	var descendpath = ""
+	for _, e := range pathparts {
+		descendpath = filepath.Join(descendpath, e)
+		var info, err1 = os.Lstat(descendpath)
 		if err1 != nil {
 			if errors.Is(err1, fs.ErrNotExist) {
 				// OK.
 				return nil
 			} else {
 				bbs.logger.Warn("os.Lstat() in checking links failed",
-					"rid", rid, "path", name, "error", err1)
+					"rid", rid, "path", descendpath, "error", err1)
 				return map_os_error(location, err1, nil)
 			}
 		}

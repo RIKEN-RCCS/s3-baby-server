@@ -49,9 +49,10 @@ type Bb_server struct {
 
 	server_quit chan struct{}
 
-	// POOL_PATH is a path where buckets reside.  Baby-server changes
-	// the working directory to that path, and this is only a record.
-	pool_path string
+	// POOL_DIRECTORY is a path where buckets reside.  Baby-server
+	// changes the working directory to that path, and this is only a
+	// record.
+	pool_directory string
 }
 
 type msec_duration int64
@@ -71,7 +72,7 @@ func byte_size(v mbyte_size) int64 {
 // because they get large numbers in time.Duration that are not an
 // appropriate representation in a configuration file.
 type Bb_configuration struct {
-	Server_control_path     string        `json:"server_control_path"`
+	Server_control_name     string        `json:"server_control_name"`
 	Site_base_url           *string       `json:"site_base_url"`
 	Exclusion_wait          msec_duration `json:"exclusion_wait"`
 	Record_etag_threshold   mbyte_size    `json:"record_etag_threshold"`
@@ -174,7 +175,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	// Set default configurations, or read it from a file.
 
 	var config = Bb_configuration{
-		Server_control_path:     "bbs.ctl",
+		Server_control_name:     "bbs.ctl",
 		Site_base_url:           nil,
 		Exclusion_wait:          100,
 		Record_etag_threshold:   1,
@@ -183,11 +184,11 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	}
 
 	if conf != "" {
-		var path = filepath.Clean(conf)
-		var f1, err1 = os.Open(path)
+		var confpath = filepath.Clean(conf)
+		var f1, err1 = os.Open(confpath)
 		if err1 != nil {
 			logger.Error("os.Open() to a conf file failed",
-				"path", path, "error", err1)
+				"path", confpath, "error", err1)
 			return
 		}
 		defer func() {
@@ -200,13 +201,13 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		var err2 = d.Decode(&config)
 		if err2 != nil {
 			logger.Error("json.Decode() on a conf file failed",
-				"path", path, "error", err2)
+				"path", confpath, "error", err2)
 			return
 		}
 		var err3 = f1.Close()
 		if err3 != nil {
 			logger.Error("op.Close() on a conf file failed",
-				"path", path, "error", err3)
+				"path", confpath, "error", err3)
 			return
 		}
 	}
@@ -229,11 +230,11 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	// avoid accidentally disclosing the full path (which may include
 	// a user name or a project name)
 
-	var wd = filepath.Clean(pool_directory)
-	var err1 = os.Chdir(wd)
+	var wdpath = filepath.Clean(pool_directory)
+	var err1 = os.Chdir(wdpath)
 	if err1 != nil {
 		logger.Info("os.Chdir() to pool directory failed",
-			"directory", wd, "error", err1)
+			"directory", wdpath, "error", err1)
 		return
 	}
 
@@ -243,20 +244,20 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	{
 		var dir1 = ".s3bbs"
 		var dir2 = "log"
-		var path1 = filepath.Join(".", dir1, dir2)
-		var _, err1 = os.Lstat(path1)
+		var dirpath = filepath.Join(".", dir1, dir2)
+		var _, err1 = os.Lstat(dirpath)
 		if err1 != nil && !errors.Is(err1, fs.ErrNotExist) {
 			logger.Info("os.Lstat() in checking .s3bbs/log failed",
-				"path", path1, "error", err1)
+				"path", dirpath, "error", err1)
 			return
 		}
 		if err1 == nil {
-			var path2 = filepath.Join(".", dir1, dir2, "access-log")
+			var logpath = filepath.Join(".", dir1, dir2, "access-log")
 			var oappend = os.O_APPEND | os.O_CREATE | os.O_WRONLY
-			var f, err2 = os.OpenFile(path2, oappend, 0644)
+			var f, err2 = os.OpenFile(logpath, oappend, 0644)
 			if err2 != nil {
 				logger.Info("os.OpenFile() to access-log failed",
-					"path", path2, "error", err2)
+					"path", logpath, "error", err2)
 				return
 			}
 			access_logging = f
@@ -266,7 +267,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	}
 
 	var bbs = &Bb_server{
-		pool_path:      wd,
+		pool_directory: pool_directory,
 		cert_pair:      cert,
 		cred_pair:      cred,
 		config:         config,
@@ -280,7 +281,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	h_limit_of_xml_parameters = byte_size(config.Limit_of_xml_parameters)
 
 	var sx = http.NewServeMux()
-	var control = "POST /" + config.Server_control_path + "/{command}"
+	var control = "POST /" + config.Server_control_name + "/{command}"
 	sx.HandleFunc(control, func(w http.ResponseWriter, r *http.Request) {
 		bbs.server_control(w, r)
 	})
