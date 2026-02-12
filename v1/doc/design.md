@@ -27,11 +27,24 @@ logger at level=INFO.  Since these commands are not AWS-S3 operations,
 it cannot be requested by AWS-CLI.  See "control-client.go" code in
 "test/minima" to issue these commands.
 
-## Peculiar Reactions
+## Peculiar Response
 
 - An object key ending with a slash "/".
 
 - On a HEAD request on a directory, Baby-server returns NoSuchKey.
+
+## Bizarre processing: Trailing-slash in URL
+
+Baby-server drops a trailing-slash by rewriting URL's path before
+passing it to http.ServeMux.  Note some S3 clients may attach a slash
+to a bucket name in a object-listing request.  An example is MinIO
+client "mc".
+
+It is pretty hard to ignore a trailing-slash with Golang's
+http.ServeMux.  Pattern matcher of http.ServeMux treats "/{bucket}/"
+as "/{bucket}/{key...}".  That is, the pattern "/{bucket}/" wouldn't
+match both "/{bucket}" and "/{bucket}/" as we hoped for.  The pattern
+"/{bucket}/{$}" wouldn't work either.
 
 ----------------
 

@@ -783,6 +783,18 @@
 ;; This part merges dispatches by a key method-path.  It prepares for
 ;; registering to an http-server-mux.
 
+(define (identify-head-and-get method-path)
+  ;; Fixes the method part by replacing "HEAD" to "GET", because
+  ;; Golang's http.ServeMux routes HEAD to the GET handler.
+  (match-let* (((method path) method-path))
+    (cond
+     ((string=? "GET" method)
+      (list "GET" path))
+     ((string=? "HEAD" method)
+      (list "GET" path))
+     (else
+      method-path))))
+
 (define (merge-request-dispatches list-of-actions)
   ;; Merges request dispatch entries by combining ones with the same
   ;; method-path pair.  It returns an alist with a method-path key and
@@ -792,8 +804,10 @@
 	     (alist '()))
     (if (null? entries)
 	alist
-	(match-let* ((dispatch (car entries))
-		     ((name method-path queries headers signature) dispatch))
+	(match-let*
+	    ((dispatch (car entries))
+	     ((name raw-method-path queries headers signature) dispatch)
+	     (method-path (identify-head-and-get raw-method-path)))
 	  (cond ((assoc method-path alist)
 		 => (lambda (pair)
 		      (loop (cdr entries)
@@ -829,8 +843,8 @@
 (define (sort-dispatches merged-dispatches)
   ;; Sorts the entries by their specific-ness, i.e., by the length of
   ;; queries and headers.  In addition, but not necessary, it also
-  ;; sorts the alist by methods ordering in HEAD, GET, PUT, POST,
-  ;; DELETE.
+  ;; sorts the alist by methods ordering in (HEAD), GET, PUT, POST,
+  ;; DELETE.  HEAD never appears as it is identified with GET.
   (let loop1 ((alist merged-dispatches)
 	      (dispatches-acc '()))
     (if (null? alist)
@@ -879,17 +893,25 @@
 		 (else
 		  (error "never")))))))
 
-(define (make-conditionals queries-headers)
+(define (make-conditionals method queries-headers)
   ;;(format #t "make-conditionals ~s~%" queries-headers)
-  (if (null? queries-headers)
-      "true"
-      (let ((v (map make-variable-name queries-headers)))
-	;; (string-append "(" (string-join v " && ") ")")
-	(string-append (string-join v " && ")))))
+  (let ((method-clause
+	 ;; Add an extra whitespace to separate from following clauses.
+	 (cond ((string=? method "GET")
+		"r.Method == \"GET\" && ")
+	       ((string=? method "HEAD")
+		"r.Method == \"HEAD\" && ")
+	       (else
+		""))))
+    (if (null? queries-headers)
+	(string-append method-clause "true")
+	(let ((vv (map make-variable-name queries-headers)))
+	  ;; (string-append "(" (string-join v " && ") ")")
+	  (string-append method-clause (string-join vv " && "))))))
 
 (define (make-choice-clause dispatch)
-  (match-let* (((name _ queries headers signature) dispatch)
-	       (q (make-conditionals (append queries headers)))
+  (match-let* (((name (method path) queries headers signature) dispatch)
+	       (q (make-conditionals method (append queries headers)))
 	       (body (string-append "h_" name "(bbs, w, r)")))
     (format #f "if ~a {~a}" q body)))
 
@@ -911,28 +933,28 @@
 (define (generate-dispatcher-entry dispatch-entry)
   ;; Generates a dispatcher for one pattern.  It returns a list of
   ;; lines of code.  The root path "/" is fixed to ServeMux's "/{$}".
-  (match-let* ((((method path-raw) . dispatches) dispatch-entry)
+  (match-let* ((((fixed-method path-raw) . dispatches) dispatch-entry)
 	       (path (if (string=? path-raw "/") "/{$}" path-raw)))
     (let-values (((queries headers) (list-queries-headers dispatches)))
       (append
        ;; Handler registering code:
        (list
 	(string-append
-	 (format #f "sx.HandleFunc(\"~a ~a\"," method path)
+	 (format #f "sx.HandleFunc(\"~a ~a\"," fixed-method path)
 	 " func(w http.ResponseWriter, r *http.Request) {"))
-       ;; Check code for root-condition (NEVER GENERATED):
+       ;; (NEVER GENERATED) Code to check for root-condition:
        (if (string=? path "/")
 	   (list
 	    "if r.URL.Path != \"/\" {http.NotFound(w, r); return}")
 	   '())
-       ;; Fetch code of queries:
+       ;; Code to fetch queries:
        (if (null? queries)
 	   '()
 	   (append
 	    (list "var q = r.URL.Query()")
 	    (map (lambda (q) (make-fetch-condition "q" q))
 		 queries)))
-       ;; Fetch code of headers:
+       ;; Code to fetch headers:
        (if (null? headers)
 	   '()
 	   (append
@@ -1483,10 +1505,20 @@
 	;; Marshaling errors are implementation errors.
 	(list "ho.Set(\"Content-Type\", \"application/xml\")"
 	      (format #f "var s = O_~a(*o)" response-type)
+	      #|
 	      (string-append
 	       "var ox, err6 = xml.MarshalIndent"
 	       (format #f "(s, \" \", \"  \")"))
 	      "if err6 != nil {log.Fatal(err6)}"
+	      |#
+	      ;; Output xml marshaling:
+	      "var bx bytes.Buffer"
+	      "var xe = xml.NewEncoder(&bx)"
+	      "if h_pretty_xml_response {xe.Indent(\" \", \"  \")}"
+	      "var err6 = xe.Encode(s)"
+	      "if err6 != nil {log.Fatal(err6)}"
+	      "var ox = bx.Bytes()"
+	      ;; Output processing:
 	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
 	      "var _, err7 = w.Write([]byte(xml.Header))"
@@ -1514,10 +1546,20 @@
        (else
 	;; Marshaling errors means implementation errors.
 	(list "ho.Set(\"Content-Type\", \"application/xml\")"
+	      #|
 	      (string-append
 	       "var ox, err6 = xml.MarshalIndent"
 	       (format #f "(o.~a, \" \", \"  \")" slot))
 	      "if err6 != nil {log.Fatal(err6)}"
+	      |#
+	      ;; Output xml marshaling:
+	      "var bx bytes.Buffer"
+	      "var xe = xml.NewEncoder(&bx)"
+	      "if h_pretty_xml_response {xe.Indent(\" \", \"  \")}"
+	      (format #f "var err6 = xe.Encode(o.~a)" slot)
+	      "if err6 != nil {log.Fatal(err6)}"
+	      "var ox = bx.Bytes()"
+	      ;; Output processing:
 	      (format #f "var status int = ~a" http-status)
 	      "w.WriteHeader(status)"
 	      "var _, err7 = w.Write([]byte(xml.Header))"
@@ -1569,10 +1611,13 @@
      (list "if len(input_errors) > 0 {"
 	   "bbs.respond_on_input_error(ctx, w, r, input_errors)"
 	   "return}")
-     ;; Check http trailer existence.  It is not implemented yet.
-     (list "if r.Trailer != nil {"
-	   "bbs.logger.Error(\"http trailer header is unsupported\","
-	   " \"trailer\", r.Trailer)}")
+     ;; Check http trailer header existence, and warn if it exists.
+     (if #f
+	 ;; (Trailer header check is now in a handler).
+	 (list "if r.Trailer != nil {"
+	       "bbs.logger.Error(\"http trailer header is unsupported\","
+	       " \"trailer\", r.Trailer)}")
+	 '())
      ;; Hander invocation:
      (list (if (string=? output-type "Unit")
 	       (format #f "var _, err5 = bbs.~a(ctx, &i)" name)
@@ -1619,6 +1664,7 @@
     ""
     (list (format #f "package ~a" bb-dispatcher-package)
 	  "import ("
+	  "\"bytes\""
 	  "\"context\""
 	  "\"encoding/xml\""
 	  "\"fmt\""

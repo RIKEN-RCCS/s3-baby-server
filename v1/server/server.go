@@ -17,12 +17,14 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	//runtimepprof "runtime/pprof"
@@ -77,7 +79,9 @@ type Bb_configuration struct {
 	Exclusion_wait          msec_duration `json:"exclusion_wait"`
 	Record_etag_threshold   mbyte_size    `json:"record_etag_threshold"`
 	Limit_of_xml_parameters mbyte_size    `json:"limit_of_xml_parameters"`
+	Keep_trailing_slash     bool          `json:"keep_trailing_slash"`
 	Verify_fs_write         bool          `json:"verify_fs_write"`
+	Pretty_xml_response     bool          `json:"pretty_xml_response"`
 
 	// Anonymize_ower bool
 	// File_creation_mode fs.FileMode
@@ -100,6 +104,10 @@ type Handler_data struct {
 // in a request body.
 var h_limit_of_xml_parameters int64 = (2 * 1024 * 1024)
 
+// H_PRETTY_XML_RESPONSE=true sets xml.NewEncoder.Indent() in response
+// generation.
+var h_pretty_xml_response bool = false
+
 // PRIOR_HANDLER is an http.Handler and it checks an authorization
 // header in a request before passing it to actual handlers.  It also
 // prints access logs.  See its ServeHTTP() method.
@@ -109,35 +117,55 @@ type prior_handler struct {
 }
 
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var rid = sv.bbs.make_request_id()
 	var start_time = time.Now()
+
+	var rid = sv.bbs.make_request_id()
 
 	var auth, err1 = sv.bbs.attest_authorization(w, r)
 	if err1 != nil {
 		return
 	}
 
+	if r.Trailer != nil {
+		sv.bbs.logger.Error("http trailer header is unsupported",
+			"trailer", r.Trailer)
+	}
+
+	var request = fmt.Sprintf("%s %s", r.Method, r.URL)
+
 	var w2 = &httpaide.ResponseWriter2{ResponseWriter: w}
 	var ctx1 = r.Context()
 	var frame = &Handler_data{
 		Request_id:     rid,
 		ResponseWriter: w,
-		Request:        r}
+		Request:        r,
+	}
 	var ctx2 = context.WithValue(ctx1, "handler-data", frame)
 	var r2 = r.WithContext(ctx2)
 
-	// Call the service dispatcher.
+	// Drop the trailing-slash in the path by rewriting.  Some clients
+	// attach a slash-suffix to the bucket name.
+
+	if !sv.bbs.config.Keep_trailing_slash {
+		if r2.URL.Path != "/" && strings.HasSuffix(r2.URL.Path, "/") {
+			sv.bbs.logger.Debug("Drop a trailing-slash in url",
+				"request", request)
+			var r2url url.URL = *r2.URL
+			r2.URL = &r2url
+			r2.URL.Path = strings.TrimSuffix(r2.URL.Path, "/")
+		}
+	}
+
+	// Call the dispatcher.
 
 	sv.sx.ServeHTTP(w2, r2)
 
 	var q_length = r2.ContentLength
-
 	var user = auth[:min(len(auth), 16)]
 	var code = w2.Status_code
 	var r_length = w2.Content_length
 
 	var elapse_time = time.Since(start_time)
-	var request = fmt.Sprintf("%s %s", r.Method, r.URL)
 	sv.bbs.logger.Info("Handling time",
 		"rid", rid, "request", request, "request-length", q_length,
 		"code", code, "response-length", r_length, "elapse", elapse_time)
@@ -180,6 +208,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		Exclusion_wait:          100,
 		Record_etag_threshold:   1,
 		Limit_of_xml_parameters: 2,
+		Keep_trailing_slash:     false,
 		Verify_fs_write:         false,
 	}
 
@@ -279,6 +308,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	go bbs.monitor1.guard_loop()
 
 	h_limit_of_xml_parameters = byte_size(config.Limit_of_xml_parameters)
+	h_pretty_xml_response = config.Pretty_xml_response
 
 	var sx = http.NewServeMux()
 	var control = "POST /" + config.Server_control_name + "/{command}"

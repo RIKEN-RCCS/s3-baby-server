@@ -84,6 +84,20 @@ Output records ("XXXXOutput") have an extra slot "ResultMetadata".  It
 is not a pointer and the default xml-marshaler outputs the xml-tag
 even if it is empty.  Some work is needed to drop the slot.
 
+----------------
+
+## MEMO: Golang's ServeMux
+
+Note http.ServerMux routes HEAD method requests to GET method as HEAD
+and GET methods are identified.  This causes registered patterns
+conflict among HEAD and GET.  To cope with this identification, the
+stub-generator merges HEAD and GET patterns as GET, and the handler
+switches on the method of the request to distinguish them.
+
+A quote from Golang's net/http.  https://pkg.go.dev/net/http#ServeMux
+
+> A pattern with the method GET matches both GET and HEAD requests
+
 ----------------------------------------------------------------
 
 ## MEMO: API Markers in Smithy

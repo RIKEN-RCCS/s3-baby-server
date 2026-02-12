@@ -162,7 +162,14 @@ Logs are stored in "~/.config/gcloud/logs".
 
 ## Test by MinIO Client (mc)
 
-### Running a Simple Test
+### Setup and Run a Simple Test
+
+Setup MC by assigning any alias, for example, "s3baby" in the test
+script:
+
+```
+$ mc alias set "s3baby" "http://localhost:9000" "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz" --api S3v4
+```
 
 Run a test by:
 
@@ -175,6 +182,8 @@ $ sh minio-mc-copy.sh
 ```
 wget https://dl.min.io/client/mc/release/linux-amd64/mc
 ```
+
+Configuration of "mc" is stored in "~/.mc/config.json".
 
 ## Test by s3cmd
 

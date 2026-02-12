@@ -186,19 +186,17 @@ func make_parameter_error(name string, err error) error {
 
 func (bbs *Bb_server) check_usual_object_setup(rid uint64, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
-		/*log.Fatalf("BAD-IMPL: Bucket parameter missing")*/
-		bbs.logger.Debug("Bucket parameter missing",
+		bbs.logger.Debug("Bucket name missing in request",
 			"rid", rid)
 		var errz = &Aws_s3_error{Code: InvalidBucketName,
-			Message: "Bucket parameter missing."}
+			Message: "Bucket name missing in request."}
 		return "", errz
 	}
 	if key1 == nil {
-		/*log.Fatalf("BAD-IMPL: Key parameter missing")*/
-		bbs.logger.Debug("Key parameter missing",
+		bbs.logger.Debug("Object key name missing in request",
 			"rid", rid)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message: "Key parameter missing."}
+			Message: "Object key name missing in request."}
 		return "", errz
 	}
 	var bucket = *bucket1

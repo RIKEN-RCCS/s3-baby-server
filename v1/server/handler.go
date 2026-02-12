@@ -1,9 +1,10 @@
-// handler.go (2026-01-31)
+// handler.go (2026-02-12)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
 package server
 import (
+"bytes"
 "context"
 "encoding/xml"
 "fmt"
@@ -56,9 +57,6 @@ if err2 != nil {input_errors["x-amz-if-match-initiated-time"] = err2} else {i.If
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.AbortMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -129,9 +127,6 @@ i.MultipartUpload = import_CompletedMultipartUpload(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.CompleteMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -150,8 +145,12 @@ if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var s = O_CompleteMultipartUploadResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -288,9 +287,6 @@ i.ExpectedSourceBucketOwner = h_thing_pointer(hi.Get("x-amz-source-expected-buck
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.CopyObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -316,8 +312,12 @@ ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*o.
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o.CopyObjectResult, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(o.CopyObjectResult)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -370,9 +370,6 @@ i.CreateBucketConfiguration = import_CreateBucketConfiguration(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.CreateBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -487,9 +484,6 @@ if err2 != nil {input_errors["x-amz-checksum-type"] = err2} else {i.ChecksumType
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.CreateMultipartUpload(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -518,8 +512,12 @@ if o.ChecksumType != "" {
 ho.Add("x-amz-checksum-type", string(o.ChecksumType))}
 ho.Set("Content-Type", "application/xml")
 var s = O_CreateMultipartUploadResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -546,9 +544,6 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var _, err5 = bbs.DeleteBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -599,9 +594,6 @@ if err2 != nil {input_errors["x-amz-if-match-size"] = err2} else {i.IfMatchSize 
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.DeleteObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -654,9 +646,6 @@ i.Delete = import_Delete(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.DeleteObjects(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -665,8 +654,12 @@ if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var s = O_DeleteObjectsResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -697,9 +690,6 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.DeleteObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -779,9 +769,6 @@ if err2 != nil {input_errors["x-amz-checksum-mode"] = err2} else {i.ChecksumMode
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.GetObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -917,9 +904,6 @@ i.ObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.GetObjectAttributes(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -934,8 +918,12 @@ if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var s = O_GetObjectAttributesResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -970,9 +958,6 @@ if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.GetObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -981,8 +966,12 @@ if o.VersionId != nil {
 ho.Add("x-amz-version-id", string(*o.VersionId))}
 ho.Set("Content-Type", "application/xml")
 var s = O_GetObjectTaggingResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -1009,9 +998,6 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.HeadBucket(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1099,9 +1085,6 @@ if err2 != nil {input_errors["x-amz-checksum-mode"] = err2} else {i.ChecksumMode
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.HeadObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1211,17 +1194,18 @@ i.BucketRegion = h_thing_pointer(qi.Get("bucket-region"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.ListBuckets(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
 return}
 ho.Set("Content-Type", "application/xml")
 var s = O_ListBucketsResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -1269,9 +1253,6 @@ if err2 != nil {input_errors["x-amz-request-payer"] = err2} else {i.RequestPayer
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.ListMultipartUploads(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1280,8 +1261,12 @@ if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var s = O_ListMultipartUploadsResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -1337,9 +1322,6 @@ i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.ListObjects(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1348,8 +1330,12 @@ if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var s = O_ListObjectsResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -1411,9 +1397,6 @@ i.OptionalObjectAttributes = bin}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.ListObjectsV2(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1422,8 +1405,12 @@ if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var s = O_ListObjectsV2Response(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -1471,9 +1458,6 @@ i.SSECustomerKeyMD5 = h_thing_pointer(hi.Get("x-amz-server-side-encryption-custo
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.ListParts(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1486,8 +1470,12 @@ if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
 var s = O_ListPartsResponse(*o)
-var ox, err6 = xml.MarshalIndent(s, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(s)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
@@ -1619,9 +1607,6 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.PutObject(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1702,9 +1687,6 @@ i.Tagging = import_Tagging(&o)}}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.PutObjectTagging(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1773,9 +1755,6 @@ i.ExpectedBucketOwner = h_thing_pointer(hi.Get("x-amz-expected-bucket-owner"))}
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.UploadPart(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1869,9 +1848,6 @@ i.ExpectedSourceBucketOwner = h_thing_pointer(hi.Get("x-amz-source-expected-buck
 if len(input_errors) > 0 {
 bbs.respond_on_input_error(ctx, w, r, input_errors)
 return}
-if r.Trailer != nil {
-bbs.logger.Error("http trailer header is unsupported",
- "trailer", r.Trailer)}
 var o, err5 = bbs.UploadPartCopy(ctx, &i)
 if err5 != nil {
 bbs.respond_on_action_error(ctx, w, r, err5)
@@ -1891,8 +1867,12 @@ ho.Add("x-amz-server-side-encryption-bucket-key-enabled", strconv.FormatBool(*o.
 if o.RequestCharged != "" {
 ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 ho.Set("Content-Type", "application/xml")
-var ox, err6 = xml.MarshalIndent(o.CopyPartResult, " ", "  ")
+var bx bytes.Buffer
+var xe = xml.NewEncoder(&bx)
+if h_pretty_xml_response {xe.Indent(" ", "  ")}
+var err6 = xe.Encode(o.CopyPartResult)
 if err6 != nil {log.Fatal(err6)}
+var ox = bx.Bytes()
 var status int = 200
 w.WriteHeader(status)
 var _, err7 = w.Write([]byte(xml.Header))
