@@ -50,7 +50,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			RequestPayer:        i.RequestPayer,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -132,7 +132,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			SSECustomerKey:       i.SSECustomerKey,
 			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -440,7 +440,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			ServerSideEncryption:           i.ServerSideEncryption,
 			WebsiteRedirectLocation:        i.WebsiteRedirectLocation,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -612,7 +612,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 			GrantWriteACP:              i.GrantWriteACP,
 			ObjectLockEnabledForBucket: i.ObjectLockEnabledForBucket,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -710,7 +710,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		var unsupported = option_check_list{
 			StorageClass: i.StorageClass,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -847,7 +847,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 		var unsupported = option_check_list{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -927,7 +927,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 			RequestPayer:              i.RequestPayer,
 			VersionId:                 i.VersionId,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -983,7 +983,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 			MFA:                       i.MFA,
 			RequestPayer:              i.RequestPayer,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1132,7 +1132,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			VersionId:           i.VersionId,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1220,7 +1220,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
 			VersionId:            i.VersionId,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1369,7 +1369,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
 			VersionId:            i.VersionId,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1466,7 +1466,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 			RequestPayer:        i.RequestPayer,
 			VersionId:           i.VersionId,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1510,7 +1510,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 		var unsupported = option_check_list{
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1571,7 +1571,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
 			VersionId:            i.VersionId,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1723,7 +1723,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 
 	{
 		var unsupported = option_check_list{}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1814,7 +1814,7 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 			ExpectedBucketOwner: i.ExpectedBucketOwner,
 			RequestPayer:        i.RequestPayer,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -1903,7 +1903,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 			OptionalObjectAttributes: i.OptionalObjectAttributes,
 			RequestPayer:             i.RequestPayer,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2007,7 +2007,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 			OptionalObjectAttributes: i.OptionalObjectAttributes,
 			RequestPayer:             i.RequestPayer,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2128,7 +2128,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 			// i.SSECustomerKey *string
 			// i.SSECustomerKeyMD5 *string
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2316,7 +2316,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 			WebsiteRedirectLocation:   i.WebsiteRedirectLocation,
 			WriteOffsetBytes:          i.WriteOffsetBytes,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2467,7 +2467,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 			RequestPayer:        i.RequestPayer,
 			VersionId:           i.VersionId,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2559,7 +2559,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 			SSECustomerKey:       i.SSECustomerKey,
 			SSECustomerKeyMD5:    i.SSECustomerKeyMD5,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}
@@ -2686,7 +2686,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 			SSECustomerKey:                 i.SSECustomerKey,
 			SSECustomerKeyMD5:              i.SSECustomerKeyMD5,
 		}
-		var err1 = check_options_unsupported(action, &unsupported)
+		var err1 = check_options_unsupported(bbs, action, &unsupported)
 		if err1 != nil {
 			return nil, err1
 		}

@@ -39,7 +39,9 @@ secret-access-key).
   inaccessible path.  Baby-server explicitly checks it.
 
 - Baby-server does not return owner information.  "Ower" in responses
-  is always missing in ListObjects, etc.
+  is always missing in ListObjects, etc.  The value of query
+  "fetch-owner" is ignored.  Configuration on "accept_fetch_owner"
+  changes "fetch-owner" to be an error.
 
 - Tags are not supported on buckets.  Tags on a CreateBucket request
   are ignored.

@@ -344,34 +344,41 @@ type option_check_list struct {
 	WriteOffsetBytes               *int64
 }
 
-func check_options_unsupported(action string, i *option_check_list) *Aws_s3_error {
+func check_options_unsupported(bbs *Bb_server, action string, i *option_check_list) *Aws_s3_error {
 	if i.ExpectedBucketOwner != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "expected-bucket-owner is not supported."}
+			Message: "x-amz-expected-bucket-owner is not supported."}
 		return errz
 	}
 	if i.MFA != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "MFA is not supported."}
+			Message: "x-amz-mfa is not supported."}
 		return errz
 	}
 	if i.PartNumber != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "PartNumber is not supported."}
+			Message: "partNumber is not supported."}
 		return errz
 	}
 	if i.VersionId != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message: "Version-ID is not supported."}
+			Message: "versionId is not supported."}
 		return errz
 	}
 
 	if i.ExpectedBucketOwner != nil {
-		return &Aws_s3_error{Code: AccessDenied}
+		return &Aws_s3_error{Code: AccessDenied,
+			Message: "x-amz-expected-bucket-owner is not supported."}
 	}
 
-	if i.FetchOwner != nil && *i.FetchOwner == true {
-		return &Aws_s3_error{Code: AccessDenied}
+	// Query "fetch-owner" is not supported but usually it is ignored.
+	// Enabling accept_fetch_owner causes an error.
+
+	if bbs.config.Accept_fetch_owner {
+		if i.FetchOwner != nil && *i.FetchOwner == true {
+			return &Aws_s3_error{Code: AccessDenied,
+				Message: "fetch-owner is not allowed."}
+		}
 	}
 
 	// Options that support only the restricted set.

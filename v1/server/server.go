@@ -17,8 +17,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/url"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -82,6 +82,7 @@ type Bb_configuration struct {
 	Keep_trailing_slash     bool          `json:"keep_trailing_slash"`
 	Verify_fs_write         bool          `json:"verify_fs_write"`
 	Pretty_xml_response     bool          `json:"pretty_xml_response"`
+	Accept_fetch_owner      bool          `json:"accept_fetch_owner"`
 
 	// Anonymize_ower bool
 	// File_creation_mode fs.FileMode

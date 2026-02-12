@@ -433,6 +433,8 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 		var _, r = get_handler_arguments(ctx)
 		var enc = r.TransferEncoding
 		if len(enc) == 1 && strings.EqualFold(enc[0], "chunked") {
+			bbs.logger.Debug("Transfer-Encoding chunked",
+				"rid", rid, "object", object)
 			body2 = httputil.NewChunkedReader(body1)
 		} else if size != -1 {
 			body2 = &io.LimitedReader{R: body1, N: size}

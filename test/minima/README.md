@@ -185,6 +185,10 @@ wget https://dl.min.io/client/mc/release/linux-amd64/mc
 
 Configuration of "mc" is stored in "~/.mc/config.json".
 
+### References on "mc"
+
+- https://github.com/minio/mc
+- https://docs.min.io/enterprise/aistor-object-store/reference/cli/
 ## Test by s3cmd
 
 #### Installing s3cmd
