@@ -11,7 +11,7 @@
 // sleep, worthless signals are delivered to a condition variable.
 // Parameter m.smallwait controls it.  It should be a fraction of
 // typical timeout.
-
+//
 // NOTE: Make sure sending to a channel (m.schedule) be outside of a
 // mutex.
 
@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-type monitor struct {
+type Monitor struct {
 	waitings  map[string][]wait_task
 	blocker   *sync.Cond
 	timer     *time.Timer
@@ -36,17 +36,18 @@ type monitor struct {
 }
 
 type wait_task struct {
-	id  uint64
-	due time.Time
+	rid   uint64
+	due   time.Time
+	start time.Time
 }
 
-func new_monitor() *monitor {
-	var m = monitor{}
+func New_monitor() *Monitor {
+	var m = Monitor{}
 	m.init()
 	return &m
 }
 
-func (m *monitor) init() {
+func (m *Monitor) init() {
 	m.waitings = make(map[string][]wait_task)
 	m.blocker = sync.NewCond(&m.mutex)
 	m.timer = time.NewTimer(10 * time.Second)
@@ -58,7 +59,7 @@ func (m *monitor) init() {
 // GUARD_LOOP broadcasts events to waiting tasks.  The loop runs
 // forever, until m.schedule is closed.  Note the first entry in the
 // queues is in service.
-func (m *monitor) guard_loop() {
+func (m *Monitor) guard_loop() {
 	for {
 		var now = time.Now()
 		var nextdue = now.Add(3600 * time.Second)
@@ -95,12 +96,13 @@ func (m *monitor) guard_loop() {
 	}
 }
 
-// ENTER enters an exclusion region.  It returns false when timeout.
-// A failed task should not call m.exit().  It schedules the timer for
-// a timeout.  A race of notifications and intervening deletions is
-// acceptable.  Deletions are OK.
-func (m *monitor) enter(object string, id uint64, d time.Duration) bool {
-	var due = time.Now().Add(d)
+// ENTER enters an exclusion region for an OBJECT.  RID be a unique
+// key among requester.  It returns false when timeout.  A failed task
+// should not call m.Exit().  It schedules the timer for a timeout.  A
+// race of notifications and intervening deletions is acceptable.
+func (m *Monitor) Enter(object string, rid uint64, d time.Duration) (bool, time.Duration) {
+	var enter_time = time.Now()
+	var due = enter_time.Add(d)
 	func() {
 		m.mutex.Lock()
 		defer func() {
@@ -108,20 +110,21 @@ func (m *monitor) enter(object string, id uint64, d time.Duration) bool {
 			m.schedule <- struct{}{}
 		}()
 		var queue1 = m.waitings[object]
-		m.waitings[object] = append(queue1, wait_task{id, due})
+		m.waitings[object] = append(queue1, wait_task{rid, due, enter_time})
 	}()
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	for true {
+	for {
 		var queue2 = m.waitings[object]
 		if len(queue2) == 0 {
-			// Itself exists at least.
+			// Queue must has itself at least.
 			log.Fatal("monitor: BAD queue state at enter")
 		}
 		if !time.Now().Before(due) {
 			// A task fails to enter.
+			var elapse = time.Since(enter_time)
 			var i = slices.IndexFunc(queue2, func(e wait_task) bool {
-				return e.id == id
+				return (e.rid == rid)
 			})
 			if i == -1 {
 				log.Fatal("monitor: BAD queue state at timeout")
@@ -130,42 +133,50 @@ func (m *monitor) enter(object string, id uint64, d time.Duration) bool {
 			if len(m.waitings[object]) == 0 {
 				delete(m.waitings, object)
 			}
-			return false
-		} else if queue2[0].id == id {
+			return false, elapse
+		} else if queue2[0].rid == rid {
 			// A task enters.
-			return true
+			queue2[0].start = time.Now()
+			var elapse = time.Since(enter_time)
+			return true, elapse
 		} else {
 			m.blocker.Wait()
 		}
 	}
-	return false
+	log.Print("monitor: BAD exit erroneously")
+	var elapse = time.Since(enter_time)
+	return false, elapse
 }
 
-// EXIT exits an exclusion region.  It schedules for a next task.
-// Timeout tasks should not called it.
-func (m *monitor) exit(object string, id uint64) {
+// EXIT exits an exclusion region.  It schedules a next task.  Timeout
+// tasks should not call Exit.  It shrinks m.waitings not to
+// accumulate garbage.  It returns the consumed time in exclusion.
+func (m *Monitor) Exit(object string, rid uint64) time.Duration {
 	m.mutex.Lock()
 	defer func() {
 		m.mutex.Unlock()
 		m.schedule <- struct{}{}
 	}()
 	var queue1 = m.waitings[object]
-	if !(len(queue1) != 0 && queue1[0].id == id) {
+	if !(len(queue1) != 0 && queue1[0].rid == rid) {
 		log.Fatal("monitor: BAD queue state at exit")
 	}
+	var elapse = time.Since(queue1[0].start)
 	m.waitings[object] = slices.Delete(queue1, 0, 1)
 	if len(m.waitings[object]) == 0 {
 		delete(m.waitings, object)
 	}
+	return elapse
 }
 
-func (m *monitor) attest(object string, id uint64) bool {
+// ATTEST returns a caller is in a monitor for an object.
+func (m *Monitor) Attest(object string, rid uint64) bool {
 	m.mutex.Lock()
 	defer func() {
 		m.mutex.Unlock()
 	}()
 	var queue1 = m.waitings[object]
-	if len(queue1) != 0 && queue1[0].id == id {
+	if len(queue1) != 0 && queue1[0].rid == rid {
 		return true
 	} else {
 		return false
@@ -174,6 +185,6 @@ func (m *monitor) attest(object string, id uint64) bool {
 
 // DONE ends the use of a monitor.  It stops the thread for timeout
 // wakeup.
-func (m *monitor) done() {
+func (m *Monitor) Done() {
 	close(m.schedule)
 }

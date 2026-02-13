@@ -46,6 +46,11 @@ file to an actual object, and (2) updating its metainfo file.  Other
 operations are outside of exclusion.  In paricular, calculation of an
 ETag is outside of exclusion.
 
+Wait time of exclusion has a limit, and a timeout causes a
+RequestTimeout error.  The limit is set to 5000ms.  It seems large,
+but we found it took rather long in our test environment.  See
+configuration "Exclusion_wait".
+
 - Accesses to an object file and a meta-info file are serialized by an
   object name.  It is needed to keep correspondence between an object
   and its meta-info.  Deletion of an object and its meta-info is not

@@ -46,7 +46,7 @@ type Bb_server struct {
 
 	rid_past uint64
 	suffixes map[string]suffix_record
-	monitor1 *monitor
+	monitor1 *Monitor
 	mutex    sync.Mutex
 
 	server_quit chan struct{}
@@ -206,7 +206,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	var config = Bb_configuration{
 		Server_control_name:     "bbs.ctl",
 		Site_base_url:           nil,
-		Exclusion_wait:          100,
+		Exclusion_wait:          5000,
 		Record_etag_threshold:   1,
 		Limit_of_xml_parameters: 2,
 		Keep_trailing_slash:     false,
@@ -305,7 +305,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		access_logging: access_logging}
 	bbs.suffixes = make(map[string]suffix_record)
 	bbs.server_quit = make(chan struct{})
-	bbs.monitor1 = new_monitor()
+	bbs.monitor1 = New_monitor()
 	go bbs.monitor1.guard_loop()
 
 	h_limit_of_xml_parameters = byte_size(config.Limit_of_xml_parameters)
@@ -391,7 +391,7 @@ func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Reques
 
 // SERVER_CONTROL handles requests to control.  It is hooked on
 // "POST_/bbs.ctl/{command}".  While starting a shutdown, it will send
-// an empty OK return.
+// an empty 200-OK return.
 func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	var ctx = r.Context()
 	//var q = r.URL.Query()

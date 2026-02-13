@@ -265,7 +265,7 @@ func (bbs *Bb_server) discard_mpul_directory(rid uint64, object string) error {
 	var stat, err2 = os.Lstat(path)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
-			// OK.
+			// Okey.
 			return nil
 		} else {
 			// Ignore an error in taking stat.
@@ -315,7 +315,7 @@ func (bbs *Bb_server) make_intervening_directories(rid uint64, object string) *A
 	var stat, err2 = os.Lstat(dirpath)
 	if err2 != nil {
 		if errors.Is(err2, fs.ErrNotExist) {
-			// OK.
+			// Okey.
 			var err3 = os.MkdirAll(dirpath, 0755)
 			if err3 != nil {
 				bbs.logger.Info("os.MkdirAll() in making directories failed",
@@ -352,7 +352,7 @@ func (bbs *Bb_server) check_path_is_link_free(rid uint64, object string) *Aws_s3
 		var info, err1 = os.Lstat(descendpath)
 		if err1 != nil {
 			if errors.Is(err1, fs.ErrNotExist) {
-				// OK.
+				// Okey.
 				return nil
 			} else {
 				bbs.logger.Warn("os.Lstat() in checking links failed",
@@ -625,7 +625,7 @@ func (bbs *Bb_server) store_json_data(rid uint64, object, path string, data any)
 		var _, err2 = os.Lstat(path)
 		if err2 != nil {
 			if errors.Is(err2, fs.ErrNotExist) {
-				// OK.
+				// Okey.
 				return nil
 			} else {
 				bbs.logger.Warn("os.Lstat() on storing metafile failed",
@@ -800,7 +800,7 @@ func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing
 	var mode = stat.Mode()
 	switch {
 	case mode.IsRegular():
-		// OK.
+		// Okey.
 	case mode.IsDir():
 		fallthrough
 	case mode&fs.ModeSymlink != 0:

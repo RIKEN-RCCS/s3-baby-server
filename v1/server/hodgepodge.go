@@ -163,20 +163,26 @@ func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
 
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
 	var duration = time_duration(bbs.config.Exclusion_wait)
-	var ok = bbs.monitor1.enter(object, rid, duration)
+	var ok, elapse = bbs.monitor1.Enter(object, rid, duration)
 	if !ok {
+		bbs.logger.Warn("Timeout in entering monitor",
+			"rid", rid, "elapse", elapse)
 		return &Aws_s3_error{Code: RequestTimeout}
 	}
+	bbs.logger.Debug("Time to enter monitor",
+		"rid", rid, "elapse", elapse)
 	return nil
 }
 
 func (bbs *Bb_server) release_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
-	bbs.monitor1.exit(object, rid)
+	var elapse = bbs.monitor1.Exit(object, rid)
+	bbs.logger.Debug("Time grabbed in access exclusion",
+		"rid", rid, "elapse", elapse)
 	return nil
 }
 
 func (bbs *Bb_server) test_access_serialized(ctx context.Context, object string, rid uint64) bool {
-	var ok = bbs.monitor1.attest(object, rid)
+	var ok = bbs.monitor1.Attest(object, rid)
 	return ok
 }
 
@@ -556,7 +562,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 	var nonexist = (etag == "")
 
 	if nonexist && mode == "delete" {
-		// OK.
+		// Okey.
 		return nil
 	}
 
@@ -603,7 +609,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 			errorcode = PreconditionFailed
 		}
 		if nonexist {
-			// OK.
+			// Okey.
 		} else if match_etags_is_star(etags_exclude) {
 			bbs.logger.Info("Conditional fails (if-none-match)",
 				"rid", rid, "etag", etag, "etags_exclude", etags_exclude)
@@ -636,7 +642,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 		// "x-amz-if-match-last-modified-time" and
 		// "e.LastModifiedTime" in DeleteObjects.
 		if nonexist {
-			// OK.
+			// Okey.
 		} else if !conditions.modified_time.Equal(mtime) {
 			bbs.logger.Info("Conditional fails (if-match-last-modified-time)",
 				"rid", rid, "mtime", mtime,
@@ -651,7 +657,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 	if conditions.size != nil {
 		// "x-amz-if-match-size" and "e.Size" in DeleteObjects.
 		if nonexist {
-			// OK.
+			// Okey.
 		} else if !(*conditions.size == size) {
 			bbs.logger.Info("Conditional fails (if-match-size)",
 				"rid", rid, "size", size,

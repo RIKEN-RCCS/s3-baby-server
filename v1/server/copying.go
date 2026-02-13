@@ -381,14 +381,15 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 			}
 		}
 
-		var err6 = bbs.place_scratch_file(rid, object, scratch, target, metainfo2)
+		var err6 = bbs.place_scratch_file(rid, object, scratch,
+			target, metainfo2, (build.op == BUILD_LINK))
 		if err6 != nil {
 			return "", nil, nil, err6
 		}
 		cleanup_needed = false
 	}
 
-	// Update MPUL catatlog information.
+	// Update MPUL catatlog file.
 
 	if part != 0 {
 		var csums = base64.StdEncoding.EncodeToString(csum2)
@@ -688,7 +689,7 @@ func (bbs *Bb_server) copy_content_stream(rid uint64, object string, scratch str
 // it causes renaming to fail, because rename(2) in Unix does nothing
 // on the same file (with success).  os.SameFile() checks the
 // condition and it removes the target to handle the case.
-func (bbs *Bb_server) place_scratch_file(rid uint64, object string, scratch string, target string, metainfo *Meta_info) *Aws_s3_error {
+func (bbs *Bb_server) place_scratch_file(rid uint64, object string, scratch string, target string, metainfo *Meta_info, copy_file_by_linking bool) *Aws_s3_error {
 	var location = "/" + object
 	var path1 = bbs.make_path_of_object(scratch, "")
 	var path2 = bbs.make_path_of_object(target, "")
@@ -712,7 +713,7 @@ func (bbs *Bb_server) place_scratch_file(rid uint64, object string, scratch stri
 	// Remove the target as os.Rename() fails on the same file.  Look
 	// at second file first.
 
-	{
+	if copy_file_by_linking {
 		var stat1, stat2 fs.FileInfo
 		var err1, err2 error
 		stat2, err2 = os.Stat(path2)
