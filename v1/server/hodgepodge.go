@@ -169,15 +169,19 @@ func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid u
 			"rid", rid, "elapse", elapse)
 		return &Aws_s3_error{Code: RequestTimeout}
 	}
-	bbs.logger.Debug("Time to enter monitor",
-		"rid", rid, "elapse", elapse)
+	if bbs.config.Log_monitor_timing {
+		bbs.logger.Debug("Time to enter monitor",
+			"rid", rid, "elapse", elapse)
+	}
 	return nil
 }
 
 func (bbs *Bb_server) release_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
 	var elapse = bbs.monitor1.Exit(object, rid)
-	bbs.logger.Debug("Time grabbed in access exclusion",
-		"rid", rid, "elapse", elapse)
+	if bbs.config.Log_monitor_timing {
+		bbs.logger.Debug("Time grabbed in exclusion",
+			"rid", rid, "elapse", elapse)
+	}
 	return nil
 }
 

@@ -211,8 +211,10 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				return true
 			}
 			if catalog.Parts[part-1].ETag != etag {
-				bbs.logger.Info("ETags mismatch",
-					"rid", rid, "part", part)
+				bbs.logger.Info("ETags mismatch in MPUL completion",
+					"rid", rid, "part", part,
+					"listed-etag", etag,
+					"uploaded-etag", catalog.Parts[part-1].ETag)
 				error_in_checking = &Aws_s3_error{Code: InvalidPart,
 					Resource: location}
 				// Return true to stop the loop.

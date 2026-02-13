@@ -83,6 +83,7 @@ type Bb_configuration struct {
 	Verify_fs_write         bool          `json:"verify_fs_write"`
 	Pretty_xml_response     bool          `json:"pretty_xml_response"`
 	Accept_fetch_owner      bool          `json:"accept_fetch_owner"`
+	Log_monitor_timing      bool          `json:"log_monitor_timing"`
 
 	// Anonymize_ower bool
 	// File_creation_mode fs.FileMode

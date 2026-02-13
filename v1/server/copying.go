@@ -360,24 +360,28 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 		// Insert an ETag into metainfo.  It stores metainfo, when the
 		// object is large.
 
-		var metainfo2 *Meta_info
-		if metainfo != nil {
-			metainfo2 = &Meta_info{
-				Entity_key:         entity,
-				ETag:               etag,
-				Checksum_algorithm: metainfo.Checksum_algorithm,
-				Checksum:           metainfo.Checksum,
-				Headers:            metainfo.Headers,
-				Tags:               metainfo.Tags,
-			}
-		} else if size >= byte_size(bbs.config.Record_etag_threshold) {
-			metainfo2 = &Meta_info{
-				Entity_key:         entity,
-				ETag:               etag,
-				Checksum_algorithm: "",
-				Checksum:           "",
-				Headers:            nil,
-				Tags:               nil,
+		var metainfo2 *Meta_info = nil
+		if part != 0 {
+			metainfo2 = nil
+		} else {
+			if metainfo != nil {
+				metainfo2 = &Meta_info{
+					Entity_key:         entity,
+					ETag:               etag,
+					Checksum_algorithm: metainfo.Checksum_algorithm,
+					Checksum:           metainfo.Checksum,
+					Headers:            metainfo.Headers,
+					Tags:               metainfo.Tags,
+				}
+			} else if size >= byte_size(bbs.config.Record_etag_threshold) {
+				metainfo2 = &Meta_info{
+					Entity_key:         entity,
+					ETag:               etag,
+					Checksum_algorithm: "",
+					Checksum:           "",
+					Headers:            nil,
+					Tags:               nil,
+				}
 			}
 		}
 
