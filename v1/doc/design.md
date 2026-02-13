@@ -27,25 +27,6 @@ logger at level=INFO.  Since these commands are not AWS-S3 operations,
 it cannot be requested by AWS-CLI.  See "control-client.go" code in
 "test/minima" to issue these commands.
 
-## Peculiar Response
-
-- An object key ending with a slash "/".
-
-- On a HEAD request on a directory, Baby-server returns NoSuchKey.
-
-## Bizarre processing: Trailing-slash in URL
-
-Baby-server drops a trailing-slash by rewriting URL's path before
-passing it to http.ServeMux.  Note some S3 clients may attach a slash
-to a bucket name in a object-listing request.  An example is MinIO
-client "mc".
-
-It is pretty hard to ignore a trailing-slash with Golang's
-http.ServeMux.  Pattern matcher of http.ServeMux treats "/{bucket}/"
-as "/{bucket}/{key...}".  That is, the pattern "/{bucket}/" wouldn't
-match both "/{bucket}" and "/{bucket}/" as we hoped for.  The pattern
-"/{bucket}/{$}" wouldn't work either.
-
 ----------------
 
 ## Exclusion (Serialization)
@@ -84,6 +65,32 @@ ETag is outside of exclusion.
 - Operations between buckets and objects are not serialized.
   Exclusion is based on a bucket or on an object.  A bucket can be
   removed while operations on objects are in progress.
+
+----------------
+
+## Peculiar Processing
+
+### HEAD Request on a Directory Response
+
+On a HEAD request on a directory, Baby-server returns NoSuchKey.
+Baby-server ignores all non-regular files in a bucket.
+
+- An object key ending with a slash "/".
+
+### Removing Trailing-Slash in URL
+
+Baby-server drops a trailing-slash by rewriting URL's path before
+passing it to http.ServeMux.  Note some S3 clients may attach a slash
+to a bucket name in a object-listing request.  MinIO client "mc" does,
+for example.
+
+It is a bit tedious to ignore a trailing-slash using patterns of
+http.ServeMux (go-1.25).  http.ServeMux's pattern matcher treats
+"/{bucket}/" as "/{bucket}/{key...}".  That is, the pattern
+"/{bucket}/" wouldn't match both "/{bucket}" and "/{bucket}/" as we
+hoped for.  The pattern "/{bucket}/{$}" wouldn't work either.
+
+### Handling "aws-chunked" Transfer
 
 ----------------
 
