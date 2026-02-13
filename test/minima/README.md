@@ -189,11 +189,41 @@ Configuration of "mc" is stored in "~/.mc/config.json".
 
 - https://github.com/minio/mc
 - https://docs.min.io/enterprise/aistor-object-store/reference/cli/
+
 ## Test by s3cmd
+
+### Setup and Run a Simple Test
+
+```
+s3cmd --configure
+```
+
+"~/.s3cfg"
+
+```
+host_base = localhost:9000
+website_endpoint = http://localhost:9000/
+access_key = abcdefghijklmnopqrstuvwxyz
+access_token = abcdefghijklmnopqrstuvwxyz
+```
 
 #### Installing s3cmd
 
-  pip install s3cmd
+https://github.com/s3tools/s3cmd
+(https://s3tools.org/s3cmd)
+
+```
+pip3 install --user s3cmd
+```
+
+Collecting s3cmd
+  Downloading s3cmd-2.4.0-py2.py3-none-any.whl (164 kB)
+Collecting python-magic
+  Downloading python_magic-0.4.27-py2.py3-none-any.whl (13 kB)
+Requirement already satisfied: python-dateutil in /home/users/m-matsuda/.local/lib/python3.9/site-packages (from s3cmd) (2.9.0.post0)
+Requirement already satisfied: six>=1.5 in /home/users/m-matsuda/.local/lib/python3.9/site-packages (from python-dateutil->s3cmd) (1.16.0)
+Installing collected packages: python-magic, s3cmd
+Successfully installed python-magic-0.4.27 s3cmd-2.4.0
 
 ## Test by s3fs-fuse
 
