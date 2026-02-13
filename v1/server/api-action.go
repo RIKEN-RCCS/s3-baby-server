@@ -200,7 +200,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				return true
 			}
 			var part = *e.PartNumber
-			var etag = *e.ETag
+			var etag = *bbs.fix_etag_quoting(e.ETag, rid)
 			if !(0 <= (part-1) && (part-1) < int32(len(catalog.Parts)) &&
 				catalog.Parts[part-1].ETag != "") {
 				bbs.logger.Info("Part not uploaded",
@@ -1051,7 +1051,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 			// SERIALIZE-ACCESSES (in the deletion routine).
 
 			var conditions = copy_conditions{
-				some_match:    e.ETag,
+				some_match:    bbs.fix_etag_quoting(e.ETag, rid),
 				modified_time: e.LastModifiedTime,
 				size:          e.Size,
 			}
@@ -1246,7 +1246,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	// Store an ETag in metainfo when the object is large.  Storing
 	// metainfo serializes accesses inside the routine.
 
-	if metainfo == nil && size >= byte_size(bbs.config.Record_etag_threshold) {
+	if metainfo == nil && size >= byte_size(bbs.config.Etag_save_threshold) {
 		var err6 = bbs.store_etag_as_metainfo(ctx, object, entity, etag)
 		if err6 != nil {
 			return nil, err6
@@ -1597,7 +1597,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	// Store an ETag in metainfo when the object is large.  Storing
 	// metainfo serializes accesses inside the routine.
 
-	if metainfo == nil && size >= byte_size(bbs.config.Record_etag_threshold) {
+	if metainfo == nil && size >= byte_size(bbs.config.Etag_save_threshold) {
 		var err6 = bbs.store_etag_as_metainfo(ctx, object, entity, etag)
 		if err6 != nil {
 			return nil, err6

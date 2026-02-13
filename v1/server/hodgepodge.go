@@ -848,3 +848,31 @@ func metainfo_null_for_zero(metainfo *Meta_info) *Meta_info {
 		return metainfo
 	}
 }
+
+// FIX_ETAG_QUOTING adds double-quotes to an ETag, when some client
+// accidentally dropped it.
+func (bbs *Bb_server) fix_etag_quoting(etag *string, rid uint64) *string {
+	if etag == nil {
+		return nil
+	} else if bbs.config.Strict_etag_quoting {
+		return etag
+	} else {
+		var etag1 = *etag
+		var prefixed = strings.HasPrefix(etag1, "\"")
+		var suffixed = strings.HasSuffix(etag1, "\"")
+		if !prefixed || !suffixed {
+			var etag2 string = etag1
+			if !prefixed {
+				etag2 = "\"" + etag2
+			}
+			if !suffixed {
+				etag2 = etag2 + "\""
+			}
+			bbs.logger.Debug("Attach missing double-quotes to ETag",
+				"rid", rid, "etag", etag2)
+			return &etag2
+		} else {
+			return etag
+		}
+	}
+}

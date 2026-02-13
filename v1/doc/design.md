@@ -48,8 +48,8 @@ ETag is outside of exclusion.
 
 Wait time of exclusion has a limit, and a timeout causes a
 RequestTimeout error.  The limit is set to 5000ms.  It seems large,
-but we found it took rather long in our test environment.  See
-configuration "Exclusion_wait".
+but we found it took rather long in our test environment.
+Configuration "Exclusion_wait" can control the time.
 
 - Accesses to an object file and a meta-info file are serialized by an
   object name.  It is needed to keep correspondence between an object
@@ -80,20 +80,29 @@ configuration "Exclusion_wait".
 On a HEAD request on a directory, Baby-server returns NoSuchKey.
 Baby-server ignores all non-regular files in a bucket.
 
-- An object key ending with a slash "/".
+### Ignoring a Trailing-Slash in URL
 
-### Removing Trailing-Slash in URL
-
-Baby-server drops a trailing-slash by rewriting URL's path before
-passing it to http.ServeMux.  Note some S3 clients may attach a slash
-to a bucket name in a object-listing request.  MinIO client "mc" does,
-for example.
+Baby-server ignores a trailing-slash on a bucket name in list-objects
+requests.  It rewrites URL's path and drops a trailing-slash before
+passing it to http.ServeMux.  Configuration "Keep_trailing_slash" will
+disable the behavior.
 
 It is a bit tedious to ignore a trailing-slash using patterns of
 http.ServeMux (go-1.25).  http.ServeMux's pattern matcher treats
 "/{bucket}/" as "/{bucket}/{key...}".  That is, the pattern
 "/{bucket}/" wouldn't match both "/{bucket}" and "/{bucket}/" as we
 hoped for.  The pattern "/{bucket}/{$}" wouldn't work either.
+
+Note some S3 clients may attach a slash to a bucket name.  "s3cmd" and
+MinIO client "mc" do, for example.
+
+### Fixing an ETag Quoting
+
+Baby-server may attach double-qoutes to an ETag when it misses qoutes.
+Configuration "Strict_etag_quoting" will disable the behavior.
+
+Note "s3cmd" passes ETags without qoutes for a part list of a
+multipart-upload.
 
 ### Handling "aws-chunked" Transfer
 

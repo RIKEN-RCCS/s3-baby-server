@@ -74,16 +74,17 @@ func byte_size(v mbyte_size) int64 {
 // because they get large numbers in time.Duration that are not an
 // appropriate representation in a configuration file.
 type Bb_configuration struct {
-	Server_control_name     string        `json:"server_control_name"`
-	Site_base_url           *string       `json:"site_base_url"`
-	Exclusion_wait          msec_duration `json:"exclusion_wait"`
-	Record_etag_threshold   mbyte_size    `json:"record_etag_threshold"`
-	Limit_of_xml_parameters mbyte_size    `json:"limit_of_xml_parameters"`
-	Keep_trailing_slash     bool          `json:"keep_trailing_slash"`
-	Verify_fs_write         bool          `json:"verify_fs_write"`
-	Pretty_xml_response     bool          `json:"pretty_xml_response"`
-	Accept_fetch_owner      bool          `json:"accept_fetch_owner"`
-	Log_monitor_timing      bool          `json:"log_monitor_timing"`
+	Server_control_name      string        `json:"server_control_name"`
+	Site_base_url            *string       `json:"site_base_url"`
+	Exclusion_wait           msec_duration `json:"exclusion_wait"`
+	Etag_save_threshold      mbyte_size    `json:"etag_save_threshold"`
+	Xml_parameter_size_limit mbyte_size    `json:"xml_parameter_size_limit"`
+	Keep_trailing_slash      bool          `json:"keep_trailing_slash"`
+	Verify_fs_write          bool          `json:"verify_fs_write"`
+	Pretty_xml_response      bool          `json:"pretty_xml_response"`
+	Accept_fetch_owner       bool          `json:"accept_fetch_owner"`
+	Log_monitor_timing       bool          `json:"log_monitor_timing"`
+	Strict_etag_quoting      bool          `json:"strict_etag_quoting"`
 
 	// Anonymize_ower bool
 	// File_creation_mode fs.FileMode
@@ -205,13 +206,13 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	// Set default configurations, or read it from a file.
 
 	var config = Bb_configuration{
-		Server_control_name:     "bbs.ctl",
-		Site_base_url:           nil,
-		Exclusion_wait:          5000,
-		Record_etag_threshold:   1,
-		Limit_of_xml_parameters: 2,
-		Keep_trailing_slash:     false,
-		Verify_fs_write:         false,
+		Server_control_name:      "bbs.ctl",
+		Site_base_url:            nil,
+		Exclusion_wait:           5000,
+		Etag_save_threshold:      1,
+		Xml_parameter_size_limit: 2,
+		Keep_trailing_slash:      false,
+		Verify_fs_write:          false,
 	}
 
 	if conf != "" {
@@ -309,7 +310,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	bbs.monitor1 = New_monitor()
 	go bbs.monitor1.guard_loop()
 
-	h_limit_of_xml_parameters = byte_size(config.Limit_of_xml_parameters)
+	h_limit_of_xml_parameters = byte_size(config.Xml_parameter_size_limit)
 	h_pretty_xml_response = config.Pretty_xml_response
 
 	var sx = http.NewServeMux()

@@ -373,7 +373,7 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 					Headers:            metainfo.Headers,
 					Tags:               metainfo.Tags,
 				}
-			} else if size >= byte_size(bbs.config.Record_etag_threshold) {
+			} else if size >= byte_size(bbs.config.Etag_save_threshold) {
 				metainfo2 = &Meta_info{
 					Entity_key:         entity,
 					ETag:               etag,
