@@ -12,6 +12,8 @@
 // Assumption: It assumes AWS-S3 routines handle context cancellation,
 // and thus a wait-group finishes.
 
+// MEMO: PutObjectInput.ContentType
+
 package main
 
 import (

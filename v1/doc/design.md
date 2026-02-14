@@ -368,19 +368,31 @@ seems to try a couple of time formats.
 
 ----------------
 
-## MEMO CODING CONVENTION
+## MEMO: Golang http Server
 
-### Variable names for OS-Dependent Paths
+The body stream is "http.expectContinueReader".  It embeds
+"http.body".  Note "http.expectContinueReader" is an "io.ReadCloser"
+and implements http 100-continue.  It is defined in
+"net/http/server.go".
 
-OS-independent paths ("/"-paths) are given names avoiding "path" in
-the source code, while OS-dependent paths prefer names including
-"path".  "/"-paths are usually given names such as "object", "source",
-or "target".  OS-dependent paths are the results of filepath.Clean()
-or filepath.Join().
+"http.body" is defined in "net/http/transfer.go".  The comment says it
+is to implement an "io.ReadCloser".
 
-Note OS-dependence of paths by packages.
-  - OS-independent: "path", "io/fs"
-  - OS-dependent: "path/filepath", "os"
+----------------
+
+## MEMO: CODING CONVENTION
+
+### Variable names of os-Dependent Paths
+
+os-dependent paths prefer names including "path" in the source code,
+while os-independent paths ("/"-paths) are given names avoiding
+"path".  For "/"-paths, variables are usually given names such as
+"object", "source", or "target".  os-dependent paths are the results
+of filepath.Clean() or filepath.Join().
+
+Note os-dependence of paths by stdlib packages.
+  - os-independent: "path", "io/fs"
+  - os-dependent: "path/filepath", "os"
 
 ----------------
 

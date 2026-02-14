@@ -34,6 +34,9 @@ type suffix_record struct {
 	timestamp time.Time
 }
 
+// PRINTF for debug printing.
+var Printf = fmt.Printf
+
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
