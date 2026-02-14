@@ -31,7 +31,6 @@ package server
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -41,13 +40,16 @@ import (
 
 // CHUNKED_READER is an io.Reader.  It wraps an io.Reader by
 // bufio.Reader as it peeks the stream to check the existence of a
-// chunk-header.  CHUNKS holds the signatures read so far.
+// chunk-header.  CONTENT_LENGTH is the total size including chunk
+// headers.  PAYLOAD_LENGTH is the size of data.  CHUNKS holds the
+// signatures read so far.  CHUNK_LENGTH=0 means hits an EOF.
 type chunked_reader struct {
 	r              *bufio.Reader
 	chunked        chunked_type
+	hunting_header bool
 	content_length int64
-	content_n      int64
 	payload_length int64
+	content_n      int64
 	payload_n      int64
 	chunk_length   int64
 	chunk_n        int64
@@ -59,12 +61,12 @@ type chunked_type int
 const (
 	NOT_CHUNKED chunked_type = iota
 	CHUNKED_HTTP1
-	CHUNKED_AWS
+	CHUNKED_AWSS3
 )
 
 type chunk_record struct {
-	chunk_length int64
 	chunk_offset int64
+	chunk_length int64
 	signature    string
 }
 
@@ -73,14 +75,22 @@ type chunk_record struct {
 // in hex string (length=64).
 const chunk_header_peek int = 160
 
-// MAKE_CHUNKED_READER returns a modified reader of the body.  Use the
-// returned stream for later operation.  It may consume the underlying
-// stream in order to check the chunked-ness.  This check is needed
-// because http.Server's document says it handles an http1-chunked
-// stream (but might not).
-func (bbs *Bb_server) make_chunked_reader(ctx context.Context, stream io.Reader, length int64, body io.Reader, q *http.Request) (io.Reader, chunked_type, error) {
+const content_sha256_key = "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
+
+// MAKE_CHUNKED_READER returns a modified io.Reader of the body.
+// Should use the returned stream for later operation.  It is because
+// it may consume the underlying stream in order to check the
+// chunked-ness.  This check is partly needed because http.Server's
+// document says it handles an http1-chunked stream (but might not).
+// (A returned error is sometimes just a marker and meaningless).
+func make_chunked_reader__(q *http.Request, body io.Reader) (io.Reader, chunked_type, error) {
 	if check_aws_chunked(q) {
 		// Check aws-chuncked.
+		var h = q.Header
+		if !(h.Get("X-Amz-Decoded-Content-Length") != "" &&
+			q.ContentLength != -1) {
+			return body, CHUNKED_AWSS3, io.ErrUnexpectedEOF
+		}
 		var r2, ok = body.(*bufio.Reader)
 		if !ok {
 			r2 = bufio.NewReader(body)
@@ -88,11 +98,24 @@ func (bbs *Bb_server) make_chunked_reader(ctx context.Context, stream io.Reader,
 		var length, _, sig, _ = lookat_chunk_header(r2)
 		if length == 0 || sig == "" {
 			// Transfer-encoding is chunked but without a chunk header.
-			return r2, CHUNKED_AWS, io.ErrUnexpectedEOF
+			return r2, CHUNKED_AWSS3, io.ErrUnexpectedEOF
 		} else {
 			// Transfer-encoding for aws-chunked.
-			var r3 = &chunked_reader{r: r2, chunked: CHUNKED_AWS}
-			return r3, CHUNKED_AWS, nil
+			var len1 = q.ContentLength
+			var s1 = h.Get("X-Amz-Decoded-Content-Length")
+			var len2, err1 = strconv.ParseInt(s1, 10, 64)
+			if err1 != nil {
+				return r2, CHUNKED_AWSS3, err1
+			}
+			var r3 = &chunked_reader{
+				r:              r2,
+				chunked:        CHUNKED_AWSS3,
+				hunting_header: true,
+				content_length: len1,
+				payload_length: len2,
+				//chunks: make([]chunk_record),
+			}
+			return r3, CHUNKED_AWSS3, nil
 		}
 	} else if check_http1_chunked(q) {
 		// Check http1-chuncked.
@@ -103,18 +126,85 @@ func (bbs *Bb_server) make_chunked_reader(ctx context.Context, stream io.Reader,
 		var length, _, _, _ = lookat_chunk_header(r2)
 		if length == 0 {
 			// Transfer-Encoding chunked but without a chunk header.
-			return r2, NOT_CHUNKED, nil
+			return r2, CHUNKED_HTTP1, io.ErrUnexpectedEOF
 		} else {
 			// Transfer-Encoding http1-chunked.
 			return httputil.NewChunkedReader(r2), CHUNKED_HTTP1, nil
 		}
 	} else {
-		if length != -1 {
-			return &io.LimitedReader{R: body, N: length}, NOT_CHUNKED, nil
-		} else {
-			return body, NOT_CHUNKED, nil
+		return body, NOT_CHUNKED, nil
+	}
+}
+
+// READ reads the body (io.Reader interface).
+func (r *chunked_reader) Read(b []byte) (int, error) {
+	if r.chunked == NOT_CHUNKED {
+		return r.r.Read(b)
+	}
+	if r.chunked == CHUNKED_HTTP1 {
+		return r.r.Read(b)
+	}
+	if r.hunting_header {
+		var err1 = r.read_chunk_header()
+		if err1 != nil {
+			return 0, err1
 		}
 	}
+	if r.chunk_length == 0 {
+		// End of stream.
+		return 0, io.EOF
+	}
+	var n, err2 = r.read_chunk_body(b)
+	return n, err2
+}
+
+func (r *chunked_reader) read_chunk_header() error {
+	var length, size, sig, err1 = lookat_chunk_header(r.r)
+	if err1 != nil {
+		return err1
+	}
+	// Consume the bytes of a chunk header.  It was peeked and a
+	// single read can consume all.
+	var b = make([]byte, length)
+	var n, err2 = r.r.Read(b)
+	if err2 != nil {
+		return err2
+	}
+	if n != length {
+		return io.ErrUnexpectedEOF
+	}
+	r.chunks = append(r.chunks, chunk_record{
+		chunk_offset: r.payload_n,
+		chunk_length: size,
+		signature:    sig,
+	})
+	r.content_n += int64(length)
+	r.chunk_length = size
+	r.chunk_n = 0
+	r.hunting_header = false
+	// CHUNK_LENGTH=0 means got an end of stream.
+	if size == 0 {
+		if !(r.content_length == r.content_n &&
+			r.payload_length == r.payload_n) {
+			Printf("chunked_reader EOF badly; content_length=%v content_n=%v content_length=%v content_n=%v\n",
+				r.content_length, r.content_n,
+				r.payload_length, r.payload_n)
+		}
+	}
+	return nil
+}
+
+func (r *chunked_reader) read_chunk_body(b []byte) (int, error) {
+	var n1 = min(int64(len(b)), (r.chunk_length - r.chunk_n))
+	var n2, err1 = r.r.Read(b[:n1])
+	r.chunk_n += int64(n2)
+	bb_assert(r.chunk_n <= r.chunk_length)
+	if r.chunk_length == r.chunk_n {
+		r.hunting_header = true
+		r.content_n += r.chunk_length
+		r.payload_n += r.chunk_length
+	}
+	return n2, err1
 }
 
 func check_http1_chunked(q *http.Request) bool {
@@ -122,42 +212,13 @@ func check_http1_chunked(q *http.Request) bool {
 	return len(enc) == 1 && strings.EqualFold(enc[0], "chunked")
 }
 
+// CHECK_AWS_CHUNKED check the request is chunked.  The condition is
+// NOT a conjunction BUT a disjunction of the header entries
+// "Content-Encoding" or "X-Amz-Content-Sha256".
 func check_aws_chunked(q *http.Request) bool {
-	//   Content-Encoding: aws-chunked
-	//   X-Amz-Decoded-Content-Length: nnnn
-	//   X-Amz-Content-Sha256: STREAMING-AWS4-HMAC-SHA256-PAYLOAD
-	//   Content-Length: nnnn
-	//var enc = q.TransferEncoding
-	return true
-}
-
-// (io.Reader interface).
-func (r *chunked_reader) Read(b []byte) (n int, err error) {
-	if r.chunked == NOT_CHUNKED {
-		return r.r.Read(b)
-	}
-	if r.chunk_length == r.chunk_n {
-		r.read_chunk_header()
-	}
-	r.read_chunk_body(b)
-	return 0, nil
-}
-
-func (r *chunked_reader) read_chunk_header() error {
-	return nil
-}
-
-func (r *chunked_reader) read_chunk_body(b []byte) (int, error) {
-	var toread = r.content_length - r.content_n
-	var bx []byte
-	if int64(len(b)) > toread {
-		bx = b[:toread]
-	} else {
-		bx = b
-	}
-	var n, err1 = r.r.Read(bx)
-	r.content_n += int64(n)
-	return n, err1
+	var h = q.Header
+	return (h.Get("Content-Encoding") == "aws-chunked" ||
+		h.Get("X-Amz-Content-Sha256") == content_sha256_key)
 }
 
 // LOOKAT_CHUNK_HEADER checks the chunked header.  It does not consume
@@ -197,7 +258,7 @@ func lookat_chunk_header(r *bufio.Reader) (int, int64, string, error) {
 			return 0, 0, "", io.ErrUnexpectedEOF
 		}
 		var size, err2 = strconv.ParseInt(string(b2[:x2]), 16, 64)
-		if err2 == nil {
+		if err2 != nil {
 			return 0, 0, "", err2
 		}
 		var sig = string(b2[x2+1+len(chunk_signature_key):])

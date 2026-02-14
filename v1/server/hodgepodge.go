@@ -569,7 +569,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 	var nonexist = (etag == "")
 
 	if nonexist && mode == "delete" {
-		// Okey.
+		// Okay.
 		return nil
 	}
 
@@ -616,7 +616,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 			errorcode = PreconditionFailed
 		}
 		if nonexist {
-			// Okey.
+			// Okay.
 		} else if match_etags_is_star(etags_exclude) {
 			bbs.logger.Info("Conditional fails (if-none-match)",
 				"rid", rid, "etag", etag, "etags_exclude", etags_exclude)
@@ -649,7 +649,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 		// "x-amz-if-match-last-modified-time" and
 		// "e.LastModifiedTime" in DeleteObjects.
 		if nonexist {
-			// Okey.
+			// Okay.
 		} else if !conditions.modified_time.Equal(mtime) {
 			bbs.logger.Info("Conditional fails (if-match-last-modified-time)",
 				"rid", rid, "mtime", mtime,
@@ -664,7 +664,7 @@ func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, m
 	if conditions.size != nil {
 		// "x-amz-if-match-size" and "e.Size" in DeleteObjects.
 		if nonexist {
-			// Okey.
+			// Okay.
 		} else if !(*conditions.size == size) {
 			bbs.logger.Info("Conditional fails (if-match-size)",
 				"rid", rid, "size", size,
