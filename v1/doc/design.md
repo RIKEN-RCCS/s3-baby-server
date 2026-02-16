@@ -51,15 +51,34 @@ RequestTimeout error.  The limit is set to 5000ms.  It seems large,
 but we found it took rather long in our test environment.
 Configuration "Exclusion_wait" can control the time.
 
+### Access Order of Meta-file and Data-file
+
+Baby-server stores some metainfo in another file, a meta-file, and
+there is an access order restriction between a meta-file and a
+data-file.  Writing is exclusive and Baby-server stores a meta-file
+then a data-file in this order.
+
+Baby-server keeps the association of a meta-file to a data-file by
+storing the entity-key of a data-file in a meta-file.  Reading is
+not exclusive.  But, to be consistent, a meta-file should be read
+before a data-file.
+
+In short, both reading and writing should respect the access order: a
+meta-file then a data-file.
+
+To make this restriction work, both a meta-file and a data-file are
+stored atomically.  Files are created once in a scratch file, them
+renamed to an actual file.
+
+### Exclusion Details
+
 - Accesses to an object file and a meta-info file are serialized by an
   object name.  It is needed to keep correspondence between an object
-  and its meta-info.  Deletion of an object and its meta-info is not
-  atomic.  Baby-server performs a deletion of a meta-info first and a
-  failure of a deletion of an object may leave an object without
-  meta-info.
+  and its meta-info.
 
-- Downloading of an object is not excluded by other operations such as
-  deletion.  Thus, an object can be truncated while downloading.
+- Deletion of an object and its meta-info is not atomic.  Baby-server
+  performs a deletion of a meta-info first and an errro in a deletion
+  of an object may leave an object without meta-info.
 
 - Deletion of buckets/objects are slack.  Deletion is serialized after
   checking conditions.
@@ -85,7 +104,7 @@ Baby-server ignores all non-regular files in a bucket.
 Baby-server ignores a trailing-slash on a bucket name in list-objects
 requests.  It rewrites URL's path and drops a trailing-slash before
 passing it to http.ServeMux.  Configuration "Keep_trailing_slash" will
-disable the behavior.
+disable this behavior.
 
 It is a bit tedious to ignore a trailing-slash using patterns of
 http.ServeMux (go-1.25).  http.ServeMux's pattern matcher treats
@@ -99,16 +118,28 @@ MinIO client "mc" do, for example.
 ### Fixing an ETag Quoting
 
 Baby-server may attach double-qoutes to an ETag when it misses qoutes.
-Configuration "Strict_etag_quoting" will disable the behavior.
+Configuration "Strict_etag_quoting" will disable this behavior.
 
 Note "s3cmd" passes ETags without qoutes for a part list of a
 multipart-upload.
 
-### Handling "aws-chunked" Transfer
+### Extra cr+lf at the End of "aws-chunked" Stream
+
+Baby-server accepts one extra cr+lf at the end of chunks in
+"aws-chunked" transfer.  That is, the last part of the chunks is
+"0;chunk-signature=..." + "cr+lf" + "cr+lf".  Configuration
+"Forbid_last_chunk_crlf" will disable this behavior.
+
+Note some S3 clients may attach an extra cr+lf.  MinIO client "mc"
+does, for example.
 
 ----------------
 
 ## Error Responses
+
+Baby-server returns 500-Internal-Server-Error on a race condition,
+expecting client retries.  Races in Baby-server are modifying files
+during API actions, which are usually recovered by retries.
 
 Error responses are defined in
 [Error Responses](https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html)

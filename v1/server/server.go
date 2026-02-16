@@ -85,6 +85,7 @@ type Bb_configuration struct {
 	Accept_fetch_owner       bool          `json:"accept_fetch_owner"`
 	Log_monitor_timing       bool          `json:"log_monitor_timing"`
 	Strict_etag_quoting      bool          `json:"strict_etag_quoting"`
+	Forbid_last_chunk_crlf   bool          `json:"forbid_last_chunk_crlf"`
 
 	// Anonymize_ower bool
 	// File_creation_mode fs.FileMode

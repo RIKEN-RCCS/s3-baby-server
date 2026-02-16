@@ -12,7 +12,6 @@
 package server
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/md5"
@@ -24,10 +23,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -439,25 +436,33 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 		var body1 io.Reader = build.upload.stream
 		var _, r = get_handler_arguments(ctx)
 
-		var bodyc, chunked, err1 = bbs.make_chunked_reader(object, rid,
+		var bodyc, chunked, length, err1 = bbs.make_chunked_reader(object, rid,
 			body1, r)
 		if err1 != nil {
 			return nil, nil, err1
 		}
-		if chunked != NOT_CHUNKED {
+		if chunked != CHUNKED_NO {
 			bbs.logger.Info("Body stream with chunked-reader",
 				"rid", rid, "object", object, "chunked", chunked,
 				"body", bodyc)
 		}
-		if chunked == NOT_CHUNKED {
+
+		switch chunked {
+		case CHUNKED_HTTP1:
+			size = -1
+			body2 = bodyc
+		case CHUNKED_AWSS3:
+			size = length
+			body2 = bodyc
+		case CHUNKED_NO:
+			fallthrough
+		default:
 			bb_assert(bodyc == body1)
 			if size != -1 {
 				body2 = &io.LimitedReader{R: bodyc, N: size}
 			} else {
 				body2 = bodyc
 			}
-		} else {
-			body2 = bodyc
 		}
 
 		/*
@@ -924,73 +929,18 @@ func (bbs *Bb_server) compare_checksums(rid uint64, object string, scratch strin
 	return csum2, nil
 }
 
-func (bbs *Bb_server) make_chunked_reader(object string, rid uint64, body io.Reader, q *http.Request) (io.Reader, chunked_type, *Aws_s3_error) {
+func (bbs *Bb_server) make_chunked_reader(object string, rid uint64, body io.Reader, q *http.Request) (io.Reader, Chunked_type, int64, *Aws_s3_error) {
 	var location = "/" + object
-	var errz = &Aws_s3_error{Code: InternalError,
-		Message:  "Making chunked-reader failed.",
-		Resource: location}
-	if check_aws_chunked(q) {
-		// Check aws-chuncked.
-		var h = q.Header
-		if !(h.Get("X-Amz-Decoded-Content-Length") != "" &&
-			q.ContentLength != -1) {
-			bbs.logger.Info("Making chunked-reader failed",
-				"rid", rid, "object", object, "chunked", "AWSS3",
-				"X-Amz-Decoded-Content-Length",
-				h.Get("X-Amz-Decoded-Content-Length"),
-				"Content-Length", q.ContentLength)
-			return body, CHUNKED_AWSS3, errz
-		}
-		var r2, ok = body.(*bufio.Reader)
-		if !ok {
-			r2 = bufio.NewReader(body)
-		}
-		var length, _, sig, _ = lookat_chunk_header(r2)
-		if length == 0 || sig == "" {
-			// Transfer-encoding is chunked but without a chunk header.
-			bbs.logger.Info("Making chunked-reader failed",
-				"rid", rid, "object", object, "chunked", "AWSS3",
-				"length", length, "sig", sig)
-			return r2, CHUNKED_AWSS3, errz
-		} else {
-			// Transfer-encoding for aws-chunked.
-			var len1 = q.ContentLength
-			var s1 = h.Get("X-Amz-Decoded-Content-Length")
-			var len2, err1 = strconv.ParseInt(s1, 10, 64)
-			if err1 != nil {
-				bbs.logger.Info("Making chunked-reader failed",
-					"rid", rid, "object", object, "chunked", "AWSS3",
-					"X-Amz-Decoded-Content-Length", s1, "error", err1)
-				return r2, CHUNKED_AWSS3, errz
-			}
-			var r3 = &chunked_reader{
-				r:              r2,
-				chunked:        CHUNKED_AWSS3,
-				hunting_header: true,
-				content_length: len1,
-				payload_length: len2,
-				//chunks: make([]chunk_record),
-			}
-			return r3, CHUNKED_AWSS3, nil
-		}
-	} else if check_http1_chunked(q) {
-		// Check http1-chuncked.
-		var r2, ok = body.(*bufio.Reader)
-		if !ok {
-			r2 = bufio.NewReader(body)
-		}
-		var length, _, _, _ = lookat_chunk_header(r2)
-		if length == 0 {
-			// Transfer-Encoding chunked but without a chunk header.
-			bbs.logger.Info("Making chunked-reader failed",
-				"rid", rid, "object", object, "chunked", "HTTP1",
-				"length", length)
-			return r2, CHUNKED_HTTP1, errz
-		} else {
-			// Transfer-Encoding http1-chunked.
-			return httputil.NewChunkedReader(r2), CHUNKED_HTTP1, nil
-		}
+	var r2, chunked, length, err1 = New_chunked_reader(q, body, rid, bbs)
+	if err1 != nil {
+		bbs.logger.Info("Making chunked-reader failed",
+			"rid", rid, "object", object, "chunked", "AWSS3",
+			"error", err1)
+		var errz = &Aws_s3_error{Code: InvalidRequest,
+			Message:  "Making chunked-reader failed.",
+			Resource: location}
+		return nil, CHUNKED_NO, 0, errz
 	} else {
-		return body, NOT_CHUNKED, nil
+		return r2, chunked, length, nil
 	}
 }
