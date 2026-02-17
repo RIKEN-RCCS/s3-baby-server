@@ -399,6 +399,69 @@ seems to try a couple of time formats.
 
 ----------------
 
+## Clearification of Checksums in AWS-S3 Definition (???)
+
+### Multipart Upload
+
+In CreateMultipartUpload, The checksum algorithm of a target object is
+specified by "x-amz-checksum-algorithm" and "x-amz-checksum-type".
+The algorithm and the type is returned in the response.
+
+In CompleteMultipartUpload, the checksum algorithm of a target object
+is specified by "x-amz-checksum-xxx" and "x-amz-checksum-type".  The
+checksum value is returned in the response.
+
+The checksum type should be equal in CreateMultipartUpload and
+CompleteMultipartUpload.
+
+### UploadPart
+
+In UploadPart, the checksum algorithm is specified by
+"x-amz-checksum-xxx".  The checksum value is returned in the response.
+("x-amz-sdk-checksum-algorithm" is ignored).
+
+### UploadPartCopy
+
+In UploadPartCopy, the checksum algorithm is not explicitly described.
+By the guess from CopyObject, the checksum algorithm is the one
+specified at CreateMultipartUpload.  (The checksum algorithm is
+required in CreateMultipartUpload, and thus, the checksum is never
+copied from the source).  The checksum value is returned in the
+response.
+
+### PutObject
+
+In PutObject, the checksum algorithm is specified by "x-amz-checksum-".
+The checksum value is returned in the response.
+
+### CopyObject
+
+In CopyObject, the checksum algorithm is specified by
+"x-amz-checksum-algorithm", or otherwise, it is copied from the
+source.  The checksum value is returned in the response.
+
+### The Default Checksum Algorithm
+
+The default is "CRC64NVME".  It is described in the User Guide.
+
+Alos, the API document says CRC64NVME checksum is added when an object
+uploaded without a checkusm, in sections CopyObject and PutObject.
+
+### Required or Optional Headers
+
+Required headers are described in Section "Checksums with multipart
+upload operations" in the User Guide.
+
+"x-amz-checksum-algorithm" is requied in CreateMultipartUpload and
+CompleteMultipartUpoad, while it is sometimes optional in UploadPart.
+
+### Implementation
+
+Baby-server fixes the checksum algorithm in CreateMultipartUpload to
+CRC64NVME when none is given.
+
+----------------
+
 ## MEMO: Golang http Server
 
 The body stream is "http.expectContinueReader".  It embeds
@@ -410,6 +473,16 @@ and implements http 100-continue.  It is defined in
 is to implement an "io.ReadCloser".
 
 ----------------
+
+## MEMO: Client Oddities
+
+### MinIO MC
+
+- ListObjects: "GET /mybucket1/?object-lock="
+- CreateMultipartUpload: "POST /mybucket1/object2.txt?uploads="
+
+----------------
+
 
 ## MEMO: CODING CONVENTION
 

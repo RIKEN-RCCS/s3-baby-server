@@ -400,12 +400,12 @@ func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity st
 // metainfo serializes accesses inside the routine.
 func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string, entity string, etag string) *Aws_s3_error {
 	var metainfo2 = &Meta_info{
-		Entity_key:         entity,
-		ETag:               etag,
-		Checksum_algorithm: "",
-		Checksum:           "",
-		Headers:            nil,
-		Tags:               nil,
+		Entity_key: entity,
+		ETag:       etag,
+		Checksum:   "",
+		Csum:       "",
+		Headers:    nil,
+		Tags:       nil,
 	}
 	var err6 = bbs.store_metainfo_serialized(ctx, object, metainfo2)
 	if err6 != nil {

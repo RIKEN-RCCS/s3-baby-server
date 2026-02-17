@@ -150,6 +150,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		size_to_check = *i.MpuObjectSize
 	}
 
+	// Check parts are nonempty.
+
 	var partlist = i.MultipartUpload
 	if partlist == nil || len(partlist.Parts) == 0 {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -210,11 +212,12 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				// Return true to stop the loop.
 				return true
 			}
-			if catalog.Parts[part-1].ETag != etag {
+			var partinfo = catalog.Parts[part-1]
+			if partinfo.ETag != etag {
 				bbs.logger.Info("ETags mismatch in MPUL completion",
 					"rid", rid, "part", part,
 					"listed-etag", etag,
-					"uploaded-etag", catalog.Parts[part-1].ETag)
+					"uploaded-etag", partinfo.ETag)
 				error_in_checking = &Aws_s3_error{Code: InvalidPart,
 					Resource: location}
 				// Return true to stop the loop.
@@ -229,24 +232,27 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				ChecksumSHA1:      e.ChecksumSHA1,
 				ChecksumSHA256:    e.ChecksumSHA256,
 			}
-			var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset3)
+			var checksum3, csum_to_check3, err8 = decode_checksum_record(object, &csumset3)
 			if err8 != nil {
 				// IGNORE-ERRORS.
 			}
-			if csum_to_check != nil {
-				if checksum != mpul.Checksum {
+			if csum_to_check3 != nil {
+				if checksum3 != partinfo.Checksum {
 					bbs.logger.Info("Checksum algorithm mismatch",
-						"rid", rid)
+						"rid", rid,
+						"mpul-completion", checksum3,
+						"mpul-part", partinfo.Checksum)
 					error_in_checking = &Aws_s3_error{Code: InvalidPart,
+						Message:  "Checksum algorithm mismatch.",
 						Resource: location}
 					// Return true to stop the loop.
 					return true
 				}
-				var csum, err7 = decode_base64(object, &catalog.Parts[part-1].Checksum)
+				var csum3, err7 = decode_base64(object, &partinfo.Csum)
 				if err7 != nil {
 					// IGNORE-ERRORS.
 				}
-				if bytes.Compare(csum_to_check, csum) != 0 {
+				if bytes.Compare(csum_to_check3, csum3) != 0 {
 					bbs.logger.Info("Checksums mismatch",
 						"rid", rid)
 					error_in_checking = &Aws_s3_error{Code: InvalidPart,
@@ -265,17 +271,11 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			" in CompleteMultipartUpload")
 	}
 
-	// Baby-server can only handle "types.ChecksumTypeFullObject".
-	// The checksum of the input is ignored when it is not the case.
-	// The returned checksum is always for full object.
-
-	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
-		bbs.logger.Info("Checksum by not full-object unsuppored",
-			"rid", rid, "checksum-type", i.ChecksumType)
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message:  "Checksum by not full-object unsuppored.",
-			Resource: location}
-		return nil, errz
+	{
+		var err1 = bbs.reject_composite_checksum(rid, object, i.ChecksumType)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
 
 	var csumset = types.Checksum{
@@ -291,17 +291,13 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err8
 	}
 
-	if false {
-		if checksum != "" && checksum != mpul.Checksum {
-			bbs.logger.Info("Checksum algorithm mismatch",
-				"rid", rid,
-				"checksum-algorithm MPUL creation", mpul.Checksum,
-				"checksum-algorithm MPUL completion", checksum)
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "Checksum algorithm mismatch in MPUL creation and completion",
-				Resource: location}
-			return nil, errz
-		}
+	if checksum != "" && checksum != mpul.Checksum {
+		bbs.logger.Info("Checksum algorithm differs MPUL creation/completion",
+			"rid", rid, "creation", mpul.Checksum, "completion", checksum)
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message:  "Checksum algorithm differs MPUL creation/completion.",
+			Resource: location}
+		return nil, errz
 	}
 
 	// SERIALIZE-ACCESSES (in the concatenation routine).
@@ -471,7 +467,13 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		return nil, err22
 	}
 
+	var checksum2 types.ChecksumAlgorithm = i.ChecksumAlgorithm
+	//if checksum2 == "" {
+	//	checksum2 = types.ChecksumAlgorithmCrc64nvme
+	//}
+
 	var metainfo *Meta_info
+	//var checksum2 types.ChecksumAlgorithm
 
 	{
 		metainfo = &Meta_info{}
@@ -495,6 +497,25 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			}
 		case "REPLACE":
 			metainfo.Tags = tagging
+		}
+
+		if source_metainfo != nil {
+			if checksum2 == "" {
+				checksum2 = source_metainfo.Checksum
+			}
+
+			// (* Copy a checksum.  Note calculating a checksum needed
+			// later, when metainfo.Csum="" but metainfo.Checksum is
+			// specified. *)
+
+			if checksum2 == source_metainfo.Checksum {
+				metainfo.Checksum = source_metainfo.Checksum
+				metainfo.Csum = source_metainfo.Csum
+			} else {
+				// Note calculating a checksum later needed.
+				metainfo.Checksum = checksum2
+				metainfo.Csum = ""
+			}
 		}
 
 		//metainfo1.ContentDisposition = i.ContentDisposition
@@ -522,11 +543,6 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		if err7 != nil {
 			return nil, err7
 		}
-	}
-
-	var checksum2 types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	if checksum2 == "" {
-		checksum2 = types.ChecksumAlgorithmCrc64nvme
 	}
 
 	// SERIALIZE-ACCESSES (in the copying routine).
@@ -738,33 +754,47 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		}
 		if headers != nil || tagging != nil {
 			metainfo = &Meta_info{
-				Entity_key:         "",
-				ETag:               "",
-				Checksum_algorithm: "",
-				Checksum:           "",
-				Headers:            headers,
-				Tags:               tagging,
+				Entity_key: "",
+				ETag:       "",
+				Checksum:   "",
+				Csum:       "",
+				Headers:    headers,
+				Tags:       tagging,
 			}
 		} else {
 			metainfo = nil
 		}
 	}
 
-	if i.ChecksumType != "" && i.ChecksumType != types.ChecksumTypeFullObject {
-		bbs.logger.Info("Checksum by not full-object unsuppored",
-			"rid", rid, "checksum-type", i.ChecksumType)
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message:  "Checksum by not full-object unsuppored.",
-			Resource: location}
-		return nil, errz
+	{
+		var err1 = bbs.reject_composite_checksum(rid, object, i.ChecksumType)
+		if err1 != nil {
+			return nil, err1
+		}
 	}
+
 	var checksumtype = types.ChecksumTypeFullObject
 	var checksum = i.ChecksumAlgorithm
+	if checksum == "" {
+		bbs.logger.Info("Fix checksum algorithm by default CRC64NVME",
+			"rid", rid)
+		checksum = types.ChecksumAlgorithmCrc64nvme
+	}
 
 	//var scratchkey = bbs.make_scratch_suffix(rid)
 	//defer bbs.discharge_scratch_suffix(rid)
 
 	var uploadid string = bbs.make_new_upload_id()
+
+	var now = time.Now()
+	var mpul = &Mpul_info{
+		//MultipartUpload: types.MultipartUpload{}
+		Upload_id:     &uploadid,
+		Initiate_time: &now,
+		Checksum_type: checksumtype,
+		Checksum:      checksum,
+		Metainfo:      metainfo,
+	}
 
 	// SERIALIZE-ACCESSES.
 
@@ -774,16 +804,6 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 			return nil, timeout
 		}
 		defer bbs.release_access(ctx, object, rid)
-	}
-
-	var now = time.Now()
-	var mpul = &Mpul_info{
-		//MultipartUpload: types.MultipartUpload{}
-		Upload_id:     &uploadid,
-		Initiate_time: &now,
-		Checksum:      checksum,
-		Checksum_type: checksumtype,
-		Metainfo:      metainfo,
 	}
 
 	{
@@ -807,6 +827,13 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		}
 
 		cleanup_needed = false
+	}
+
+	// This logging is printed in serialized region.
+
+	if bbs.config.Verbose_debug_logging {
+		bbs.logger.Debug("Creating a multipart temporary",
+			"rid", rid, "object", object, "mpul-info", mpul)
 	}
 
 	{
@@ -1619,8 +1646,8 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	}
 
 	if i.ChecksumMode == types.ChecksumModeEnabled && metainfo != nil {
-		var checksum = metainfo.Checksum_algorithm
-		var crc1, err1 = hex.DecodeString(metainfo.Checksum)
+		var checksum = metainfo.Checksum
+		var crc1, err1 = hex.DecodeString(metainfo.Csum)
 		if err1 != nil {
 			bbs.logger.Info("hex.DecodeString() on metainfo checksum failed",
 				"rid", rid, "error", err1)
@@ -2183,7 +2210,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	}
 
 	for i, e := range parts {
-		var csum, err5 = base64.StdEncoding.DecodeString(e.Checksum)
+		var csum, err5 = base64.StdEncoding.DecodeString(e.Csum)
 		if err5 != nil {
 			// IGNORE-ERRORS.
 		}
@@ -2374,12 +2401,12 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 			return nil, err1
 		}
 		metainfo = metainfo_null_for_zero(&Meta_info{
-			Entity_key:         "",
-			ETag:               "",
-			Checksum_algorithm: checksum,
-			Checksum:           csum,
-			Headers:            headers,
-			Tags:               tagging,
+			Entity_key: "",
+			ETag:       "",
+			Checksum:   checksum,
+			Csum:       csum,
+			Headers:    headers,
+			Tags:       tagging,
 		})
 	}
 
@@ -2499,12 +2526,12 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 
 		if metainfo == nil {
 			metainfo = &Meta_info{
-				Entity_key:         entity,
-				ETag:               etag,
-				Checksum_algorithm: "",
-				Checksum:           "",
-				Headers:            nil,
-				Tags:               nil,
+				Entity_key: entity,
+				ETag:       etag,
+				Checksum:   "",
+				Csum:       "",
+				Headers:    nil,
+				Tags:       nil,
 			}
 		}
 		metainfo.Tags = i.Tagging
@@ -2615,7 +2642,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		csum_to_check: csum_to_check,
 	}
 	var conditions = copy_conditions{}
-	var etag, _, csum2, err6 = bbs.upload_object(ctx, object,
+	var etag, _, _, err6 = bbs.upload_object(ctx, object,
 		upload_id, part, i.Body, metainfo, checks, conditions)
 	if err6 != nil {
 		return nil, err6
@@ -2624,14 +2651,18 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	o.ETag = &etag
 
 	{
-		var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+		// var csumset2 *types.Checksum = fill_checksum_record(checksum, csum2)
 		// No o.ChecksumType in the output record.
-		o.ChecksumCRC32 = csumset2.ChecksumCRC32
-		o.ChecksumCRC32C = csumset2.ChecksumCRC32C
-		o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
-		o.ChecksumSHA1 = csumset2.ChecksumSHA1
-		o.ChecksumSHA256 = csumset2.ChecksumSHA256
+		// o.ChecksumCRC32 = csumset2.ChecksumCRC32
+		// o.ChecksumCRC32C = csumset2.ChecksumCRC32C
+		// o.ChecksumCRC64NVME = csumset2.ChecksumCRC64NVME
+		// o.ChecksumSHA1 = csumset2.ChecksumSHA1
+		// o.ChecksumSHA256 = csumset2.ChecksumSHA256
+		o.ChecksumCRC32 = i.ChecksumCRC32
+		o.ChecksumCRC32C = i.ChecksumCRC32C
+		o.ChecksumCRC64NVME = i.ChecksumCRC64NVME
+		o.ChecksumSHA1 = i.ChecksumSHA1
+		o.ChecksumSHA256 = i.ChecksumSHA256
 	}
 
 	// o.BucketKeyEnabled *bool
@@ -2750,7 +2781,6 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	// SERIALIZE-ACCESSES (in the copying routine)
 
 	var metainfo *Meta_info = nil
-	//var conditions = copy_conditions{}
 	var etag, stat, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
 		source, source_entity, extent, metainfo, checksum2)
 	if err6 != nil {
@@ -2769,7 +2799,6 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		// - ChecksumSHA256 *string
 		// - ETag *string
 		// - LastModified *time.Time
-
 		ChecksumCRC32:     csumset2.ChecksumCRC32,
 		ChecksumCRC32C:    csumset2.ChecksumCRC32C,
 		ChecksumCRC64NVME: csumset2.ChecksumCRC64NVME,

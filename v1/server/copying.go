@@ -35,7 +35,6 @@ type copy_checks struct {
 	checksum      types.ChecksumAlgorithm
 	md5_to_check  []byte
 	csum_to_check []byte
-	//csum_ types.Checksum
 }
 
 type copy_conditions struct {
@@ -109,12 +108,12 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, upload_i
 }
 
 // COPY_OBJECT performs copying.  A copying target is either an object
-// or an MPUL part file.  It returns etag, stat and csum.  A checksum
-// value is by the algorithm of CHECKSUM when copying is for MPUL.
-// Note checksum checks are not applied on copying.  Metainfo is only
-// partially filled.  Note condition checks are on the source object,
-// and is checked by the caller.
-func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, checksum2 types.ChecksumAlgorithm) (string, fs.FileInfo, []byte, *Aws_s3_error) {
+// or an MPUL part file.  It returns etag, stat and csum.  Metainfo is
+// only partially filled.  A override_checksum is specified when
+// checksum calcualation is needed.  Otherwise, a recorded checksum in
+// metainfo can be used.  Note condition checks are on the source
+// object, and is checked by the caller.
+func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, override_checksum2 types.ChecksumAlgorithm) (string, fs.FileInfo, []byte, *Aws_s3_error) {
 	var copy_or_link build_op
 	var copy_file_by_linking = (extent == nil)
 	if copy_file_by_linking {
@@ -142,7 +141,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id 
 	var checks = copy_checks{}
 	var conditions = copy_conditions{}
 	var etag, stat, csum2, err1 = bbs.build_object(ctx, object, upload_id,
-		part, build, metainfo, checksum2, checks, conditions)
+		part, build, metainfo, override_checksum2, checks, conditions)
 	return etag, stat, csum2, err1
 }
 
@@ -244,7 +243,6 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 
 	var etag = make_object_etag_from_md5(md5v)
 
-	//var checks = copy_checks{}
 	var csum2, err3 = bbs.compare_checksums(rid, object, scratch, checksum2,
 		md5v, csum1, checks)
 	if err3 != nil {
@@ -271,6 +269,68 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 		target_entity = ""
 		target_etag = ""
 		target_stat = nil
+	}
+
+	var entity string
+	var stat fs.FileInfo
+	var size int64
+	var mtime time.Time
+	//var metainfo2 *Meta_info = nil
+
+	// Prepare metainfo by inserting an entity-key and an etag.
+
+	{
+		var err7 *Aws_s3_error
+		entity, stat, err7 = bbs.fetch_object_status(rid, scratch, true)
+		if err7 != nil {
+			return "", nil, nil, err7
+		}
+		bb_assert(stat != nil)
+
+		size = stat.Size()
+		mtime = stat.ModTime()
+
+		// Insert an ETag into metainfo.  It stores metainfo, when the
+		// object is large.
+
+		if part != 0 {
+			bb_assert(metainfo == nil)
+		} else {
+			if metainfo != nil {
+				bb_assert(metainfo.Entity_key == "" && metainfo.ETag == "")
+				metainfo.Entity_key = entity
+				metainfo.ETag = etag
+			} else if size >= byte_size(bbs.config.Etag_save_threshold) {
+				metainfo = &Meta_info{
+					Entity_key: entity,
+					ETag:       etag,
+					Checksum:   "",
+					Csum:       "",
+					Headers:    nil,
+					Tags:       nil,
+				}
+			}
+		}
+	}
+
+	// Prepare saving part information.
+
+	var partinfo *Mpul_part = nil
+
+	{
+		if part != 0 {
+			var csum = base64.StdEncoding.EncodeToString(csum2)
+			partinfo = &Mpul_part{
+				Entity_key: entity,
+				ETag:       etag,
+				Size:       size,
+				Mtime:      mtime,
+				Checksum:   checksum2,
+				Csum:       csum,
+			}
+		} else {
+			partinfo = nil
+		}
 	}
 
 	// SERIALIZE-ACCESSES.
@@ -340,52 +400,56 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 		}
 	}
 
-	var entity string
-	var stat fs.FileInfo
-	var mtime time.Time
-	var size int64
+	/*
+		var entity string
+		var stat fs.FileInfo
+		var mtime time.Time
+		var size int64
+	*/
 
 	{
-		var err7 *Aws_s3_error
-		entity, stat, err7 = bbs.fetch_object_status(rid, scratch, true)
-		if err7 != nil {
-			return "", nil, nil, err7
-		}
-		bb_assert(stat != nil)
+		/*
+			var err7 *Aws_s3_error
+			entity, stat, err7 = bbs.fetch_object_status(rid, scratch, true)
+			if err7 != nil {
+				return "", nil, nil, err7
+			}
+			bb_assert(stat != nil)
 
-		size = stat.Size()
-		mtime = stat.ModTime()
+			size = stat.Size()
+			mtime = stat.ModTime()
 
-		// Insert an ETag into metainfo.  It stores metainfo, when the
-		// object is large.
+			// Insert an ETag into metainfo.  It stores metainfo, when the
+			// object is large.
 
-		var metainfo2 *Meta_info = nil
-		if part != 0 {
-			metainfo2 = nil
-		} else {
-			if metainfo != nil {
-				metainfo2 = &Meta_info{
-					Entity_key:         entity,
-					ETag:               etag,
-					Checksum_algorithm: metainfo.Checksum_algorithm,
-					Checksum:           metainfo.Checksum,
-					Headers:            metainfo.Headers,
-					Tags:               metainfo.Tags,
-				}
-			} else if size >= byte_size(bbs.config.Etag_save_threshold) {
-				metainfo2 = &Meta_info{
-					Entity_key:         entity,
-					ETag:               etag,
-					Checksum_algorithm: "",
-					Checksum:           "",
-					Headers:            nil,
-					Tags:               nil,
+			var metainfo2 *Meta_info = nil
+			if part != 0 {
+				metainfo2 = nil
+			} else {
+				if metainfo != nil {
+					metainfo2 = &Meta_info{
+						Entity_key:         entity,
+						ETag:               etag,
+						Checksum_algorithm: metainfo.Checksum_algorithm,
+						Checksum:           metainfo.Checksum,
+						Headers:            metainfo.Headers,
+						Tags:               metainfo.Tags,
+					}
+				} else if size >= byte_size(bbs.config.Etag_save_threshold) {
+					metainfo2 = &Meta_info{
+						Entity_key:         entity,
+						ETag:               etag,
+						Checksum_algorithm: "",
+						Checksum:           "",
+						Headers:            nil,
+						Tags:               nil,
+					}
 				}
 			}
-		}
+		*/
 
 		var err6 = bbs.place_scratch_file(rid, object, scratch,
-			target, metainfo2, (build.op == BUILD_LINK))
+			target, metainfo, (build.op == BUILD_LINK))
 		if err6 != nil {
 			return "", nil, nil, err6
 		}
@@ -395,13 +459,6 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 	// Update MPUL catatlog file.
 
 	if part != 0 {
-		var csums = base64.StdEncoding.EncodeToString(csum2)
-		var partinfo = &Mpul_part{
-			Size:     size,
-			ETag:     etag,
-			Checksum: csums,
-			Mtime:    mtime,
-		}
 		var err8 = bbs.update_mpul_catalog(rid, object, part, partinfo)
 		if err8 != nil {
 			return "", nil, nil, err8
@@ -415,14 +472,30 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 		}
 	}
 
+	// This logging is printed in serialized region.
+
+	if bbs.config.Verbose_debug_logging {
+		if part == 0 {
+			bbs.logger.Debug("Creating an object",
+				"rid", rid, "object", object, "build", build.op,
+				"metainfo", metainfo)
+		} else {
+			bbs.logger.Debug("Creating a multipart part",
+				"rid", rid, "object", object, "build", build.op,
+				"upload_id", upload_id, "part", part,
+				"partinfo", partinfo)
+		}
+	}
+
 	return etag, stat, csum2, nil
 }
 
-func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum2 types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, scratch string, build build_source, override_checksum2 types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var _, rid = get_action_name(ctx)
 
-	//var copy_file_by_linking = (extent == nil)
+	bb_assert(build.op == BUILD_UPLOAD || build.op == BUILD_COPY)
+
 	var body2 io.Reader
 	var size int64
 	var source_name string
@@ -431,7 +504,7 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 		// Modify reader of the body when Transfer-Encoding is chunked.
 
 		size = build.upload.length
-		source_name = "--"
+		source_name = "--stream--"
 
 		var body1 io.Reader = build.upload.stream
 		var _, r = get_handler_arguments(ctx)
@@ -477,7 +550,7 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 				body2 = body1
 			}
 		*/
-	} else {
+	} else if build.op == BUILD_COPY {
 		var source = build.copy.source
 		var extent = build.copy.extent
 		var path = bbs.make_path_of_object(source, "")
@@ -499,10 +572,12 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 				// IGNORE-ERRORS.
 			}
 		}()
+	} else {
+		Fatalf("never")
 	}
 
 	var md5v, csumv, err6 = bbs.copy_content_stream(rid, object, scratch,
-		size, source_name, checksum2, body2)
+		size, source_name, override_checksum2, body2)
 	if err6 != nil {
 		return nil, nil, err6
 	}

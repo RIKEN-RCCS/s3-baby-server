@@ -79,11 +79,12 @@ type Bb_configuration struct {
 	Exclusion_wait           msec_duration `json:"exclusion_wait"`
 	Etag_save_threshold      mbyte_size    `json:"etag_save_threshold"`
 	Xml_parameter_size_limit mbyte_size    `json:"xml_parameter_size_limit"`
-	Keep_trailing_slash      bool          `json:"keep_trailing_slash"`
 	Verify_fs_write          bool          `json:"verify_fs_write"`
-	Pretty_xml_response      bool          `json:"pretty_xml_response"`
-	Accept_fetch_owner       bool          `json:"accept_fetch_owner"`
 	Log_monitor_timing       bool          `json:"log_monitor_timing"`
+	Verbose_debug_logging    bool          `json:"verbose_debug_logging"`
+	Pretty_xml_response      bool          `json:"pretty_xml_response"`
+	Keep_trailing_slash      bool          `json:"keep_trailing_slash"`
+	Accept_fetch_owner       bool          `json:"accept_fetch_owner"`
 	Strict_etag_quoting      bool          `json:"strict_etag_quoting"`
 	Forbid_last_chunk_crlf   bool          `json:"forbid_last_chunk_crlf"`
 
@@ -212,8 +213,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		Exclusion_wait:           5000,
 		Etag_save_threshold:      1,
 		Xml_parameter_size_limit: 2,
-		Keep_trailing_slash:      false,
-		Verify_fs_write:          false,
+		Verbose_debug_logging:    true,
 	}
 
 	if conf != "" {

@@ -34,8 +34,9 @@ type suffix_record struct {
 	timestamp time.Time
 }
 
-// PRINTF for debug printing.
+// PRINTF/FATALF for debug printing.
 var Printf = fmt.Printf
+var Fatalf = log.Fatalf
 
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
@@ -836,10 +837,27 @@ func decode_checksum_record(object string, csumset *types.Checksum) (types.Check
 	return checksum, csum, nil
 }
 
+// REJECT_COMPOSITE_CHECKSUM rejects other than the full-object
+// checksum type.  Baby-server can only handle
+// "types.ChecksumTypeFullObject".  The returned checksum is always
+// for full-object.
+func (bbs *Bb_server) reject_composite_checksum(rid uint64, object string, checksumtype types.ChecksumType) *Aws_s3_error {
+	var location = "/" + object
+	if checksumtype != "" && checksumtype != types.ChecksumTypeFullObject {
+		bbs.logger.Info("Checksum by not full-object unsupported",
+			"rid", rid, "checksum-type", checksumtype)
+		var errz = &Aws_s3_error{Code: NotImplemented,
+			Message:  "Checksum by not full-object unsupported.",
+			Resource: location}
+		return errz
+	}
+	return nil
+}
+
 func metainfo_null_for_zero(metainfo *Meta_info) *Meta_info {
 	if metainfo == nil {
 		return nil
-	} else if metainfo.Checksum_algorithm == "" && metainfo.Checksum == "" &&
+	} else if metainfo.Checksum == "" && metainfo.Csum == "" &&
 		metainfo.Headers == nil && metainfo.Tags == nil {
 		//metainfo.ContentDisposition == nil &&
 		//metainfo.ContentEncoding == nil &&
@@ -872,7 +890,7 @@ func (bbs *Bb_server) fix_etag_quoting(etag *string, rid uint64) *string {
 				etag2 = etag2 + "\""
 			}
 			bbs.logger.Debug("Attach missing double-quotes to ETag",
-				"rid", rid, "etag", etag2)
+				"rid", rid, "fixed-etag", etag2)
 			return &etag2
 		} else {
 			return etag
