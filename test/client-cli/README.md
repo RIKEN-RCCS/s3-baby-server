@@ -1,10 +1,8 @@
 # Test by S3 Clients
 
-## Prerequisite
+## AWS-CLI
 
-## Test by AWS-CLI
-
-Run a test by:
+### Running a Test
 
 ```
 sh client-awscli.sh
@@ -54,9 +52,9 @@ the enviroment variable:
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
-## Test by RCLONE
+## RCLONE
 
-### Running a Simple Test
+### Running a Test
 
 Run a test by:
 
@@ -94,9 +92,9 @@ acl = private
 - RCLONE first checks the directory part (prior part of "/") of an
   object.  It sends a HEAD request on that part.
 
-## Test by Google Cloud CLI
+## Google Cloud CLI
 
-### Running a Simple Test
+### Running a Test
 
 Run a test by:
 
@@ -155,12 +153,12 @@ https://docs.cloud.google.com/sdk/gcloud/reference/storage
 
 Logs are stored in "~/.config/gcloud/logs".
 
-## Test by MinIO Client (mc)
+## MinIO Client MC
 
-### Setup and Run a Simple Test
+### Running a Test
 
-Setup MC by assigning any alias, for example, "s3baby" in the test
-script:
+Setup MC by assigning an alias, for example, "s3baby".  We assume an
+alias name "s3baby" in the test script.
 
 ```
 $ mc alias set "s3baby" "http://localhost:9000" "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz" --api S3v4
@@ -185,12 +183,12 @@ Configuration of "mc" is stored in "~/.mc/config.json".
 - https://github.com/minio/mc
 - https://docs.min.io/enterprise/aistor-object-store/reference/cli/
 
-## Test by s3cmd
+## s3cmd
+
+### Running a Test
 
 Note s3cmd "mv" does not work in our test.  Uncertain, but, it seems
 it needs some ACL definition retured from the server side.
-
-### Setup and Run a Simple Test
 
 ```
 s3cmd --configure
@@ -228,7 +226,7 @@ Requirement already satisfied: six>=1.5 in /home/users/m-matsuda/.local/lib/pyth
 Installing collected packages: python-magic, s3cmd
 Successfully installed python-magic-0.4.27 s3cmd-2.4.0
 
-## Test by s3fs-fuse
+## s3fs-fuse
 
 ### Setup and Mount
 
