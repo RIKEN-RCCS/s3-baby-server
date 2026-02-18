@@ -7,7 +7,7 @@
 Run a test by:
 
 ```
-$ sh awscli-01-s3api.sh
+sh client-awscli.sh
 ```
 
 Test stops on an error.
@@ -61,7 +61,7 @@ export AWS_EC2_METADATA_DISABLED=true
 Run a test by:
 
 ```
-$ sh rclone-copy.sh
+sh client-rclone.sh
 ```
 
 ### Installing RCLONE
@@ -101,7 +101,7 @@ acl = private
 Run a test by:
 
 ```
-$ sh gcloud-copy.sh
+sh client-gcloud.sh
 ```
 
 ### Installing gcloud (and gsutil)
@@ -169,7 +169,7 @@ $ mc alias set "s3baby" "http://localhost:9000" "abcdefghijklmnopqrstuvwxyz" "ab
 Run a test by:
 
 ```
-$ sh minio-mc-copy.sh
+sh client-minio-mc.sh
 ```
 
 ### Installing "mc"
@@ -204,6 +204,10 @@ access_key = abcdefghijklmnopqrstuvwxyz
 secret_key = abcdefghijklmnopqrstuvwxyz
 access_token =
 website_endpoint =
+```
+
+```
+sh client-s3cmd.sh
 ```
 
 #### Installing s3cmd
