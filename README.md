@@ -1,14 +1,14 @@
 # README
 
-S3 Baby-server is a server via AWS-S3 protocol.  It is designed to
-share existing files in a usual filesystem via AWS-S3.  Note
-full-fledged servers are not adequate for the purpose as they store
-files in chunks (of manageable sizes).  It is similar to "rclone serve
-s3".  Baby-server can be used in combination with "Lens3" to run
+S3 Baby-server is a file server of AWS-S3 protocol.  It is designed to
+share existing files in a filesystem via S3.  In contrast, most
+full-fledged servers store files in chunks (of manageable sizes) and
+are not adequate for this purpose.  Baby-server is similar to "rclone
+serve s3".  Baby-server can be used in combination with "Lens3" to run
 multiple servers at a single http end-point.  See for Lens3
 https://github.com/RIKEN-RCCS/lens3.
 
-## Running a server
+## Running the server
 
 ```
 ./s3-baby-server serve 127.0.0.1:9000 ~/pool --cred s3baby,s3baby
@@ -19,6 +19,16 @@ Existing directories in the pool are considered as buckets.  "--cred"
 specifies a credential pair separated by a comma (access-key and
 secret-access-key).
 
+## Build Procedure
+
+Prepare Golang.  Then,
+
+```
+cd v1
+make get
+make
+```
+
 ## Restrictions
 
 - Object names cannot begin with a dot (".").  They are hidden and
@@ -26,8 +36,8 @@ secret-access-key).
 
 - Object names cannot be end with "/".
 
-- Bucket names cannot include any dots (".").  It is restrictive
-  compared to other servers.
+- Bucket names cannot include any dots (".").  It is more restrictive
+  compared to other S3 servers.
 
 - Object versions are not supported at all.
 
@@ -36,7 +46,7 @@ secret-access-key).
 - Symbolic links in a filesystem are ignored; They are treated as not
   exist.  It is an error when an object name (a path) includes
   symbolic links.  It is to avoid a file being stored in an
-  inaccessible path.  Baby-server explicitly checks it.
+  inaccessible path.
 
 - Baby-server does not return owner information.  "Ower" in responses
   is always missing in ListObjects, etc.  The value of query
@@ -57,20 +67,21 @@ secret-access-key).
   "if-unmodified-since", and "x-amz-if-match-last-modified-time"
   invokes an error, although they should be ignored.
 
-- ContentType of a response is "binary/octet-stream".  I am not sure
+- ContentType of a response is "binary/octet-stream".  We are not sure
   it is better be "application/octet-stream".
 
-## Additional Features
+## Access Logs
 
 - Baby-server stores access logs in a directory ".s3bbs/log" when it
-  exists in a pool-direcotry.  It is checked at starting a server.
-  The log file is ".s3bbs/log/access-log".
+  exists in a pool-directory.  It is checked at starting the server.
+  The log file is ".s3bbs/log/access-log".  It is useful when outputs
+  from the server are not accessible to the user.
 
 ## Terse Error Messages
 
 - Errors returned to a client do not contain information from OS such
-  as "fs.PathError", because they may reveal the home path that should
-  not be disclosed to a client.
+  as directory paths or user id, because they can be something that
+  should not be disclosed to a client.
 
 ## Other Restrictions
 
@@ -96,12 +107,13 @@ updated.
 
 ### Security (IMPORTANT)
 
-Baby-server does not check the message hash in signing.  It uses the
-given hash without checking it.
+Baby-server does not check the message digest in signing.  It uses the
+given hash value without checking it.
 
 ## Implemented API Actions
 
-Baby-server is based on 2019-03-27 Release of AWS-S3 API.
+Baby-server is based on 2019-03-27 Release of AWS-S3 API.  Baby-server
+implements the following list of actions.
 
 - AbortMultipartUpload
 - CompleteMultipartUpload
@@ -126,3 +138,8 @@ Baby-server is based on 2019-03-27 Release of AWS-S3 API.
 - PutObjectTagging
 - UploadPart
 - UploadPartCopy
+
+## For Developers
+
+An implementation note of Baby-server is
+[design.md](./v1/doc/design.md)
