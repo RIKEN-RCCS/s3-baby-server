@@ -29,7 +29,16 @@ EXEC_ECHO gcloud storage buckets create s3://mybucket1 || true
 CLI="gcloud storage"
 CLIGET="gcloud storage cp"
 CLIPUT="gcloud storage cp"
+
 . ./client-copy.sh
+
+ECHO "Test mv"
+
+EXEC_ECHO ${CLIPUT} data-01k.txt s3://mybucket1/object1.txt
+EXEC_ECHO ${CLI} mv s3://mybucket1/object1.txt s3://mybucket1/object2.txt
+EXEC_ECHO ${CLIGET} s3://mybucket1/object2.txt "zzz1"
+EXEC_ECHO cmp "zzz1" data-01k.txt
+rm -f "zzz1"
 
 ECHO "Test mv"
 
@@ -43,6 +52,6 @@ ECHO "Clean up"
 EXEC_ECHO gcloud storage rm s3://mybucket1/object2.txt
 EXEC_ECHO gcloud storage buckets delete s3://mybucket1
 
-rm -rf "zzz1"
+rm -f "zzz1"
 
-ECHO 'TEST DONE.'
+ECHO_TEST_DONE

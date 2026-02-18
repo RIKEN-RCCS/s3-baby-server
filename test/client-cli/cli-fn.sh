@@ -16,4 +16,6 @@ EXPECT_PASS() { (echo "pass>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
 EXEC_FAIL() { (echo "fail>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
 EXPECT_FAIL() { EXEC_FAIL "$@" || true ; [ $statuscode -ne 0 ] ; }
 
+ECHO_TEST_DONE() { ECHO 'TEST DONE.' ; }
+
 export AWS_EC2_METADATA_DISABLED=true

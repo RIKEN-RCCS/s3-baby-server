@@ -101,19 +101,18 @@ func (bbs *Bb_server) upload_object(ctx context.Context, object string, upload_i
 			mpul:     nil,
 		},
 	}
-	var checksum2 types.ChecksumAlgorithm = checks.checksum
+	var checksum types.ChecksumAlgorithm = checks.checksum
 	var etag, stat, csum2, err1 = bbs.build_object(ctx, object, upload_id,
-		part, build, metainfo, checksum2, checks, conditions)
+		part, build, metainfo, checksum, checks, conditions)
 	return etag, stat, csum2, err1
 }
 
 // COPY_OBJECT performs copying.  A copying target is either an object
 // or an MPUL part file.  It returns etag, stat and csum.  Metainfo is
-// only partially filled.  A override_checksum is specified when
-// checksum calcualation is needed.  Otherwise, a recorded checksum in
-// metainfo can be used.  Note condition checks are on the source
+// only partially filled.  Specify a CHECKSUM when checksum
+// calcualation is needed.  Note condition checks are on the source
 // object, and is checked by the caller.
-func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, override_checksum2 types.ChecksumAlgorithm) (string, fs.FileInfo, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, checksum types.ChecksumAlgorithm) (string, fs.FileInfo, []byte, *Aws_s3_error) {
 	var copy_or_link build_op
 	var copy_file_by_linking = (extent == nil)
 	if copy_file_by_linking {
@@ -141,7 +140,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id 
 	var checks = copy_checks{}
 	var conditions = copy_conditions{}
 	var etag, stat, csum2, err1 = bbs.build_object(ctx, object, upload_id,
-		part, build, metainfo, override_checksum2, checks, conditions)
+		part, build, metainfo, checksum, checks, conditions)
 	return etag, stat, csum2, err1
 }
 
@@ -168,13 +167,13 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, mpu
 	var upload_id = ""
 	var part int32 = 0
 	var metainfo *Meta_info = mpul.Metainfo
-	var checksum2 types.ChecksumAlgorithm = checks.checksum
+	var checksum types.ChecksumAlgorithm = checks.checksum
 	var etag, stat, csum2, err1 = bbs.build_object(ctx, object, upload_id,
-		part, build, metainfo, checksum2, checks, conditions)
+		part, build, metainfo, checksum, checks, conditions)
 	return etag, stat, csum2, err1
 }
 
-func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id string, part int32, build build_source, metainfo *Meta_info, checksum2 types.ChecksumAlgorithm, checks copy_checks, conditions copy_conditions) (string, fs.FileInfo, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id string, part int32, build build_source, metainfo *Meta_info, checksum types.ChecksumAlgorithm, checks copy_checks, conditions copy_conditions) (string, fs.FileInfo, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var _, rid = get_action_name(ctx)
 	var scratchkey = bbs.make_scratch_suffix(rid)
@@ -214,7 +213,7 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 		// Copy a file from a stream.
 		var err2 *Aws_s3_error
 		md5v, csum1, err2 = bbs.copy_file_as_scratch(ctx, object, scratch,
-			build, checksum2)
+			build, checksum)
 		if err2 != nil {
 			return "", nil, nil, err2
 		}
@@ -222,14 +221,14 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 		// Copy a file by linking.
 		var err4 *Aws_s3_error
 		md5v, csum1, err4 = bbs.link_file_as_scratch(ctx, object, scratch,
-			build, checksum2)
+			build, checksum)
 		if err4 != nil {
 			return "", nil, nil, err4
 		}
 	case BUILD_CONCAT:
 		var err5 *Aws_s3_error
 		md5v, csum1, err5 = bbs.concat_parts_as_scratch(ctx, object, scratch,
-			build, checksum2)
+			build, checksum)
 		if err5 != nil {
 			return "", nil, nil, err5
 		}
@@ -243,7 +242,7 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 
 	var etag = make_object_etag_from_md5(md5v)
 
-	var csum2, err3 = bbs.compare_checksums(rid, object, scratch, checksum2,
+	var csum2, err3 = bbs.compare_checksums(rid, object, scratch, checksum,
 		md5v, csum1, checks)
 	if err3 != nil {
 		return "", nil, nil, err3
@@ -325,7 +324,7 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 				ETag:       etag,
 				Size:       size,
 				Mtime:      mtime,
-				Checksum:   checksum2,
+				Checksum:   checksum,
 				Csum:       csum,
 			}
 		} else {
@@ -443,7 +442,7 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 	return etag, stat, csum2, nil
 }
 
-func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, scratch string, build build_source, override_checksum2 types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var _, rid = get_action_name(ctx)
 
@@ -517,14 +516,14 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 	}
 
 	var md5v, csumv, err6 = bbs.copy_content_stream(rid, object, scratch,
-		size, source_name, override_checksum2, body2)
+		size, source_name, checksum, body2)
 	if err6 != nil {
 		return nil, nil, err6
 	}
 	return md5v, csumv, err6
 }
 
-func (bbs *Bb_server) link_file_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum2 types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) link_file_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var _, rid = get_action_name(ctx)
 
@@ -546,14 +545,14 @@ func (bbs *Bb_server) link_file_as_scratch(ctx context.Context, object string, s
 		return nil, nil, map_os_error(location, err4, nil)
 	}
 
-	var md5v, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum2, scratch, nil)
+	var md5v, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum, scratch, nil)
 	if err8 != nil {
 		return nil, nil, err8
 	}
 	return md5v, crc1, nil
 }
 
-func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum2 types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var _, rid = get_action_name(ctx)
 
@@ -592,8 +591,8 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string
 			hash_md5 = md5.New()
 			writers = append(writers, hash_md5)
 		}
-		if checksum2 != "" {
-			hash_crc = checksum_algorithm(checksum2)
+		if checksum != "" {
+			hash_crc = checksum_algorithm(checksum)
 			writers = append(writers, hash_crc)
 		}
 		if len(writers) == 1 {
@@ -667,7 +666,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string
 // copying) to a temporary scratch file.  SOURCE_NAME indicates a
 // source object for logging, which is either "--" (uploading) or an
 // object name (copying).
-func (bbs *Bb_server) copy_content_stream(rid uint64, object string, scratch string, size int64, source_name string, checksum2 types.ChecksumAlgorithm, body io.Reader) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) copy_content_stream(rid uint64, object string, scratch string, size int64, source_name string, checksum types.ChecksumAlgorithm, body io.Reader) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(scratch, "")
 
@@ -692,7 +691,7 @@ func (bbs *Bb_server) copy_content_stream(rid uint64, object string, scratch str
 	}()
 
 	var hash1 hash.Hash = md5.New()
-	var hash2 hash.Hash = checksum_algorithm(checksum2)
+	var hash2 hash.Hash = checksum_algorithm(checksum)
 	var f2 io.Writer
 	{
 		if hash2 != nil {

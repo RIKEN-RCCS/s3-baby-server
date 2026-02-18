@@ -147,14 +147,6 @@ func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 	panic("NEVER")
 }
 
-// MAKE_NEW_UPLOAD_ID makes a key string for a upload-id.  Its
-// uniqueness is NOT guaranteed.  It is only by probability.
-func (bbs *Bb_server) make_new_upload_id() string {
-	var r = rand.Uint32()
-	var s = fmt.Sprintf("%08x", r)
-	return s
-}
-
 func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
@@ -163,6 +155,14 @@ func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
 			delete(bbs.suffixes, k)
 		}
 	}
+}
+
+// MAKE_NEW_UPLOAD_ID makes a key string for a upload-id.  Its
+// uniqueness is NOT guaranteed.  It is only by probability.
+func (bbs *Bb_server) make_new_upload_id() string {
+	var r = rand.Uint32()
+	var s = fmt.Sprintf("%08x", r)
+	return s
 }
 
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
@@ -785,94 +785,31 @@ func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
 	}
 }
 
-// DECODE_CHECKSUM_RECORD decodes a checksum record.  It will return
-// nothing silently when no checksum is given.
-func decode_checksum_record(object string, csumset *types.Checksum) (types.ChecksumAlgorithm, []byte, *Aws_s3_error) {
-	var location = "/" + object
-	var checksum types.ChecksumAlgorithm
-	var csum1 *string
-	var count = 0
-	if csumset.ChecksumCRC32 != nil {
-		checksum = types.ChecksumAlgorithmCrc32
-		csum1 = csumset.ChecksumCRC32
-		count++
-	}
-	if csumset.ChecksumCRC32C != nil {
-		checksum = types.ChecksumAlgorithmCrc32c
-		csum1 = csumset.ChecksumCRC32C
-		count++
-	}
-	if csumset.ChecksumCRC64NVME != nil {
-		checksum = types.ChecksumAlgorithmCrc64nvme
-		csum1 = csumset.ChecksumCRC64NVME
-		count++
-	}
-	if csumset.ChecksumSHA1 != nil {
-		checksum = types.ChecksumAlgorithmSha1
-		csum1 = csumset.ChecksumSHA1
-		count++
-	}
-	if csumset.ChecksumSHA256 != nil {
-		checksum = types.ChecksumAlgorithmSha256
-		csum1 = csumset.ChecksumSHA256
-		count++
-	}
-	if csum1 == nil {
-		// No checksum is given.
-		return "", nil, nil
-	}
-	if count >= 2 {
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message:  "Checksum value is multiple times specified.",
-			Resource: location}
-		return "", nil, errz
-	}
-	var csum, err5 = base64.StdEncoding.DecodeString(*csum1)
-	if err5 != nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "Bad checksum encoding.",
-			Resource: location}
-		return "", nil, errz
-	}
-	return checksum, csum, nil
-}
-
-// REJECT_COMPOSITE_CHECKSUM rejects other than the full-object
-// checksum type.  Baby-server can only handle
-// "types.ChecksumTypeFullObject".  The returned checksum is always
-// for full-object.
-func (bbs *Bb_server) reject_composite_checksum(rid uint64, object string, checksumtype types.ChecksumType) *Aws_s3_error {
-	var location = "/" + object
-	if checksumtype != "" && checksumtype != types.ChecksumTypeFullObject {
-		bbs.logger.Info("Checksum by not full-object unsupported",
-			"rid", rid, "checksum-type", checksumtype)
-		var errz = &Aws_s3_error{Code: NotImplemented,
-			Message:  "Checksum by not full-object unsupported.",
-			Resource: location}
-		return errz
-	}
-	return nil
-}
-
+// METAINFO_NULL_FOR_ZERO checks if metainfo is empty.  Metainfo is
+// empty if the slots are zero except an entity-key and an Etag.
 func metainfo_null_for_zero(metainfo *Meta_info) *Meta_info {
 	if metainfo == nil {
 		return nil
-	} else if metainfo.Checksum == "" && metainfo.Csum == "" &&
-		metainfo.Headers == nil && metainfo.Tags == nil {
-		//metainfo.ContentDisposition == nil &&
-		//metainfo.ContentEncoding == nil &&
-		//metainfo.ContentLanguage == nil &&
-		//metainfo.ContentType == nil &&
-		//metainfo.Expires == nil &&
+	} else if metainfo.Checksum == "" &&
+		metainfo.Csum == "" &&
+		metainfo.Headers == nil &&
+		metainfo.Tags == nil &&
+		metainfo.CacheControl == nil &&
+		metainfo.ContentDisposition == nil &&
+		metainfo.ContentEncoding == nil &&
+		metainfo.ContentLanguage == nil &&
+		metainfo.ContentType == nil &&
+		metainfo.Expires == nil {
 		return nil
 	} else {
 		return metainfo
 	}
 }
 
-// METAINFO_MERGE_CONTENT_HEADERS copies the source when given and
-// merges the content header part.
-func metainfo_merge_content_headers(source, h *Meta_info) *Meta_info {
+// MERGE_METAINFO_WITH_CONTENT_HEADERS copies the source when given
+// and merges the content header part.  It returns nil when metainfo
+// is empty.
+func merge_metainfo_with_content_headers(source, h *Meta_info) *Meta_info {
 	var metainfo *Meta_info
 	if source != nil {
 		var m Meta_info = *source
@@ -898,7 +835,7 @@ func metainfo_merge_content_headers(source, h *Meta_info) *Meta_info {
 	if h.Expires != nil {
 		metainfo.Expires = h.Expires
 	}
-	return metainfo
+	return metainfo_null_for_zero(metainfo)
 }
 
 // FIX_ETAG_QUOTING adds double-quotes to an ETag, when some client

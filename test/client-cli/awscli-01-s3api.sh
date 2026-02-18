@@ -210,4 +210,4 @@ ECHO '*** Test delete-bucket'
 
 EXPECT_PASS aws s3api delete-bucket --no-verify-ssl --no-cli-pager --bucket "mybucket1"
 
-ECHO 'TEST DONE.'
+ECHO_TEST_DONE

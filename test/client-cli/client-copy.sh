@@ -39,18 +39,3 @@ EXEC_ECHO ${CLI} rm s3://mybucket1/object2.txt
 EXEC_ECHO ${CLI} rm s3://mybucket1/object3.txt
 EXEC_ECHO ${CLI} rm s3://mybucket1/object4.txt
 EXEC_ECHO ${CLI} rm s3://mybucket1/object5.txt
-
-ECHO "Test mv"
-
-EXEC_ECHO ${CLIPUT} data-01k.txt s3://mybucket1/object1.txt
-EXEC_ECHO ${CLI} mv s3://mybucket1/object1.txt s3://mybucket1/object2.txt
-EXEC_ECHO ${CLIGET} s3://mybucket1/object2.txt "zzz1"
-EXEC_ECHO cmp "zzz1" data-01k.txt
-rm -f "zzz1"
-
-ECHO "Clean up"
-
-EXEC_ECHO ${CLI} rm s3://mybucket1/object1.txt
-EXEC_ECHO ${CLI} buckets delete s3://mybucket1
-
-rm -f "zzz1"

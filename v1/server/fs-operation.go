@@ -448,12 +448,12 @@ func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object stri
 }
 
 // STORE_OBJECT_METAINFO stores a metainfo file.  Passing nil deletes
-// a metainfo file.  IMPORTANT NOTE: USE data=nil HERE FOR CALLING
-// store_json_data().  This is to avoid the issue of typed-nil cannot
-// be compared with untyped-nil.
+// a metainfo file.  IMPORTANT NOTE: USE DATA:ANY TO PASS UNTYPED-NIL
+// TO store_json_data().  This is to avoid the issue of typed-nil
+// cannot be compared with untyped-nil.
 func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, metainfo *Meta_info) *Aws_s3_error {
 	//var location = "/" + object
-	// USE UNTYPED-NIL.
+	// USE UNTYPED-NIL FOR DATA.
 	var data any
 	if metainfo == nil {
 		data = nil

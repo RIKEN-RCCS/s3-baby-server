@@ -224,7 +224,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				return true
 			}
 
-			var csumset3 = types.Checksum{
+			var csumset3 = &types.Checksum{
 				ChecksumType:      types.ChecksumTypeFullObject,
 				ChecksumCRC32:     e.ChecksumCRC32,
 				ChecksumCRC32C:    e.ChecksumCRC32C,
@@ -232,7 +232,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 				ChecksumSHA1:      e.ChecksumSHA1,
 				ChecksumSHA256:    e.ChecksumSHA256,
 			}
-			var checksum3, csum_to_check3, err8 = decode_checksum_record(object, &csumset3)
+			var checksum3, csum_to_check3, err8 = bbs.decode_checksum_union(rid, object, csumset3)
 			if err8 != nil {
 				// IGNORE-ERRORS.
 			}
@@ -271,22 +271,15 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 			" in CompleteMultipartUpload")
 	}
 
-	{
-		var err1 = bbs.reject_composite_checksum(rid, object, i.ChecksumType)
-		if err1 != nil {
-			return nil, err1
-		}
-	}
-
-	var csumset = types.Checksum{
-		ChecksumType:      types.ChecksumTypeFullObject,
+	var csumset = &types.Checksum{
+		ChecksumType:      i.ChecksumType,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
 		ChecksumCRC64NVME: i.ChecksumCRC64NVME,
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
+	var checksum, csum_to_check, err8 = bbs.decode_checksum_union(rid, object, csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -335,7 +328,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 
 	{
 		//var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		//var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+		//var csumset2 *types.Checksum = fill_checksum_union(checksum2, csum2)
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -461,7 +454,6 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	}
 
 	var metainfo *Meta_info
-	var checksum2 types.ChecksumAlgorithm = i.ChecksumAlgorithm
 
 	{
 		metainfo = &Meta_info{}
@@ -487,14 +479,6 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			metainfo.Tags = tagging
 		}
 
-		// Do not copy a checksum value.  It will be calculated.
-
-		if source_metainfo != nil {
-			if checksum2 == "" {
-				checksum2 = source_metainfo.Checksum
-			}
-		}
-
 		var h = &Meta_info{
 			CacheControl:       i.CacheControl,
 			ContentDisposition: i.ContentDisposition,
@@ -503,8 +487,14 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			ContentType:        i.ContentType,
 			Expires:            i.Expires,
 		}
-		metainfo = metainfo_merge_content_headers(metainfo, h)
-		metainfo = metainfo_null_for_zero(metainfo)
+		metainfo = merge_metainfo_with_content_headers(metainfo, h)
+	}
+
+	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
+	if source_metainfo != nil {
+		if checksum == "" {
+			checksum = source_metainfo.Checksum
+		}
 	}
 
 	// NOTE: Checking conditions on the source is not serialized.
@@ -530,15 +520,15 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	var upload_id = ""
 	var part int32 = 0
 	var extent *[2]int64 = nil
-	var etag, stat, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
-		source, source_entity, extent, metainfo, checksum2)
+	var etag, stat, csum, err6 = bbs.copy_object(ctx, object, upload_id, part,
+		source, source_entity, extent, metainfo, checksum)
 	if err6 != nil {
 		return nil, err6
 	}
 
 	var mtime = stat.ModTime()
 
-	var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+	var csumset2 *types.Checksum = fill_checksum_union(checksum, csum)
 
 	o.CopyObjectResult = &types.CopyObjectResult{
 		// types.CopyObjectResult:
@@ -741,23 +731,24 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 			ContentType:        i.ContentType,
 			Expires:            i.Expires,
 		}
-		metainfo = metainfo_merge_content_headers(metainfo, h)
-		metainfo = metainfo_null_for_zero(metainfo)
+		metainfo = merge_metainfo_with_content_headers(metainfo, h)
 	}
+
+	var checksumtype types.ChecksumType
+	var checksum types.ChecksumAlgorithm
 
 	{
 		var err1 = bbs.reject_composite_checksum(rid, object, i.ChecksumType)
 		if err1 != nil {
 			return nil, err1
 		}
-	}
-
-	var checksumtype = types.ChecksumTypeFullObject
-	var checksum = i.ChecksumAlgorithm
-	if checksum == "" {
-		bbs.logger.Info("Fix checksum algorithm by default CRC64NVME",
-			"rid", rid)
-		checksum = types.ChecksumAlgorithmCrc64nvme
+		checksumtype = types.ChecksumTypeFullObject
+		checksum = i.ChecksumAlgorithm
+		if checksum == "" {
+			bbs.logger.Info("Fix checksum algorithm by default CRC64NVME",
+				"rid", rid)
+			checksum = types.ChecksumAlgorithmCrc64nvme
+		}
 	}
 
 	//var scratchkey = bbs.make_scratch_suffix(rid)
@@ -1249,8 +1240,8 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 		return nil, err4
 	}
 
-	// Store an ETag in metainfo when the object is large.  Storing
-	// metainfo serializes accesses inside the routine.
+	// Store an ETag in a metainfo file when the object is large.
+	// Storing metainfo serializes accesses inside the routine.
 
 	if metainfo == nil && size >= byte_size(bbs.config.Etag_save_threshold) {
 		var err6 = bbs.store_etag_as_metainfo(ctx, object, entity, etag)
@@ -1306,7 +1297,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 
 	if i.ChecksumMode == types.ChecksumModeEnabled {
 		var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		var csumset *types.Checksum = fill_checksum_record(checksum2, csum)
+		var csumset *types.Checksum = fill_checksum_union(checksum2, csum)
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -1410,7 +1401,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 		if err8 != nil {
 			return nil, err8
 		}
-		var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
+		var csumset *types.Checksum = fill_checksum_union(checksum, crc1)
 		o.Checksum = csumset
 	}
 	if slices.Contains(attributes, types.ObjectAttributesObjectParts) {
@@ -1636,7 +1627,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 				Resource: location}
 			return nil, errz
 		}
-		var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
+		var csumset *types.Checksum = fill_checksum_union(checksum, crc1)
 
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
@@ -2184,7 +2175,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		if err5 != nil {
 			// IGNORE-ERRORS.
 		}
-		var csumset *types.Checksum = fill_checksum_record(checksum, csum)
+		var csumset *types.Checksum = fill_checksum_union(checksum, csum)
 		// Part is counted by base one.
 		var no = int32(i + 1)
 		var p = types.Part{
@@ -2198,7 +2189,6 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 			// - LastModified *time.Time
 			// - PartNumber *int32
 			// - Size *int64
-
 			ChecksumCRC32:     csumset.ChecksumCRC32,
 			ChecksumCRC32C:    csumset.ChecksumCRC32C,
 			ChecksumCRC64NVME: csumset.ChecksumCRC64NVME,
@@ -2342,7 +2332,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if err7 != nil {
 		return nil, err7
 	}
-	var csumset = types.Checksum{
+	var csumset = &types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
@@ -2350,7 +2340,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset)
+	var checksum, csum_to_check, err8 = bbs.decode_checksum_union(rid, object, csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2380,8 +2370,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 			ContentType:        i.ContentType,
 			Expires:            i.Expires,
 		}
-		metainfo = metainfo_merge_content_headers(metainfo, h)
-		metainfo = metainfo_null_for_zero(metainfo)
+		metainfo = merge_metainfo_with_content_headers(metainfo, h)
 	}
 
 	// SERIALIZE-ACCESSES (in the uploading routine).
@@ -2410,7 +2399,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 	{
 		//var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		//var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+		//var csumset2 *types.Checksum = fill_checksum_union(checksum2, csum2)
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -2588,7 +2577,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	if err7 != nil {
 		return nil, err7
 	}
-	var csumset1 = types.Checksum{
+	var csumset = &types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
@@ -2596,7 +2585,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = decode_checksum_record(object, &csumset1)
+	var checksum, csum_to_check, err8 = bbs.decode_checksum_union(rid, object, csumset)
 	if err8 != nil {
 		return nil, err8
 	}
@@ -2625,7 +2614,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	o.ETag = &etag
 
 	{
-		// var csumset2 *types.Checksum = fill_checksum_record(checksum, csum2)
+		// var csumset2 *types.Checksum = fill_checksum_union(checksum, csum2)
 		// No o.ChecksumType in the output record.
 		// o.ChecksumCRC32 = csumset2.ChecksumCRC32
 		// o.ChecksumCRC32C = csumset2.ChecksumCRC32C
@@ -2763,7 +2752,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 
 	var mtime = stat.ModTime()
 
-	var csumset2 *types.Checksum = fill_checksum_record(checksum2, csum2)
+	var csumset2 *types.Checksum = fill_checksum_union(checksum2, csum2)
 
 	o.CopyPartResult = &types.CopyPartResult{
 		// - ChecksumCRC32 *string
