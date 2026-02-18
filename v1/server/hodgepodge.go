@@ -870,6 +870,37 @@ func metainfo_null_for_zero(metainfo *Meta_info) *Meta_info {
 	}
 }
 
+// METAINFO_MERGE_CONTENT_HEADERS copies the source when given and
+// merges the content header part.
+func metainfo_merge_content_headers(source, h *Meta_info) *Meta_info {
+	var metainfo *Meta_info
+	if source != nil {
+		var m Meta_info = *source
+		metainfo = &m
+	} else {
+		metainfo = &Meta_info{}
+	}
+	if h.CacheControl != nil {
+		metainfo.CacheControl = h.CacheControl
+	}
+	if h.ContentDisposition != nil {
+		metainfo.ContentDisposition = h.ContentDisposition
+	}
+	if h.ContentEncoding != nil {
+		metainfo.ContentEncoding = h.ContentEncoding
+	}
+	if h.ContentLanguage != nil {
+		metainfo.ContentLanguage = h.ContentLanguage
+	}
+	if h.ContentType != nil {
+		metainfo.ContentType = h.ContentType
+	}
+	if h.Expires != nil {
+		metainfo.Expires = h.Expires
+	}
+	return metainfo
+}
+
 // FIX_ETAG_QUOTING adds double-quotes to an ETag, when some client
 // accidentally dropped it.
 func (bbs *Bb_server) fix_etag_quoting(etag *string, rid uint64) *string {

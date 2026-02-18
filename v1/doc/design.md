@@ -19,6 +19,8 @@ generates the server side stubs from the definition in Smithy IDL
 "adhoc-stub-generator" directory.  Use Gnu-Guile (v3) to run
 "stub.scm".  Guile is a dialect of Scheme language.
 
+----------------
+
 ## Server Control
 
 Baby-server handles POST calls on "/bbs.ctl/quit" and "/bbs.ctl/stat",
@@ -27,7 +29,25 @@ logger at level=INFO.  Since these commands are not AWS-S3 operations,
 it cannot be requested by AWS-CLI.  See "control-client.go" code in
 "test/minima" to issue these commands.
 
-----------------
+## Metainfo File
+
+Baby-server stores meta-information in a meta-file named "." +
+object-name + "@meta".  This file is created when:
+
+  - an object is large, to avoid MD5 calculation for an ETag
+  - an object has a checksum value
+  - an object has a tags or metadata headers
+
+An object usually has a meta-file because it is uploaded with a
+checksum value.
+
+A meta-file is usually created at uploading.  However, a meta-file
+(for an existing file) will be created when an access occurs on the
+object (including HEAD/GET accesses).  Baby-server won't remove the
+meta-file when a smaller object replaces the object.
+
+Baby-server keeps the association of a meta-file to a data-file by
+recoding an entity-key in the meta-file.
 
 ## Exclusion (Serialization)
 
@@ -112,9 +132,6 @@ http.ServeMux (go-1.25).  http.ServeMux's pattern matcher treats
 "/{bucket}/" wouldn't match both "/{bucket}" and "/{bucket}/" as we
 hoped for.  The pattern "/{bucket}/{$}" wouldn't work either.
 
-Note some S3 clients may attach a slash to a bucket name.  "s3cmd" and
-MinIO client "mc" do, for example.
-
 ### Fixing an ETag Quoting
 
 Baby-server may attach double-qoutes to an ETag when it misses qoutes.
@@ -137,9 +154,10 @@ does, for example.
 
 ## Error Responses
 
-Baby-server returns 500-Internal-Server-Error on a race condition,
-expecting client retries.  Races in Baby-server are modifying files
-during API actions, which are usually recovered by retries.
+Baby-server returns an "InternalError" (500-Internal-Server-Error) on
+a race condition, expecting client retries.  Races in Baby-server
+occur in modifying files during API actions, which are usually
+recovered by retries.
 
 Error responses are defined in
 [Error Responses](https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html)
@@ -474,7 +492,13 @@ is to implement an "io.ReadCloser".
 
 ----------------
 
-## MEMO: Client Oddities
+## Client Oddities
+
+### Trailing Slashes
+
+Many S3 clients may attach a slash (or multiple slashes) at the end of
+a URL path of a bucket or an object name.  MinIO client "mc", "s3cmd",
+and "s3fs-fuse" do, for example.
 
 ### MinIO MC
 
@@ -482,7 +506,6 @@ is to implement an "io.ReadCloser".
 - CreateMultipartUpload: "POST /mybucket1/object2.txt?uploads="
 
 ----------------
-
 
 ## MEMO: CODING CONVENTION
 
@@ -497,6 +520,19 @@ of filepath.Clean() or filepath.Join().
 Note os-dependence of paths by stdlib packages.
   - os-independent: "path", "io/fs"
   - os-dependent: "path/filepath", "os"
+
+----------------
+
+## MEMO: WINDOWS
+
+An inode number is used for creating an "entity-key" which is an
+identity of a file in Baby-server.  The code in stdlib's os.SameFile()
+takes an inode number from fs.FileInfo.  It uses sameFile() and
+loadFileId() in "src/os/types_windows.go".  However, they use
+internals of fs.FileInfo and cannot be easily imitated from outside of
+the package.
+
+  - https://pkg.go.dev/syscall?GOOS=windows
 
 ----------------
 

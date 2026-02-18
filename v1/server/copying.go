@@ -31,8 +31,8 @@ import (
 )
 
 type copy_checks struct {
-	size_to_check int64
 	checksum      types.ChecksumAlgorithm
+	size_to_check int64
 	md5_to_check  []byte
 	csum_to_check []byte
 }

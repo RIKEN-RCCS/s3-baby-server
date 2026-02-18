@@ -303,8 +303,8 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	// SERIALIZE-ACCESSES (in the concatenation routine).
 
 	var checks = copy_checks{
-		size_to_check: size_to_check,
 		checksum:      checksum,
+		size_to_check: size_to_check,
 		csum_to_check: csum_to_check,
 	}
 	var conditions = copy_conditions{
@@ -443,14 +443,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			return nil, err1
 		}
 
-		var ignored = option_check_list{
-			CacheControl: i.CacheControl,
-			// i.ContentDisposition *string
-			// i.ContentEncoding *string
-			// i.ContentLanguage *string
-			// i.ContentType *string
-			// i.Expires *time.Time
-		}
+		var ignored = option_check_list{}
 		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
@@ -467,13 +460,8 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 		return nil, err22
 	}
 
-	var checksum2 types.ChecksumAlgorithm = i.ChecksumAlgorithm
-	//if checksum2 == "" {
-	//	checksum2 = types.ChecksumAlgorithmCrc64nvme
-	//}
-
 	var metainfo *Meta_info
-	//var checksum2 types.ChecksumAlgorithm
+	var checksum2 types.ChecksumAlgorithm = i.ChecksumAlgorithm
 
 	{
 		metainfo = &Meta_info{}
@@ -499,31 +487,23 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 			metainfo.Tags = tagging
 		}
 
+		// Do not copy a checksum value.  It will be calculated.
+
 		if source_metainfo != nil {
 			if checksum2 == "" {
 				checksum2 = source_metainfo.Checksum
 			}
-
-			// (* Copy a checksum.  Note calculating a checksum needed
-			// later, when metainfo.Csum="" but metainfo.Checksum is
-			// specified. *)
-
-			if checksum2 == source_metainfo.Checksum {
-				metainfo.Checksum = source_metainfo.Checksum
-				metainfo.Csum = source_metainfo.Csum
-			} else {
-				// Note calculating a checksum later needed.
-				metainfo.Checksum = checksum2
-				metainfo.Csum = ""
-			}
 		}
 
-		//metainfo1.ContentDisposition = i.ContentDisposition
-		//metainfo1.ContentEncoding = i.ContentEncoding
-		//metainfo1.ContentLanguage = i.ContentLanguage
-		//metainfo1.ContentType = i.ContentType
-		//metainfo1.Expires = i.Expires
-
+		var h = &Meta_info{
+			CacheControl:       i.CacheControl,
+			ContentDisposition: i.ContentDisposition,
+			ContentEncoding:    i.ContentEncoding,
+			ContentLanguage:    i.ContentLanguage,
+			ContentType:        i.ContentType,
+			Expires:            i.Expires,
+		}
+		metainfo = metainfo_merge_content_headers(metainfo, h)
 		metainfo = metainfo_null_for_zero(metainfo)
 	}
 
@@ -658,12 +638,8 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	var path = bbs.make_path_of_bucket(bucket)
 	var err3 = os.Mkdir(path, 0755)
 	if err3 != nil {
-		// Note the error on existing path is fs.PathError and not
+		// Note the error on an existing path is fs.PathError and not
 		// fs.ErrExist.
-
-		/*if errors.As(err2, &err3) {*/
-		/*if !errors.Is(err2, fs.ErrExist) {*/
-		/*var err4, ok = err3.Err.(syscall.Errno)*/
 
 		bbs.logger.Debug("os.Mkdir() for bucket failed",
 			"rid", rid, "path", path, "error", err3)
@@ -733,14 +709,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 			return nil, err1
 		}
 
-		var ignored = option_check_list{
-			CacheControl: i.CacheControl,
-			// i.ContentDisposition *string
-			// i.ContentEncoding *string
-			// i.ContentLanguage *string
-			// i.ContentType *string
-			// i.Expires *time.Time
-		}
+		var ignored = option_check_list{}
 		bbs.check_options_ignored(action, rid, location, &ignored)
 	}
 
@@ -764,6 +733,16 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 		} else {
 			metainfo = nil
 		}
+		var h = &Meta_info{
+			CacheControl:       i.CacheControl,
+			ContentDisposition: i.ContentDisposition,
+			ContentEncoding:    i.ContentEncoding,
+			ContentLanguage:    i.ContentLanguage,
+			ContentType:        i.ContentType,
+			Expires:            i.Expires,
+		}
+		metainfo = metainfo_merge_content_headers(metainfo, h)
+		metainfo = metainfo_null_for_zero(metainfo)
 	}
 
 	{
@@ -1652,21 +1631,12 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 			bbs.logger.Info("hex.DecodeString() on metainfo checksum failed",
 				"rid", rid, "error", err1)
 			var errz = &Aws_s3_error{
-				Code:     InternalError,
+				Code:     InvalidObjectState,
 				Message:  "Metainfo file broken.",
 				Resource: location}
 			return nil, errz
 		}
 		var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
-
-		/*
-			var checksum = types.ChecksumAlgorithmCrc64nvme
-			var _, crc1, _, err8 = bbs.calculate_csum2(rid, object, checksum, object, nil)
-			if err8 != nil {
-				return nil, err8
-			}
-			var csumset *types.Checksum = fill_checksum_record(checksum, crc1)
-		*/
 
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
@@ -2352,12 +2322,6 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 
 		var ignored = option_check_list{
 			CacheControl: i.CacheControl,
-			// i.ContentDisposition *string
-			// i.ContentEncoding *string
-			// i.ContentLanguage *string
-			// i.ContentType *string
-			// i.Expires *time.Time
-			// i.ContentType *string
 			// i.GrantFullControl *string
 			// i.GrantRead *string
 			// i.GrantReadACP *string
@@ -2400,14 +2364,24 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		if err1 != nil {
 			return nil, err1
 		}
-		metainfo = metainfo_null_for_zero(&Meta_info{
+		metainfo = &Meta_info{
 			Entity_key: "",
 			ETag:       "",
 			Checksum:   checksum,
 			Csum:       csum,
 			Headers:    headers,
 			Tags:       tagging,
-		})
+		}
+		var h = &Meta_info{
+			CacheControl:       i.CacheControl,
+			ContentDisposition: i.ContentDisposition,
+			ContentEncoding:    i.ContentEncoding,
+			ContentLanguage:    i.ContentLanguage,
+			ContentType:        i.ContentType,
+			Expires:            i.Expires,
+		}
+		metainfo = metainfo_merge_content_headers(metainfo, h)
+		metainfo = metainfo_null_for_zero(metainfo)
 	}
 
 	// SERIALIZE-ACCESSES (in the uploading routine).
@@ -2415,8 +2389,8 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	var part int32 = 0
 	var upload_id = ""
 	var checks = copy_checks{
-		size_to_check: size_to_check,
 		checksum:      checksum,
+		size_to_check: size_to_check,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}
@@ -2636,8 +2610,8 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 
 	var metainfo *Meta_info = nil
 	var checks = copy_checks{
-		size_to_check: size_to_check,
 		checksum:      checksum,
+		size_to_check: size_to_check,
 		md5_to_check:  md5_to_check,
 		csum_to_check: csum_to_check,
 	}

@@ -15,21 +15,22 @@ import (
 
 // Meta-information associated to an object.  It is stored in a hidden
 // file in json.  Entity_key is used to check the validity of
-// information.  ETag stores an MD5 sum.  Checksum stores a checksum.
-// Headers stores "x-amz-meta-".  Tags stores tagging tags.
+// information.  ETag stores an MD5 sum.  Csum stores a checksum.
+// Headers stores "x-amz-meta-".  Tags stores tagging tags.  The part
+// of content-headers is stored but not used.
 type Meta_info struct {
-	Entity_key string                  `json:"entity-key"`
-	ETag       string                  `json:"etag"`
-	Checksum   types.ChecksumAlgorithm `json:"checksum"`
-	Csum       string                  `json:"csum"`
-	Headers    map[string]string       `json:"headers"`
-	Tags       *types.Tagging          `json:"tags"`
-
-	//ContentDisposition *string
-	//ContentEncoding    *string
-	//ContentLanguage    *string
-	//ContentType        *string
-	//Expires            *time.Time
+	Entity_key         string                  `json:"entity-key"`
+	ETag               string                  `json:"etag"`
+	Checksum           types.ChecksumAlgorithm `json:"checksum"`
+	Csum               string                  `json:"csum"`
+	Headers            map[string]string       `json:"headers"`
+	Tags               *types.Tagging          `json:"tags"`
+	CacheControl       *string                 `json:"cache-control"`
+	ContentDisposition *string                 `json:"content-disposition"`
+	ContentEncoding    *string                 `json:"content-encoding"`
+	ContentLanguage    *string                 `json:"content-language"`
+	ContentType        *string                 `json:"content-type"`
+	Expires            *time.Time              `json:"expires"`
 }
 
 // MPUL-Information.  It is stored as a file "info" in an MPUL

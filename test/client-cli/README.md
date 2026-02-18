@@ -2,11 +2,6 @@
 
 ## Prerequisite
 
-## Tests by bbs-ctl
-
-"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
-the server.
-
 ## Test by AWS-CLI
 
 Run a test by:
@@ -192,19 +187,23 @@ Configuration of "mc" is stored in "~/.mc/config.json".
 
 ## Test by s3cmd
 
+Note s3cmd "mv" does not work in our test.  Uncertain, but, it seems
+it needs some ACL definition retured from the server side.
+
 ### Setup and Run a Simple Test
 
 ```
 s3cmd --configure
 ```
 
-"~/.s3cfg"
+"~/.s3cfg" needs the following fields, at least.
 
 ```
 host_base = localhost:9000
-website_endpoint = http://localhost:9000/
 access_key = abcdefghijklmnopqrstuvwxyz
-access_token = abcdefghijklmnopqrstuvwxyz
+secret_key = abcdefghijklmnopqrstuvwxyz
+access_token =
+website_endpoint =
 ```
 
 #### Installing s3cmd
@@ -227,61 +226,25 @@ Successfully installed python-magic-0.4.27 s3cmd-2.4.0
 
 ## Test by s3fs-fuse
 
-#### Installing s3fs-fuse
+### Setup and Mount
 
-  apt install s3fs
+Usage to mount the fs is described in:
+"https://github.com/s3fs-fuse/s3fs-fuse"
+
+```
+echo abcdefghijklmnopqrstuvwxyz:abcdefghijklmnopqrstuvwxyz > ~/.passwd-s3fs
+chmod 600 ~/.passwd-s3fs
+
+mkdir ~/mnt
+s3fs mybucket1 ~/mnt -o url=http://localhost:9000/ -o use_path_request_style -o passwd_file=~/.passwd-s3fs
+```
+
+### Installing s3fs-fuse
+
+```
+dnf install s3fs-fuse
+```
+
+"s3fs-fuse" is in EPEL.
 
 ### (Tests by WinSCP)
-
-----------------
-
-# Other Tests
-
-This uses GNU-Guile (Scheme language), requiring guile-3.0.9 or later,
-as it uses "spawn" to run subprocesses.
-
-## artifact-bottom.json
-
-- Testing the "bottom" set needs to start with an empty bucket-pool.
-- Bucket-pool may contain dot files (e.g., ".something").
-
-## Note
-
-In AWC CLI, the "s3" command returns a non-json string, while the
-"s3api" command returns json.  Note "--output json" on "s3" command
-does not work.
-
-## Tools
-
-- "http-snoop-proxy.sh": It runs a proxy that dumps http traffic:
-port=9001 (client side) to port=9000 (server side).
-
-## TODO: CHECK ERROR CASES
-
-- CompleteMultipartUpload operation: "EntityTooSmallError"
-
-----------------
-
-## Miscellaneous Memo
-
-### MEMO: json Pattern Matching
-
-Values are one of the following data types in json:
-
-- string
-- number
-- object
-- array
-- boolean
-- null
-
-### MEMO
-
-Bucket owner should be something like
-
-```
-"Owner": {
-    "DisplayName": "minio",
-    "ID": "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
-}
-```
