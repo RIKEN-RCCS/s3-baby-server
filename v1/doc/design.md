@@ -93,22 +93,24 @@ renamed to an actual file.
 ### Exclusion Details
 
 - Accesses to an object file and a meta-info file are serialized by an
-  object name.  It is needed to keep correspondence between an object
-  and its meta-info.
+  object name.
 
-- Deletion of an object and its meta-info is not atomic.  Baby-server
-  performs a deletion of a meta-info first and an errro in a deletion
-  of an object may leave an object without meta-info.
+- Deletion of an object file and its meta-info file is not atomic.
+  Baby-server performs a deletion of a meta-info file first.  An errro
+  in a deletion of an object may leave an object without meta-info.
 
-- Deletion of buckets/objects are slack.  Deletion is serialized after
-  checking conditions.
-
-- Listing of objects and parts (of multipart uploads) are slack.
-  Listing is performed without serialization.
+- Listing of objects and parts of MPUL are slack.  Listing is
+  performed without serialization.
 
 - Operations between buckets and objects are not serialized.
   Exclusion is based on a bucket or on an object.  A bucket can be
   removed while operations on objects are in progress.
+
+- Contrary to the above description, a catalog file, which is named
+  "list" and stored in the temporary directory for MPUL, has an access
+  race in uploading parts and MPUL completion.  The code for uploading
+  a part does not store the catalog file atomically.  MPUL completion
+  code checks the contents in the catalog file without serialization.
 
 ----------------
 

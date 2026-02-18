@@ -400,54 +400,7 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 		}
 	}
 
-	/*
-		var entity string
-		var stat fs.FileInfo
-		var mtime time.Time
-		var size int64
-	*/
-
 	{
-		/*
-			var err7 *Aws_s3_error
-			entity, stat, err7 = bbs.fetch_object_status(rid, scratch, true)
-			if err7 != nil {
-				return "", nil, nil, err7
-			}
-			bb_assert(stat != nil)
-
-			size = stat.Size()
-			mtime = stat.ModTime()
-
-			// Insert an ETag into metainfo.  It stores metainfo, when the
-			// object is large.
-
-			var metainfo2 *Meta_info = nil
-			if part != 0 {
-				metainfo2 = nil
-			} else {
-				if metainfo != nil {
-					metainfo2 = &Meta_info{
-						Entity_key:         entity,
-						ETag:               etag,
-						Checksum_algorithm: metainfo.Checksum_algorithm,
-						Checksum:           metainfo.Checksum,
-						Headers:            metainfo.Headers,
-						Tags:               metainfo.Tags,
-					}
-				} else if size >= byte_size(bbs.config.Etag_save_threshold) {
-					metainfo2 = &Meta_info{
-						Entity_key:         entity,
-						ETag:               etag,
-						Checksum_algorithm: "",
-						Checksum:           "",
-						Headers:            nil,
-						Tags:               nil,
-					}
-				}
-			}
-		*/
-
 		var err6 = bbs.place_scratch_file(rid, object, scratch,
 			target, metainfo, (build.op == BUILD_LINK))
 		if err6 != nil {
@@ -537,19 +490,6 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 				body2 = bodyc
 			}
 		}
-
-		/*
-			var enc = r.TransferEncoding
-			if len(enc) == 1 && strings.EqualFold(enc[0], "chunked") {
-				bbs.logger.Debug("Transfer-Encoding chunked",
-					"rid", rid, "object", object)
-				body2 = httputil.NewChunkedReader(body1)
-			} else if size != -1 {
-				body2 = &io.LimitedReader{R: body1, N: size}
-			} else {
-				body2 = body1
-			}
-		*/
 	} else if build.op == BUILD_COPY {
 		var source = build.copy.source
 		var extent = build.copy.extent
@@ -621,8 +561,6 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string
 
 	var partlist *types.CompletedMultipartUpload = build.concat.partlist
 	var mpul *Mpul_info = build.concat.mpul
-
-	/*bbs.logger.Warn("IMPLEMENTATION OF CONCAT_PARTS() IS NAIVE AND SLOW")*/
 
 	// Copy data to a temporary file.
 
