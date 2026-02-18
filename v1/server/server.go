@@ -148,16 +148,16 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var ctx2 = context.WithValue(ctx1, "handler-data", frame)
 	var r2 = r.WithContext(ctx2)
 
-	// Drop the trailing-slash in the path by rewriting.  Some clients
-	// attach a slash-suffix to the bucket name.
+	// Drop (multiple) trailing-slashes in the path by rewriting.
+	// Some clients attach a slash-suffix to bucket/object name.
 
 	if !sv.bbs.config.Keep_trailing_slash {
 		if r2.URL.Path != "/" && strings.HasSuffix(r2.URL.Path, "/") {
-			sv.bbs.logger.Debug("Drop a trailing-slash in url",
+			sv.bbs.logger.Debug("Drop trailing-slashes in url",
 				"request", request)
 			var r2url url.URL = *r2.URL
 			r2.URL = &r2url
-			r2.URL.Path = strings.TrimSuffix(r2.URL.Path, "/")
+			r2.URL.Path = strings.TrimRight(r2.URL.Path, "/")
 		}
 	}
 
