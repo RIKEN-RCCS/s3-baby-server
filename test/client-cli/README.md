@@ -1,5 +1,20 @@
 # Test by S3 Clients
 
+## Prerequisite: Running s3-baby-server
+
+```
+./s3-baby-server serve 127.0.0.1:9000 ~/pool --cred s3baby,s3baby
+```
+
+For data files used in tests, run `make data-files`, which will make
+files of sizes 1k, 8k, 8m, 20m, and 1g.
+
+For testing https, run `make crt`, which creates a self-signed
+certificate.
+
+Attaching options at the tail of the command line `--log debug
+--log-access --prof 6060` may be helpful.
+
 ## AWS-CLI
 
 ### Running a Test
@@ -208,7 +223,7 @@ website_endpoint =
 sh client-s3cmd.sh
 ```
 
-#### Installing s3cmd
+### Installing s3cmd
 
 https://github.com/s3tools/s3cmd
 (https://s3tools.org/s3cmd)
