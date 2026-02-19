@@ -29,7 +29,7 @@ func bb_assert(c bool) {
 	}
 }
 
-type suffix_record struct {
+type scratch_suffix struct {
 	rid       uint64
 	timestamp time.Time
 }
@@ -66,7 +66,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
 	}
-	var action, rid = get_action_name(ctx)
+	var action, rid, _ = get_action_name(ctx)
 	bbs.logger.Info("Error in action",
 		"action", action, "rid", rid, "code", string(e1.Code), "error", e1)
 
@@ -119,7 +119,7 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 // COPE_WITH_WRITE_ERROR is called on a write error of response
 // payload and makes a response for it.
 func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
-	var action, rid = get_action_name(ctx)
+	var action, rid, _ = get_action_name(ctx)
 	bbs.logger.Info("Writing response failed",
 		"action", action, "rid", rid, "error", e)
 }
@@ -136,7 +136,7 @@ func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 		var s = "@" + fmt.Sprintf("%06x", r)[:6]
 		var _, ok = bbs.suffixes[s]
 		if !ok {
-			bbs.suffixes[s] = suffix_record{rid, time.Now()}
+			bbs.suffixes[s] = scratch_suffix{rid, time.Now()}
 			return s
 		}
 		loops++
@@ -147,7 +147,7 @@ func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 	panic("NEVER")
 }
 
-func (bbs *Bb_server) discharge_scratch_suffix(rid uint64) {
+func (bbs *Bb_server) discharge_scratch_suffix(rid uint64, suffix string) {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	for k, v := range bbs.suffixes {

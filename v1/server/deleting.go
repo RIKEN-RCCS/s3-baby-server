@@ -15,7 +15,7 @@ import (
 
 func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditions copy_conditions) *Aws_s3_error {
 	var location = "/" + object
-	var _, rid = get_action_name(ctx)
+	var _, rid, suffix = get_action_name(ctx)
 
 	var entity string
 	var etag string
@@ -64,7 +64,7 @@ func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditio
 			return err7
 		}
 
-		var err1 = bbs.store_object_metainfo(rid, object, nil)
+		var err1 = bbs.store_object_metainfo(rid, object, suffix, nil)
 		if err1 != nil {
 			// IGNORE-ERRORS.
 		}

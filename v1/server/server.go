@@ -45,7 +45,7 @@ type Bb_server struct {
 	access_logging *os.File
 
 	rid_past uint64
-	suffixes map[string]suffix_record
+	suffixes map[string]scratch_suffix
 	monitor1 *Monitor
 	mutex    sync.Mutex
 
@@ -98,12 +98,17 @@ type Bb_configuration struct {
 	MaxHeaderBytes    int           `json:"MaxHeaderBytes"`
 }
 
-// HANDLER_DATA is a record of handler context.
-type Handler_data struct {
+// HANDLER_FRAME is a request-specific record stored in the context
+// under the key "hander-frame".
+type Handler_frame struct {
 	Request_id     uint64
+	Scratch_suffix string
 	ResponseWriter http.ResponseWriter
 	Request        *http.Request
 }
+
+const action_name_key string = "action-name"
+const handler_frame_key string = "hander-frame"
 
 // H_LIMIT_OF_XML_PARAMETERS limits the size of XML parameters
 // in a request body.
@@ -125,6 +130,8 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var start_time = time.Now()
 
 	var rid = sv.bbs.make_request_id()
+	var suffix = sv.bbs.make_scratch_suffix(rid)
+	defer sv.bbs.discharge_scratch_suffix(rid, suffix)
 
 	var auth, err1 = sv.bbs.attest_authorization(w, r)
 	if err1 != nil {
@@ -140,12 +147,13 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var w2 = &httpaide.ResponseWriter2{ResponseWriter: w}
 	var ctx1 = r.Context()
-	var frame = &Handler_data{
+	var frame = &Handler_frame{
 		Request_id:     rid,
+		Scratch_suffix: suffix,
 		ResponseWriter: w,
 		Request:        r,
 	}
-	var ctx2 = context.WithValue(ctx1, "handler-data", frame)
+	var ctx2 = context.WithValue(ctx1, handler_frame_key, frame)
 	var r2 = r.WithContext(ctx2)
 
 	// Drop (multiple) trailing-slashes in the path by rewriting.
@@ -306,7 +314,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		config:         config,
 		logger:         logger,
 		access_logging: access_logging}
-	bbs.suffixes = make(map[string]suffix_record)
+	bbs.suffixes = make(map[string]scratch_suffix)
 	bbs.server_quit = make(chan struct{})
 	bbs.monitor1 = New_monitor()
 	go bbs.monitor1.guard_loop()
@@ -358,24 +366,24 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	}
 }
 
-func get_action_name(ctx context.Context) (string, uint64) {
-	var action = ctx.Value("action-name").(*string)
+func get_action_name(ctx context.Context) (string, uint64, string) {
+	var action = ctx.Value(action_name_key).(*string)
 	if action == nil {
 		log.Fatal("BAD-IMPL: action-name not set")
-		return "", 0
+		return "", 0, ""
 	}
-	var frame = ctx.Value("handler-data").(*Handler_data)
+	var frame = ctx.Value(handler_frame_key).(*Handler_frame)
 	if frame == nil {
-		log.Fatal("BAD-IMPL: handler-data not set")
-		return "", 0
+		log.Fatal("BAD-IMPL: Context hander-frame not set")
+		return "", 0, ""
 	}
-	return *action, frame.Request_id
+	return *action, frame.Request_id, frame.Scratch_suffix
 }
 
 func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Request) {
-	var frame = ctx.Value("handler-data").(*Handler_data)
+	var frame = ctx.Value(handler_frame_key).(*Handler_frame)
 	if frame == nil {
-		log.Fatal("BAD-IMPL: handler-data not set")
+		log.Fatal("BAD-IMPL: Context hander-frame not set")
 		return nil, nil
 	}
 	return frame.ResponseWriter, frame.Request

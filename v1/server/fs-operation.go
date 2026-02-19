@@ -180,7 +180,7 @@ func (bbs *Bb_server) check_bucket_directory_exists(rid uint64, bucket string) *
 // CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL and
 // populates it with an info file.  It may overtake an existing
 // directory when it already exists, and rewrites its upload-id.
-func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, mpul *Mpul_info) *Aws_s3_error {
+func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix string, mpul *Mpul_info) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "@mpul")
 
@@ -247,7 +247,7 @@ func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, mpul *Mpu
 
 	// Store MPUL data.
 
-	var err5 = bbs.store_mpul_info(rid, object, mpul)
+	var err5 = bbs.store_mpul_info(rid, object, suffix, mpul)
 	if err5 != nil {
 		return err5
 	}
@@ -372,8 +372,8 @@ func (bbs *Bb_server) check_path_is_link_free(rid uint64, object string) *Aws_s3
 }
 
 // FETCH_OBJECT_METAINFO fetches a metainfo file.  It returns nil if
-// metainfo file does not exist or outdated.  (The object path is
-// guaranteed for its properness by the caller).
+// metainfo file does not exist or outdated.  The object path is an
+// os-dependent path.
 func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity string) (*Meta_info, *Aws_s3_error) {
 	//var location = "/" + object
 	var path = bbs.make_path_of_object(object, "@meta")
@@ -398,7 +398,7 @@ func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity st
 // STORE_ETAG_AS_METAINFO() stores an ETag in metainfo (it is
 // otherwise empty).  It is called when the object is large.  Storing
 // metainfo serializes accesses inside the routine.
-func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string, entity string, etag string) *Aws_s3_error {
+func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string, suffix string, entity string, etag string) *Aws_s3_error {
 	var metainfo2 = &Meta_info{
 		Entity_key: entity,
 		ETag:       etag,
@@ -407,7 +407,7 @@ func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string,
 		Headers:    nil,
 		Tags:       nil,
 	}
-	var err6 = bbs.store_metainfo_serialized(ctx, object, metainfo2)
+	var err6 = bbs.store_metainfo_serialized(ctx, object, suffix, metainfo2)
 	if err6 != nil {
 		return err6
 	}
@@ -417,9 +417,9 @@ func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string,
 // STORE_METAINFO_SERIALIZED calls store_object_metainfo() after
 // serialization.  It check the entity-key as the object is not
 // outdated.
-func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object string, metainfo *Meta_info) *Aws_s3_error {
+func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object string, suffix string, metainfo *Meta_info) *Aws_s3_error {
 	var location = "/" + object
-	var _, rid = get_action_name(ctx)
+	var _, rid, _ = get_action_name(ctx)
 
 	// SERIALIZE-ACCESSES.
 
@@ -443,7 +443,7 @@ func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object stri
 			Resource: location}
 		return errz
 	}
-	var err7 = bbs.store_object_metainfo(rid, object, metainfo)
+	var err7 = bbs.store_object_metainfo(rid, object, suffix, metainfo)
 	return err7
 }
 
@@ -451,7 +451,7 @@ func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object stri
 // a metainfo file.  IMPORTANT NOTE: USE DATA:ANY TO PASS UNTYPED-NIL
 // TO store_json_data().  This is to avoid the issue of typed-nil
 // cannot be compared with untyped-nil.
-func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, metainfo *Meta_info) *Aws_s3_error {
+func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, suffix string, metainfo *Meta_info) *Aws_s3_error {
 	//var location = "/" + object
 	// USE UNTYPED-NIL FOR DATA.
 	var data any
@@ -461,7 +461,7 @@ func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, metainfo 
 		data = metainfo
 	}
 	var path = bbs.make_path_of_object(object, "@meta")
-	var err5 = bbs.store_json_data(rid, object, path, data)
+	var err5 = bbs.store_json_data(rid, object, path, suffix, data)
 	if err5 != nil {
 		return err5
 	}
@@ -516,18 +516,18 @@ func (bbs *Bb_server) fetch_mpul_info(rid uint64, object string, serializing boo
 	return &mpul, nil
 }
 
-func (bbs *Bb_server) store_mpul_info(rid uint64, object string, mpul *Mpul_info) *Aws_s3_error {
+func (bbs *Bb_server) store_mpul_info(rid uint64, object string, suffix string, mpul *Mpul_info) *Aws_s3_error {
 	//var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
-	var err5 = bbs.store_json_data(rid, object, path, mpul)
+	var err5 = bbs.store_json_data(rid, object, path, suffix, mpul)
 	if err5 != nil {
 		return err5
 	}
 	return nil
 }
 
-func (bbs *Bb_server) update_mpul_catalog(rid uint64, object string, part int32, partinfo *Mpul_part) *Aws_s3_error {
+func (bbs *Bb_server) update_mpul_catalog(rid uint64, object string, part int32, suffix string, partinfo *Mpul_part) *Aws_s3_error {
 	var catalog, err4 = bbs.fetch_mpul_catalog(rid, object)
 	if err4 != nil {
 		return err4
@@ -538,7 +538,7 @@ func (bbs *Bb_server) update_mpul_catalog(rid uint64, object string, part int32,
 		catalog.Parts = append(catalog.Parts, adds...)
 	}
 	catalog.Parts[part-1] = *partinfo
-	var err8 = bbs.store_mpul_catalog(rid, object, catalog)
+	var err8 = bbs.store_mpul_catalog(rid, object, suffix, catalog)
 	if err8 != nil {
 		return err8
 	}
@@ -565,11 +565,11 @@ func (bbs *Bb_server) fetch_mpul_catalog(rid uint64, object string) (*Mpul_catal
 	return &catalog, nil
 }
 
-func (bbs *Bb_server) store_mpul_catalog(rid uint64, object string, catalog *Mpul_catalog) *Aws_s3_error {
+func (bbs *Bb_server) store_mpul_catalog(rid uint64, object string, suffix string, catalog *Mpul_catalog) *Aws_s3_error {
 	//var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "list")
-	var err5 = bbs.store_json_data(rid, object, path, catalog)
+	var err5 = bbs.store_json_data(rid, object, path, suffix, catalog)
 	if err5 != nil {
 		return err5
 	}
@@ -577,7 +577,8 @@ func (bbs *Bb_server) store_mpul_catalog(rid uint64, object string, catalog *Mpu
 }
 
 // FETCH_JSON_DATA fetches the content in a metainfo file.  It returns
-// io.EOF when the file does not exist.
+// io.EOF when the file does not exist.  The path is an os-dependent
+// path.
 func (bbs *Bb_server) fetch_json_data(rid uint64, object, path string, data any) error {
 	var location = "/" + object
 	var f1, err1 = os.Open(path)
@@ -617,8 +618,9 @@ func (bbs *Bb_server) fetch_json_data(rid uint64, object, path string, data any)
 }
 
 // STORE_JSON_DATA stores the data in a metainfo file.  It removes a
-// metainfo file when data=nil.
-func (bbs *Bb_server) store_json_data(rid uint64, object, path string, data any) *Aws_s3_error {
+// metainfo file when data=nil.  It once create a file as a temporary,
+// then remanes.  The path is an os-dependent path.
+func (bbs *Bb_server) store_json_data(rid uint64, object, path string, suffix string, data any) *Aws_s3_error {
 	var location = "/" + object
 	if data == nil {
 		// Remove a metainfo file if exists.
@@ -641,11 +643,13 @@ func (bbs *Bb_server) store_json_data(rid uint64, object, path string, data any)
 		}
 		return nil
 	} else {
-		var f1, err1 = os.Create(path)
+		var scratchpath = (path + suffix)
+		var f1, err1 = os.Create(scratchpath)
 		if err1 != nil {
 			var datatype = fmt.Sprintf("%T", data)
 			bbs.logger.Warn("os.Create() on storing metafile failed",
-				"rid", rid, "path", path, "type", datatype, "error", err1)
+				"rid", rid, "path", scratchpath, "type", datatype,
+				"error", err1)
 			return map_os_error(location, err1, nil)
 		}
 		var cleanup_needed = true
@@ -653,13 +657,13 @@ func (bbs *Bb_server) store_json_data(rid uint64, object, path string, data any)
 			var err2 = f1.Close()
 			if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
 				bbs.logger.Warn("fs.File.Close() on storing metafile failed",
-					"rid", rid, "path", path, "error", err2)
+					"rid", rid, "path", scratchpath, "error", err2)
 			}
 			if cleanup_needed {
-				var err3 = os.Remove(path)
+				var err3 = os.Remove(scratchpath)
 				if err3 != nil {
 					bbs.logger.Warn("os.Remove() on storing metafile failed",
-						"rid", rid, "path", path, "error", err3)
+						"rid", rid, "path", scratchpath, "error", err3)
 				}
 			}
 		}()
@@ -669,10 +673,21 @@ func (bbs *Bb_server) store_json_data(rid uint64, object, path string, data any)
 		if err4 != nil {
 			var datatype = fmt.Sprintf("%T", data)
 			bbs.logger.Info("json.Encode() on storing metafile failed",
-				"rid", rid, "path", path, "type", datatype, "error", err4)
+				"rid", rid, "path", scratchpath, "type", datatype,
+				"error", err4)
 			return map_os_error(location, err4, nil)
 		}
+
+		var err5 = os.Rename(scratchpath, path)
+		if err5 != nil {
+			bbs.logger.Error("os.Rename() on storing metafile failed",
+				"rid", rid, "path", path, "from-path", scratchpath,
+				"error", err5)
+			var errz = map_os_error(location, err5, nil)
+			return errz
+		}
 		cleanup_needed = false
+
 		return nil
 	}
 }
