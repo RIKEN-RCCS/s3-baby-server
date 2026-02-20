@@ -79,7 +79,11 @@ sh client-rclone.sh
 
 ### Installing RCLONE
 
-RCLONE can be installed by `dnf info rclone` on Redhat/Rocky.
+RCLONE can be installed by "dnf" from Redhat/Rocky EPEL.
+
+```
+dnf install rclone
+```
 
 Setting for RCLONE can be found in `~/.config/rclone/rclone.conf`.
 The content may look like:
@@ -258,10 +262,11 @@ s3fs mybucket1 ~/mnt -o url=http://localhost:9000/ -o use_path_request_style -o 
 
 ### Installing s3fs-fuse
 
+"s3fs-fuse" is in EPEL.
+
 ```
 dnf install s3fs-fuse
 ```
 
-"s3fs-fuse" is in EPEL.
 
 ### (Tests by WinSCP)

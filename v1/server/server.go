@@ -34,6 +34,7 @@ import (
 )
 
 const Bb_version = "v1.2.1"
+const Bb_metafile_format = "v1.2"
 
 type Bb_server struct {
 	server    *http.Server

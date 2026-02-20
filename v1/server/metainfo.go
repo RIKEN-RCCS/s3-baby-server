@@ -31,6 +31,7 @@ type Meta_info struct {
 	ContentLanguage    *string                 `json:"content-language"`
 	ContentType        *string                 `json:"content-type"`
 	Expires            *time.Time              `json:"expires"`
+	Version            string                  `json:"version"`
 }
 
 // MPUL-Information.  It is stored as a file "info" in an MPUL
@@ -54,6 +55,7 @@ type Mpul_info struct {
 	Checksum_type types.ChecksumType      `json:"checksum-type"`
 	Checksum      types.ChecksumAlgorithm `json:"checksum"`
 	Metainfo      *Meta_info              `json:"metainfo"`
+	Version       string                  `json:"version"`
 }
 
 // MPUL-Catalog.  It is stored as a file "list" in an MPUL temporary
