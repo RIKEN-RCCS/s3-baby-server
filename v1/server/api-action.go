@@ -66,14 +66,14 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 		defer bbs.release_access(ctx, object, rid)
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, true)
+	var mpulinfo, err3 = bbs.check_mpul_ongoing(rid, object, i.UploadId, true)
 	if err3 != nil {
 		return nil, err3
 	}
 
 	if i.IfMatchInitiatedTime != nil {
 		var itime = *i.IfMatchInitiatedTime
-		if !mpul.Initiate_time.Equal(itime) {
+		if !mpulinfo.Initiate_time.Equal(itime) {
 			var errz = &Aws_s3_error{Code: PreconditionFailed,
 				Resource: location}
 			return nil, errz
@@ -138,7 +138,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
+	var mpulinfo, err3 = bbs.check_mpul_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -284,9 +284,9 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		return nil, err8
 	}
 
-	if checksum != "" && checksum != mpul.Checksum {
+	if checksum != "" && checksum != mpulinfo.Checksum {
 		bbs.logger.Info("Checksum algorithm differs MPUL creation/completion",
-			"rid", rid, "creation", mpul.Checksum, "completion", checksum)
+			"rid", rid, "creation", mpulinfo.Checksum, "completion", checksum)
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message:  "Checksum algorithm differs MPUL creation/completion.",
 			Resource: location}
@@ -305,7 +305,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 		none_match: i.IfNoneMatch,
 	}
 	var etag, _, _, err6 = bbs.concatenate_object(ctx, object,
-		mpul, partlist, checks, conditions)
+		mpulinfo, partlist, checks, conditions)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -756,8 +756,8 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	var now = time.Now()
 	var mpul = &Mpul_info{
 		//MultipartUpload: types.MultipartUpload{}
-		Upload_id:     &uploadid,
-		Initiate_time: &now,
+		Upload_id:     uploadid,
+		Initiate_time: now,
 		Checksum_type: checksumtype,
 		Checksum:      checksum,
 		Metainfo:      metainfo,
@@ -2121,7 +2121,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
+	var mpulinfo, err3 = bbs.check_mpul_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2152,7 +2152,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	// Copy MPUL catalog to a result record.
 
 	var partlist []types.Part
-	var checksum = mpul.Checksum
+	var checksum = mpulinfo.Checksum
 	var parts = catalog.Parts
 	var endindex int32
 	if count != -1 {
@@ -2554,7 +2554,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
+	var mpulinfo, err3 = bbs.check_mpul_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2587,10 +2587,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 		return nil, err8
 	}
 
-	// It is sure mpul.UploadId is non-nil that is checked already.
-
-	bb_assert(mpul.Upload_id != nil)
-	var upload_id = *mpul.Upload_id
+	var upload_id = mpulinfo.Upload_id
 
 	// SERIALIZE-ACCESSES (in the uploading routine).
 
@@ -2685,7 +2682,7 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		}
 	}
 
-	var mpul, err3 = bbs.check_upload_ongoing(rid, object, i.UploadId, false)
+	var mpulinfo, err3 = bbs.check_mpul_ongoing(rid, object, i.UploadId, false)
 	if err3 != nil {
 		return nil, err3
 	}
@@ -2731,12 +2728,9 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 		return nil, err24
 	}
 
-	var checksum2 types.ChecksumAlgorithm = mpul.Checksum
+	var checksum2 types.ChecksumAlgorithm = mpulinfo.Checksum
 
-	// It is sure mpul.UploadId is non-nil that is checked already.
-
-	bb_assert(mpul.Upload_id != nil)
-	var upload_id = *mpul.Upload_id
+	var upload_id = mpulinfo.Upload_id
 
 	// SERIALIZE-ACCESSES (in the copying routine)
 

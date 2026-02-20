@@ -180,7 +180,7 @@ func (bbs *Bb_server) check_bucket_directory_exists(rid uint64, bucket string) *
 // CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL and
 // populates it with an info file.  It may overtake an existing
 // directory when it already exists, and rewrites its upload-id.
-func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix string, mpul *Mpul_info) *Aws_s3_error {
+func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix string, mpulinfo *Mpul_info) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "@mpul")
 
@@ -224,7 +224,7 @@ func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix st
 
 		var oldmpul, err4 = bbs.fetch_mpul_info(rid, object, false)
 		if err4 == nil {
-			if *oldmpul.Upload_id == *mpul.Upload_id {
+			if oldmpul.Upload_id == mpulinfo.Upload_id {
 				bbs.logger.Error("Upload-ID conflicting (should never happen)",
 					"rid", rid, "object", object)
 				var errz = &Aws_s3_error{Code: InternalError,
@@ -247,7 +247,7 @@ func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix st
 
 	// Store MPUL data.
 
-	var err5 = bbs.store_mpul_info(rid, object, suffix, mpul)
+	var err5 = bbs.store_mpul_info(rid, object, suffix, mpulinfo)
 	if err5 != nil {
 		return err5
 	}
@@ -386,6 +386,13 @@ func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity st
 		var errz = err5.(*Aws_s3_error)
 		return nil, errz
 	}
+
+	if metainfo.Metafile_format != Bb_metafile_format {
+		bbs.logger.Info("Metainfo file bad version",
+			"rid", rid, "object", object, "version", metainfo.Metafile_format,
+			"current-version", Bb_metafile_format)
+		return nil, nil
+	}
 	if metainfo.Entity_key != entity {
 		bbs.logger.Info("Metainfo file outdated",
 			"rid", rid, "object", object, "entity1", entity,
@@ -458,6 +465,7 @@ func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, suffix st
 	if metainfo == nil {
 		data = nil
 	} else {
+		metainfo.Metafile_format = Bb_metafile_format
 		data = metainfo
 	}
 	var path = bbs.make_path_of_object(object, "@meta")
@@ -478,8 +486,8 @@ func (bbs *Bb_server) fetch_mpul_info(rid uint64, object string, serializing boo
 	var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
-	var mpul Mpul_info
-	var err5 = bbs.fetch_json_data(rid, object, path, &mpul)
+	var mpulinfo Mpul_info
+	var err5 = bbs.fetch_json_data(rid, object, path, &mpulinfo)
 	if err5 == io.EOF {
 		bbs.logger.Warn("MPUL info file missing",
 			"rid", rid, "path", path)
@@ -494,11 +502,12 @@ func (bbs *Bb_server) fetch_mpul_info(rid uint64, object string, serializing boo
 
 	// Check if the fields of MPUL info is Okay.
 
-	if mpul.Initiate_time == nil || mpul.Upload_id == nil {
-		bbs.logger.Error("MPUL info file broken",
-			"rid", rid, "path", path)
+	if mpulinfo.Metafile_format != Bb_metafile_format {
+		bbs.logger.Info("MPUL info file bad version",
+			"rid", rid, "object", object, "version", mpulinfo.Metafile_format,
+			"current-version", Bb_metafile_format)
 		var errz = &Aws_s3_error{Code: InternalError,
-			Message:  "MPUL record broken.",
+			Message:  "MPUL info file bad version.",
 			Resource: location}
 
 		// REMOVE MPUL DIRECTORY when in an access serialization.
@@ -513,14 +522,16 @@ func (bbs *Bb_server) fetch_mpul_info(rid uint64, object string, serializing boo
 		return nil, errz
 	}
 
-	return &mpul, nil
+	return &mpulinfo, nil
 }
 
-func (bbs *Bb_server) store_mpul_info(rid uint64, object string, suffix string, mpul *Mpul_info) *Aws_s3_error {
+func (bbs *Bb_server) store_mpul_info(rid uint64, object string, suffix string, mpulinfo *Mpul_info) *Aws_s3_error {
 	//var location = "/" + object + "@mpul"
+	bb_assert(mpulinfo != nil)
+	mpulinfo.Metafile_format = Bb_metafile_format
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
-	var err5 = bbs.store_json_data(rid, object, path, suffix, mpul)
+	var err5 = bbs.store_json_data(rid, object, path, suffix, mpulinfo)
 	if err5 != nil {
 		return err5
 	}
@@ -692,19 +703,19 @@ func (bbs *Bb_server) store_json_data(rid uint64, object, path string, suffix st
 	}
 }
 
-// CHECK_UPLOAD_ONGOING checks "params.UploadId" is a currently
-// on-going upload.  SERIALIZING is the serialization status that is
-// passed to fetch_mpul_info.
-func (bbs *Bb_server) check_upload_ongoing(rid uint64, object string, uploadid *string, serializing bool) (*Mpul_info, *Aws_s3_error) {
+// CHECK_MPUL_ONGOING checks "params.UploadId" is a currently on-going
+// upload.  SERIALIZING is the serialization status that is passed to
+// fetch_mpul_info.
+func (bbs *Bb_server) check_mpul_ongoing(rid uint64, object string, uploadid *string, serializing bool) (*Mpul_info, *Aws_s3_error) {
 	var location = "/" + object
 	if uploadid == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "UploadId missing.",
+			Message:  "Upload-ID missing.",
 			Resource: location}
 		return nil, errz
 	}
 	var mpul, err1 = bbs.fetch_mpul_info(rid, object, false)
-	if err1 != nil || *mpul.Upload_id != *uploadid {
+	if err1 != nil || mpul.Upload_id != *uploadid {
 		if serializing {
 			bbs.logger.Info("Race on MPUL, MPUL gone",
 				"rid", rid, "object", object)

@@ -1,16 +1,12 @@
-//go:build unix && !linux
+//go:build darwin || freebsd || netbsd
 
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Name "_unix.go" is not a proper build constrant on file names.
-
 // This file is part of conditional builds for filesystem accesses.
 // https://pkg.go.dev/cmd/go#hdr-Build_constraints
-
 // This is to take file status atime/ctime/mtime as "syscall".  See
 // https://pkg.go.dev/syscall?GOOS=darwin
-// (No documents found specific to *bsd nor solaris nor illumos).
 
 package server
 

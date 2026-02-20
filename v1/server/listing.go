@@ -515,8 +515,8 @@ func (bbs *Bb_server) list_mpuls_flat(rid uint64, bucket string, marker string, 
 					// - StorageClass StorageClass
 					// - UploadId *string
 					Key:               &fixedkey,
-					UploadId:          mpul.Upload_id,
-					Initiated:         mpul.Initiate_time,
+					UploadId:          &mpul.Upload_id,
+					Initiated:         &mpul.Initiate_time,
 					StorageClass:      types.StorageClassStandard,
 					ChecksumAlgorithm: mpul.Checksum,
 					ChecksumType:      mpul.Checksum_type,

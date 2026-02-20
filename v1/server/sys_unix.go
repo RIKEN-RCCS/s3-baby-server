@@ -1,13 +1,18 @@
-//go:build linux
+//go:build linux || dragonfly || openbsd || solaris
 
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
 // This file is part of conditional builds for filesystem accesses.
 // https://pkg.go.dev/cmd/go#hdr-Build_constraints
-
 // This is to take file status atime/ctime/mtime as "syscall".  See
 // https://pkg.go.dev/syscall?GOOS=linux
+
+// Stat's mtime is "Mtimespec" on {darwin, freebsd, netbsd}.  But,
+// mtime is "Mtim" on other Unix, inlcuding {linux, dragonfly,
+// openbsd, solaris}.
+
+// Name "_unix.go" is not a proper build constrant on file names.
 
 package server
 

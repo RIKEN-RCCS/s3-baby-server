@@ -12,11 +12,14 @@ get::
 check-linux-build::
 	GOOS=linux GOARCH=amd64 go build ./server
 
+check-unix-build::
+	GOOS=solaris GOARCH=amd64 go build ./server
+
+check-bsd-build::
+	GOOS=freebsd GOARCH=amd64 go build ./server
+
 check-windows-build::
 	GOOS=windows GOARCH=amd64 go build -o s3-baby-server.exe ./server
-
-check-unix-build::
-	GOOS=freebsd GOARCH=amd64 go build ./server
 
 tidy::
 	go mod tidy

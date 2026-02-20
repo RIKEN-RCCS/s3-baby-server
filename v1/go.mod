@@ -7,7 +7,7 @@ replace github.com/riken-rccs/s3-baby-server/pkg/awss3aide => ../pkg/awss3aide
 replace github.com/riken-rccs/s3-baby-server/pkg/httpaide => ../pkg/httpaide
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.0
 	github.com/aws/smithy-go v1.24.0
 	github.com/riken-rccs/s3-baby-server/pkg/awss3aide v0.0.0-00010101000000-000000000000
 	github.com/riken-rccs/s3-baby-server/pkg/httpaide v0.0.0-00010101000000-000000000000

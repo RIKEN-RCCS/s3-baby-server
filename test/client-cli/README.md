@@ -268,5 +268,21 @@ s3fs mybucket1 ~/mnt -o url=http://localhost:9000/ -o use_path_request_style -o 
 dnf install s3fs-fuse
 ```
 
+## (s4cmd)
 
-### (Tests by WinSCP)
+https://github.com/bloomreach/s4cmd
+
+```
+apt install s4cmd
+```
+
+
+## (s5cmd)
+
+https://github.com/peak/s5cmd
+
+Download from
+
+https://github.com/peak/s5cmd/releases
+
+## (WinSCP)

@@ -146,7 +146,7 @@ func (bbs *Bb_server) copy_object(ctx context.Context, object string, upload_id 
 
 // CONCATENATE_OBJECT concatenates the parts to an MPUL object.  It
 // returns etag, stat, and csum of CRC64NVME.
-func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, mpul *Mpul_info, partlist *types.CompletedMultipartUpload, checks copy_checks, conditions copy_conditions) (string, fs.FileInfo, []byte, *Aws_s3_error) {
+func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, mpulinfo *Mpul_info, partlist *types.CompletedMultipartUpload, checks copy_checks, conditions copy_conditions) (string, fs.FileInfo, []byte, *Aws_s3_error) {
 	//var _, rid, suffix = get_action_name(ctx)
 	var build = build_source{
 		op: BUILD_CONCAT,
@@ -161,12 +161,12 @@ func (bbs *Bb_server) concatenate_object(ctx context.Context, object string, mpu
 		},
 		concat: build_concat{
 			partlist: partlist,
-			mpul:     mpul,
+			mpul:     mpulinfo,
 		},
 	}
 	var upload_id = ""
 	var part int32 = 0
-	var metainfo *Meta_info = mpul.Metainfo
+	var metainfo *Meta_info = mpulinfo.Metainfo
 	var checksum types.ChecksumAlgorithm = checks.checksum
 	var etag, stat, csum2, err1 = bbs.build_object(ctx, object, upload_id,
 		part, build, metainfo, checksum, checks, conditions)
@@ -391,7 +391,7 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 	// Re-check the MPUL upload-id after exclusion.
 
 	if part != 0 {
-		var _, err3 = bbs.check_upload_ongoing(rid, object, &upload_id, true)
+		var _, err3 = bbs.check_mpul_ongoing(rid, object, &upload_id, true)
 		if err3 != nil {
 			return "", nil, nil, err3
 		}
@@ -640,9 +640,7 @@ func (bbs *Bb_server) concat_parts_as_scratch(ctx context.Context, object string
 
 	cleanup_needed = false
 
-	bb_assert(mpul.Initiate_time != nil)
-
-	var err5 = os.Chtimes(path, time.Time{}, *mpul.Initiate_time)
+	var err5 = os.Chtimes(path, time.Time{}, mpul.Initiate_time)
 	if err5 != nil {
 		bbs.logger.Warn("op.Chtimes() failed",
 			"rid", rid, "path", path, "error", err5)
