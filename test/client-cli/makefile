@@ -27,7 +27,7 @@ data-01g.txt:
 clean-data::
 	rm -f data-01k.txt data-08k.txt data-04m.txt data-20m.txt data-01g.txt
 
-# Make self-signed certificate pairs for testing.  Or, use files that
+# Make a self-signed certificate pair for testing.  Or, use files that
 # may be found in /etc/pki/tls/certs/ and /etc/pki/tls/private/.
 
 crt::

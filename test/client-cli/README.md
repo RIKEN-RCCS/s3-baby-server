@@ -1,26 +1,50 @@
 # Test by S3 Clients
 
-## Prerequisite: Running s3-baby-server
+## Prerequisite
+
+### Run s3-baby-server
 
 ```
-./s3-baby-server serve 127.0.0.1:9000 ~/pool --cred s3baby,s3baby
+./s3-baby-server serve 127.0.0.1:9000 ~/pool -cred s3baby,s3babybaby -log debug -log-access -prof 6060
 ```
 
-For data files used in tests, run `make data-files`, which will make
-files of sizes 1k, 8k, 8m, 20m, and 1g.
+The access-key-id is "s3baby" and the secret-access-key is
+"s3babybaby" in this README.
 
-For testing https, run `make crt`, which creates a self-signed
-certificate.
+Attaching options may be helpful.  "-log" sets the logger level,
+"-log-access" enables printing access logs, and "-prof 6060" lets
+Golang's pprof mechanism to listen on port=6060.
 
-Attaching options at the tail of the command line `--log debug
---log-access --prof 6060` may be helpful.
+https://pkg.go.dev/net/http/pprof
+
+Use "-https-crt ssl-certificate-file" and "-https-key
+ssl-certificate-key-file" to run the server with https.  For https
+testing, a self-signed certificate pair can be created with openssl:
+
+```
+make crt
+```
+
+### Make data files
+
+Tests needs files of sizes 1k, 8k, 4m, 20m, and 1g.  They are prepared
+with:
+
+```
+make data-files
+```
+
+### Notes
+
+The test scripts don't work with "dash" ("sh" in Ubuntu).  dash lacks
+"-o filefail".
 
 ## AWS-CLI
 
 ### Running a Test
 
 ```
-sh client-awscli.sh
+bash client-awscli.sh
 ```
 
 Test stops on an error.
@@ -43,8 +67,8 @@ s3 =
      signature_version = s3v4
 ec2_metadata_disabled = true
 endpoint_url = http://127.0.0.1:9000
-aws_access_key_id = abcdefghijklmnopqrstuvwxyz
-aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
+aws_access_key_id = s3baby
+aws_secret_access_key = s3babybaby
 ```
 
 ### MEMO on AWS-CLI vs. RCLONE Differences
@@ -74,7 +98,7 @@ export AWS_EC2_METADATA_DISABLED=true
 Run a test by:
 
 ```
-sh client-rclone.sh
+bash client-rclone.sh
 ```
 
 ### Installing RCLONE
@@ -93,8 +117,8 @@ The content may look like:
 type = s3
 provider = Other
 env_auth = false
-access_key_id = abcdefghijklmnopqrstuvwxyz
-secret_access_key = abcdefghijklmnopqrstuvwxyz
+access_key_id = s3baby
+secret_access_key = s3babybaby
 endpoint = https://localhost:9000
 acl = private
 ```
@@ -118,7 +142,7 @@ acl = private
 Run a test by:
 
 ```
-sh client-gcloud.sh
+bash client-gcloud.sh
 ```
 
 ### Installing gcloud (and gsutil)
@@ -135,8 +159,8 @@ BELOW DOES NOT WORK:
 ```
 cat <<EOF > cred
 {
-"accessKeyId": "abcdefghijklmnopqrstuvwxyz",
-"secretAccessKey": "abcdefghijklmnopqrstuvwxyz"
+"accessKeyId": "s3baby",
+"secretAccessKey": "s3babybaby"
 }
 EOF
 gcloud secrets create 'test_secret' --data-file=cred
@@ -150,8 +174,8 @@ use-sigv4=True
 [Credentials]
 s3_host = localhost
 s3_port = 9000
-aws_access_key_id = abcdefghijklmnopqrstuvwxyz
-aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
+aws_access_key_id = s3baby
+aws_secret_access_key = s3babybaby
 ```
 
 Configuration stored in "~/.config/gcloud/configurations/config_default":
@@ -180,13 +204,13 @@ Setup MC by assigning an alias, for example, "s3baby".  We assume an
 alias name "s3baby" in the test script.
 
 ```
-$ mc alias set "s3baby" "http://localhost:9000" "abcdefghijklmnopqrstuvwxyz" "abcdefghijklmnopqrstuvwxyz" --api S3v4
+$ mc alias set "s3baby" "http://localhost:9000" "s3baby" "s3babybaby" --api S3v4
 ```
 
 Run a test by:
 
 ```
-sh client-minio-mc.sh
+bash client-minio-mc.sh
 ```
 
 ### Installing "mc"
@@ -206,26 +230,31 @@ Configuration of "mc" is stored in "~/.mc/config.json".
 
 ### Running a Test
 
-Note s3cmd "mv" does not work in our test.  Uncertain, but, it seems
+Note: s3cmd "mv" does not work in our test.  Uncertain, but, it seems
 it needs some ACL definition retured from the server side.
 
 ```
 s3cmd --configure
 ```
 
-"~/.s3cfg" needs the following fields, at least.
+"~/.s3cfg" needs the following fields, at least.  Specifying
+"host_bucket" uses path-style bucket naming.
 
 ```
 host_base = localhost:9000
-access_key = abcdefghijklmnopqrstuvwxyz
-secret_key = abcdefghijklmnopqrstuvwxyz
+host_bucket = localhost:9000
+access_key = s3baby
+secret_key = s3babybaby
 access_token =
 website_endpoint =
 ```
 
 ```
-sh client-s3cmd.sh
+bash client-s3cmd.sh
 ```
+
+Add `--no-ssl` for http access, or drop it for https access.  Add
+`s3cmd --debug` for tracing s3cmd.
 
 ### Installing s3cmd
 
@@ -236,14 +265,7 @@ https://github.com/s3tools/s3cmd
 pip3 install --user s3cmd
 ```
 
-Collecting s3cmd
-  Downloading s3cmd-2.4.0-py2.py3-none-any.whl (164 kB)
-Collecting python-magic
-  Downloading python_magic-0.4.27-py2.py3-none-any.whl (13 kB)
-Requirement already satisfied: python-dateutil in /home/users/m-matsuda/.local/lib/python3.9/site-packages (from s3cmd) (2.9.0.post0)
-Requirement already satisfied: six>=1.5 in /home/users/m-matsuda/.local/lib/python3.9/site-packages (from python-dateutil->s3cmd) (1.16.0)
-Installing collected packages: python-magic, s3cmd
-Successfully installed python-magic-0.4.27 s3cmd-2.4.0
+It installs: python-magic, s3cmd, python-dateutil.
 
 ## s3fs-fuse
 
@@ -253,7 +275,7 @@ Usage to mount the fs is described in:
 "https://github.com/s3fs-fuse/s3fs-fuse"
 
 ```
-echo abcdefghijklmnopqrstuvwxyz:abcdefghijklmnopqrstuvwxyz > ~/.passwd-s3fs
+echo s3baby:s3babybaby > ~/.passwd-s3fs
 chmod 600 ~/.passwd-s3fs
 
 mkdir ~/mnt
@@ -268,14 +290,25 @@ s3fs mybucket1 ~/mnt -o url=http://localhost:9000/ -o use_path_request_style -o 
 dnf install s3fs-fuse
 ```
 
-## (s4cmd)
+## s4cmd
 
 https://github.com/bloomreach/s4cmd
+
+### Running a Test
+
+s4cmd shares the configuration of AWS-CLI.
+
+```
+bash client-s4cmd.sh
+```
+
+### Installing s4cmd
+
+s4cmd is in Python.  We used the client in Ubuntu, in this case.
 
 ```
 apt install s4cmd
 ```
-
 
 ## (s5cmd)
 

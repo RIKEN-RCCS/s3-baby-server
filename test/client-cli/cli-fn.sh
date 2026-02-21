@@ -1,20 +1,24 @@
 #!/bin/ksh
 
-# Setting "-e" makes exit on errors, and "-E" makes trap on ERR is
-# inherited.  Setting "pipefail" makes exit status consider all
-# commands, not the rightmost one.
+# Setting "-e" makes exit on errors.  Setting "pipefail" makes exit
+# status consider all commands, not the rightmost one.  "-E" makes
+# trap on ERR is inherited (it is bash only).
 
-trap 'echo "TEST FAIL."' ERR
-set -eE
+ECHO_FAIL() { echo "TEST FAIL."; }
+
+trap 'ECHO_FAIL' ERR
+set -e
 set -o pipefail
+# set -E
 
-alias ECHO=echo
-EXEC_ECHO() { (echo ">> $@" 1>&2) ; "$@" ; }
-EXEC_PASS() { (echo "pass>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
+ECHO() { echo "$@" ; }
 
-EXPECT_PASS() { (echo "pass>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
-EXEC_FAIL() { (echo "fail>> $@" 1>&2) ; "$@" ; statuscode=$? ; }
-EXPECT_FAIL() { EXEC_FAIL "$@" || true ; [ $statuscode -ne 0 ] ; }
+EXEC_ECHO() { trap 'ECHO_FAIL' ERR ; (echo ">> $@" 1>&2) ; "$@" ; }
+EXEC_PASS() { trap 'ECHO_FAIL' ERR ; (echo "pass>> $@" 1>&2) ; "$@" ; CC=$? ; }
+EXEC_FAIL() { (echo "fail>> $@" 1>&2) ; "$@" ; CC=$? ; }
+
+EXPECT_PASS() { trap 'ECHO_FAIL' ERR ; EXEC_PASS "$@" ; }
+EXPECT_FAIL() { trap 'ECHO_FAIL' ERR ; EXEC_FAIL "$@" || true ; [ $CC -ne 0 ] ; }
 
 ECHO_TEST_DONE() { ECHO 'TEST DONE.' ; }
 

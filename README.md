@@ -29,6 +29,12 @@ make get
 make
 ```
 
+Or,
+
+```
+go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.2.1
+```
+
 ## Restrictions
 
 - Object names cannot begin with a dot (".").  They are hidden and
