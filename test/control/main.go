@@ -26,7 +26,7 @@ import (
 )
 
 var command_name = "bbs-ctl"
-var command_list = []string{"quit", "stat", "test-buckets"}
+var command_list = []string{"quit", "stat", "test-buckets", "test-objects"}
 
 func main() {
 	var options = flag.NewFlagSet("", flag.ExitOnError)
@@ -96,6 +96,8 @@ func main() {
 		control_server(cmd, cfg)
 	case "test-buckets":
 		test_with_many_buckets(cfg, 1000)
+	case "test-objects":
+		test_with_many_objects(cfg, 1000)
 	}
 }
 
