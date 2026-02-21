@@ -1,6 +1,10 @@
-// awss3sdk-client.go
+// awssdk-client.go
 
 // This is a part of the command "bbs-ctl", and runs server tests.
+
+// Note the AWS-SDK examples use "feature/s3/manager" for copying
+// large objects but it is deprecated.  New one is
+// "feature/s3/transfermanager".
 
 // The code is mostly taken from the AWS-SDK-GO-V2 S3 examples.
 //
@@ -23,10 +27,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	//"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithy "github.com/aws/smithy-go"
@@ -161,51 +167,85 @@ func op_get_object(ctx context.Context, client *s3.Client, bucket, object string
 	return data, nil
 }
 
-func op_upload_object(ctx context.Context, client *s3.Client, bucket, object string, data []byte) error {
+func op_upload_object(ctx context.Context, xclient *transfermanager.Client, client *s3.Client, bucket, object string, data []byte) error {
 	var timeout = (3 * time.Minute)
 	var f = bytes.NewReader(data)
-	var uploader = manager.NewUploader(client, func(u *manager.Uploader) {
-		u.PartSize = part_size
-	})
-	var _, err1 = uploader.Upload(ctx, &s3.PutObjectInput{
+
+	var _, err1 = xclient.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(object),
 		Body:   f,
 	})
 	if err1 != nil {
-		var err2 smithy.APIError
-		if errors.As(err1, &err2) && err2.ErrorCode() == "EntityTooLarge" {
-			log.Fatalf("Uploading too large file")
-		}
-		log.Fatalf("uploader.Upload() failed; object=%s error=%v",
-			object, err1)
+		slog.Error("uploader.Upload() failed",
+			"object", object, "error", err1)
 		return err1
 	}
+
+	/*
+		var uploader = manager.NewUploader(client, func(u *manager.Uploader) {
+			u.PartSize = part_size
+		})
+		var _, err1 = uploader.Upload(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(object),
+			Body:   f,
+		})
+		if err1 != nil {
+			var err2 smithy.APIError
+			if errors.As(err1, &err2) && err2.ErrorCode() == "EntityTooLarge" {
+				log.Fatalf("Uploading too large file")
+			}
+			log.Fatalf("uploader.Upload() failed; object=%s error=%v",
+				object, err1)
+			return err1
+		}
+	*/
+
 	var err3 = s3.NewObjectExistsWaiter(client).Wait(
 		ctx, &s3.HeadObjectInput{Bucket: aws.String(bucket),
 			Key: aws.String(object)}, timeout)
 	if err3 != nil {
-		log.Printf("s3.NewObjectExistsWaiter() failed; object=%s error=%v\n",
-			object, err3)
+		slog.Error("s3.NewObjectExistsWaiter() failed",
+			"object", object, "error", err3)
 		return err3
 	}
 	return nil
 }
 
-func op_download_object(ctx context.Context, client *s3.Client, bucket, object string) ([]byte, error) {
-	var downloader = manager.NewDownloader(client, func(d *manager.Downloader) {
-		d.PartSize = part_size
-	})
-	var b = manager.NewWriteAtBuffer([]byte{})
-	var _, err1 = downloader.Download(ctx, b, &s3.GetObjectInput{
+func op_download_object(ctx context.Context, xclient *transfermanager.Client, client *s3.Client, bucket, object string) ([]byte, error) {
+	var o, err1 = xclient.GetObject(ctx, &transfermanager.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(object),
 	})
 	if err1 != nil {
-		log.Fatalf("downloader.Download() failed: object=%s error=%v",
-			object, err1)
+		slog.Error("client.GetObject() failed",
+			"object", object, "error", err1)
 		return nil, err1
 	}
+	var b = bytes.NewBuffer([]byte{})
+	var n, err2 = b.ReadFrom(o.Body)
+	if err2 != nil {
+		slog.Error("bytes.NewBuffer.ReadFrom() failed",
+			"object", object, "n", n, "error", err2)
+		return nil, err2
+	}
+
+	/*
+		var downloader = manager.NewDownloader(client, func(d *manager.Downloader) {
+			d.PartSize = part_size
+		})
+		var b = manager.NewWriteAtBuffer([]byte{})
+		var _, err1 = downloader.Download(ctx, b, &s3.GetObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(object),
+		})
+		if err1 != nil {
+			log.Fatalf("downloader.Download() failed: object=%s error=%v",
+				object, err1)
+			return nil, err1
+		}
+	*/
 	return b.Bytes(), nil
 }
 

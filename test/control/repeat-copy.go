@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	//"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	//smithy "github.com/aws/smithy-go"
@@ -28,6 +29,9 @@ func test_with_many_objects(cfg *aws.Config, n int) error {
 
 	var client = s3.NewFromConfig(*cfg)
 	//log.Printf("AWS-S3 client=%#v\n", client)
+	var xclient = transfermanager.New(client, func(o *transfermanager.Options) {
+		//o.PartSizeBytes = part_size
+	})
 
 	var ctx1 = context.TODO()
 
@@ -49,7 +53,7 @@ func test_with_many_objects(cfg *aws.Config, n int) error {
 			count, size, err11)
 	}
 
-	var err3 = create_many_objects(client, bucket, "data", n)
+	var err3 = create_many_objects(xclient, client, bucket, "data", n)
 	if err3 != nil {
 		log.Fatalf("create_many_objects failed; error=%v", err3)
 	}
@@ -89,7 +93,7 @@ func choose_data() []byte {
 	return dataset[i]
 }
 
-func create_many_objects(client *s3.Client, bucket, prefix string, n int) error {
+func create_many_objects(xclient *transfermanager.Client, client *s3.Client, bucket, prefix string, n int) error {
 	if !(n <= 20000) {
 		log.Fatalf("Should be n <= 20000")
 	}
@@ -104,21 +108,22 @@ func create_many_objects(client *s3.Client, bucket, prefix string, n int) error 
 		var data1 = choose_data()
 		var object = prefix + fmt.Sprintf("%05d", i)
 		wg1.Go(func() {
-			var err3 = op_upload_object(ctx2, client, bucket, object, data1)
+			var err3 = op_upload_object(ctx2, xclient, client, bucket, object, data1)
 			if err3 != nil {
 				cancel()
 				log.Fatalf("op_upload_object() failed; error=%v", err3)
 				return
 			}
-			var data2, err4 = op_download_object(ctx2, client, bucket, object)
+			var data2, err4 = op_download_object(ctx2, xclient, client, bucket, object)
 			if err4 != nil {
 				cancel()
-				log.Fatalf("op_upload_object() failed; error=%v", err4)
+				log.Fatalf("op_download_object() failed; error=%v", err4)
 				return
 			}
 			if !bytes.Equal(data1, data2) {
 				cancel()
-				log.Fatalf("Unequal copy content; object=%s", object)
+				log.Fatalf("Unequal copy content; object=%s size1=%d size2=%d",
+					object, len(data1), len(data2))
 				return
 			}
 
