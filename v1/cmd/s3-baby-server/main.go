@@ -122,6 +122,7 @@ func main() {
 	}
 
 	var cred [2]string
+
 	{
 		if len(cred_pair) == 0 {
 			cred_pair = os.Getenv("S3BBS_CRED")
@@ -143,6 +144,7 @@ func main() {
 	}
 
 	var cert [2]string
+
 	{
 		if *flag_https_crt != "" || *flag_https_key != "" {
 			var crt1 = *flag_https_crt
@@ -154,7 +156,7 @@ func main() {
 			}
 
 			// Make paths absolute, because server runs after changing
-			// the current directory.
+			// the working directory.
 
 			var crt2, err1 = filepath.Abs(crt1)
 			if err1 != nil {

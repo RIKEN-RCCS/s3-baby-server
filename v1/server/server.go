@@ -3,7 +3,8 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// S3-Baby-Server main.  The main entry is Start_server().
+// S3-Baby-server main.  The entry Start_server() is called from the
+// main in cmd/s3-baby-server/main.go.
 
 package server
 
@@ -12,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"log/slog"
@@ -43,7 +45,7 @@ type Bb_server struct {
 	config    Bb_configuration
 	logger    *slog.Logger
 
-	access_logging *os.File
+	access_logging io.Writer
 
 	rid_past uint64
 	suffixes map[string]scratch_suffix
@@ -282,8 +284,14 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 
 	// Check the directory to store access logs.
 
-	var access_logging *os.File
+	var access_logging io.Writer
+
 	{
+		var log1 *os.File = nil
+		if loga {
+			log1 = os.Stdout
+		}
+
 		var dir1 = ".s3bbs"
 		var dir2 = "log"
 		var dirpath = filepath.Join(".", dir1, dir2)
@@ -291,8 +299,8 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		if err1 != nil && !errors.Is(err1, fs.ErrNotExist) {
 			logger.Info("os.Lstat() in checking .s3bbs/log failed",
 				"path", dirpath, "error", err1)
-			return
 		}
+		var log2 *os.File = nil
 		if err1 == nil {
 			var logpath = filepath.Join(".", dir1, dir2, "access-log")
 			var oappend = os.O_APPEND | os.O_CREATE | os.O_WRONLY
@@ -300,11 +308,25 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 			if err2 != nil {
 				logger.Info("os.OpenFile() to access-log failed",
 					"path", logpath, "error", err2)
-				return
 			}
-			access_logging = f
-		} else if loga {
-			access_logging = os.Stdout
+			if err2 == nil {
+				log2 = f
+			}
+		}
+
+		var ww []io.Writer
+		if log1 != nil {
+			ww = append(ww, log1)
+		}
+		if log2 != nil {
+			ww = append(ww, log2)
+		}
+		if len(ww) == 0 {
+			access_logging = nil
+		} else if len(ww) == 1 {
+			access_logging = ww[0]
+		} else {
+			access_logging = io.MultiWriter(ww...)
 		}
 	}
 
@@ -314,10 +336,12 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		cred_pair:      cred,
 		config:         config,
 		logger:         logger,
-		access_logging: access_logging}
-	bbs.suffixes = make(map[string]scratch_suffix)
-	bbs.server_quit = make(chan struct{})
-	bbs.monitor1 = New_monitor()
+		access_logging: access_logging,
+		server_quit:    make(chan struct{}),
+		monitor1:       New_monitor(),
+		suffixes:       make(map[string]scratch_suffix),
+	}
+
 	go bbs.monitor1.guard_loop()
 
 	h_limit_of_xml_parameters = byte_size(config.Xml_parameter_size_limit)
@@ -348,12 +372,14 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	}
 
 	var proto string
+
 	if cert[0] != "" {
-		proto = "(https)"
+		proto = "https"
 	} else {
-		proto = "(http)"
+		proto = "http"
 	}
-	logger.Info(("Starting Baby-server " + proto), "address", addr,
+
+	logger.Info("Starting Baby-server", "address", addr, "proto", proto,
 		"access-key", cred[0], "version", Bb_version)
 
 	var err2 error

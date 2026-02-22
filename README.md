@@ -4,24 +4,28 @@ S3 Baby-server is a file server of AWS-S3 protocol.  It is designed to
 share existing files in a filesystem via S3.  In contrast, most
 full-fledged servers store files in chunks (of manageable sizes) and
 are not adequate for this purpose.  Baby-server is similar to "rclone
-serve s3".  Baby-server can be used in combination with "Lens3" to run
-multiple servers at a single http end-point.  See for Lens3
+serve s3".
+
+Baby-server can be used in combination with "Lens3" to run multiple
+servers at a single http end-point.  See for Lens3
 https://github.com/RIKEN-RCCS/lens3.
 
 ## Running the server
 
 ```
-./s3-baby-server serve 127.0.0.1:9000 ~/pool --cred s3baby,s3baby
+./s3-baby-server serve 127.0.0.1:9000 ~/pool --cred s3baby,s3babybaby
 ```
 
 where "~/pool" specifies a pool directory where buckets are created.
 Existing directories in the pool are considered as buckets.  "--cred"
 specifies a credential pair separated by a comma (access-key and
-secret-access-key).
+secret-access-key).  A credential pair can be specified by the
+environment variable "S3BBS_CRED", too (in the same comma-separated
+pair format).
 
-## Build Procedure
+## Installation
 
-Prepare Golang.  Then,
+Prepare Golang.  Then, build.
 
 ```
 cd v1
@@ -47,12 +51,11 @@ go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.2.1
 
 - Object versions are not supported at all.
 
-- Copying by "CopyObject" is only allowed inside a single bucket.
+- Copying by "CopyObject" is only allowed inside a bucket.
 
-- Symbolic links in a filesystem are ignored; They are treated as not
-  exist.  It is an error when an object name (a path) includes
-  symbolic links.  It is to avoid a file being stored in an
-  inaccessible path.
+- Symbolic links in a filesystem are not followed.  It is an error
+  when an object name (a path) includes symbolic links.  It is to
+  avoid files are stored in unexpected paths.
 
 - Baby-server does not return owner information.  "Ower" in responses
   is always missing in ListObjects, etc.  The value of query
@@ -76,12 +79,23 @@ go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.2.1
 - ContentType of a response is "binary/octet-stream".  We are not sure
   it is better be "application/octet-stream".
 
+- Files are created with the mode of process's umask.  Set the umask
+  before running Baby-server if neccessary.
+
+## Metainfo Files
+
+- Baby-server stores metadata information in a file "." + object-name
+  + "@meta" in the same directory as an object.  Metadata includes an
+  ETag, a checksum value, tags, and meta-headers.  Metainfo files will
+  be created even by operations like listing objects.
+
 ## Access Logs
 
-- Baby-server stores access logs in a directory ".s3bbs/log" when it
-  exists in a pool-directory.  It is checked at starting the server.
-  The log file is ".s3bbs/log/access-log".  It is useful when outputs
-  from the server are not accessible to the user.
+- Baby-server prints access logs to stdout by "-log-access" option.
+
+- Baby-server also stores access logs in the directory ".s3bbs/log"
+  when it exists in the pool directory.  The file name is
+  ".s3bbs/log/access-log".
 
 ## Terse Error Messages
 
@@ -119,7 +133,7 @@ given hash value without checking it.
 ## Implemented API Actions
 
 Baby-server is based on 2019-03-27 Release of AWS-S3 API.  Baby-server
-implements the following list of actions.
+implements the following actions.
 
 - AbortMultipartUpload
 - CompleteMultipartUpload
