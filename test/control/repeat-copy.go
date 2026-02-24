@@ -42,7 +42,7 @@ func test_with_many_objects(cfg *aws.Config, n int) error {
 
 	var err2 = op_create_bucket(ctx1, client, bucket)
 	if err2 != nil {
-		log.Fatalf("create-bucket failed; error=%v", err2)
+		//log.Fatalf("create-bucket failed; error=%v", err2)
 	}
 
 	var count = 20

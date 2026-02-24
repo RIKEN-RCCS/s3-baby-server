@@ -798,8 +798,9 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 
 	// This logging is printed in serialized region.
 
-	if bbs.config.Verbose_debug_logging {
-		bbs.logger.Debug("Creating a multipart temporary",
+	if !bbs.config.Skip_trace_logging {
+		bbs.logger.Log(context.Background(), LevelTrace,
+			"Creating a multipart temporary",
 			"rid", rid, "object", object, "mpul-info", mpul)
 	}
 
@@ -1209,7 +1210,6 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	{
 		var unsupported = option_check_list{
 			ExpectedBucketOwner:  i.ExpectedBucketOwner,
-			PartNumber:           i.PartNumber,
 			RequestPayer:         i.RequestPayer,
 			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
 			SSECustomerKey:       i.SSECustomerKey,
@@ -1235,6 +1235,11 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	var extent, err4 = scan_range(object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
+	}
+
+	var _, err15 = bbs.lookat_part_number(object, i.PartNumber, false)
+	if err15 != nil {
+		return nil, err15
 	}
 
 	// Store an ETag in a metainfo file when the object is large.
@@ -1559,7 +1564,6 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 
 	{
 		var unsupported = option_check_list{
-			PartNumber:           i.PartNumber,
 			ExpectedBucketOwner:  i.ExpectedBucketOwner,
 			RequestPayer:         i.RequestPayer,
 			SSECustomerAlgorithm: i.SSECustomerAlgorithm,
@@ -1586,6 +1590,11 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	var extent, err4 = scan_range(object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
+	}
+
+	var _, err15 = bbs.lookat_part_number(object, i.PartNumber, false)
+	if err15 != nil {
+		return nil, err15
 	}
 
 	// Store an ETag in metainfo when the object is large.  Storing
@@ -2558,7 +2567,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	if err3 != nil {
 		return nil, err3
 	}
-	var part, err4 = bbs.lookat_part_number(object, i.PartNumber)
+	var part, err4 = bbs.lookat_part_number(object, i.PartNumber, true)
 	if err4 != nil {
 		return nil, err4
 	}
@@ -2686,9 +2695,9 @@ func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyIn
 	if err3 != nil {
 		return nil, err3
 	}
-	var part, err14 = bbs.lookat_part_number(object, i.PartNumber)
-	if err14 != nil {
-		return nil, err14
+	var part, err4 = bbs.lookat_part_number(object, i.PartNumber, true)
+	if err4 != nil {
+		return nil, err4
 	}
 
 	var source, err25 = bbs.lookat_copy_source(rid, object, i.CopySource)

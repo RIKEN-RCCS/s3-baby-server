@@ -424,13 +424,15 @@ func (bbs *Bb_server) build_object(ctx context.Context, object string, upload_id
 
 	// This logging is printed in serialized region.
 
-	if bbs.config.Verbose_debug_logging {
+	if !bbs.config.Skip_trace_logging {
 		if part == 0 {
-			bbs.logger.Debug("Creating an object",
+			bbs.logger.Log(context.Background(), LevelTrace,
+				"Creating an object",
 				"rid", rid, "object", object, "build", build.op,
 				"metainfo", metainfo)
 		} else {
-			bbs.logger.Debug("Creating a multipart part",
+			bbs.logger.Log(context.Background(), LevelTrace,
+				"Creating a multipart part",
 				"rid", rid, "object", object, "build", build.op,
 				"upload_id", upload_id, "part", part,
 				"partinfo", partinfo)

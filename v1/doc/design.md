@@ -49,6 +49,45 @@ meta-file when a smaller object replaces the object.
 Baby-server keeps the association of a meta-file to a data-file by
 recoding an entity-key in the meta-file.
 
+## Temporary "Scratch" Files
+
+Baby-server creates temporary "scratch" files on copying or uploading.
+An object is once created as a scratch file, and when copying
+completes, it is renamed to the true name.  A name of a scratch file
+is named "." + objectname + "@random".  A random is hex digits.
+
+Scratch files are also created for metainfo files, and for part-files
+for MPUL.
+
+Scratch files are created without serializing accesses and its life
+time is limited to request processing.
+
+## Multipart-Upload (MPUL)
+
+Baby-server creates a temporary directory (named "." + objectname +
+"@mpul") and stores files "info", "list", and "partNNNNN".  The array
+of parts saved in the "list" file are indexed in zero origin (part -
+1).
+
+Although a temporary directory for MPUL is created to store
+part-files, scratch files are not stored in that directory.  Instead,
+scratch files are stored in the same directory where the object will
+be created.
+
+The above mentioned placement of scratch files for MPUL is to allow
+removal of the temporary directory.  On aborting MPUL, it is necessary
+to remove the directory, but on-going copying would prevent removal of
+the directory.  (Such prevention behavior is found on NFS).  Placing
+scratch files outside the temporary directory will avoid that
+behavior.
+
+GetObject with "?partNumber=" is an error in Baby-server.  An object
+uploaded by multipart-upload is concatenated at completion and its
+parts are lost.  Note it is not a legal operation in AWS-S3 to
+download a part while multipart-upload is in-progress.
+
+ListMultipartUploads never returns NextUploadIdMarker in the output.
+
 ## Exclusion (Serialization)
 
 Baby-server only excludes modifications on the filesystem.  That is,
@@ -112,7 +151,7 @@ renamed to an actual file.
 
 ### HEAD Request on a Directory Response
 
-On a HEAD request on a directory, Baby-server returns NoSuchKey.
+Baby-server returns NoSuchKey, on a HEAD request on a directory.
 Baby-server ignores all non-regular files in a bucket.
 
 ### Ignoring a Trailing-Slash in URL
@@ -146,14 +185,29 @@ Baby-server accepts one extra cr+lf at the end of chunks in
 Note some S3 clients may attach an extra cr+lf.  MinIO client "mc"
 does, for example.
 
+### PartNumber
+
+A part-number can be specified in downloading to select a particular
+part of an object that is uploaded by MPUL.  Baby-server does not
+support "by-part" downloading, because the file is concatenated to a
+single file after uploading and it does not remember the part
+information of MPUL.  Specifying a part-number except for MPUL actions
+is an error.  But, as an exception, Baby-server treats part-number=1
+as a whole object.  It is because a client may specify a part-number
+to check the object supports by-part downloading.  Returning an error
+to a request with a part-number does not work as a client give up
+downloading (errors such as "NoSuchUpload" (404-Not-Found)).
+
+### Error Code on a Race Condition
+
+Baby-server returns "InternalError" (500-Internal-Server-Error) on a
+race condition, expecting client retries.  Races in Baby-server occur
+in modifying files during API actions, which are usually recovered by
+retries.
+
 ----------------
 
 ## Error Responses
-
-Baby-server returns an "InternalError" (500-Internal-Server-Error) on
-a race condition, expecting client retries.  Races in Baby-server
-occur in modifying files during API actions, which are usually
-recovered by retries.
 
 Error responses are defined in
 [Error Responses](https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html)
@@ -214,34 +268,6 @@ document string in "s3.json".  They are in "shapes" /
 
 ----------------
 
-## Multipart-Upload (MPUL)
-
-### Upload-ID
-
-Uniqueness of upload-ids is not guaranteed.  Baby-server does not
-check the ID's of the currently on-going MPUL, although they are
-stored in files.  It is only guaranteed by probabilistically as
-upload-ids are generated randomly.
-
-### Multipart-Upload (MPUL)
-
-It creates a temporary directory (named "."+filename+"@mpul") and
-stores files "info", "list", "partNNNNN".
-
-GetObject with "?partNumber=" is an error in Baby-server.  An object
-uploaded by multipart-upload is concatenated at completion and its
-parts are lost.  Note it is not a legal operation in AWS-S3 to
-download a part while multipart-upload is in-progress.
-
-(* DeleteBucket does not remove a bucket in existences of some MPUL's
-that are in-progress. *)
-
-ListMultipartUploads never returns NextUploadIdMarker in the output.
-
-The saved array of parts are indexed in zero origin (part - 1).
-
-----------------
-
 ## Copying a file
 
 Baby-server copies a file by linking a file.  The mtime of a new file
@@ -290,30 +316,6 @@ and in data,
 Baby-server does not check properness of enumerators in XML payload,
 while it checks that in headers.  Baby-server uses the standard
 unmarshaler and it does not know about enumerators.
-
-----------------
-
-## Temporary "Scratch" Files
-
-Baby-server creates temporary "scratch" files on copying or uploading.
-An object is once created as a scratch file, and when copying
-completes, it is renamed to the true name.  A name of a scratch file
-is prefixed with "." and suffixed with "@random" to the object name.
-A random is hex digits.  Scratch files are created without serializing
-accesses and its life time is limited while processing a request.
-
-Baby-server creates scratch files for part-files for MPUL, too.
-Although a temporary directory for MPUL is created to store
-part-files, scratch files are not stored in that directory.  Instead,
-scratch files are stored in the same directory where the MPUL object
-will be created.
-
-The above mentioned placement of scratch files for MPUL is to allow
-removal of the temporary directory.  On aborting MPUL, it is necessary
-to remove the directory, but on-going copying would prevent removal of
-the directory.  (Such prevention behavior is found on NFS).  Placing
-scratch files outside the temporary directory will avoid that
-behavior.
 
 ----------------
 

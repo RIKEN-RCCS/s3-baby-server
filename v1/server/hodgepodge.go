@@ -166,7 +166,7 @@ func (bbs *Bb_server) make_new_upload_id() string {
 }
 
 func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
-	var duration = time_duration(bbs.config.Exclusion_wait)
+	var duration = time_msec_duration(bbs.config.Exclusion_wait)
 	var ok, elapse = bbs.monitor1.Enter(object, rid, duration)
 	if !ok {
 		bbs.logger.Warn("Timeout in entering monitor",
@@ -721,22 +721,37 @@ func (bbs *Bb_server) parse_tags(rid uint64, object string, s *string) (*types.T
 	}
 }
 
-func (bbs *Bb_server) lookat_part_number(object string, partnumber *int32) (int32, *Aws_s3_error) {
+// LOOKAT_PART_NUMBER checks the part number.  Baby-server does not
+// support by-part downloading, and specifying a part-number except
+// for MPUL actions is an error.  required=true indicates by-part
+// downloading.  As an exception, the part=1 is treated as the whole
+// object.
+func (bbs *Bb_server) lookat_part_number(object string, partnumber *int32, required bool) (int32, *Aws_s3_error) {
 	var location = "/" + object
 	if partnumber == nil {
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "PartNumber missing.",
-			Resource: location}
-		return 0, errz
-	} else {
-		var part = *partnumber
-		if part < 1 || max_part_number < part {
-			var errz = &Aws_s3_error{Code: InvalidPart,
+		if required {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message:  "PartNumber missing.",
 				Resource: location}
 			return 0, errz
+		} else {
+			return 0, nil
 		}
-		return part, nil
 	}
+	var part = *partnumber
+	if part < 1 || max_part_number < part {
+		var errz = &Aws_s3_error{Code: InvalidPart,
+			Resource: location}
+		return 0, errz
+	}
+	if !required && part >= 2 {
+		var errz = &Aws_s3_error{
+			Code:     NoSuchUpload,
+			Message:  "Object part unsupported.",
+			Resource: location}
+		return 0, errz
+	}
+	return part, nil
 }
 
 func (bbs *Bb_server) lookat_copy_source(rid uint64, object string, copysource *string) (string, *Aws_s3_error) {

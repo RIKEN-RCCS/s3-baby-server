@@ -58,11 +58,14 @@ func op_create_bucket(ctx context.Context, client *s3.Client, bucket string) err
 		var owned *types.BucketAlreadyOwnedByYou
 		var exists *types.BucketAlreadyExists
 		if errors.As(err3, &owned) {
-			log.Printf("Bucket %s already owned.\n", bucket)
+			slog.Warn("Bucket already owned", "bucket", bucket)
 		} else if errors.As(err3, &exists) {
-			log.Printf("Bucket %s already exists.\n", bucket)
+			slog.Warn("Bucket already exists", "bucket", bucket)
+		} else {
+			slog.Error("CreateBucket() failed", "bucket", bucket,
+				"error", err3)
+			log.Fatal("CreateBucket() failed")
 		}
-		log.Fatalf("CreateBucket() failed; bucket=%s error=%v", bucket, err3)
 		return err3
 	}
 
@@ -70,6 +73,8 @@ func op_create_bucket(ctx context.Context, client *s3.Client, bucket string) err
 		ctx2, &s3.HeadBucketInput{Bucket: aws.String(bucket)},
 		operation_timeout)
 	if err2 != nil {
+		slog.Error("s3.NewBucketExistsWaiter() failed", "bucket", bucket,
+			"error", err2)
 		log.Fatalf("s3.NewBucketExistsWaiter() failed; bucket=%s error=%v", bucket, err2)
 		return err2
 	}

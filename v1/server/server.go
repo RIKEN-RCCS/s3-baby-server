@@ -61,10 +61,15 @@ type Bb_server struct {
 }
 
 type msec_duration int64
+type sec_duration int64
 type mbyte_size int64
 
-func time_duration(v msec_duration) time.Duration {
+func time_msec_duration(v msec_duration) time.Duration {
 	return time.Duration(v) * time.Millisecond
+}
+
+func time_sec_duration(v sec_duration) time.Duration {
+	return time.Duration(v) * time.Second
 }
 
 func byte_size(v mbyte_size) int64 {
@@ -80,11 +85,12 @@ type Bb_configuration struct {
 	Server_control_name      string        `json:"server_control_name"`
 	Site_base_url            *string       `json:"site_base_url"`
 	Exclusion_wait           msec_duration `json:"exclusion_wait"`
+	Sign_valid_window        sec_duration  `json:"sign_valid_window"`
 	Etag_save_threshold      mbyte_size    `json:"etag_save_threshold"`
 	Xml_parameter_size_limit mbyte_size    `json:"xml_parameter_size_limit"`
 	Verify_fs_write          bool          `json:"verify_fs_write"`
 	Log_monitor_timing       bool          `json:"log_monitor_timing"`
-	Verbose_debug_logging    bool          `json:"verbose_debug_logging"`
+	Skip_trace_logging       bool          `json:"skip_trace_logging"`
 	Pretty_xml_response      bool          `json:"pretty_xml_response"`
 	Keep_trailing_slash      bool          `json:"keep_trailing_slash"`
 	Accept_fetch_owner       bool          `json:"accept_fetch_owner"`
@@ -120,6 +126,9 @@ var h_limit_of_xml_parameters int64 = (2 * 1024 * 1024)
 // H_PRETTY_XML_RESPONSE=true sets xml.NewEncoder.Indent() in response
 // generation.
 var h_pretty_xml_response bool = false
+
+// Log Trace level is more verbose than Debug.
+const LevelTrace = slog.Level(-8)
 
 // PRIOR_HANDLER is an http.Handler and it checks an authorization
 // header in a request before passing it to actual handlers.  It also
@@ -192,10 +201,14 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// START_SERVER is called from the main.  Baby-server first prints
+// info message "Starting Baby-server".  Other logging messages may be
+// printed only when it stops.
 func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, conf, logs string, loga bool, prof int) {
 
-	// Run in GMT time zone instead of the local time zone.  The time
-	// format RFC-1123 requires GMT, and time.UTC does not work here.
+	// Runs in GMT time zone instead of the local time zone.  It is to
+	// avoid specifying the time zone every time.  The time format
+	// RFC-1123 requires GMT, and time.UTC does not work.
 
 	// time.Local = time.UTC
 	time.Local = time.FixedZone("GMT", 0)
@@ -204,6 +217,8 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 
 	var loglevel = new(slog.LevelVar)
 	switch logs {
+	case "trace":
+		loglevel.Set(LevelTrace)
 	case "debug":
 		loglevel.Set(slog.LevelDebug)
 	case "info":
@@ -213,8 +228,13 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	default:
 		loglevel.Set(slog.LevelInfo)
 	}
-	var logger = slog.New(slog.NewTextHandler(os.Stdout,
-		&slog.HandlerOptions{Level: loglevel}))
+
+	var h = new_log_handler_with_trace(os.Stdout,
+		&slog.HandlerOptions{Level: loglevel})
+	var logger = slog.New(h)
+
+	//var logger = slog.New(slog.NewTextHandler(os.Stdout,
+	//	&slog.HandlerOptions{Level: loglevel}))
 
 	// Set default configurations, or read it from a file.
 
@@ -222,9 +242,9 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		Server_control_name:      "bbs.ctl",
 		Site_base_url:            nil,
 		Exclusion_wait:           5000,
+		Sign_valid_window:        60,
 		Etag_save_threshold:      1,
 		Xml_parameter_size_limit: 2,
-		Verbose_debug_logging:    true,
 	}
 
 	if conf != "" {
@@ -233,7 +253,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		if err1 != nil {
 			logger.Error("os.Open() to a conf file failed",
 				"path", confpath, "error", err1)
-			return
+			os.Exit(2)
 		}
 		defer func() {
 			var err3 = f1.Close()
@@ -246,13 +266,13 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		if err2 != nil {
 			logger.Error("json.Decode() on a conf file failed",
 				"path", confpath, "error", err2)
-			return
+			os.Exit(2)
 		}
 		var err3 = f1.Close()
 		if err3 != nil {
 			logger.Error("op.Close() on a conf file failed",
 				"path", confpath, "error", err3)
-			return
+			os.Exit(2)
 		}
 	}
 
@@ -265,7 +285,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		if err4 != nil {
 			logger.Error("json.Encoder.Encode() on dumping a conf file failed",
 				"error", err4)
-			return
+			os.Exit(2)
 		}
 		return
 	}
@@ -277,9 +297,9 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	var wdpath = filepath.Clean(pool_directory)
 	var err1 = os.Chdir(wdpath)
 	if err1 != nil {
-		logger.Info("os.Chdir() to pool directory failed",
+		logger.Error("os.Chdir() to pool directory failed",
 			"directory", wdpath, "error", err1)
-		return
+		os.Exit(2)
 	}
 
 	// Check the directory to store access logs.
@@ -297,8 +317,9 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		var dirpath = filepath.Join(".", dir1, dir2)
 		var _, err1 = os.Lstat(dirpath)
 		if err1 != nil && !errors.Is(err1, fs.ErrNotExist) {
-			logger.Info("os.Lstat() in checking .s3bbs/log failed",
+			logger.Error("os.Lstat() in checking .s3bbs/log failed",
 				"path", dirpath, "error", err1)
+			os.Exit(2)
 		}
 		var log2 *os.File = nil
 		if err1 == nil {
@@ -306,8 +327,9 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 			var oappend = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 			var f, err2 = os.OpenFile(logpath, oappend, 0644)
 			if err2 != nil {
-				logger.Info("os.OpenFile() to access-log failed",
+				logger.Error("os.OpenFile() to access-log failed",
 					"path", logpath, "error", err2)
+				os.Exit(2)
 			}
 			if err2 == nil {
 				log2 = f
@@ -360,10 +382,10 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		Handler:  sv,
 		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 
-		ReadTimeout:       time_duration(bbs.config.ReadTimeout),
-		ReadHeaderTimeout: time_duration(bbs.config.ReadHeaderTimeout),
-		WriteTimeout:      time_duration(bbs.config.WriteTimeout),
-		IdleTimeout:       time_duration(bbs.config.IdleTimeout),
+		ReadTimeout:       time_msec_duration(bbs.config.ReadTimeout),
+		ReadHeaderTimeout: time_msec_duration(bbs.config.ReadHeaderTimeout),
+		WriteTimeout:      time_msec_duration(bbs.config.WriteTimeout),
+		IdleTimeout:       time_msec_duration(bbs.config.IdleTimeout),
 		MaxHeaderBytes:    bbs.config.MaxHeaderBytes,
 	}
 
@@ -393,6 +415,34 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	}
 }
 
+// NEW_LOG_HANDLER_WITH_TRACE makes a new text log handler.  This is
+// taken from "example_custom_levels_test.go", which can be found at
+// "https://pkg.go.dev/log/slog#section-sourcefiles".
+func new_log_handler_with_trace(w io.Writer, o *slog.HandlerOptions) *slog.TextHandler {
+	var h = slog.NewTextHandler(w, &slog.HandlerOptions{
+		Level: o.Level,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.LevelKey {
+				var level = a.Value.Any().(slog.Level)
+				switch {
+				case level < slog.LevelDebug:
+					a.Value = slog.StringValue("TRACE")
+				case level < slog.LevelInfo:
+					a.Value = slog.StringValue("DEBUG")
+				case level < slog.LevelWarn:
+					a.Value = slog.StringValue("INFO")
+				case level < slog.LevelError:
+					a.Value = slog.StringValue("WARN")
+				default:
+					a.Value = slog.StringValue("ERROR")
+				}
+			}
+			return a
+		},
+	})
+	return h
+}
+
 func get_action_name(ctx context.Context) (string, uint64, string) {
 	var action = ctx.Value(action_name_key).(*string)
 	if action == nil {
@@ -417,7 +467,7 @@ func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Requ
 }
 
 func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Request) (string, error) {
-	var timewindow = 20 * time.Second
+	var timewindow = time_sec_duration(bbs.config.Sign_valid_window)
 	var key, reason = awss3aide.Check_credential(r, bbs.cred_pair, timewindow)
 	if reason != nil {
 		bbs.logger.Info("Bad authorization", "key", key, "reason", reason)
