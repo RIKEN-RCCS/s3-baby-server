@@ -225,16 +225,18 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		loglevel.Set(slog.LevelInfo)
 	case "warn":
 		loglevel.Set(slog.LevelWarn)
-	default:
+	case "":
 		loglevel.Set(slog.LevelInfo)
+	default:
+		slog.Error("Bad log level", "level", logs)
+		os.Exit(2)
 	}
+
+	//var logger = slog.New(slog.NewTextHandler(os.Stdout, ...))
 
 	var h = new_log_handler_with_trace(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel})
 	var logger = slog.New(h)
-
-	//var logger = slog.New(slog.NewTextHandler(os.Stdout,
-	//	&slog.HandlerOptions{Level: loglevel}))
 
 	// Set default configurations, or read it from a file.
 

@@ -45,7 +45,7 @@ func main() {
 		("Certificate for https, a path to a certificate file."))
 	var flag_https_key = options.String("https-key", "",
 		("Key for the certificate, a path to a key file."))
-	var flag_logs = options.String("log", "",
+	var flag_log_level = options.String("log", "",
 		"Log-level, one of debug/info/warn.")
 	var flag_log_access = options.Bool("log-access", false,
 		"Logging access logs to stdout, unless logging directed to a file.")
@@ -175,7 +175,7 @@ func main() {
 	}
 
 	var conf = *flag_conf
-	var logs = *flag_logs
+	var logs = *flag_log_level
 	var loga = *flag_log_access
 	var prof = *flag_prof
 
