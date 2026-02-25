@@ -1,7 +1,7 @@
-module awss3aide
+module github.com/riken-rccs/s3-baby-server/pkg/awss3aide
 
 go 1.25
 
-require github.com/aws/aws-sdk-go-v2 v1.40.0
+require github.com/aws/aws-sdk-go-v2 v1.41.2
 
-require github.com/aws/smithy-go v1.23.2 // indirect
+require github.com/aws/smithy-go v1.24.1 // indirect

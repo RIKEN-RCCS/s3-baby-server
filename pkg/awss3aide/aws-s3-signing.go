@@ -33,8 +33,6 @@ package awss3aide
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -42,6 +40,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 )
 
 // AUTHORIZATION_S3V4 lists entries of an authorization-header.  That
