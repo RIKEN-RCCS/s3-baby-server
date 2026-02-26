@@ -1,4 +1,4 @@
-module github.com/riken-rccs/s3-baby-server/pkg/htthaide
+module github.com/riken-rccs/s3-baby-server/pkg/httpaide
 
 go 1.25
 
