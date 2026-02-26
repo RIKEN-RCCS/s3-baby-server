@@ -3,8 +3,9 @@
 // Copyright 2022-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// This verifies a sign by AWS-S3 signing.  DEFICIENCY: This does not
-// calculate the message digest and uses a passed one.
+// This verifies a sign by AWS-S3 signing.  This checks the headers in
+// a server-side request.  DEFICIENCY: It does not calculate the
+// message digest and uses a passed one.
 
 // MEMO: An AWS-S3 V4 authorization-header looks like:
 //
@@ -32,6 +33,7 @@ package awss3aide
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -49,9 +51,9 @@ import (
 // is the slots of "Credential=", "SignedHeaders=", and Signature=".
 // Keys in signed headers are canonicalized.
 type Authorization_s3v4 struct {
-	credential    [5]string
-	signedheaders []string
-	signature     string
+	Credential    [5]string
+	SignedHeaders []string
+	Signature     string
 }
 
 // REQUIRED_HEADERS is a list that are checked their existence in
@@ -67,9 +69,7 @@ var required_headers = [3]string{
 const aws_s3v4_authorization = "AWS4-HMAC-SHA256"
 const aws_s3_region_default = "us-east-1"
 const amz_date_layout = "20060102T150405Z"
-const (
-	empty_payload_hash_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-)
+const empty_payload_hash_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 var check_all_digits_re = regexp.MustCompile(`^[0-9]+$`)
 
@@ -89,11 +89,21 @@ var proxy_attached_headers = []string{
 	"X-Real-Ip",
 }
 
+var Verbose = false
+
 func signing_verbose(msg ...any) {
-	if false {
+	if Verbose {
 		fmt.Println(msg...)
 	}
 }
+
+var E_no_auth = errors.New("no-auth")
+var E_bad_auth = errors.New("bad-auth")
+var E_bad_date = errors.New("bad-date")
+var E_outdated_date = errors.New("outdated-date")
+var E_wrong_key = errors.New("wrong-key")
+var E_cannot_sign = errors.New("cannot-sign")
+var E_bad_sign = errors.New("bad-sign")
 
 // CHECK_CREDENTIAL checks a signing in an http request.  It returns
 // an access-key and a simple failure reason.  It once signs a request
@@ -104,24 +114,25 @@ func signing_verbose(msg ...any) {
 // key is found.  Failure reasons are one of {"no-auth", "bad-auth",
 // "bad-date", "outdated-date", "wrong-key", "cannot-sign",
 // "bad-sign"}.  It substitutes "Host" by "X-Forwarded-Host" if it is
-// missing.  It copies a request before modifying it.
+// missing.  It copies a request before modifying it.  It prints
+// important logs to the default "logger" by slog.Debug().
 func Check_credential(rqst1 *http.Request, keypair [2]string, timewindow time.Duration) (string, error) {
 	var header1 = rqst1.Header.Get("Authorization")
 	signing_verbose("*** authorization=", header1)
 	if header1 == "" {
 		signing_verbose("*** empty authorization=", header1)
-		return "anon", fmt.Errorf("no-auth")
+		return "anon", E_no_auth
 	}
 	var auth_passed = Scan_aws_authorization(header1)
 	if auth_passed == nil {
 		signing_verbose("*** bad-auth=", header1)
-		return "anon", fmt.Errorf("bad-auth")
+		return "anon", E_bad_auth
 	}
 
-	var access_key = auth_passed.credential[0]
+	var access_key = auth_passed.Credential[0]
 	if access_key != keypair[0] {
 		signing_verbose("*** wrong-key=", access_key)
-		return access_key, fmt.Errorf("wrong-key")
+		return access_key, E_wrong_key
 	}
 
 	// Copy the request.  Note Golang's copy is shallow.
@@ -132,29 +143,29 @@ func Check_credential(rqst1 *http.Request, keypair [2]string, timewindow time.Du
 	// Filter out except the specified headers for signing.
 
 	maps.DeleteFunc(rqst2.Header, func(k string, v []string) bool {
-		return slices.Index(auth_passed.signedheaders, k) == -1
+		return slices.Index(auth_passed.SignedHeaders, k) == -1
 	})
-	if slices.Index(auth_passed.signedheaders, "Content-Length") == -1 {
+	if slices.Index(auth_passed.SignedHeaders, "Content-Length") == -1 {
 		rqst2.ContentLength = -1
 	}
 	if rqst2.Host == "" {
 		rqst2.Host = rqst1.Header.Get("X-Forwarded-Host")
 	}
 
-	var service = auth_passed.credential[3]
-	var region = auth_passed.credential[2]
+	var service = auth_passed.Credential[3]
+	var region = auth_passed.Credential[2]
 	//var datestring = adjust_x_amz_date(rqst1.Header.Get("X-Amz-Date"))
 	//var date, err1 = time.Parse(time.RFC3339, datestring)
 	var datestring = rqst1.Header.Get("X-Amz-Date")
 	var date, err1 = time.Parse(amz_date_layout, datestring)
 	if err1 != nil {
 		signing_verbose("*** bad-date=", auth_passed)
-		return access_key, fmt.Errorf("bad-date")
+		return access_key, E_bad_date
 	}
 	var now = time.Now()
 	if !(now.Sub(date).Abs() <= timewindow) {
 		signing_verbose("*** outdated-date=", auth_passed)
-		return access_key, fmt.Errorf("outdated-date")
+		return access_key, E_outdated_date
 	}
 
 	var credentials = aws.Credentials{
@@ -180,24 +191,23 @@ func Check_credential(rqst1 *http.Request, keypair [2]string, timewindow time.Du
 	var err2 = sign1.SignHTTP(ctx, credentials, &rqst2,
 		hash, service, region, date)
 	if err2 != nil {
-		slog.Error("Mux() signer/SignHTTP() failed", "err", err2)
-		return access_key, fmt.Errorf("cannot-sign")
+		slog.Debug("signer/SignHTTP() failed", "error", err2)
+		return access_key, E_cannot_sign
 	}
 
 	var header2 = rqst2.Header.Get("Authorization")
 	var auth_forged = Scan_aws_authorization(header2)
 	if auth_forged == nil {
 		signing_verbose("*** bad-auth=", header2)
-		return access_key, fmt.Errorf("bad-auth")
+		return access_key, E_bad_auth
 	}
 
-	var ok = auth_passed.signature == auth_forged.signature
+	var ok = auth_passed.Signature == auth_forged.Signature
 	if !ok {
-		slog.Info("Mux() Bad authorization, signs unmatch",
-			"access-key1", auth_passed.credential[0])
-		slog.Debug("Mux() Bad authorization, signs unmatch",
-			"auth1", auth_passed, "auth2", auth_forged)
-		return access_key, fmt.Errorf("bad-sign")
+		slog.Debug("Bad authorization, signs unmatch",
+			"access-key", auth_passed.Credential[0],
+			"auth-passed", auth_passed, "auth-signed", auth_forged)
+		return access_key, E_bad_sign
 	}
 	return access_key, nil
 }
@@ -274,9 +284,9 @@ func Scan_aws_authorization(auth string) *Authorization_s3v4 {
 		return nil
 	}
 	return &Authorization_s3v4{
-		credential:    [5]string(credential),
-		signedheaders: signedheaders,
-		signature:     signature}
+		Credential:    [5]string(credential),
+		SignedHeaders: signedheaders,
+		Signature:     signature}
 }
 
 func check_all_digits(s string) bool {

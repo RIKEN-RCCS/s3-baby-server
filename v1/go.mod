@@ -1,6 +1,6 @@
 module s3-baby-server
 
-go 1.25
+go 1.25.7
 
 replace github.com/riken-rccs/s3-baby-server/pkg/awss3aide => ../pkg/awss3aide
 
