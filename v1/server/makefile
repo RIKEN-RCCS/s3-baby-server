@@ -1,7 +1,7 @@
 # makefile
 
 all::
-	echo "Please go to the parent diretory and make."
+	echo "Please go to the parent directory and make."
 
 fmt::
 	go fmt $(SOURCEFILES)

@@ -216,6 +216,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	// Create logger.
 
 	var loglevel = new(slog.LevelVar)
+	var encounter_bad_log_level bool = false
 	switch logs {
 	case "trace":
 		loglevel.Set(LevelTrace)
@@ -228,15 +229,18 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	case "":
 		loglevel.Set(slog.LevelInfo)
 	default:
-		slog.Error("Bad log level", "level", logs)
-		os.Exit(2)
+		loglevel.Set(slog.LevelInfo)
+		encounter_bad_log_level = true
 	}
-
-	//var logger = slog.New(slog.NewTextHandler(os.Stdout, ...))
 
 	var h = new_log_handler_with_trace(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel})
 	var logger = slog.New(h)
+
+	if encounter_bad_log_level {
+		logger.Error("Bad log level", "level", logs)
+		os.Exit(2)
+	}
 
 	// Set default configurations, or read it from a file.
 
@@ -413,7 +417,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		err2 = bbs.server.ListenAndServe()
 	}
 	if err2 != nil {
-		bbs.logger.Warn("http.ListenAndServe() returns", "error", err2)
+		logger.Error("http.ListenAndServe() failed", "error", err2)
 	}
 }
 

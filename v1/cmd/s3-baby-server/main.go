@@ -3,7 +3,7 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Command line is: ./s3-baby-server serve addr path options...
+// Command line: ./s3-baby-server "serve" host-port pool-path options...
 
 package main
 
@@ -19,6 +19,10 @@ import (
 )
 
 func main() {
+	// Use a plain structured-logger until a logger is initialized.
+
+	var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+
 	var o = os.Stdout
 	var options = flag.NewFlagSet("", flag.ExitOnError)
 	options.Usage = func() {
@@ -131,13 +135,13 @@ func main() {
 			cred_pair = *flag_cred
 		}
 		if len(cred_pair) == 0 {
-			slog.Error("Credential not specified, it is required.\n")
+			logger.Error("Credential not specified, it is required.\n")
 			os.Exit(2)
 		}
 
 		var access, secret, ok = strings.Cut(cred_pair, ",")
 		if !ok || len(access) == 0 || len(secret) == 0 {
-			slog.Error("Bad credential key pair", "pair", cred_pair)
+			logger.Error("Bad credential key pair", "pair", cred_pair)
 			os.Exit(2)
 		}
 		cred = [2]string{access, secret}
@@ -150,7 +154,7 @@ func main() {
 			var crt1 = *flag_https_crt
 			var key1 = *flag_https_key
 			if len(crt1) == 0 || len(key1) == 0 {
-				slog.Error("Both certificate and key needed for https",
+				logger.Error("Both certificate and key needed for https",
 					"crt", crt1, "key", key1)
 				os.Exit(2)
 			}
@@ -160,13 +164,13 @@ func main() {
 
 			var crt2, err1 = filepath.Abs(crt1)
 			if err1 != nil {
-				slog.Error("filepath.Abs() on certificate/key failed",
+				logger.Error("filepath.Abs() on certificate/key failed",
 					"crt", crt1, "key", key1, "error", err1)
 				os.Exit(2)
 			}
 			var key2, err2 = filepath.Abs(key1)
 			if err2 != nil {
-				slog.Error("filepath.Abs() on certificate/key failed",
+				logger.Error("filepath.Abs() on certificate/key failed",
 					"crt", crt1, "key", key1, "error", err2)
 				os.Exit(2)
 			}
