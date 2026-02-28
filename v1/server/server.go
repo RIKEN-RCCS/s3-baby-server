@@ -39,8 +39,8 @@ import (
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 )
 
-const Bb_version = "v1.2.1"
-const Bb_metafile_format = "v1.2"
+const Bb_version = "v1.3.1"
+const Bb_metafile_format = "v1.3"
 
 type Bb_server struct {
 	server    *http.Server
