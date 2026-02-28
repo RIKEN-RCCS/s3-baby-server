@@ -24,7 +24,7 @@ func TestMonitorExclusion(t *testing.T) {
 	fmt.Printf("Test Monitor Exclusion...\n")
 	var wg sync.WaitGroup
 	var m = New_monitor()
-	go m.guard_loop()
+	go m.Guard_loop()
 	wg.Add(6)
 	go monitor_enter(m, 101, 1, &wg)
 	go monitor_enter(m, 102, 1, &wg)
@@ -42,7 +42,7 @@ func TestMonitorTimeout(t *testing.T) {
 	fmt.Printf("Test Monitor Timeout...\n")
 	var wg sync.WaitGroup
 	var m = New_monitor()
-	go m.guard_loop()
+	go m.Guard_loop()
 	wg.Add(6)
 	go monitor_enter(m, 101, 30, &wg)
 	time.Sleep(1 * time.Second)

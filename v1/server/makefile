@@ -6,10 +6,10 @@ all::
 fmt::
 	go fmt $(SOURCEFILES)
 
-TestCRC64NVME::
+test-crc::
 	go test -run 'TestCRC64NVME'
 
-TestMonitorExclusion::
+test-monitor::
 	go test -run 'TestMonitorExclusion'
 
 SOURCEFILES=api-action.go auxiliary1_test.go auxiliary2_test.go

@@ -3,8 +3,12 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// S3-Baby-server main.  The entry Start_server() is called from the
-// main in cmd/s3-baby-server/main.go.
+// Baby-server Main
+
+// The entry Start_server() is called from the main in
+// cmd/s3-baby-server/main.go.  A start-up message will be printed
+// when listening on a port is successful.  It assumes no further
+// errors occur.
 
 package server
 
@@ -293,7 +297,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 				"error", err4)
 			os.Exit(2)
 		}
-		return
+		os.Exit(0)
 	}
 
 	// Change the working directory to the pool-directory.  It is to
@@ -370,7 +374,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		suffixes:       make(map[string]scratch_suffix),
 	}
 
-	go bbs.monitor1.guard_loop()
+	go bbs.monitor1.Guard_loop()
 
 	h_limit_of_xml_parameters = byte_size(config.Xml_parameter_size_limit)
 	h_pretty_xml_response = config.Pretty_xml_response
@@ -407,14 +411,24 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		proto = "http"
 	}
 
+	var listen, err3 = net.Listen("tcp", addr)
+	if err3 != nil {
+		logger.Error("net.Listen() failed",
+			"address", addr, "error", err3)
+		os.Exit(2)
+	}
+	defer listen.Close()
+
 	logger.Info("Starting Baby-server", "address", addr, "proto", proto,
 		"access-key", cred[0], "version", Bb_version)
 
 	var err2 error
 	if cert[0] != "" {
-		err2 = bbs.server.ListenAndServeTLS(cert[0], cert[1])
+		//err2 = bbs.server.ListenAndServeTLS(cert[0], cert[1])
+		err2 = bbs.server.ServeTLS(listen, cert[0], cert[1])
 	} else {
-		err2 = bbs.server.ListenAndServe()
+		//err2 = bbs.server.ListenAndServe()
+		err2 = bbs.server.Serve(listen)
 	}
 	if err2 != nil {
 		logger.Error("http.ListenAndServe() failed", "error", err2)

@@ -3,14 +3,16 @@
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// A monitor to serialize accesses to the same object.  It serves in
-// fifo order.  Entering may fail by a timeout.
+// A Monitor Implementation to Serialize Operations
 
-// It takes a short sleep, when some tasks timeout.  It is to give
-// tasks a time to leave themselves from the wait queue.  Without a
-// sleep, worthless signals are delivered to a condition variable.
+// A monitor is used to serialize accesses to the same object.  It
+// services in fifo order.  Entering may fail by a timeout.
+
+// NOTE: It takes a short sleep, when some tasks timeout.  It is to
+// give tasks a time to leave themselves from the wait queue.  Without
+// a sleep, worthless signals are delivered to a condition variable.
 // Parameter m.smallwait controls it.  It should be a fraction of
-// typical timeout.
+// typical timeouts.
 //
 // NOTE: Make sure sending to a channel (m.schedule) be outside of a
 // mutex.
@@ -59,7 +61,7 @@ func (m *Monitor) init() {
 // GUARD_LOOP broadcasts events to waiting tasks.  The loop runs
 // forever, until m.schedule is closed.  Note the first entry in the
 // queues is in service.
-func (m *Monitor) guard_loop() {
+func (m *Monitor) Guard_loop() {
 	for {
 		var now = time.Now()
 		var nextdue = now.Add(3600 * time.Second)
