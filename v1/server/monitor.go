@@ -145,9 +145,7 @@ func (m *Monitor) Enter(object string, rid uint64, d time.Duration) (bool, time.
 			m.blocker.Wait()
 		}
 	}
-	log.Print("monitor: BAD exit erroneously")
-	var elapse = time.Since(enter_time)
-	return false, elapse
+	// Never here.
 }
 
 // EXIT exits an exclusion region.  It schedules a next task.  Timeout

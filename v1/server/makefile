@@ -6,6 +6,9 @@ all::
 fmt::
 	go fmt $(SOURCEFILES)
 
+vet::
+	go vet
+
 test-crc::
 	go test -run 'TestCRC64NVME'
 

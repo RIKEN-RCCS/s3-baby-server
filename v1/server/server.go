@@ -217,7 +217,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	// time.Local = time.UTC
 	time.Local = time.FixedZone("GMT", 0)
 
-	// Create logger.
+	// Create a logger.
 
 	var loglevel = new(slog.LevelVar)
 	var encounter_bad_log_level bool = false
@@ -304,12 +304,32 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	// avoid accidentally disclosing the full path (which may include
 	// a user name or a project name)
 
-	var wdpath = filepath.Clean(pool_directory)
-	var err1 = os.Chdir(wdpath)
-	if err1 != nil {
-		logger.Error("os.Chdir() to pool directory failed",
-			"directory", wdpath, "error", err1)
-		os.Exit(2)
+	{
+		var wdpath = filepath.Clean(pool_directory)
+
+		// Check the directory is with sufficient permission.
+
+		var stat, err1 = os.Lstat(wdpath)
+		if err1 != nil {
+			logger.Error("os.Lstat() to pool directory failed",
+				"directory", wdpath, "error", err1)
+			os.Exit(2)
+		}
+		var mode = stat.Mode()
+		var perm = mode.Perm()
+		var rwx = (perm & 7) | ((perm >> 3) & 7) | ((perm >> 6) & 7)
+		if rwx != 7 {
+			logger.Error("No sufficient permission (rwx)",
+				"directory", wdpath, "mode", mode.String())
+			os.Exit(2)
+		}
+
+		var err2 = os.Chdir(wdpath)
+		if err2 != nil {
+			logger.Error("os.Chdir() to pool directory failed",
+				"directory", wdpath, "error", err2)
+			os.Exit(2)
+		}
 	}
 
 	// Check the directory to store access logs.
