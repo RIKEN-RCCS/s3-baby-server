@@ -9,6 +9,9 @@ fmt::
 vet::
 	go vet
 
+fix::
+	go fix
+
 test-crc::
 	go test -run 'TestCRC64NVME'
 
