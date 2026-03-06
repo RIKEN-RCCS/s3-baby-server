@@ -318,10 +318,11 @@ type Signing_credential struct {
 */
 
 // SIGN_BY_CREDENTIAL replaces an authorization header in a request
-// for the given key-pair.  keypair[0] is an access-key and keypair[1]
-// is a secret-key.  It returns an error from Signer.SignHTTP().  Note
-// that it drops the headers attached by a proxy, which would confuse
-// the signer.
+// for a given key-pair.  HOST is copied to the Host header and it is
+// an endpoint "host:port".  KEYPAIR[0] is an access-key and
+// KEYPAIR[1] is a secret-key.  It returns an error from
+// Signer.SignHTTP().  Note that it drops the headers attached by a
+// proxy, which would confuse the signer.
 func Sign_by_credential(r *http.Request, host string, keypair [2]string) error {
 	if false {
 		fmt.Printf("*** r.Host(1)=%v\n", r.Host)
