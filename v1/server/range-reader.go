@@ -1,12 +1,12 @@
-// range-reader.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Range_reader is a reader of a file in the given range.  It is type
-// io.ReadCloser.  io.ReadCloser extends io.Reader and io.Closer.
+// Range-Reader
+
+// A range-reader is a reader of a file in the given range.  It is
+// type io.ReadCloser.  io.ReadCloser extends io.Reader and io.Closer.
 // io.LimitedReader and io.SectionReader are similar but they cannot
-// directly be used because it is not io.Closer.
+// directly be used because they are not io.Closer.
 
 package server
 

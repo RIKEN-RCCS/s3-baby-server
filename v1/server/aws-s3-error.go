@@ -1,15 +1,15 @@
-// aws-s3-error.go
+// Error Codes of AWS S3
 
 // This file is derived from the copyright material by Amazon Web
 // Services, Inc.
-
+//
 // This defines error codes AWS S3.  The code in this file is
 // extracted from the AWS S3 API specification.  It contains a list of
 // error codes in the sections "Error" and "Error responses".
-
-// [Error]
-// https://docs.aws.amazon.com/AmazonS3/latest/API/API_Error.html
-
+//
+// See
+//   - https://docs.aws.amazon.com/AmazonS3/latest/API/API_Error.html
+//
 // Aws_s3_error_code is (an enumeration) of string type.
 // Aws_s3_error_to_message is a map from error-code to a pair of an
 // http status-code and a message.  Some of the messages that are

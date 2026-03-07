@@ -1,9 +1,7 @@
-// server.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Baby-server Main
+// Baby-server Toplevel
 
 // The entry Start_server() is called from the main in
 // cmd/s3-baby-server/main.go.  A start-up message will be printed
@@ -21,6 +19,7 @@ import (
 	"io/fs"
 	"log"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -93,9 +92,6 @@ type Bb_configuration struct {
 	Etag_save_threshold      mbyte_size    `json:"etag_save_threshold"`
 	Xml_parameter_size_limit mbyte_size    `json:"xml_parameter_size_limit"`
 	Verify_fs_write          bool          `json:"verify_fs_write"`
-	Log_monitor_timing       bool          `json:"log_monitor_timing"`
-	Skip_trace_logging       bool          `json:"skip_trace_logging"`
-	Pretty_xml_response      bool          `json:"pretty_xml_response"`
 	Keep_trailing_slash      bool          `json:"keep_trailing_slash"`
 	Accept_fetch_owner       bool          `json:"accept_fetch_owner"`
 	Strict_etag_quoting      bool          `json:"strict_etag_quoting"`
@@ -109,6 +105,11 @@ type Bb_configuration struct {
 	WriteTimeout      msec_duration `json:"WriteTimeout"`
 	IdleTimeout       msec_duration `json:"IdleTimeout"`
 	MaxHeaderBytes    int           `json:"MaxHeaderBytes"`
+
+	Pretty_xml_response bool `json:"pretty_xml_response"`
+	Log_monitor_timing  bool `json:"log_monitor_timing"`
+	Skip_trace_logging  bool `json:"skip_trace_logging"`
+	Dump_request_header bool `json:"dump_request_header"`
 }
 
 // HANDLER_FRAME is a request-specific record stored in the context
@@ -145,24 +146,19 @@ type prior_handler struct {
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var start_time = time.Now()
 
-	var rid = sv.bbs.make_request_id()
-	var suffix = sv.bbs.make_scratch_suffix(rid)
-	defer sv.bbs.discharge_scratch_suffix(rid, suffix)
-
 	var auth, err1 = sv.bbs.attest_authorization(w, r)
 	if err1 != nil {
 		return
 	}
 
-	if r.Trailer != nil {
-		sv.bbs.logger.Error("http trailer header is unsupported",
-			"trailer", r.Trailer)
-	}
+	var rid = sv.bbs.make_request_id()
+	var suffix = sv.bbs.make_scratch_suffix(rid)
+	defer sv.bbs.discharge_scratch_suffix(rid, suffix)
 
 	var request = fmt.Sprintf("%s %s", r.Method, r.URL)
 
-	var w2 = &httpaide.ResponseWriter2{ResponseWriter: w}
 	var ctx1 = r.Context()
+	var w2 = &httpaide.ResponseWriter2{ResponseWriter: w}
 	var frame = &Handler_frame{
 		Request_id:     rid,
 		Scratch_suffix: suffix,
@@ -172,8 +168,30 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var ctx2 = context.WithValue(ctx1, handler_frame_key, frame)
 	var r2 = r.WithContext(ctx2)
 
+	// Dump the header for debugging.  It restores some headers
+	// http-server swallowed.
+
+	if sv.bbs.config.Dump_request_header {
+		var h = maps.Clone(r.Header)
+		var contentlength = strconv.FormatInt(r.ContentLength, 10)
+		h["Content-Length"] = []string{contentlength}
+		h["Transfer-Encoding"] = r.TransferEncoding
+		var tailers []string
+		for k, _ := range r.Trailer {
+			tailers = append(tailers, k)
+		}
+		h["Trailer"] = tailers
+		sv.bbs.logger.Log(ctx1, LevelTrace,
+			"Request-Header", "header", h)
+	}
+
+	if r.Trailer != nil {
+		sv.bbs.logger.Error("http trailer header is unsupported",
+			"trailer", r.Trailer)
+	}
+
 	// Drop (multiple) trailing-slashes in the path by rewriting.
-	// Some clients attach a slash-suffix to bucket/object name.
+	// Some clients attach a slash-suffix to a bucket/object name.
 
 	if !sv.bbs.config.Keep_trailing_slash {
 		if r2.URL.Path != "/" && strings.HasSuffix(r2.URL.Path, "/") {
@@ -237,6 +255,8 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		encounter_bad_log_level = true
 	}
 
+	/*loglevel.Set(LevelTrace)*/
+
 	var h = new_log_handler_with_trace(os.Stdout,
 		&slog.HandlerOptions{Level: loglevel})
 	var logger = slog.New(h)
@@ -255,6 +275,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		Sign_valid_window:        60,
 		Etag_save_threshold:      1,
 		Xml_parameter_size_limit: 2,
+		/*Dump_request_header:      true,*/
 	}
 
 	if conf != "" {
@@ -581,7 +602,8 @@ func dump_memory_statistics(logger *slog.Logger, details bool) {
 }
 
 // SERVICE_PROFILER starts the http server for "go tool pprof".  Note
-// importing "net/http/pprof" initializes profiler in DefaultServeMux.
+// importing "net/http/pprof" initializes the use of profiler in
+// DefaultServeMux.
 func service_profiler(logger *slog.Logger, port int) {
 	var ep = net.JoinHostPort("", strconv.Itoa(port))
 	var router = http.DefaultServeMux

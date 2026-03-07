@@ -1,5 +1,3 @@
-// api-action.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 

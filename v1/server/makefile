@@ -3,6 +3,9 @@
 all::
 	echo "Please go to the parent directory and make."
 
+build::
+	go build
+
 fmt::
 	go fmt $(SOURCEFILES)
 

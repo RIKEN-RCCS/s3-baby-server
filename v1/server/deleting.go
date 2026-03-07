@@ -1,10 +1,9 @@
-// deleting.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Deletion.  This is the common part of {DeleteObject,
-// DeleteObjects}.
+// Deletion
+
+// This is the common part of {DeleteObject, DeleteObjects}.
 
 package server
 

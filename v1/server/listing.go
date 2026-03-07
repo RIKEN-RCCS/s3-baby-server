@@ -1,12 +1,12 @@
-// listing.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Listing.  This is the main part of {ListBuckets,
-// ListMultipartUploads, ListObjects, ListObjectsV2, ListParts}.  It
-// prefers libraries "io/fs" that is mostly os-independent
-// (slash-delimited) over "os" and "filepath".
+// Object Listing
+
+// This is the main part of {ListBuckets, ListMultipartUploads,
+// ListObjects, ListObjectsV2, ListParts}.  It prefers libraries
+// "io/fs" that is mostly os-independent (slash-delimited) over "os"
+// and "filepath".
 
 // MEMO: io/fs.WalkDir does not follow symbolic links.  It is explicit
 // in "https://pkg.go.dev/io/fs#WalkDir"

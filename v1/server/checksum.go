@@ -1,9 +1,9 @@
-// checksum.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Various parameters for CRC can be found (for example) at:
+// Checksum with CRC64-NVME
+
+// MEMO: Various parameters of CRC can be found (for example) at:
 // https://reveng.sourceforge.io/crc-catalogue/all.htm
 
 package server

@@ -311,15 +311,13 @@ and in data,
 
 ----------------
 
-## Request Checks
+## Implementation Limitations
+
+### Request Checks
 
 Baby-server does not check properness of enumerators in XML payload,
 while it checks that in headers.  Baby-server uses the standard
 unmarshaler and it does not know about enumerators.
-
-----------------
-
-## Implementation Limitations
 
 ### No Handling of Trailer Headers
 
@@ -407,6 +405,26 @@ part of an operation is small.
 Baby-server uses "httputil.NewChunkedReader" for chunked transfer.  It
 only checks Transfer-Encoding as it is a single entry "chunked".  This
 restriction is like http.parseTransferEncoding().
+
+Baby-server explicitly sends 100-Continue in reading the chunked body.
+
+### Chunked Encoding
+
+It is not certain but, the http header "TE:_chunked" may be necessary
+to let AWS-CLI (boto3) use chunked-encoding in uploading files.
+
+A sample of aws-chunked header from AWS-CLI is:
+
+```
+Content-Encoding: aws-chunked
+Expect: 100-continue
+User-Agent: ...
+X-Amz-Content-Sha256: STREAMING-UNSIGNED-PAYLOAD-TRAILER
+X-Amz-Date: ...
+X-Amz-Decoded-Content-Length: ...
+X-Amz-Sdk-Checksum-Algorithm: CRC64NVME
+X-Amz-Trailer: x-amz-checksum-crc64nvme
+```
 
 ### Time Format (time.RFC1123)
 

@@ -1,4 +1,6 @@
-// aws-s3-rule.go
+// Limits etc. Related to AWS S3
+
+// This file contains defined values by Amazon Web Services, Inc.
 
 package server
 

@@ -1,7 +1,7 @@
-// fs-operation.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
+
+// Operations on a Filesystem
 
 package server
 

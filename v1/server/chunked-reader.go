@@ -1,7 +1,7 @@
-// chunked-reader.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
+
+// Chunked Reader
 
 // This implements a stream for Content-Encoding: "aws-chunked".  THIS
 // CHUNKED_READER DOES NOT CALCULATE SIGNATURES.
@@ -101,39 +101,35 @@ func (e *Chunked_reader_error) Unwrap() error {
 	return e.Nested
 }
 
-// Error description.  WEIRD_IO error is an unexpected error, which is
-// potentially fatal but is ignored at thie level.
+// Error description.  (*WEIRD_IO error is an unexpected error, which is
+// potentially fatal but is ignored at thie level.*)
 const (
-	missing_decoded_content_length = "Missing decoded content length"
-	missing_chunk_header           = "Missing chunk header"
-	missing_cr_lf                  = "Missing cr+lf"
+	missing_decoded_content_length = "Missing decoded-content-length in chunk"
+	missing_cr_lf                  = "Missing cr+lf in chunk"
 	bad_chunk_header               = "Bad chunk header"
-	bad_content_length             = "Bad content length"
-	truncated_read_error           = "Truncated read in chunk header"
-	error_in_peeking_header        = "Error in peeking header"
-	error_in_chunk_header          = "Error in reading chunk header"
-	error_in_chunk_body            = "Error in reading chunk body"
+	bad_decoded_content_length     = "Bad decoded-content-length in chunk"
+	peek_error_in_chunk_header     = "Peek error in chunk header"
+	read_error_in_chunk_header     = "Read error in chunk header"
+	read_error_in_chunk_body       = "Read error in chunk body"
+	read_truncated_in_chunk_header = "Read truncated in chunk header"
 )
 
-// NEW_CHUNKED_READER returns a modified io.Reader of the body.
-// Should use the returned stream for later operation, because it may
-// consume the underlying stream to verify the chunked-ness.  This
-// check is partly to verify the stream content.  It returns the
-// payload length or -1 (not content-length).
-func New_chunked_reader(q *http.Request, body io.Reader, rid uint64, bbs *Bb_server) (io.Reader, Chunked_type, int64, error) {
-	var logger = bbs.logger
-	var forbid_last_chunk_crlf = bbs.config.Forbid_last_chunk_crlf
+// NEW_CHUNKED_READER returns a modified io.Reader of the body.  It
+// also returns the payload length or -1 (not content-length).  User
+// should use the returned stream in later operation even when it the
+// stream is not chucked, because it may consume the underlying stream
+// to verify the chunked-ness.
+func New_chunked_reader(w http.ResponseWriter, q *http.Request, body io.Reader, rid uint64, forbid_last_chunk_crlf bool, logger *slog.Logger) (io.Reader, Chunked_type, int64, error) {
 	if check_http1_chunked(q) {
 		// Check http1-chuncked.
-		var r2, ok = body.(*bufio.Reader)
-		if !ok {
-			r2 = bufio.NewReader(body)
-		}
-		var length, _, _, _ = lookat_chunk_header(nil, r2)
+		var r2 = make_io_reader_bufio_reader(body)
+		respond_continue_when_expected(w, q)
+		var length, _, _, err1 = lookat_chunk_header(nil, r2)
 		if length == 0 {
 			// Transfer-Encoding chunked but without a chunk header.
-			return r2, CHUNKED_HTTP1, 0, &Chunked_reader_error{
-				M: missing_chunk_header, Reader: nil, Nested: nil}
+			return r2, CHUNKED_HTTP1, 0, err1
+			//&Chunked_reader_error{M: missing_chunk_header,
+			//Reader: nil, Nested: err1}
 		} else {
 			// Transfer-Encoding http1-chunked.
 			return httputil.NewChunkedReader(r2), CHUNKED_HTTP1, -1, nil
@@ -146,23 +142,22 @@ func New_chunked_reader(q *http.Request, body io.Reader, rid uint64, bbs *Bb_ser
 			return body, CHUNKED_AWSS3, 0, &Chunked_reader_error{
 				M: missing_decoded_content_length, Reader: nil, Nested: nil}
 		}
-		var r2, ok = body.(*bufio.Reader)
-		if !ok {
-			r2 = bufio.NewReader(body)
-		}
-		var length, _, sig, _ = lookat_chunk_header(nil, r2)
+		var r2 = make_io_reader_bufio_reader(body)
+		respond_continue_when_expected(w, q)
+		var length, _, sig, err1 = lookat_chunk_header(nil, r2)
 		if length == 0 || sig == "" {
 			// Transfer-encoding is chunked but without a chunk header.
-			return r2, CHUNKED_AWSS3, 0, &Chunked_reader_error{
-				M: missing_chunk_header, Reader: nil, Nested: nil}
+			return r2, CHUNKED_AWSS3, 0, err1
+			//&Chunked_reader_error{M: missing_chunk_header,
+			//Reader: nil, Nested: err1}
 		} else {
 			// Transfer-encoding for aws-chunked.
 			var len1 = q.ContentLength
 			var s1 = h.Get("X-Amz-Decoded-Content-Length")
-			var len2, err1 = strconv.ParseInt(s1, 10, 64)
-			if err1 != nil {
+			var len2, err2 = strconv.ParseInt(s1, 10, 64)
+			if err2 != nil {
 				return r2, CHUNKED_AWSS3, 0, &Chunked_reader_error{
-					M: bad_content_length, Reader: nil, Nested: err1}
+					M: bad_decoded_content_length, Reader: nil, Nested: err2}
 			}
 			var r3 = &Chunked_reader{
 				r:                      r2,
@@ -179,6 +174,24 @@ func New_chunked_reader(q *http.Request, body io.Reader, rid uint64, bbs *Bb_ser
 		}
 	} else {
 		return body, CHUNKED_NO, -1, nil
+	}
+}
+
+func make_io_reader_bufio_reader(r1 io.Reader) *bufio.Reader {
+	var r2, ok = r1.(*bufio.Reader)
+	if ok {
+		return r2
+	} else {
+		return bufio.NewReader(r1)
+	}
+}
+
+// RESPOND_CONTINUE_WHEN_EXPECTED sends 100-Continue.  We are not sure
+// but Golang's http server fails to send it when reading the body by
+// bufio.Reader.Peek().  (Why?)
+func respond_continue_when_expected(w http.ResponseWriter, q *http.Request) {
+	if q.Header.Get("Expect") == "100-continue" {
+		w.WriteHeader(http.StatusContinue)
 	}
 }
 
@@ -207,8 +220,9 @@ func (r *Chunked_reader) Read(b []byte) (int, error) {
 func (r *Chunked_reader) read_chunk_header() error {
 	var length, size, sig, err1 = lookat_chunk_header(r, r.r)
 	if err1 != nil {
-		return &Chunked_reader_error{
-			M: error_in_chunk_header, Reader: r, Nested: err1}
+		return err1
+		//&Chunked_reader_error{M: error_in_chunk_header,
+		//Reader: r, Nested: err1}
 	}
 	// Consume the bytes of a chunk header.  It was peeked and a
 	// single read can consume all.
@@ -216,11 +230,11 @@ func (r *Chunked_reader) read_chunk_header() error {
 	var n, err2 = r.r.Read(drain)
 	if err2 != nil {
 		return &Chunked_reader_error{
-			M: error_in_chunk_header, Reader: r, Nested: err2}
+			M: read_error_in_chunk_header, Reader: r, Nested: err2}
 	}
 	if n != length {
 		return &Chunked_reader_error{
-			M: truncated_read_error, Reader: r, Nested: nil}
+			M: read_truncated_in_chunk_header, Reader: r, Nested: nil}
 	}
 	if string(drain[max(0, len(drain)-2):]) != "\r\n" {
 		return &Chunked_reader_error{
@@ -266,15 +280,16 @@ func (r *Chunked_reader) read_chunk_body(b []byte) (int, error) {
 	var n2, err1 = r.r.Read(b[:n1])
 	if err1 != nil {
 		return n2, &Chunked_reader_error{
-			M: error_in_chunk_body, Reader: r, Nested: err1}
+			M: read_error_in_chunk_body, Reader: r, Nested: err1}
 	}
 	r.chunk_n += int64(n2)
 	bb_assert(r.chunk_n <= r.chunk_length)
 	if r.chunk_length == r.chunk_n {
 		var err2 = r.consume_cr_lf()
 		if err2 != nil {
-			return 0, &Chunked_reader_error{
-				M: error_in_chunk_body, Reader: r, Nested: err2}
+			return 0, err2
+			//&Chunked_reader_error{M: read_error_in_chunk_body,
+			//Reader: r, Nested: err2}
 		}
 		r.hunting_header = true
 		r.content_n += (r.chunk_length + 2)
@@ -329,12 +344,13 @@ func lookat_chunk_header(reader *Chunked_reader, r *bufio.Reader) (int, int64, s
 	if err1 != nil {
 		if err1 == bufio.ErrBufferFull {
 			log.Fatalf("BAD-IMPL: bufio.Reader error=%#v", err1)
+		} else if err1 == io.ErrUnexpectedEOF {
 		} else if err1 == io.EOF {
 			// It is usual -- Short peek of data.
 			// IGNORE-ERRORS.
 		} else {
 			return 0, 0, "", &Chunked_reader_error{
-				M: error_in_peeking_header, Reader: reader, Nested: err1}
+				M: peek_error_in_chunk_header, Reader: reader, Nested: err1}
 		}
 	}
 	var x1 = bytes.IndexAny(b1, "\n")

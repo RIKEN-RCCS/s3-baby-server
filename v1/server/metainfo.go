@@ -1,9 +1,7 @@
-// metainfo.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Meta-information associated to an object file.
+// Meta-Information Associated to Objects
 
 package server
 

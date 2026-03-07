@@ -1,5 +1,3 @@
-// monitor.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -7,7 +5,7 @@
 
 // A monitor is used to serialize accesses to the same object.  It
 // services in fifo order.  Entering may fail by a timeout.
-
+//
 // NOTE: It takes a short sleep, when some tasks timeout.  It is to
 // give tasks a time to leave themselves from the wait queue.  Without
 // a sleep, worthless signals are delivered to a condition variable.

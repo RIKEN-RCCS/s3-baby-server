@@ -1,11 +1,10 @@
-// copying.go
-
 // Copyright 2025-2026 RIKEN R-CCS
 // SPDX-License-Identifier: BSD-2-Clause
 
-// Uploading and copying.  This is the main part of
-// {CompleteMultipartUpload, CopyObject, PutObject, UploadPart,
-// UploadPartCopy}.
+// Uploading and Copying
+
+// This is the main part of {CompleteMultipartUpload, CopyObject,
+// PutObject, UploadPart, UploadPartCopy}.
 
 // MEMO: Note io.MultiWriter is only a io.Writer, not io.Closer.
 
@@ -462,10 +461,10 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 		source_name = "--stream--"
 
 		var body1 io.Reader = build.upload.stream
-		var _, r = get_handler_arguments(ctx)
+		var w, r = get_handler_arguments(ctx)
 
 		var bodyc, chunked, length, err1 = bbs.make_chunked_reader(object, rid,
-			body1, r)
+			body1, w, r)
 		if err1 != nil {
 			return nil, nil, err1
 		}
@@ -943,9 +942,12 @@ func (bbs *Bb_server) compare_checksums(rid uint64, object string, scratch strin
 	return nil
 }
 
-func (bbs *Bb_server) make_chunked_reader(object string, rid uint64, body io.Reader, q *http.Request) (io.Reader, Chunked_type, int64, *Aws_s3_error) {
+func (bbs *Bb_server) make_chunked_reader(object string, rid uint64, body io.Reader, w http.ResponseWriter, q *http.Request) (io.Reader, Chunked_type, int64, *Aws_s3_error) {
 	var location = "/" + object
-	var r2, chunked, length, err1 = New_chunked_reader(q, body, rid, bbs)
+	var forbid_last_chunk_crlf = bbs.config.Forbid_last_chunk_crlf
+	var logger = bbs.logger
+	var r2, chunked, length, err1 = New_chunked_reader(w, q, body, rid,
+		forbid_last_chunk_crlf, logger)
 	if err1 != nil {
 		bbs.logger.Info("Making chunked-reader failed",
 			"rid", rid, "object", object, "chunked", "AWSS3",
