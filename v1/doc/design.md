@@ -145,6 +145,72 @@ renamed to an actual file.
   Exclusion is based on a bucket or on an object.  A bucket can be
   removed while operations on objects are in progress.
 
+## Chunked-Encoding
+
+### Implementation of Chunked-Transfer
+
+Baby-server uses "httputil.NewChunkedReader" for chunked-transfer.  It
+only checks Transfer-Encoding as it is a single entry "chunked".  This
+restriction is like http.parseTransferEncoding().
+
+### Prioritize Chunked-Encoding to Chunked-Transfer
+
+AWS-S3 seems not to nest (i.e., use both) "transfer-encoding=chunked"
+and "content-encoding=aws-chunked", when both are specified.
+Baby-server ignores "transfer-encoding=chunked" when
+"content-encoding=aws-chunked".
+
+### Chunked-Encoding
+
+??? http header "TE:_chunked"
+
+### Chunked-Encoding with STREAMING-UNSIGNED-PAYLOAD-TRAILER
+
+X-Amz-Content-Sha256=STREAMING-UNSIGNED-PAYLOAD-TRAILER is likely used
+for TLS connections.  In this case, it omits chunk-signatures in chunk
+headers.  Thus, when using with Transfer-Encoding=chunked, it is usual
+a chunked stream.  Also, in this case, "X-Amz-Trailer" is used.
+
+A sample of aws-chunked header from AWS-CLI is:
+
+```
+Accept-Encoding: gzip
+Expect: 100-continue
+Transfer-Encoding: chunked
+Content-Length: -1
+Content-Encoding: aws-chunked
+Trailer:
+X-Amz-Content-Sha256: STREAMING-UNSIGNED-PAYLOAD-TRAILER
+X-Amz-Date: 20260307T142429Z
+X-Amz-Decoded-Content-Length: 8388608
+X-Amz-Sdk-Checksum-Algorithm: CRC64NVME
+X-Amz-Trailer: x-amz-checksum-crc64nvme
+```
+
+"x-amz-content-sha256" values:
+
+  - Actual payload checksum value
+  - UNSIGNED-PAYLOAD
+  - STREAMING-UNSIGNED-PAYLOAD-TRAILER
+  - STREAMING-AWS4-HMAC-SHA256-PAYLOAD
+  - STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER
+  - STREAMING-AWS4-ECDSA-P256-SHA256-PAYLOAD
+  - STREAMING-AWS4-ECDSA-P256-SHA256-PAYLOAD-TRAILER
+
+Here, actual values and UNSIGNED-PAYLOAD are not chunked.
+
+They are listed in:
+
+  - https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
+
+OTHER HINTS:
+
+https://git.deuxfleurs.fr/Deuxfleurs/garage/issues/824
+
+### MEMO: Chunked-Encoding
+
+Transfer-Encoding≠identity ⇔ Content-Length=-1 (omitted)
+
 ----------------
 
 ## Peculiar Processing
@@ -399,32 +465,6 @@ Actions of modifying the filesystem are serialized.  Baby-server uses
 in "Exclusion_wait").  During developing Baby-server, it was noticed
 that the wait limit of 10 msec was not enough, although a serialized
 part of an operation is small.
-
-### Chunked Encoding
-
-Baby-server uses "httputil.NewChunkedReader" for chunked transfer.  It
-only checks Transfer-Encoding as it is a single entry "chunked".  This
-restriction is like http.parseTransferEncoding().
-
-Baby-server explicitly sends 100-Continue in reading the chunked body.
-
-### Chunked Encoding
-
-It is not certain but, the http header "TE:_chunked" may be necessary
-to let AWS-CLI (boto3) use chunked-encoding in uploading files.
-
-A sample of aws-chunked header from AWS-CLI is:
-
-```
-Content-Encoding: aws-chunked
-Expect: 100-continue
-User-Agent: ...
-X-Amz-Content-Sha256: STREAMING-UNSIGNED-PAYLOAD-TRAILER
-X-Amz-Date: ...
-X-Amz-Decoded-Content-Length: ...
-X-Amz-Sdk-Checksum-Algorithm: CRC64NVME
-X-Amz-Trailer: x-amz-checksum-crc64nvme
-```
 
 ### Time Format (time.RFC1123)
 

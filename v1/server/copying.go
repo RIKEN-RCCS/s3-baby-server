@@ -468,20 +468,20 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 		if err1 != nil {
 			return nil, nil, err1
 		}
-		if chunked != CHUNKED_NO {
+		if chunked != Chunked_NO {
 			bbs.logger.Info("Body stream with chunked-reader",
 				"rid", rid, "object", object, "chunked", chunked,
 				"body", bodyc)
 		}
 
 		switch chunked {
-		case CHUNKED_HTTP1:
+		case Chunked_HTTP1:
 			size = -1
 			body2 = bodyc
-		case CHUNKED_AWSS3:
+		case Chunked_AWSS3:
 			size = length
 			body2 = bodyc
-		case CHUNKED_NO:
+		case Chunked_NO:
 			fallthrough
 		default:
 			bb_assert(bodyc == body1)
@@ -950,12 +950,12 @@ func (bbs *Bb_server) make_chunked_reader(object string, rid uint64, body io.Rea
 		forbid_last_chunk_crlf, logger)
 	if err1 != nil {
 		bbs.logger.Info("Making chunked-reader failed",
-			"rid", rid, "object", object, "chunked", "AWSS3",
+			"rid", rid, "object", object, "chunked", chunked,
 			"error", err1)
 		var errz = &Aws_s3_error{Code: InvalidRequest,
 			Message:  "Making chunked-reader failed.",
 			Resource: location}
-		return nil, CHUNKED_NO, 0, errz
+		return nil, Chunked_NO, 0, errz
 	} else {
 		return r2, chunked, length, nil
 	}
