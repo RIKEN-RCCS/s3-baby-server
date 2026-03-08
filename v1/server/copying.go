@@ -470,8 +470,7 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 		}
 		if chunked != Chunked_NO {
 			bbs.logger.Info("Body stream with chunked-reader",
-				"rid", rid, "object", object, "chunked", chunked,
-				"body", bodyc)
+				"rid", rid, "object", object, "chunked", chunked)
 		}
 
 		switch chunked {
