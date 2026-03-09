@@ -415,6 +415,10 @@ https://www.rfc-editor.org/rfc/rfc9110#status.304
 Baby-server returns header "ETag" and "Last-Modified" on
 412-Precondition-Failed, too.
 
+### Golang's bufio
+
+The default buffer size (32KB) may be small.
+
 ----------------
 
 ## MEMO

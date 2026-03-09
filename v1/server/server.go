@@ -465,14 +465,16 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 
 	var err2 error
 	if cert[0] != "" {
-		//err2 = bbs.server.ListenAndServeTLS(cert[0], cert[1])
 		err2 = bbs.server.ServeTLS(listen, cert[0], cert[1])
 	} else {
-		//err2 = bbs.server.ListenAndServe()
 		err2 = bbs.server.Serve(listen)
 	}
-	if err2 != nil {
-		logger.Error("http.ListenAndServe() failed", "error", err2)
+
+	if err2 != nil && err2 != http.ErrServerClosed {
+		// Note http.ErrServerClosed is usual.
+		logger.Error("http.Serve() failed", "error", err2)
+	} else {
+		logger.Info("Baby-server finished")
 	}
 }
 

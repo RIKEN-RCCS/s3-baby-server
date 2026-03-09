@@ -17,6 +17,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"hash"
 	"io"
 	"io/fs"
@@ -462,20 +463,22 @@ func (bbs *Bb_server) copy_file_as_scratch(ctx context.Context, object string, s
 
 		var body1 io.Reader = build.upload.stream
 		var w, r = get_handler_arguments(ctx)
-
 		var bodyc, chunked, length, err1 = bbs.make_chunked_reader(object, rid,
 			body1, w, r)
 		if err1 != nil {
 			return nil, nil, err1
 		}
+
 		if chunked != Chunked_NO {
-			bbs.logger.Info("Body stream with chunked-reader",
-				"rid", rid, "object", object, "chunked", chunked)
+			var ty = fmt.Sprintf("%T", bodyc)
+			bbs.logger.Debug("Body stream with chunked-reader",
+				"rid", rid, "object", object, "chunked", chunked,
+				"reader", ty)
 		}
 
 		switch chunked {
 		case Chunked_HTTP1:
-			size = -1
+			size = length
 			body2 = bodyc
 		case Chunked_AWSS3:
 			size = length
