@@ -16,8 +16,8 @@ import (
 	"hash"
 	"hash/crc32"
 	"hash/crc64"
-	"strings"
 	"log"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -182,7 +182,7 @@ func (bbs *Bbs_server) check_trailer_checksum(ctx context.Context, rid uint64, o
 	}
 	var acc []types.ChecksumAlgorithm
 	for _, k := range keys {
-		var checksum = header_name_to_checksum_algorithm(k)
+		var checksum = map_header_name_to_checksum_algorithm(k)
 		if checksum != "" {
 			acc = append(acc, checksum)
 		}
@@ -205,9 +205,9 @@ func (bbs *Bbs_server) extract_trailer_checksum(ctx context.Context, rid uint64,
 	var location = "/" + object
 	var _, r = get_handler_arguments(ctx)
 	var h = r.Header
-	var k = checksum_algorithm_to_header_name(checksum)
+	var k = map_checksum_algorithm_to_header_name(checksum)
 	if k == "" {
-		return []byte{}, nil
+		return nil, nil
 	}
 	var v = h.Get(k)
 	if v == "" {
@@ -230,7 +230,7 @@ func (bbs *Bbs_server) extract_trailer_checksum(ctx context.Context, rid uint64,
 	return csum, nil
 }
 
-func header_name_to_checksum_algorithm(s string) types.ChecksumAlgorithm {
+func map_header_name_to_checksum_algorithm(s string) types.ChecksumAlgorithm {
 	var k = strings.ToLower(s)
 	switch k {
 	case "x-amz-checksum-crc32":
@@ -248,7 +248,7 @@ func header_name_to_checksum_algorithm(s string) types.ChecksumAlgorithm {
 	}
 }
 
-func checksum_algorithm_to_header_name(k types.ChecksumAlgorithm) string {
+func map_checksum_algorithm_to_header_name(k types.ChecksumAlgorithm) string {
 	switch k {
 	case types.ChecksumAlgorithmCrc32:
 		return "x-amz-checksum-crc32"

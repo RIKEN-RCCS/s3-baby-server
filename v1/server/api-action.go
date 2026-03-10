@@ -492,7 +492,7 @@ func (bbs *Bbs_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, op
 		metainfo = merge_metainfo_with_content_headers(metainfo, h)
 	}
 
-	var checksum types.ChecksumAlgorithm = i.ChecksumAlgorithm
+	var checksum = i.ChecksumAlgorithm
 	if checksum == "" && source_metainfo != nil {
 		checksum = source_metainfo.Checksum
 	}

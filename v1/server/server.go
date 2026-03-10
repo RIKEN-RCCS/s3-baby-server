@@ -38,7 +38,7 @@ import (
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 )
 
-const Bbs_version = "v1.3.1"
+const Bbs_version = "v1.3.1-a"
 const Bbs_metafile_format = "v1.3"
 
 type Bbs_server struct {
