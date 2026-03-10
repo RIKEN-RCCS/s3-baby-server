@@ -9,12 +9,14 @@
 package server
 
 import (
+	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"hash"
 	"hash/crc32"
 	"hash/crc64"
+	"strings"
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -128,7 +130,7 @@ func (bbs *Bbs_server) decode_checksum_union(rid uint64, object string, csumset 
 	var csum, err5 = base64.StdEncoding.DecodeString(*csum1)
 	if err5 != nil {
 		bbs.logger.Info("Bad checksum encoding",
-			"rid", rid, "checksum-value", *csum1)
+			"rid", rid, "checksum", *csum1, "error", err5)
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message:  "Bad checksum encoding.",
 			Resource: location}
@@ -152,4 +154,113 @@ func (bbs *Bbs_server) reject_composite_checksum(rid uint64, object string, chec
 		return errz
 	}
 	return nil
+}
+
+func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
+	if csum == nil {
+		return nil, nil
+	} else {
+		var location = "/" + object
+		var csum2, err5 = base64.StdEncoding.DecodeString(*csum)
+		if err5 != nil {
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message:  "Bad base64 (MD5) encoding.",
+				Resource: location}
+			return nil, errz
+		}
+		return csum2, nil
+	}
+}
+
+func (bbs *Bbs_server) check_trailer_checksum(ctx context.Context, rid uint64, object string) (types.ChecksumAlgorithm, *Aws_s3_error) {
+	var location = "/" + object
+	var _, r = get_handler_arguments(ctx)
+	var h = r.Header
+	var keys = h["X-Amz-Trailer"]
+	if len(keys) == 0 {
+		return "", nil
+	}
+	var acc []types.ChecksumAlgorithm
+	for _, k := range keys {
+		var checksum = header_name_to_checksum_algorithm(k)
+		if checksum != "" {
+			acc = append(acc, checksum)
+		}
+	}
+	if len(acc) == 0 {
+		return "", nil
+	} else if len(acc) == 1 {
+		return acc[0], nil
+	} else {
+		bbs.logger.Info("Multiple checksum headers in trailer",
+			"rid", rid, "object", object, "trailer", keys)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Multiple checksum headers in trailer.",
+			Resource: location}
+		return "", errz
+	}
+}
+
+func (bbs *Bbs_server) extract_trailer_checksum(ctx context.Context, rid uint64, object string, checksum types.ChecksumAlgorithm) ([]byte, *Aws_s3_error) {
+	var location = "/" + object
+	var _, r = get_handler_arguments(ctx)
+	var h = r.Header
+	var k = checksum_algorithm_to_header_name(checksum)
+	if k == "" {
+		return []byte{}, nil
+	}
+	var v = h.Get(k)
+	if v == "" {
+		bbs.logger.Info("Specified trailer checksum missing",
+			"rid", rid, "trailer", k)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Specified trailer checksum missing.",
+			Resource: location}
+		return nil, errz
+	}
+	var csum, err2 = base64.StdEncoding.DecodeString(v)
+	if err2 != nil {
+		bbs.logger.Info("Bad checksum encoding",
+			"rid", rid, "checksum", v, "error", err2)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Bad checksum encoding.",
+			Resource: location}
+		return nil, errz
+	}
+	return csum, nil
+}
+
+func header_name_to_checksum_algorithm(s string) types.ChecksumAlgorithm {
+	var k = strings.ToLower(s)
+	switch k {
+	case "x-amz-checksum-crc32":
+		return types.ChecksumAlgorithmCrc32
+	case "x-amz-checksum-crc32c":
+		return types.ChecksumAlgorithmCrc32c
+	case "x-amz-checksum-crc64nvme":
+		return types.ChecksumAlgorithmCrc64nvme
+	case "x-amz-checksum-sha1":
+		return types.ChecksumAlgorithmSha1
+	case "x-amz-checksum-sha256":
+		return types.ChecksumAlgorithmSha256
+	default:
+		return ""
+	}
+}
+
+func checksum_algorithm_to_header_name(k types.ChecksumAlgorithm) string {
+	switch k {
+	case types.ChecksumAlgorithmCrc32:
+		return "x-amz-checksum-crc32"
+	case types.ChecksumAlgorithmCrc32c:
+		return "x-amz-checksum-crc32c"
+	case types.ChecksumAlgorithmCrc64nvme:
+		return "x-amz-checksum-crc64nvme"
+	case types.ChecksumAlgorithmSha1:
+		return "x-amz-checksum-sha1"
+	case types.ChecksumAlgorithmSha256:
+		return "x-amz-checksum-sha256"
+	default:
+		return ""
+	}
 }

@@ -2352,6 +2352,8 @@ func (bbs *Bbs_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optF
 	var csum_to_check []byte
 
 	{
+		// Handle the case a checksum is in trailer.
+
 		var checksum1, err1 = bbs.check_trailer_checksum(ctx, rid, object)
 		if err1 != nil {
 			return nil, err1
@@ -2601,6 +2603,7 @@ func (bbs *Bbs_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, op
 	if err7 != nil {
 		return nil, err7
 	}
+
 	var csumset = &types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
@@ -2609,9 +2612,28 @@ func (bbs *Bbs_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, op
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = bbs.decode_checksum_union(rid, object, csumset)
-	if err8 != nil {
-		return nil, err8
+
+	var checksum types.ChecksumAlgorithm
+	var csum_to_check []byte
+
+	{
+		// Handle the case a checksum is in trailer.
+
+		var checksum1, err1 = bbs.check_trailer_checksum(ctx, rid, object)
+		if err1 != nil {
+			return nil, err1
+		}
+		if checksum1 != "" {
+			checksum = checksum1
+			csum_to_check = []byte{}
+		} else {
+			var checksum2, csum2, err2 = bbs.decode_checksum_union(rid, object, csumset)
+			if err2 != nil {
+				return nil, err2
+			}
+			checksum = checksum2
+			csum_to_check = csum2
+		}
 	}
 
 	var upload_id = mpulinfo.Upload_id

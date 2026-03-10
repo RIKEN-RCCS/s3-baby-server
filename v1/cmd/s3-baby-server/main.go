@@ -93,7 +93,7 @@ func main() {
 		cred_pair = "--,--"
 		args_optional = args[2:]
 	case "version":
-		fmt.Fprintf(os.Stdout, "%s\n", server.Bb_version)
+		fmt.Fprintf(os.Stdout, "%s\n", server.Bbs_version)
 		args_optional = []string{}
 		os.Exit(0)
 	case "help":
@@ -115,7 +115,7 @@ func main() {
 		os.Exit(2)
 	}
 	if *print_version {
-		fmt.Fprintf(os.Stdout, "%s\n", server.Bb_version)
+		fmt.Fprintf(os.Stdout, "%s\n", server.Bbs_version)
 		os.Exit(0)
 	}
 

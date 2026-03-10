@@ -7,7 +7,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	"log"
@@ -784,22 +783,6 @@ func (bbs *Bbs_server) lookat_copy_source(rid uint64, object string, copysource 
 	return source, nil
 }
 
-func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
-	if csum == nil {
-		return nil, nil
-	} else {
-		var location = "/" + object
-		var csum2, err5 = base64.StdEncoding.DecodeString(*csum)
-		if err5 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "Bad base64 (MD5) encoding.",
-				Resource: location}
-			return nil, errz
-		}
-		return csum2, nil
-	}
-}
-
 // METAINFO_NULL_FOR_ZERO checks if metainfo is empty.  Metainfo is
 // empty if the slots are zero except an entity-key and an Etag.
 func metainfo_null_for_zero(metainfo *Meta_info) *Meta_info {
@@ -878,52 +861,5 @@ func (bbs *Bbs_server) fix_etag_quoting(etag *string, rid uint64) *string {
 		} else {
 			return etag
 		}
-	}
-}
-
-func (bbs *Bbs_server) check_trailer_checksum(ctx context.Context, rid uint64, object string) (types.ChecksumAlgorithm, *Aws_s3_error) {
-	var location = "/" + object
-	var _, r = get_handler_arguments(ctx)
-	var h = r.Header
-	var keys = h["X-Amz-Trailer"]
-	if len(keys) == 0 {
-		return "", nil
-	}
-	var acc []types.ChecksumAlgorithm
-	for _, k := range keys {
-		var checksum = intern_checksum_algorithm_by_header_name(k)
-		if checksum != "" {
-			acc = append(acc, checksum)
-		}
-	}
-	if len(acc) == 0 {
-		return "", nil
-	} else if len(acc) == 1 {
-		return acc[0], nil
-	} else {
-		bbs.logger.Info("Multiple checksum headers in trailer",
-			"rid", rid, "object", object, "trailer", keys)
-		var errz = &Aws_s3_error{Code: InvalidArgument,
-			Message:  "Multiple checksum headers in trailer.",
-			Resource: location}
-		return "", errz
-	}
-}
-
-func intern_checksum_algorithm_by_header_name(s string) types.ChecksumAlgorithm {
-	var k = strings.ToLower(s)
-	switch k {
-	case "x-amz-checksum-crc32":
-		return types.ChecksumAlgorithmCrc32
-	case "x-amz-checksum-crc32c":
-		return types.ChecksumAlgorithmCrc32c
-	case "x-amz-checksum-crc64nvme":
-		return types.ChecksumAlgorithmCrc64nvme
-	case "x-amz-checksum-sha1":
-		return types.ChecksumAlgorithmSha1
-	case "x-amz-checksum-sha256":
-		return types.ChecksumAlgorithmSha256
-	default:
-		return ""
 	}
 }

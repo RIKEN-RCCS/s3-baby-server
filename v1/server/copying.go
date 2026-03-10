@@ -241,6 +241,16 @@ func (bbs *Bbs_server) build_object(ctx context.Context, object string, upload_i
 
 	var etag = make_object_etag_from_md5(md5v)
 
+	{
+		// Handle the case a checksum is in trailer.
+
+		var csum_to_check1, err1 = bbs.extract_trailer_checksum(ctx, rid, object, checks.checksum)
+		if err1 != nil {
+			return "", nil, nil, err1
+		}
+		checks.csum_to_check = csum_to_check1
+	}
+
 	var err3 = bbs.compare_checksums(rid, object, scratch, checksum,
 		md5v, csum1, checks)
 	if err3 != nil {
