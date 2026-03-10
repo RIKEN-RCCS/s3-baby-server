@@ -278,20 +278,26 @@ func (r *Chunked_reader) read_chunk_header() error {
 	r.chunk_n = 0
 	r.m_hunting_header = false
 
+	if size != 0 {
+		return nil
+	}
+
 	// CHUNK_LENGTH=0 means got an end of stream.
 
-	if size == 0 {
-		if r.trailer {
-			var err3 = r.read_chunk_trailer()
-			if err3 != nil {
-				return err3
-			}
+	if r.trailer {
+		// It does not check the message length when there is a
+		// trailer.
+
+		var err3 = r.read_chunk_trailer()
+		if err3 != nil {
+			return err3
 		}
+	} else {
+		// Allow extra cr+lf at the end, but issue a warning.
 
 		if r.content_length != -1 {
 			if r.content_length == r.content_n+2 {
 				if !r.forbid_last_chunk_crlf {
-					// It allows extra cr+lf at the end.
 					var err2 = r.consume_cr_lf()
 					if err2 != nil {
 						r.logger.Warn("Chunk-reader hits EOF badly",

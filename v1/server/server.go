@@ -470,10 +470,10 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		err2 = bbs.server.Serve(listen)
 	}
 
-	if err2 != nil && err2 != http.ErrServerClosed {
-		// Note http.ErrServerClosed is usual.
+	if !(err2 == nil || err2 == http.ErrServerClosed) {
 		logger.Error("http.Serve() failed", "error", err2)
 	} else {
+		// Note http.ErrServerClosed is usual.
 		logger.Info("Baby-server finished")
 	}
 }
