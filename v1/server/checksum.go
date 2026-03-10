@@ -73,9 +73,9 @@ func fill_checksum_union(checksum types.ChecksumAlgorithm, csum []byte) *types.C
 
 // DECODE_CHECKSUM_UNION decodes types.Checksum.  It will return
 // nothing silently when no checksum is given.
-func (bbs *Bb_server) decode_checksum_union(rid uint64, object string, csumset *types.Checksum) (types.ChecksumAlgorithm, []byte, *Aws_s3_error) {
+func (bbs *Bbs_server) decode_checksum_union(rid uint64, object string, csumset *types.Checksum) (types.ChecksumAlgorithm, []byte, *Aws_s3_error) {
 	var location = "/" + object
-	bb_assert(csumset != nil)
+	bbs_assert(csumset != nil)
 	var checksumtype = csumset.ChecksumType
 	if checksumtype != "" && checksumtype != types.ChecksumTypeFullObject {
 		bbs.logger.Info("Checksum by composite-object unsupported",
@@ -141,7 +141,7 @@ func (bbs *Bb_server) decode_checksum_union(rid uint64, object string, csumset *
 // checksum type.  Baby-server can only handle
 // "types.ChecksumTypeFullObject".  The returned checksum is always
 // for full-object.
-func (bbs *Bb_server) reject_composite_checksum(rid uint64, object string, checksumtype types.ChecksumType) *Aws_s3_error {
+func (bbs *Bbs_server) reject_composite_checksum(rid uint64, object string, checksumtype types.ChecksumType) *Aws_s3_error {
 	var location = "/" + object
 	if checksumtype != "" && checksumtype != types.ChecksumTypeFullObject {
 		bbs.logger.Info("Checksum by not full-object unsupported",

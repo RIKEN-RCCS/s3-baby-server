@@ -211,6 +211,18 @@ https://git.deuxfleurs.fr/Deuxfleurs/garage/issues/824
 
 Transfer-Encoding≠identity ⇔ Content-Length=-1 (omitted)
 
+## Golang's http Sever
+
+Headers "Content-Length", "Transfer-Encoding", and "Trailer" are moved
+from the headers to an http.Request: r.ContentLength and
+r.TransferEncoding, and r.Trailer.  "Host" header, too.
+
+The documentation of r.TransferEncoding says it handles "chunked", but
+it does not.  If it had handled chunked, implementing aws-chunked got
+harder.
+
+r.ContentLength=-1 when "Content-Length" is missing.
+
 ----------------
 
 ## Peculiar Processing

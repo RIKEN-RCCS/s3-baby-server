@@ -5,6 +5,12 @@ the API definition in Smithy.  It generates files: "api-template.go",
 "handler.go", "dispatcher.go", and "marshaler.go".  These generated
 files are copied in the source directory of Baby-server.
 
+## Prerequisite: MEMO on Guile Scheme
+
+Oh, Rocky Linux does not include GNU Guile package.  Building Guile
+from source requires "libunistring-devel" which needs CRB repository.
+CRB repository is added by `dnf config-manager --enable crb`.
+
 ## About "s3.json", AWS-S3 Definition in Smithy IDL
 
 This ad-hoc stub-generator refers to "s3.json" in Golang's
@@ -97,6 +103,12 @@ switches on the method of the request to distinguish them.
 A quote from Golang's net/http.  https://pkg.go.dev/net/http#ServeMux
 
 > A pattern with the method GET matches both GET and HEAD requests
+
+## MEMO: Golang's http Server
+
+Headers "Content-Length", "Host", "Trailer", and "Transfer-Encoding"
+are moved in the http.Request.  The stub-generator only concerns
+"Content-Length".  Others are not used.
 
 ----------------------------------------------------------------
 

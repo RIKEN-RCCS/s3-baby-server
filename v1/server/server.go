@@ -38,14 +38,14 @@ import (
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 )
 
-const Bb_version = "v1.3.1"
-const Bb_metafile_format = "v1.3"
+const Bbs_version = "v1.3.1"
+const Bbs_metafile_format = "v1.3"
 
-type Bb_server struct {
+type Bbs_server struct {
 	server    *http.Server
 	cert_pair [2]string
 	cred_pair [2]string
-	config    Bb_configuration
+	config    Bbs_configuration
 	logger    *slog.Logger
 
 	access_logging io.Writer
@@ -79,12 +79,12 @@ func byte_size(v mbyte_size) int64 {
 	return int64(v) * 1024 * 1024
 }
 
-// BB_CONFIGURATION is the configuration.  It may be loaded from a
+// BBS_CONFIGURATION is the configuration.  It may be loaded from a
 // specified file.  Parameters from "ReadTimeout" to "MaxHeaderBytes"
 // are set to Golang's http.Server.  Time values are in msec duration,
 // because they get large numbers in time.Duration that are not an
 // appropriate representation in a configuration file.
-type Bb_configuration struct {
+type Bbs_configuration struct {
 	Server_control_name      string        `json:"server_control_name"`
 	Site_base_url            *string       `json:"site_base_url"`
 	Exclusion_wait           msec_duration `json:"exclusion_wait"`
@@ -139,7 +139,7 @@ const LevelTrace = slog.Level(-8)
 // header in a request before passing it to actual handlers.  It also
 // prints access logs.  See its ServeHTTP() method.
 type prior_handler struct {
-	bbs *Bb_server
+	bbs *Bbs_server
 	sx  *http.ServeMux
 }
 
@@ -268,7 +268,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 
 	// Set default configurations, or read it from a file.
 
-	var config = Bb_configuration{
+	var config = Bbs_configuration{
 		Server_control_name:      "bbs.ctl",
 		Site_base_url:            nil,
 		Exclusion_wait:           5000,
@@ -403,7 +403,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		}
 	}
 
-	var bbs = &Bb_server{
+	var bbs = &Bbs_server{
 		pool_directory: pool_directory,
 		cert_pair:      cert,
 		cred_pair:      cred,
@@ -461,7 +461,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 	defer listen.Close()
 
 	logger.Info("Starting Baby-server", "address", addr, "proto", proto,
-		"access-key", cred[0], "version", Bb_version)
+		"access-key", cred[0], "version", Bbs_version)
 
 	var err2 error
 	if cert[0] != "" {
@@ -529,7 +529,7 @@ func get_handler_arguments(ctx context.Context) (http.ResponseWriter, *http.Requ
 	return frame.ResponseWriter, frame.Request
 }
 
-func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Request) (string, error) {
+func (bbs *Bbs_server) attest_authorization(w http.ResponseWriter, r *http.Request) (string, error) {
 	var timewindow = time_sec_duration(bbs.config.Sign_valid_window)
 	var key, reason = awss3aide.Check_credential(r, bbs.cred_pair, timewindow)
 	if reason != nil {
@@ -543,7 +543,7 @@ func (bbs *Bb_server) attest_authorization(w http.ResponseWriter, r *http.Reques
 // SERVER_CONTROL handles requests to control.  It is hooked on
 // "POST_/bbs.ctl/{command}".  While starting a shutdown, it will send
 // an empty 200-OK return.
-func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
+func (bbs *Bbs_server) server_control(w http.ResponseWriter, r *http.Request) {
 	var ctx = r.Context()
 	//var q = r.URL.Query()
 	var q = r.PathValue("command")
@@ -558,7 +558,7 @@ func (bbs *Bb_server) server_control(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(status)
 }
 
-func shutdown_server(bbs *Bb_server, ctx context.Context) {
+func shutdown_server(bbs *Bbs_server, ctx context.Context) {
 	bbs.logger.Warn("Shutdown requested")
 	var err1 = bbs.server.Shutdown(ctx)
 	if err1 != nil {

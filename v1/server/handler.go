@@ -1,4 +1,4 @@
-// handler.go (2026-02-12)
+// handler.go (2026-03-10)
 // API-STUB.  Handler functions (h_XXXX) called from the
 // dispatcher.
 
@@ -18,15 +18,15 @@ import (
 "github.com/aws/aws-sdk-go-v2/service/s3"
 "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
-// BB_ENUM_INTERN_ERROR is an error returned when interning
+// BBS_ENUM_INTERN_ERROR is an error returned when interning
 // an enumeration.
-type Bb_enum_intern_error struct {
+type Bbs_enum_intern_error struct {
 Enum string
 Name string
 }
-func (e *Bb_enum_intern_error) Error() string {
+func (e *Bbs_enum_intern_error) Error() string {
 return "Enum " + e.Enum + " unknown key: " + strconv.Quote(e.Name)}
-func h_AbortMultipartUpload(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_AbortMultipartUpload(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -66,7 +66,7 @@ ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 var status int = 204
 w.WriteHeader(status)
 }
-func h_CompleteMultipartUpload(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_CompleteMultipartUpload(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -158,7 +158,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_CopyObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_CopyObject(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -325,7 +325,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_CreateBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_CreateBucket(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -381,7 +381,7 @@ ho.Add("x-amz-bucket-arn", string(*o.BucketArn))}
 var status int = 200
 w.WriteHeader(status)
 }
-func h_CreateMultipartUpload(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_CreateMultipartUpload(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -525,7 +525,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_DeleteBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_DeleteBucket(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -551,7 +551,7 @@ return}
 var status int = 204
 w.WriteHeader(status)
 }
-func h_DeleteObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_DeleteObject(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -607,7 +607,7 @@ ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 var status int = 204
 w.WriteHeader(status)
 }
-func h_DeleteObjects(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_DeleteObjects(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -667,7 +667,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_DeleteObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_DeleteObjectTagging(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -699,7 +699,7 @@ ho.Add("x-amz-version-id", string(*o.VersionId))}
 var status int = 204
 w.WriteHeader(status)
 }
-func h_GetObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_GetObject(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -854,7 +854,7 @@ defer o.Body.Close()
 var _, err7 = io.Copy(w, o.Body)
 if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 }
-func h_GetObjectAttributes(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_GetObjectAttributes(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -931,7 +931,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_GetObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_GetObjectTagging(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -979,7 +979,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_HeadBucket(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_HeadBucket(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1015,7 +1015,7 @@ ho.Add("x-amz-access-point-alias", strconv.FormatBool(*o.AccessPointAlias))}
 var status int = 200
 w.WriteHeader(status)
 }
-func h_HeadObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_HeadObject(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1168,7 +1168,7 @@ ho.Add("x-amz-object-lock-legal-hold", string(o.ObjectLockLegalHoldStatus))}
 var status int = 200
 w.WriteHeader(status)
 }
-func h_ListBuckets(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_ListBuckets(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1213,7 +1213,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_ListMultipartUploads(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_ListMultipartUploads(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1274,7 +1274,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_ListObjects(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_ListObjects(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1343,7 +1343,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_ListObjectsV2(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_ListObjectsV2(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1418,7 +1418,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_ListParts(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_ListParts(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1483,7 +1483,7 @@ if err7 != nil {bbs.cope_with_write_error(ctx, w, r, err7); return}
 var _, err8 = w.Write(ox)
 if err8 != nil {bbs.cope_with_write_error(ctx, w, r, err8); return}
 }
-func h_PutObject(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_PutObject(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1509,10 +1509,7 @@ if len(hi.Values("Content-Encoding")) != 0 {
 i.ContentEncoding = h_thing_pointer(hi.Get("Content-Encoding"))}
 if len(hi.Values("Content-Language")) != 0 {
 i.ContentLanguage = h_thing_pointer(hi.Get("Content-Language"))}
-if len(hi.Values("Content-Length")) != 0 {
-var s = hi.Get("Content-Length")
-var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {input_errors["Content-Length"] = err2} else {i.ContentLength = &x}}
+{i.ContentLength = &r.ContentLength}
 if len(hi.Values("Content-MD5")) != 0 {
 i.ContentMD5 = h_thing_pointer(hi.Get("Content-MD5"))}
 if len(hi.Values("Content-Type")) != 0 {
@@ -1648,7 +1645,7 @@ ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 var status int = 200
 w.WriteHeader(status)
 }
-func h_PutObjectTagging(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_PutObjectTagging(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1696,7 +1693,7 @@ ho.Add("x-amz-version-id", string(*o.VersionId))}
 var status int = 200
 w.WriteHeader(status)
 }
-func h_UploadPart(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_UploadPart(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1710,10 +1707,7 @@ var ctx = context.WithValue(ctx2, "input-errors", input_errors)
 var i = s3.UploadPartInput{}
 {var x = r.PathValue("bucket")
 if x != "" {i.Bucket = &x}}
-if len(hi.Values("Content-Length")) != 0 {
-var s = hi.Get("Content-Length")
-var x, err2 = strconv.ParseInt(s, 10, 64)
-if err2 != nil {input_errors["Content-Length"] = err2} else {i.ContentLength = &x}}
+{i.ContentLength = &r.ContentLength}
 if len(hi.Values("Content-MD5")) != 0 {
 i.ContentMD5 = h_thing_pointer(hi.Get("Content-MD5"))}
 if len(hi.Values("x-amz-sdk-checksum-algorithm")) != 0 {
@@ -1786,7 +1780,7 @@ ho.Add("x-amz-request-charged", string(o.RequestCharged))}
 var status int = 200
 w.WriteHeader(status)
 }
-func h_UploadPartCopy(bbs *Bb_server, w http.ResponseWriter, r *http.Request) {
+func h_UploadPartCopy(bbs *Bbs_server, w http.ResponseWriter, r *http.Request) {
 var qi = r.URL.Query()
 var hi = r.Header
 var ho = w.Header()
@@ -1886,7 +1880,7 @@ case "private": return types.BucketCannedACLPrivate, nil
 case "public-read": return types.BucketCannedACLPublicRead, nil
 case "public-read-write": return types.BucketCannedACLPublicReadWrite, nil
 case "authenticated-read": return types.BucketCannedACLAuthenticatedRead, nil
-default: var err3 = &Bb_enum_intern_error{"types.BucketCannedACL", s}
+default: var err3 = &Bbs_enum_intern_error{"types.BucketCannedACL", s}
 return "_invalid_", err3}}
 func intern_BucketLocationConstraint(s string) (types.BucketLocationConstraint, error) {
 switch s {
@@ -1923,12 +1917,12 @@ case "us-gov-east-1": return types.BucketLocationConstraintUsGovEast1, nil
 case "us-gov-west-1": return types.BucketLocationConstraintUsGovWest1, nil
 case "us-west-1": return types.BucketLocationConstraintUsWest1, nil
 case "us-west-2": return types.BucketLocationConstraintUsWest2, nil
-default: var err3 = &Bb_enum_intern_error{"types.BucketLocationConstraint", s}
+default: var err3 = &Bbs_enum_intern_error{"types.BucketLocationConstraint", s}
 return "_invalid_", err3}}
 func intern_BucketType(s string) (types.BucketType, error) {
 switch s {
 case "Directory": return types.BucketTypeDirectory, nil
-default: var err3 = &Bb_enum_intern_error{"types.BucketType", s}
+default: var err3 = &Bbs_enum_intern_error{"types.BucketType", s}
 return "_invalid_", err3}}
 func intern_ChecksumAlgorithm(s string) (types.ChecksumAlgorithm, error) {
 switch s {
@@ -1937,41 +1931,41 @@ case "CRC32C": return types.ChecksumAlgorithmCrc32c, nil
 case "SHA1": return types.ChecksumAlgorithmSha1, nil
 case "SHA256": return types.ChecksumAlgorithmSha256, nil
 case "CRC64NVME": return types.ChecksumAlgorithmCrc64nvme, nil
-default: var err3 = &Bb_enum_intern_error{"types.ChecksumAlgorithm", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ChecksumAlgorithm", s}
 return "_invalid_", err3}}
 func intern_ChecksumMode(s string) (types.ChecksumMode, error) {
 switch s {
 case "ENABLED": return types.ChecksumModeEnabled, nil
-default: var err3 = &Bb_enum_intern_error{"types.ChecksumMode", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ChecksumMode", s}
 return "_invalid_", err3}}
 func intern_ChecksumType(s string) (types.ChecksumType, error) {
 switch s {
 case "COMPOSITE": return types.ChecksumTypeComposite, nil
 case "FULL_OBJECT": return types.ChecksumTypeFullObject, nil
-default: var err3 = &Bb_enum_intern_error{"types.ChecksumType", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ChecksumType", s}
 return "_invalid_", err3}}
 func intern_DataRedundancy(s string) (types.DataRedundancy, error) {
 switch s {
 case "SingleAvailabilityZone": return types.DataRedundancySingleAvailabilityZone, nil
 case "SingleLocalZone": return types.DataRedundancySingleLocalZone, nil
-default: var err3 = &Bb_enum_intern_error{"types.DataRedundancy", s}
+default: var err3 = &Bbs_enum_intern_error{"types.DataRedundancy", s}
 return "_invalid_", err3}}
 func intern_EncodingType(s string) (types.EncodingType, error) {
 switch s {
 case "url": return types.EncodingTypeUrl, nil
-default: var err3 = &Bb_enum_intern_error{"types.EncodingType", s}
+default: var err3 = &Bbs_enum_intern_error{"types.EncodingType", s}
 return "_invalid_", err3}}
 func intern_LocationType(s string) (types.LocationType, error) {
 switch s {
 case "AvailabilityZone": return types.LocationTypeAvailabilityZone, nil
 case "LocalZone": return types.LocationTypeLocalZone, nil
-default: var err3 = &Bb_enum_intern_error{"types.LocationType", s}
+default: var err3 = &Bbs_enum_intern_error{"types.LocationType", s}
 return "_invalid_", err3}}
 func intern_MetadataDirective(s string) (types.MetadataDirective, error) {
 switch s {
 case "COPY": return types.MetadataDirectiveCopy, nil
 case "REPLACE": return types.MetadataDirectiveReplace, nil
-default: var err3 = &Bb_enum_intern_error{"types.MetadataDirective", s}
+default: var err3 = &Bbs_enum_intern_error{"types.MetadataDirective", s}
 return "_invalid_", err3}}
 func intern_ObjectAttributes(s string) (types.ObjectAttributes, error) {
 switch s {
@@ -1980,7 +1974,7 @@ case "Checksum": return types.ObjectAttributesChecksum, nil
 case "ObjectParts": return types.ObjectAttributesObjectParts, nil
 case "StorageClass": return types.ObjectAttributesStorageClass, nil
 case "ObjectSize": return types.ObjectAttributesObjectSize, nil
-default: var err3 = &Bb_enum_intern_error{"types.ObjectAttributes", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ObjectAttributes", s}
 return "_invalid_", err3}}
 func intern_ObjectCannedACL(s string) (types.ObjectCannedACL, error) {
 switch s {
@@ -1991,36 +1985,36 @@ case "authenticated-read": return types.ObjectCannedACLAuthenticatedRead, nil
 case "aws-exec-read": return types.ObjectCannedACLAwsExecRead, nil
 case "bucket-owner-read": return types.ObjectCannedACLBucketOwnerRead, nil
 case "bucket-owner-full-control": return types.ObjectCannedACLBucketOwnerFullControl, nil
-default: var err3 = &Bb_enum_intern_error{"types.ObjectCannedACL", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ObjectCannedACL", s}
 return "_invalid_", err3}}
 func intern_ObjectLockLegalHoldStatus(s string) (types.ObjectLockLegalHoldStatus, error) {
 switch s {
 case "ON": return types.ObjectLockLegalHoldStatusOn, nil
 case "OFF": return types.ObjectLockLegalHoldStatusOff, nil
-default: var err3 = &Bb_enum_intern_error{"types.ObjectLockLegalHoldStatus", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ObjectLockLegalHoldStatus", s}
 return "_invalid_", err3}}
 func intern_ObjectLockMode(s string) (types.ObjectLockMode, error) {
 switch s {
 case "GOVERNANCE": return types.ObjectLockModeGovernance, nil
 case "COMPLIANCE": return types.ObjectLockModeCompliance, nil
-default: var err3 = &Bb_enum_intern_error{"types.ObjectLockMode", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ObjectLockMode", s}
 return "_invalid_", err3}}
 func intern_ObjectOwnership(s string) (types.ObjectOwnership, error) {
 switch s {
 case "BucketOwnerPreferred": return types.ObjectOwnershipBucketOwnerPreferred, nil
 case "ObjectWriter": return types.ObjectOwnershipObjectWriter, nil
 case "BucketOwnerEnforced": return types.ObjectOwnershipBucketOwnerEnforced, nil
-default: var err3 = &Bb_enum_intern_error{"types.ObjectOwnership", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ObjectOwnership", s}
 return "_invalid_", err3}}
 func intern_OptionalObjectAttributes(s string) (types.OptionalObjectAttributes, error) {
 switch s {
 case "RestoreStatus": return types.OptionalObjectAttributesRestoreStatus, nil
-default: var err3 = &Bb_enum_intern_error{"types.OptionalObjectAttributes", s}
+default: var err3 = &Bbs_enum_intern_error{"types.OptionalObjectAttributes", s}
 return "_invalid_", err3}}
 func intern_RequestPayer(s string) (types.RequestPayer, error) {
 switch s {
 case "requester": return types.RequestPayerRequester, nil
-default: var err3 = &Bb_enum_intern_error{"types.RequestPayer", s}
+default: var err3 = &Bbs_enum_intern_error{"types.RequestPayer", s}
 return "_invalid_", err3}}
 func intern_ServerSideEncryption(s string) (types.ServerSideEncryption, error) {
 switch s {
@@ -2028,7 +2022,7 @@ case "AES256": return types.ServerSideEncryptionAes256, nil
 case "aws:fsx": return types.ServerSideEncryptionAwsFsx, nil
 case "aws:kms": return types.ServerSideEncryptionAwsKms, nil
 case "aws:kms:dsse": return types.ServerSideEncryptionAwsKmsDsse, nil
-default: var err3 = &Bb_enum_intern_error{"types.ServerSideEncryption", s}
+default: var err3 = &Bbs_enum_intern_error{"types.ServerSideEncryption", s}
 return "_invalid_", err3}}
 func intern_StorageClass(s string) (types.StorageClass, error) {
 switch s {
@@ -2044,12 +2038,12 @@ case "GLACIER_IR": return types.StorageClassGlacierIr, nil
 case "SNOW": return types.StorageClassSnow, nil
 case "EXPRESS_ONEZONE": return types.StorageClassExpressOnezone, nil
 case "FSX_OPENZFS": return types.StorageClassFsxOpenzfs, nil
-default: var err3 = &Bb_enum_intern_error{"types.StorageClass", s}
+default: var err3 = &Bbs_enum_intern_error{"types.StorageClass", s}
 return "_invalid_", err3}}
 func intern_TaggingDirective(s string) (types.TaggingDirective, error) {
 switch s {
 case "COPY": return types.TaggingDirectiveCopy, nil
 case "REPLACE": return types.TaggingDirectiveReplace, nil
-default: var err3 = &Bb_enum_intern_error{"types.TaggingDirective", s}
+default: var err3 = &Bbs_enum_intern_error{"types.TaggingDirective", s}
 return "_invalid_", err3}}
 

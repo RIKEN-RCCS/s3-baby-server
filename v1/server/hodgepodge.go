@@ -23,7 +23,7 @@ import (
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 )
 
-func bb_assert(c bool) {
+func bbs_assert(c bool) {
 	if !c {
 		panic("assertion")
 	}
@@ -41,7 +41,7 @@ var Fatalf = log.Fatalf
 // MAKE_REQUEST_ID makes a new request-id.  It uses time, or when time
 // does not advance, uses the last value plus one.  It is strictly
 // increasing.
-func (bbs *Bb_server) make_request_id() uint64 {
+func (bbs *Bbs_server) make_request_id() uint64 {
 	var t uint64 = uint64(time.Now().UnixMicro())
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
@@ -61,7 +61,7 @@ func (bbs *Bb_server) make_request_id() uint64 {
 // response body.  In addition, such an error is required to return
 // some headers ("ETag" for instance).  An error record may contain
 // values for the headers.
-func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
+func (bbs *Bbs_server) respond_on_action_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
 	var e1, ok = e.(*Aws_s3_error)
 	if !ok {
 		log.Fatalf("Bad error from action: %#v", e)
@@ -104,7 +104,7 @@ func (bbs *Bb_server) respond_on_action_error(ctx context.Context, w http.Respon
 
 // RESPOND_ON_INPUT_ERROR is an action error and makes a
 // response for it.
-func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, m map[string]error) {
+func (bbs *Bbs_server) respond_on_input_error(ctx context.Context, w http.ResponseWriter, r *http.Request, m map[string]error) {
 	if len(m) == 0 {
 		log.Fatalf("BAD-IMPL: error handler is called without errors: %#v", m)
 	}
@@ -118,7 +118,7 @@ func (bbs *Bb_server) respond_on_input_error(ctx context.Context, w http.Respons
 
 // COPE_WITH_WRITE_ERROR is called on a write error of response
 // payload and makes a response for it.
-func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
+func (bbs *Bbs_server) cope_with_write_error(ctx context.Context, w http.ResponseWriter, r *http.Request, e error) {
 	var action, rid, _ = get_action_name(ctx)
 	bbs.logger.Info("Writing response failed",
 		"action", action, "rid", rid, "error", e)
@@ -127,7 +127,7 @@ func (bbs *Bb_server) cope_with_write_error(ctx context.Context, w http.Response
 // MAKE_SCRATCH_SUFFIX makes a key string for a scratch file.  It
 // returns a string of "@" plus 6 hex-digits.  A key is valid during
 // request processing with a request-id.  It takes a request-id.
-func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
+func (bbs *Bbs_server) make_scratch_suffix(rid uint64) string {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	var loops int = 0
@@ -147,7 +147,7 @@ func (bbs *Bb_server) make_scratch_suffix(rid uint64) string {
 	panic("NEVER")
 }
 
-func (bbs *Bb_server) discharge_scratch_suffix(rid uint64, suffix string) {
+func (bbs *Bbs_server) discharge_scratch_suffix(rid uint64, suffix string) {
 	bbs.mutex.Lock()
 	defer bbs.mutex.Unlock()
 	for k, v := range bbs.suffixes {
@@ -159,13 +159,13 @@ func (bbs *Bb_server) discharge_scratch_suffix(rid uint64, suffix string) {
 
 // MAKE_NEW_UPLOAD_ID makes a key string for a upload-id.  Its
 // uniqueness is NOT guaranteed.  It is only by probability.
-func (bbs *Bb_server) make_new_upload_id() string {
+func (bbs *Bbs_server) make_new_upload_id() string {
 	var r = rand.Uint32()
 	var s = fmt.Sprintf("%08x", r)
 	return s
 }
 
-func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
+func (bbs *Bbs_server) serialize_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
 	var duration = time_msec_duration(bbs.config.Exclusion_wait)
 	var ok, elapse = bbs.monitor1.Enter(object, rid, duration)
 	if !ok {
@@ -180,7 +180,7 @@ func (bbs *Bb_server) serialize_access(ctx context.Context, object string, rid u
 	return nil
 }
 
-func (bbs *Bb_server) release_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
+func (bbs *Bbs_server) release_access(ctx context.Context, object string, rid uint64) *Aws_s3_error {
 	var elapse = bbs.monitor1.Exit(object, rid)
 	if bbs.config.Log_monitor_timing {
 		bbs.logger.Debug("Time grabbed in exclusion",
@@ -189,7 +189,7 @@ func (bbs *Bb_server) release_access(ctx context.Context, object string, rid uin
 	return nil
 }
 
-func (bbs *Bb_server) test_access_serialized(ctx context.Context, object string, rid uint64) bool {
+func (bbs *Bbs_server) test_access_serialized(ctx context.Context, object string, rid uint64) bool {
 	var ok = bbs.monitor1.Attest(object, rid)
 	return ok
 }
@@ -198,7 +198,7 @@ func make_parameter_error(name string, err error) error {
 	return fmt.Errorf(("Parameter \"" + name + "\" error: %w"), err)
 }
 
-func (bbs *Bb_server) check_usual_object_setup(rid uint64, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
+func (bbs *Bbs_server) check_usual_object_setup(rid uint64, bucket1 *string, key1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
 		bbs.logger.Debug("Bucket name missing in request",
 			"rid", rid)
@@ -243,7 +243,7 @@ func (bbs *Bb_server) check_usual_object_setup(rid uint64, bucket1 *string, key1
 	return object, nil
 }
 
-func (bbs *Bb_server) check_usual_bucket_setup(rid uint64, bucket1 *string) (string, *Aws_s3_error) {
+func (bbs *Bbs_server) check_usual_bucket_setup(rid uint64, bucket1 *string) (string, *Aws_s3_error) {
 	if bucket1 == nil {
 		log.Fatalf("BAD-IMPL: Bucket parameter missing")
 	}
@@ -358,7 +358,7 @@ type option_check_list struct {
 	WriteOffsetBytes               *int64
 }
 
-func check_options_unsupported(bbs *Bb_server, action string, i *option_check_list) *Aws_s3_error {
+func check_options_unsupported(bbs *Bbs_server, action string, i *option_check_list) *Aws_s3_error {
 	if i.ExpectedBucketOwner != nil {
 		var errz = &Aws_s3_error{Code: NotImplemented,
 			Message: "x-amz-expected-bucket-owner is not supported."}
@@ -408,7 +408,7 @@ func check_options_unsupported(bbs *Bb_server, action string, i *option_check_li
 	return nil
 }
 
-func (bbs *Bb_server) check_options_ignored(action string, rid uint64, resource string, i *option_check_list) *Aws_s3_error {
+func (bbs *Bbs_server) check_options_ignored(action string, rid uint64, resource string, i *option_check_list) *Aws_s3_error {
 	if false {
 		if i.ACL_bucket_canned != "" {
 			bbs.logger.Debug("x-amz-acl ignored",
@@ -508,8 +508,8 @@ func scan_range(object string, rangestring *string, size int64) (*[2]int64, *Aws
 // "read" (GET/HEAD), "write" (PUT/POST), and "delete" (DELETE).  The
 // mode may disagree with the method, when the object is a copy
 // source.  It considers an equal time as included.
-func (bbs *Bb_server) check_conditions(rid uint64, object string, etag string, mtime time.Time, size int64, mode string, conditions copy_conditions) *Aws_s3_error {
-	bb_assert(slices.Contains([]string{"read", "write", "delete"}, mode))
+func (bbs *Bbs_server) check_conditions(rid uint64, object string, etag string, mtime time.Time, size int64, mode string, conditions copy_conditions) *Aws_s3_error {
+	bbs_assert(slices.Contains([]string{"read", "write", "delete"}, mode))
 
 	// Empty conditions are unconditionally Okay.
 
@@ -685,7 +685,7 @@ func match_etags_is_star(etags []string) bool {
 
 // PARSE_TAGS scans tags in a request.  Note a tag-set is encoded as
 // URL query parameters.
-func (bbs *Bb_server) parse_tags(rid uint64, object string, s *string) (*types.Tagging, *Aws_s3_error) {
+func (bbs *Bbs_server) parse_tags(rid uint64, object string, s *string) (*types.Tagging, *Aws_s3_error) {
 	var location = "/" + object
 	if s == nil {
 		return nil, nil
@@ -726,7 +726,7 @@ func (bbs *Bb_server) parse_tags(rid uint64, object string, s *string) (*types.T
 // for MPUL actions is an error.  required=true indicates by-part
 // downloading.  As an exception, the part=1 is treated as the whole
 // object.
-func (bbs *Bb_server) lookat_part_number(object string, partnumber *int32, required bool) (int32, *Aws_s3_error) {
+func (bbs *Bbs_server) lookat_part_number(object string, partnumber *int32, required bool) (int32, *Aws_s3_error) {
 	var location = "/" + object
 	if partnumber == nil {
 		if required {
@@ -754,7 +754,7 @@ func (bbs *Bb_server) lookat_part_number(object string, partnumber *int32, requi
 	return part, nil
 }
 
-func (bbs *Bb_server) lookat_copy_source(rid uint64, object string, copysource *string) (string, *Aws_s3_error) {
+func (bbs *Bbs_server) lookat_copy_source(rid uint64, object string, copysource *string) (string, *Aws_s3_error) {
 	if copysource == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
 			Message: "No x-amz-copy-source supplied."}
@@ -855,7 +855,7 @@ func merge_metainfo_with_content_headers(source, h *Meta_info) *Meta_info {
 
 // FIX_ETAG_QUOTING adds double-quotes to an ETag, when some client
 // accidentally dropped it.
-func (bbs *Bb_server) fix_etag_quoting(etag *string, rid uint64) *string {
+func (bbs *Bbs_server) fix_etag_quoting(etag *string, rid uint64) *string {
 	if etag == nil {
 		return nil
 	} else if bbs.config.Strict_etag_quoting {
@@ -878,5 +878,52 @@ func (bbs *Bb_server) fix_etag_quoting(etag *string, rid uint64) *string {
 		} else {
 			return etag
 		}
+	}
+}
+
+func (bbs *Bbs_server) check_trailer_checksum(ctx context.Context, rid uint64, object string) (types.ChecksumAlgorithm, *Aws_s3_error) {
+	var location = "/" + object
+	var _, r = get_handler_arguments(ctx)
+	var h = r.Header
+	var keys = h["X-Amz-Trailer"]
+	if len(keys) == 0 {
+		return "", nil
+	}
+	var acc []types.ChecksumAlgorithm
+	for _, k := range keys {
+		var checksum = intern_checksum_algorithm_by_header_name(k)
+		if checksum != "" {
+			acc = append(acc, checksum)
+		}
+	}
+	if len(acc) == 0 {
+		return "", nil
+	} else if len(acc) == 1 {
+		return acc[0], nil
+	} else {
+		bbs.logger.Info("Multiple checksum headers in trailer",
+			"rid", rid, "object", object, "trailer", keys)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Multiple checksum headers in trailer.",
+			Resource: location}
+		return "", errz
+	}
+}
+
+func intern_checksum_algorithm_by_header_name(s string) types.ChecksumAlgorithm {
+	var k = strings.ToLower(s)
+	switch k {
+	case "x-amz-checksum-crc32":
+		return types.ChecksumAlgorithmCrc32
+	case "x-amz-checksum-crc32c":
+		return types.ChecksumAlgorithmCrc32c
+	case "x-amz-checksum-crc64nvme":
+		return types.ChecksumAlgorithmCrc64nvme
+	case "x-amz-checksum-sha1":
+		return types.ChecksumAlgorithmSha1
+	case "x-amz-checksum-sha256":
+		return types.ChecksumAlgorithmSha256
+	default:
+		return ""
 	}
 }

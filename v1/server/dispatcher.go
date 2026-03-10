@@ -1,4 +1,4 @@
-// dispatcher.go (2026-02-12)
+// dispatcher.go (2026-03-10)
 // API-STUB.  A dispatcher for net/http.ServeMux.  It
 // switches handlers with regard to method-path patterns
 // and parameters marked as required in API.
@@ -7,8 +7,8 @@ package server
 import (
 "net/http"
 )
-// REGISTER_DISPATCHER registers handers of BB-server to ServeMux.
-func register_dispatcher(bbs *Bb_server, sx *http.ServeMux) error {
+// REGISTER_DISPATCHER sets handers of Baby-server to ServeMux.
+func register_dispatcher(bbs *Bbs_server, sx *http.ServeMux) error {
 sx.HandleFunc("GET /{bucket}/{key...}", func(w http.ResponseWriter, r *http.Request) {
 var q = r.URL.Query()
 var attributes = q.Has("attributes")

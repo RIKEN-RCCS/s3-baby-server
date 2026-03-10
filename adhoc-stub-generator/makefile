@@ -8,7 +8,7 @@ all::
 	@echo "Usage: make download-srfi-180"
 
 stub::
-	guile3.0 --r7rs -l stub.scm -c $(DUMPCOMMAND)
+	guile --r7rs -l stub.scm -c $(DUMPCOMMAND)
 
 # Download "s3.json" definition file.  It is for Smithy-2.0.  It is
 # aws-sdk-go-v2 v1.37.2.

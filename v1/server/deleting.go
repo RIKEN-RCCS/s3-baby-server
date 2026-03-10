@@ -12,7 +12,7 @@ import (
 	"os"
 )
 
-func (bbs *Bb_server) delete_object(ctx context.Context, object string, conditions copy_conditions) *Aws_s3_error {
+func (bbs *Bbs_server) delete_object(ctx context.Context, object string, conditions copy_conditions) *Aws_s3_error {
 	var location = "/" + object
 	var _, rid, suffix = get_action_name(ctx)
 

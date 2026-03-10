@@ -1,4 +1,4 @@
-// marshaler.go (2026-02-12)
+// marshaler.go (2026-03-10)
 // API-STUB.  Marshalers of response structures.  Response
 // structures need custom marshalers, because they have
 // some slots that need to be renamed and also have an

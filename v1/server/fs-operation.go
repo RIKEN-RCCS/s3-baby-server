@@ -82,7 +82,7 @@ func map_os_error(location string, err1 error, m map[error]Aws_s3_error_code) *A
 // MAKE_PATH_OF_BUCKET makes an os-dependent path to a bucket, by
 // appending a pool-directory and a bucket.  Note filepath.Join()
 // calls filepath.Clean().
-func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
+func (bbs *Bbs_server) make_path_of_bucket(bucket string) string {
 	var pool_directory = "."
 	var path = filepath.Join(pool_directory, bucket)
 	return path
@@ -92,7 +92,7 @@ func (bbs *Bb_server) make_path_of_bucket(bucket string) string {
 // suffix.  A marker can be one of a null string, "@" plus a random
 // for a scratch file, "@meta", or "@mpul" (mpul is for multipart
 // upload).
-func (bbs *Bb_server) make_scratch_object_name(object string, marker string) string {
+func (bbs *Bbs_server) make_scratch_object_name(object string, marker string) string {
 	var dir, file = path.Split(object)
 	var name = prefix_suffix_by_marker(file, marker)
 	var scratch = path.Join(dir, name)
@@ -103,7 +103,7 @@ func (bbs *Bb_server) make_scratch_object_name(object string, marker string) str
 // appending an object name with a marker suffix.  A marker can be one
 // of a null string, a random for a scratch file, "@meta", or "@mpul"
 // (mpul is for multipart upload).
-func (bbs *Bb_server) make_path_of_object(object string, marker string) string {
+func (bbs *Bbs_server) make_path_of_object(object string, marker string) string {
 	var dir, file = path.Split(object)
 	var pool_directory = "."
 	var name = prefix_suffix_by_marker(file, marker)
@@ -117,7 +117,7 @@ func prefix_suffix_by_marker(file, marker string) string {
 		prefix = ""
 		suffix = ""
 	} else {
-		bb_assert(marker[0] == '@')
+		bbs_assert(marker[0] == '@')
 		prefix = "."
 		suffix = marker
 	}
@@ -152,7 +152,7 @@ func adjust_mpul_scratch_to_object_name(object string) string {
 	return s2
 }
 
-func (bbs *Bb_server) check_bucket_directory_exists(rid uint64, bucket string) *Aws_s3_error {
+func (bbs *Bbs_server) check_bucket_directory_exists(rid uint64, bucket string) *Aws_s3_error {
 	var location = "/" + bucket
 	var path = bbs.make_path_of_bucket(bucket)
 	var stat, err2 = os.Lstat(path)
@@ -180,7 +180,7 @@ func (bbs *Bb_server) check_bucket_directory_exists(rid uint64, bucket string) *
 // CREATE_MPUL_DIRECTORY creates a scratch directory for MPUL and
 // populates it with an info file.  It may overtake an existing
 // directory when it already exists, and rewrites its upload-id.
-func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix string, mpulinfo *Mpul_info) *Aws_s3_error {
+func (bbs *Bbs_server) create_mpul_directory(rid uint64, object string, suffix string, mpulinfo *Mpul_info) *Aws_s3_error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "@mpul")
 
@@ -210,7 +210,7 @@ func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix st
 
 	if err2 != nil {
 		// Make a new directory.
-		bb_assert(errors.Is(err2, fs.ErrNotExist))
+		bbs_assert(errors.Is(err2, fs.ErrNotExist))
 		var err3 = os.Mkdir(path, 0755)
 		if err3 != nil {
 			bbs.logger.Warn("os.Mkdir() MPUL temporary failed",
@@ -258,7 +258,7 @@ func (bbs *Bb_server) create_mpul_directory(rid uint64, object string, suffix st
 
 // DISCARD_MPUL_DIRECTORY removes a directory for MPUL.  It does not
 // remove intermediate directories.  Errors are ignored.
-func (bbs *Bb_server) discard_mpul_directory(rid uint64, object string) error {
+func (bbs *Bbs_server) discard_mpul_directory(rid uint64, object string) error {
 	var location = "/" + object + "@mpul"
 	var path = bbs.make_path_of_object(object, "@mpul")
 
@@ -302,7 +302,7 @@ func (bbs *Bb_server) discard_mpul_directory(rid uint64, object string) error {
 }
 
 // MAKE_INTERVENING_DIRECTORIES makes directories to the object.
-func (bbs *Bb_server) make_intervening_directories(rid uint64, object string) *Aws_s3_error {
+func (bbs *Bbs_server) make_intervening_directories(rid uint64, object string) *Aws_s3_error {
 	var location = "/" + object
 
 	var err1 = bbs.check_path_is_link_free(rid, object)
@@ -342,7 +342,7 @@ func (bbs *Bb_server) make_intervening_directories(rid uint64, object string) *A
 // CHECK_PATH_IS_LINK_FREE makes sure the given os-path to the object
 // does not contain symbolic-links.  It includes the check of the
 // object is a symbolic-link.
-func (bbs *Bb_server) check_path_is_link_free(rid uint64, object string) *Aws_s3_error {
+func (bbs *Bbs_server) check_path_is_link_free(rid uint64, object string) *Aws_s3_error {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 	var pathparts = strings.Split(path, string(os.PathSeparator))
@@ -374,7 +374,7 @@ func (bbs *Bb_server) check_path_is_link_free(rid uint64, object string) *Aws_s3
 // FETCH_OBJECT_METAINFO fetches a metainfo file.  It returns nil if
 // metainfo file does not exist or outdated.  The object path is an
 // os-dependent path.
-func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity string) (*Meta_info, *Aws_s3_error) {
+func (bbs *Bbs_server) fetch_object_metainfo(rid uint64, object string, entity string) (*Meta_info, *Aws_s3_error) {
 	//var location = "/" + object
 	var path = bbs.make_path_of_object(object, "@meta")
 
@@ -387,10 +387,10 @@ func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity st
 		return nil, errz
 	}
 
-	if metainfo.Metafile_format != Bb_metafile_format {
+	if metainfo.Metafile_format != Bbs_metafile_format {
 		bbs.logger.Info("Metainfo file bad version",
 			"rid", rid, "object", object, "version", metainfo.Metafile_format,
-			"current-version", Bb_metafile_format)
+			"current-version", Bbs_metafile_format)
 		return nil, nil
 	}
 	if metainfo.Entity_key != entity {
@@ -405,7 +405,7 @@ func (bbs *Bb_server) fetch_object_metainfo(rid uint64, object string, entity st
 // STORE_ETAG_AS_METAINFO() stores an ETag in metainfo (it is
 // otherwise empty).  It is called when the object is large.  Storing
 // metainfo serializes accesses inside the routine.
-func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string, suffix string, entity string, etag string) *Aws_s3_error {
+func (bbs *Bbs_server) store_etag_as_metainfo(ctx context.Context, object string, suffix string, entity string, etag string) *Aws_s3_error {
 	var metainfo2 = &Meta_info{
 		Entity_key: entity,
 		ETag:       etag,
@@ -424,7 +424,7 @@ func (bbs *Bb_server) store_etag_as_metainfo(ctx context.Context, object string,
 // STORE_METAINFO_SERIALIZED calls store_object_metainfo() after
 // serialization.  It check the entity-key as the object is not
 // outdated.
-func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object string, suffix string, metainfo *Meta_info) *Aws_s3_error {
+func (bbs *Bbs_server) store_metainfo_serialized(ctx context.Context, object string, suffix string, metainfo *Meta_info) *Aws_s3_error {
 	var location = "/" + object
 	var _, rid, _ = get_action_name(ctx)
 
@@ -458,14 +458,14 @@ func (bbs *Bb_server) store_metainfo_serialized(ctx context.Context, object stri
 // a metainfo file.  IMPORTANT NOTE: USE DATA:ANY TO PASS UNTYPED-NIL
 // TO store_json_data().  This is to avoid the issue of typed-nil
 // cannot be compared with untyped-nil.
-func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, suffix string, metainfo *Meta_info) *Aws_s3_error {
+func (bbs *Bbs_server) store_object_metainfo(rid uint64, object string, suffix string, metainfo *Meta_info) *Aws_s3_error {
 	//var location = "/" + object
 	// USE UNTYPED-NIL FOR DATA.
 	var data any
 	if metainfo == nil {
 		data = nil
 	} else {
-		metainfo.Metafile_format = Bb_metafile_format
+		metainfo.Metafile_format = Bbs_metafile_format
 		data = metainfo
 	}
 	var path = bbs.make_path_of_object(object, "@meta")
@@ -482,7 +482,7 @@ func (bbs *Bb_server) store_object_metainfo(rid uint64, object string, suffix st
 // SERIALIZING indicates it is called in access serialization.  The
 // serializing status can be imprecise, and it is acceptable calling
 // with serializing=false when the status is not certain.
-func (bbs *Bb_server) fetch_mpul_info(rid uint64, object string, serializing bool) (*Mpul_info, error) {
+func (bbs *Bbs_server) fetch_mpul_info(rid uint64, object string, serializing bool) (*Mpul_info, error) {
 	var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
@@ -502,10 +502,10 @@ func (bbs *Bb_server) fetch_mpul_info(rid uint64, object string, serializing boo
 
 	// Check if the fields of MPUL info is Okay.
 
-	if mpulinfo.Metafile_format != Bb_metafile_format {
+	if mpulinfo.Metafile_format != Bbs_metafile_format {
 		bbs.logger.Info("MPUL info file bad version",
 			"rid", rid, "object", object, "version", mpulinfo.Metafile_format,
-			"current-version", Bb_metafile_format)
+			"current-version", Bbs_metafile_format)
 		var errz = &Aws_s3_error{Code: InternalError,
 			Message:  "MPUL info file bad version.",
 			Resource: location}
@@ -525,10 +525,10 @@ func (bbs *Bb_server) fetch_mpul_info(rid uint64, object string, serializing boo
 	return &mpulinfo, nil
 }
 
-func (bbs *Bb_server) store_mpul_info(rid uint64, object string, suffix string, mpulinfo *Mpul_info) *Aws_s3_error {
+func (bbs *Bbs_server) store_mpul_info(rid uint64, object string, suffix string, mpulinfo *Mpul_info) *Aws_s3_error {
 	//var location = "/" + object + "@mpul"
-	bb_assert(mpulinfo != nil)
-	mpulinfo.Metafile_format = Bb_metafile_format
+	bbs_assert(mpulinfo != nil)
+	mpulinfo.Metafile_format = Bbs_metafile_format
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "info")
 	var err5 = bbs.store_json_data(rid, object, path, suffix, mpulinfo)
@@ -538,7 +538,7 @@ func (bbs *Bb_server) store_mpul_info(rid uint64, object string, suffix string, 
 	return nil
 }
 
-func (bbs *Bb_server) update_mpul_catalog(rid uint64, object string, part int32, suffix string, partinfo *Mpul_part) *Aws_s3_error {
+func (bbs *Bbs_server) update_mpul_catalog(rid uint64, object string, part int32, suffix string, partinfo *Mpul_part) *Aws_s3_error {
 	var catalog, err4 = bbs.fetch_mpul_catalog(rid, object)
 	if err4 != nil {
 		return err4
@@ -556,7 +556,7 @@ func (bbs *Bb_server) update_mpul_catalog(rid uint64, object string, part int32,
 	return nil
 }
 
-func (bbs *Bb_server) fetch_mpul_catalog(rid uint64, object string) (*Mpul_catalog, *Aws_s3_error) {
+func (bbs *Bbs_server) fetch_mpul_catalog(rid uint64, object string) (*Mpul_catalog, *Aws_s3_error) {
 	var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "list")
@@ -576,7 +576,7 @@ func (bbs *Bb_server) fetch_mpul_catalog(rid uint64, object string) (*Mpul_catal
 	return &catalog, nil
 }
 
-func (bbs *Bb_server) store_mpul_catalog(rid uint64, object string, suffix string, catalog *Mpul_catalog) *Aws_s3_error {
+func (bbs *Bbs_server) store_mpul_catalog(rid uint64, object string, suffix string, catalog *Mpul_catalog) *Aws_s3_error {
 	//var location = "/" + object + "@mpul"
 	var mpulpath = bbs.make_path_of_object(object, "@mpul")
 	var path = filepath.Join(mpulpath, "list")
@@ -590,7 +590,7 @@ func (bbs *Bb_server) store_mpul_catalog(rid uint64, object string, suffix strin
 // FETCH_JSON_DATA fetches the content in a metainfo file.  It returns
 // io.EOF when the file does not exist.  The path is an os-dependent
 // path.
-func (bbs *Bb_server) fetch_json_data(rid uint64, object, path string, data any) error {
+func (bbs *Bbs_server) fetch_json_data(rid uint64, object, path string, data any) error {
 	var location = "/" + object
 	var f1, err1 = os.Open(path)
 	if err1 != nil {
@@ -631,7 +631,7 @@ func (bbs *Bb_server) fetch_json_data(rid uint64, object, path string, data any)
 // STORE_JSON_DATA stores the data in a metainfo file.  It removes a
 // metainfo file when data=nil.  It once create a file as a temporary,
 // then remanes.  The path is an os-dependent path.
-func (bbs *Bb_server) store_json_data(rid uint64, object, path string, suffix string, data any) *Aws_s3_error {
+func (bbs *Bbs_server) store_json_data(rid uint64, object, path string, suffix string, data any) *Aws_s3_error {
 	var location = "/" + object
 	if data == nil {
 		// Remove a metainfo file if exists.
@@ -706,7 +706,7 @@ func (bbs *Bb_server) store_json_data(rid uint64, object, path string, suffix st
 // CHECK_MPUL_ONGOING checks "params.UploadId" is a currently on-going
 // upload.  SERIALIZING is the serialization status that is passed to
 // fetch_mpul_info.
-func (bbs *Bb_server) check_mpul_ongoing(rid uint64, object string, uploadid *string, serializing bool) (*Mpul_info, *Aws_s3_error) {
+func (bbs *Bbs_server) check_mpul_ongoing(rid uint64, object string, uploadid *string, serializing bool) (*Mpul_info, *Aws_s3_error) {
 	var location = "/" + object
 	if uploadid == nil {
 		var errz = &Aws_s3_error{Code: InvalidArgument,
@@ -731,7 +731,7 @@ func (bbs *Bb_server) check_mpul_ongoing(rid uint64, object string, uploadid *st
 // entity-key after making a stream for checking consistency.  It
 // fails when it detects changes on the object after checking
 // conditions.
-func (bbs *Bb_server) make_file_stream(rid uint64, object string, extent *[2]int64, entity string) (io.ReadCloser, *Aws_s3_error) {
+func (bbs *Bbs_server) make_file_stream(rid uint64, object string, extent *[2]int64, entity string) (io.ReadCloser, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
@@ -780,7 +780,7 @@ func (bbs *Bb_server) make_file_stream(rid uint64, object string, extent *[2]int
 // CHECK_OBJECT_EXISTS obtains an entity-key and a stat on an object.
 // It differs from fetch_object_status() as it returns an error, when
 // an object does not exist.
-func (bbs *Bb_server) check_object_exists(rid uint64, object string) (string, fs.FileInfo, *Aws_s3_error) {
+func (bbs *Bbs_server) check_object_exists(rid uint64, object string) (string, fs.FileInfo, *Aws_s3_error) {
 	var location = "/" + object
 	var entity, stat, err1 = bbs.fetch_object_status(rid, object, false)
 	if err1 != nil {
@@ -800,7 +800,7 @@ func (bbs *Bb_server) check_object_exists(rid uint64, object string) (string, fs
 // non-regular files are never an object.  SERIALIZING is the status
 // of access serialization.  Non-existence should be an error while
 // serialization.
-func (bbs *Bb_server) fetch_object_status(rid uint64, object string, serializing bool) (string, fs.FileInfo, *Aws_s3_error) {
+func (bbs *Bbs_server) fetch_object_status(rid uint64, object string, serializing bool) (string, fs.FileInfo, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 
@@ -857,7 +857,7 @@ func make_object_etag_from_md5(md5v []byte) string {
 
 // FETCH_OBJECT_ETAG returns an ETag and metainfo.  It calculates an
 // MD5 sum of an object when metainfo is not stored.  IT TOOK TIME!
-func (bbs *Bb_server) fetch_object_etag(rid uint64, object string, entity string) (string, *Meta_info, *Aws_s3_error) {
+func (bbs *Bbs_server) fetch_object_etag(rid uint64, object string, entity string) (string, *Meta_info, *Aws_s3_error) {
 	// var location = "/" + object
 	var metainfo, err2 = bbs.fetch_object_metainfo(rid, object, entity)
 	if err2 != nil {
@@ -878,7 +878,7 @@ func (bbs *Bb_server) fetch_object_etag(rid uint64, object string, entity string
 }
 
 // MAKE_ENTITY_KEY returns an entity-key of a stream.
-func (bbs *Bb_server) make_entity_key(rid uint64, object string, f fs.File) (string, *Aws_s3_error) {
+func (bbs *Bbs_server) make_entity_key(rid uint64, object string, f fs.File) (string, *Aws_s3_error) {
 	var location = "/" + object
 	var path = bbs.make_path_of_object(object, "")
 	var stat, err1 = f.Stat()

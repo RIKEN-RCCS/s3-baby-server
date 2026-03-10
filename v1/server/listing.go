@@ -37,7 +37,7 @@ var mpul_scratch_pattern = ".*@mpul"
 var scratch_file_pattern = ".*"
 
 // LIST_BUCKETS makes a list of buckets.
-func (bbs *Bb_server) list_buckets(rid uint64, start int, count int, prefix string) ([]types.Bucket, int, *Aws_s3_error) {
+func (bbs *Bbs_server) list_buckets(rid uint64, start int, count int, prefix string) ([]types.Bucket, int, *Aws_s3_error) {
 	var pool_directory = "."
 	var entries1, err1 = os.ReadDir(pool_directory)
 	if err1 != nil {
@@ -130,7 +130,7 @@ func (bbs *Bb_server) list_buckets(rid uint64, start int, count int, prefix stri
 // returns are sorted.  It returns a next start-index and a next
 // start-marker, in addition to the entries.  THE ENTRIES INCLUDE
 // DIRECTORIES EVEN IF THEY ARE EMPTY.
-func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
+func (bbs *Bbs_server) list_objects_delimited(rid uint64, bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
 	if delimiter != "/" {
 		log.Fatalf("BAD-IMPL: list_objects_delimited with non-slash")
 	}
@@ -242,7 +242,7 @@ func (bbs *Bb_server) list_objects_delimited(rid uint64, bucket string, index in
 // count directory entries.  COUNT counts files visited and it is used
 // to check a start-index.  MEMO: A prefix should not have a
 // preceeding delimiter.  A common-prefix has a trailing delimiter.
-func (bbs *Bb_server) list_objects_flat(rid uint64, bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
+func (bbs *Bbs_server) list_objects_flat(rid uint64, bucket string, index int, marker string, maxkeys int, delimiter string, prefix string) ([]object_list_entry, int, string, *Aws_s3_error) {
 	var location = "/" + bucket
 	var pool_directory = "."
 	var b = path.Join(pool_directory, bucket)
@@ -350,7 +350,7 @@ func (bbs *Bb_server) list_objects_flat(rid uint64, bucket string, index int, ma
 
 // MAKE_LIST_OBJECTS_ENTRIES converts a list of objects to response
 // entries.  It calculates MD5.
-func (bbs *Bb_server) make_list_objects_entries(rid uint64, entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
+func (bbs *Bbs_server) make_list_objects_entries(rid uint64, entries []object_list_entry, bucket string, delimiter string, prefix string, urlencode bool) ([]types.Object, []types.CommonPrefix, error) {
 	var contents []types.Object
 	var commonprefixes []types.CommonPrefix
 	for _, e := range entries {
@@ -408,7 +408,7 @@ func (bbs *Bb_server) make_list_objects_entries(rid uint64, entries []object_lis
 	return contents, commonprefixes, nil
 }
 
-func (bbs *Bb_server) list_mpuls_flat(rid uint64, bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, *Aws_s3_error) {
+func (bbs *Bbs_server) list_mpuls_flat(rid uint64, bucket string, marker string, maxkeys int, delimiter string, prefix string, urlencode bool) ([]types.MultipartUpload, []types.CommonPrefix, string, *Aws_s3_error) {
 	var location = "/" + bucket
 	var pool_directory = "."
 	var b = path.Join(pool_directory, bucket)
@@ -547,13 +547,13 @@ func (bbs *Bb_server) list_mpuls_flat(rid uint64, bucket string, marker string, 
 // deleting it.  It concerns only regular files, but excludes scratch
 // files whose name begins with a dot.  Note an MPUL directory is named
 // ".objectname@mpul".
-func (bbs *Bb_server) check_bucket_empty(rid uint64, bucket string) *Aws_s3_error {
+func (bbs *Bbs_server) check_bucket_empty(rid uint64, bucket string) *Aws_s3_error {
 	var path1 = bbs.make_path_of_bucket(bucket)
 	var err1 = bbs.check_directory_empty(rid, bucket, path1)
 	return err1
 }
 
-func (bbs *Bb_server) check_directory_empty(rid uint64, bucket string, path1 string) *Aws_s3_error {
+func (bbs *Bbs_server) check_directory_empty(rid uint64, bucket string, path1 string) *Aws_s3_error {
 	var location = "/" + bucket
 	var filelist, err1 = os.ReadDir(path1)
 	if err1 != nil {

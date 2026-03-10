@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, *Aws_s3_error) {
 	var o = s3.AbortMultipartUploadOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -88,7 +88,7 @@ func (bbs *Bb_server) AbortMultipartUpload(ctx context.Context, i *s3.AbortMulti
 	return &o, nil
 }
 
-func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) CompleteMultipartUpload(ctx context.Context, i *s3.CompleteMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, *Aws_s3_error) {
 	var o = s3.CompleteMultipartUploadOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -354,7 +354,7 @@ func (bbs *Bb_server) CompleteMultipartUpload(ctx context.Context, i *s3.Complet
 	return &o, nil
 }
 
-func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, *Aws_s3_error) {
 	var o = s3.CopyObjectOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -564,7 +564,7 @@ func (bbs *Bb_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, *Aws_s3_error) {
 	var o = s3.CreateBucketOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -646,7 +646,7 @@ func (bbs *Bb_server) CreateBucket(ctx context.Context, i *s3.CreateBucketInput,
 	return &o, nil
 }
 
-func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMultipartUploadInput, optFns ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, *Aws_s3_error) {
 	var o = s3.CreateMultipartUploadOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -825,7 +825,7 @@ func (bbs *Bb_server) CreateMultipartUpload(ctx context.Context, i *s3.CreateMul
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput, optFns ...func(*s3.Options)) (*s3.DeleteBucketOutput, *Aws_s3_error) {
 	var o = s3.DeleteBucketOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -893,7 +893,7 @@ func (bbs *Bb_server) DeleteBucket(ctx context.Context, i *s3.DeleteBucketInput,
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, *Aws_s3_error) {
 	var o = s3.DeleteObjectOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -949,7 +949,7 @@ func (bbs *Bb_server) DeleteObject(ctx context.Context, i *s3.DeleteObjectInput,
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, *Aws_s3_error) {
 	var o = s3.DeleteObjectsOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1107,7 +1107,7 @@ func (bbs *Bb_server) DeleteObjects(ctx context.Context, i *s3.DeleteObjectsInpu
 	return &o, nil
 }
 
-func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectTaggingOutput, *Aws_s3_error) {
 	var o = s3.DeleteObjectTaggingOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1173,7 +1173,7 @@ func (bbs *Bb_server) DeleteObjectTagging(ctx context.Context, i *s3.DeleteObjec
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, *Aws_s3_error) {
 	var o = s3.GetObjectOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1337,7 +1337,7 @@ func (bbs *Bb_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, *Aws_s3_error) {
 	var o = s3.GetObjectAttributesOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1443,7 +1443,7 @@ func (bbs *Bb_server) GetObjectAttributes(ctx context.Context, i *s3.GetObjectAt
 	return &o, nil
 }
 
-func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.GetObjectTaggingOutput, *Aws_s3_error) {
 	var o = s3.GetObjectTaggingOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1493,7 +1493,7 @@ func (bbs *Bb_server) GetObjectTagging(ctx context.Context, i *s3.GetObjectTaggi
 	return &o, nil
 }
 
-func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, *Aws_s3_error) {
 	var o = s3.HeadBucketOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1528,7 +1528,7 @@ func (bbs *Bb_server) HeadBucket(ctx context.Context, i *s3.HeadBucketInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, *Aws_s3_error) {
 	var o = s3.HeadObjectOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1706,7 +1706,7 @@ func (bbs *Bb_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, *Aws_s3_error) {
 	var o = s3.ListBucketsOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1782,7 +1782,7 @@ func (bbs *Bb_server) ListBuckets(ctx context.Context, i *s3.ListBucketsInput, o
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultipartUploadsInput, optFns ...func(*s3.Options)) (*s3.ListMultipartUploadsOutput, *Aws_s3_error) {
 	var o = s3.ListMultipartUploadsOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1870,7 +1870,7 @@ func (bbs *Bb_server) ListMultipartUploads(ctx context.Context, i *s3.ListMultip
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, *Aws_s3_error) {
 	var o = s3.ListObjectsOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -1971,7 +1971,7 @@ func (bbs *Bb_server) ListObjects(ctx context.Context, i *s3.ListObjectsInput, o
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, *Aws_s3_error) {
+func (bbs *Bbs_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, *Aws_s3_error) {
 	var o = s3.ListObjectsV2Output{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -2093,7 +2093,7 @@ func (bbs *Bb_server) ListObjectsV2(ctx context.Context, i *s3.ListObjectsV2Inpu
 	return &o, nil
 }
 
-func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFns ...func(*s3.Options)) (*s3.ListPartsOutput, *Aws_s3_error) {
 	var o = s3.ListPartsOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -2235,7 +2235,7 @@ func (bbs *Bb_server) ListParts(ctx context.Context, i *s3.ListPartsInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, *Aws_s3_error) {
 	var o = s3.PutObjectOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -2338,6 +2338,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	if err7 != nil {
 		return nil, err7
 	}
+
 	var csumset = &types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
@@ -2346,9 +2347,26 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 		ChecksumSHA1:      i.ChecksumSHA1,
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
-	var checksum, csum_to_check, err8 = bbs.decode_checksum_union(rid, object, csumset)
-	if err8 != nil {
-		return nil, err8
+
+	var checksum types.ChecksumAlgorithm
+	var csum_to_check []byte
+
+	{
+		var checksum1, err1 = bbs.check_trailer_checksum(ctx, rid, object)
+		if err1 != nil {
+			return nil, err1
+		}
+		if checksum1 != "" {
+			checksum = checksum1
+			csum_to_check = []byte{}
+		} else {
+			var checksum2, csum2, err2 = bbs.decode_checksum_union(rid, object, csumset)
+			if err2 != nil {
+				return nil, err2
+			}
+			checksum = checksum2
+			csum_to_check = csum2
+		}
 	}
 
 	var metainfo *Meta_info
@@ -2427,7 +2445,7 @@ func (bbs *Bb_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optFn
 	return &o, nil
 }
 
-func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggingInput, optFns ...func(*s3.Options)) (*s3.PutObjectTaggingOutput, *Aws_s3_error) {
 	var o = s3.PutObjectTaggingOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -2515,7 +2533,7 @@ func (bbs *Bb_server) PutObjectTagging(ctx context.Context, i *s3.PutObjectTaggi
 	return &o, nil
 }
 
-func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, optFns ...func(*s3.Options)) (*s3.UploadPartOutput, *Aws_s3_error) {
 	var o = s3.UploadPartOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)
@@ -2641,7 +2659,7 @@ func (bbs *Bb_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, opt
 	return &o, nil
 }
 
-func (bbs *Bb_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, *Aws_s3_error) {
+func (bbs *Bbs_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyInput, optFns ...func(*s3.Options)) (*s3.UploadPartCopyOutput, *Aws_s3_error) {
 	var o = s3.UploadPartCopyOutput{}
 	var action, rid, suffix = get_action_name(ctx)
 	bbs.logger.Info("Serving", "action", action, "rid", rid, "suffix", suffix)

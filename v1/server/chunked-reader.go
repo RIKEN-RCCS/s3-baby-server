@@ -323,7 +323,7 @@ func (r *Chunked_reader) read_chunk_body(b []byte) (int, error) {
 			Msg: read_error_in_chunk_body, Reader: r, Nested: err1}
 	}
 	r.chunk_n += int64(n2)
-	bb_assert(r.chunk_n <= r.chunk_length)
+	bbs_assert(r.chunk_n <= r.chunk_length)
 	if r.chunk_length == r.chunk_n {
 		var err2 = r.consume_cr_lf()
 		if err2 != nil {

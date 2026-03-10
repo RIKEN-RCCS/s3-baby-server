@@ -12,11 +12,10 @@
 ;; "dispatcher.go", "handler.go", and "marshaler.go".  A dispatcher in
 ;; "dispatcher.go" is a request multiplexer.  It calls routines in
 ;; "handler.go" to process requests and responses.  Marshalers in
-;; "marshaler.go" are needed to skip an extra memeber in responses,
-;; because the output structures defined in AWS-SDK have one added
-;; member.  "api-template.go" is a skeleton code of API handlers.  The
-;; files other than "api-template.go" are assumed to be placed in the
-;; same package.
+;; "marshaler.go" are to absorb differences in the structures of
+;; AWS-S3 API and AWS-SDK.  "api-template.go" is a skeleton code of
+;; API handlers.  The files other than "api-template.go" are assumed
+;; to be placed in the same package.
 
 ;; Smithy syntax is described in: https://smithy.io/2.0/spec/idl.html
 ;; "+"-qualified element as in {Key+} matches one or more path
@@ -102,21 +101,21 @@
 (define (valid-number? string)
   (number? (string->number string)))
 
-(load "../test/minima/srfi-180-body.scm")
+(load "./srfi-180-body.scm")
 
 ;; Package path/name of s3-baby-server.  One generated file
-;; "api-template.go" shall be placed in bb-server-package, and other
+;; "api-template.go" shall be placed in bbs-server-package, and other
 ;; generated files "dispatcher.go", "handler.go", and "marshaler.go"
-;; in bb-dispatcher-package.
+;; in bbs-dispatcher-package.
 
-(define bb-package-path "s3-baby-server/internal")
-(define bb-dispatcher-package "server")
-(define bb-server-package "server")
-(define bb-server-name "Bb_server")
-(define bb-server-type
-  (if (not (string=? bb-server-package bb-dispatcher-package))
-      (string-append bb-server-package "." bb-server-name)
-      bb-server-name))
+(define bbs-package-path "s3-baby-server/internal")
+(define bbs-dispatcher-package "server")
+(define bbs-server-package "server")
+(define bbs-server-name "Bbs_server")
+(define bbs-server-type
+  (if (not (string=? bbs-server-package bbs-dispatcher-package))
+      (string-append bbs-server-package "." bbs-server-name)
+      bbs-server-name))
 
 ;; List of implemented actions of s3-baby-server.  The full list of S3
 ;; actions are listed in "shapes" / "com.amazonaws.s3#AmazonS3" /
@@ -984,18 +983,18 @@
 	 "")
    (delete
     ""
-    (list (format #f "package ~a" bb-dispatcher-package)
+    (list (format #f "package ~a" bbs-dispatcher-package)
 	  "import ("
 	  ;; "\"context\""
 	  "\"net/http\""
-	  (if (not (string=? bb-server-package bb-dispatcher-package))
-	      (format #f "\"~a/~a\"" bb-package-path bb-server-package)
+	  (if (not (string=? bbs-server-package bbs-dispatcher-package))
+	      (format #f "\"~a/~a\"" bbs-package-path bbs-server-package)
 	      "")
 	  ")"
-	  "// REGISTER_DISPATCHER registers handers of BB-server to ServeMux."
+	  "// REGISTER_DISPATCHER sets handers of Baby-server to ServeMux."
 	  (string-append
 	   "func register_dispatcher"
-	   (format #f "(bbs *~a, sx *http.ServeMux)" bb-server-type)
+	   (format #f "(bbs *~a, sx *http.ServeMux)" bbs-server-type)
 	   " error {")))
    (apply-append
     (map generate-dispatcher-entry list-of-dispatches))
@@ -1150,7 +1149,7 @@
 	slot-property-list)
    (list
     (string-append
-     (format #f "default: var err3 = &Bb_enum_intern_error")
+     (format #f "default: var err3 = &Bbs_enum_intern_error")
      (format #f "{\"types.~a\", s}" type))
     "return \"_invalid_\", err3}}")))
 
@@ -1337,7 +1336,7 @@
       ((HEADER)
        (cond
 	((string=? type-kind "list")
-	 ;; A list header is "#(values)" of http, and it can be spread
+	 ;; A list header is a comma-delimited list and may spread
 	 ;; to multiple headers.  Note a slot-property for lists is
 	 ;; ("member" #f type-name ELEMENT #f #f)
 	 (format #t ";; Header list scanner: ~s~%" slot-property-list)
@@ -1361,13 +1360,21 @@
 	 ;; NEVER THIS CASE.  MAPS ARE USED IN HEADER-PREFIX.
 	 (error "make-input-import with map in headers"))
 	(else
-	 (let ((rhs (format #f "hi.Get(~s)" slot-name))
-	       (assigner (lambda (rhs)
-			   (format #f "i.~a = ~a" slot rhs))))
-	   (append
-	    (list (format #f "if len(hi.Values(~s)) != 0 {" slot-name))
-	    (string-append-on-tail-entry
-	     (make-coercing-intern slot-name type assigner rhs) "}"))))))
+	 ;; Note headers "Content-Length", "Host", "Trailer", and
+	 ;; "Transfer-Encoding" are moved in the http.Request.  Here,
+	 ;; only "Content-Length" matters.
+	 (cond
+	  ((string-ci=? slot-name "Content-Length")
+	   (list
+	    "{i.ContentLength = &r.ContentLength}"))
+	  (else
+	   (let ((rhs (format #f "hi.Get(~s)" slot-name))
+		 (assigner (lambda (rhs)
+			     (format #f "i.~a = ~a" slot rhs))))
+	     (append
+	      (list (format #f "if len(hi.Values(~s)) != 0 {" slot-name))
+	      (string-append-on-tail-entry
+	       (make-coercing-intern slot-name type assigner rhs) "}"))))))))
       ((HEADER-PREFIX)
        ;; IT ASSUMES MAPS ARE ALWAYS OF STRINGS.
        (assert (string=? type-kind "map"))
@@ -1589,7 +1596,7 @@
      (list (string-append
 	    (format #f "func h_~a" name)
 	    (format #f "(bbs *~a, w http.ResponseWriter, r *http.Request) {"
-		    bb-server-type))
+		    bbs-server-type))
 	   "var qi = r.URL.Query()"
 	   "var hi = r.Header"
 	   "var ho = w.Header()"
@@ -1662,7 +1669,7 @@
 	 "")
    (delete
     ""
-    (list (format #f "package ~a" bb-dispatcher-package)
+    (list (format #f "package ~a" bbs-dispatcher-package)
 	  "import ("
 	  "\"bytes\""
 	  "\"context\""
@@ -1675,30 +1682,30 @@
 	  "\"strconv\""
 	  "\"strings\""
 	  "\"time\""
-	  (if (not (string=? bb-server-package bb-dispatcher-package))
-	      (format #f "\"~a/~a\"" bb-package-path bb-server-package)
+	  (if (not (string=? bbs-server-package bbs-dispatcher-package))
+	      (format #f "\"~a/~a\"" bbs-package-path bbs-server-package)
 	      "")
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3/types\""
 	  ")"))
-   (list "// BB_ENUM_INTERN_ERROR is an error returned when interning"
+   (list "// BBS_ENUM_INTERN_ERROR is an error returned when interning"
 	 "// an enumeration."
-	 "type Bb_enum_intern_error struct {"
+	 "type Bbs_enum_intern_error struct {"
 	 "Enum string"
 	 "Name string"
 	 "}"
-	 "func (e *Bb_enum_intern_error) Error() string {"
+	 "func (e *Bbs_enum_intern_error) Error() string {"
 	 (string-append
 	  "return \"Enum \" + e.Enum + \" unknown key: \""
 	  " + strconv.Quote(e.Name)}"))
    #|
-   (list "// BB_INPUT_ERROR is recorded in a context when an error"
+   (list "// BBS_INPUT_ERROR is recorded in a context when an error"
 	 "// occurs on interning a parameter."
-	 "type Bb_input_error struct {"
+	 "type Bbs_input_error struct {"
 	 "Key string"
 	 "Err error"
 	 "}"
-	 "func (e *Bb_input_error) Error() string {"
+	 "func (e *Bbs_input_error) Error() string {"
 	 "return \"Parameter \" + e.Key + \" error: \" + e.Err.Error()}")
    |#
    ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
@@ -1707,9 +1714,9 @@
    ;; "func h_record_input_error"
    ;; "(ctx context.Context, key string, e error) {")
    ;;"var v = ctx.Value("input-errors").(*[]error)"
-   ;;"*v = append(*v, Bb_input_error{key, e})}"
+   ;;"*v = append(*v, Bbs_input_error{key, e})}"
    ;;"var m = ctx.Value(\"input-errors\").(map[string]error)"
-   ;;"m[key] = &Bb_input_error{key, e}}"
+   ;;"m[key] = &Bbs_input_error{key, e}}"
    (apply-append
     (map make-handler-function list-of-actions))))
 
@@ -2005,7 +2012,7 @@
 	 "// extra slot that should be suppressed."
 	 ;; A blank line is added to break from a package comment.
 	 "")
-   (list (format #f "package ~a" bb-dispatcher-package)
+   (list (format #f "package ~a" bbs-dispatcher-package)
 	 "import ("
 	 "\"bytes\""
 	 "\"crypto/md5\""
@@ -2076,7 +2083,7 @@
 	       output-name)))
       (list
        (string-append
-	(format #f "func (bbs *~a) ~a" bb-server-name name)
+	(format #f "func (bbs *~a) ~a" bbs-server-name name)
 	(format #f "(ctx context.Context, params *s3.~a," input-name)
 	(format #f " optFns ...func(*s3.Options))")
 	(format #f " (*s3.~a, error) {" api-output-name))
@@ -2092,14 +2099,14 @@
 	 "")
    (delete
     ""
-    (list (format #f "package ~a" bb-server-package)
+    (list (format #f "package ~a" bbs-server-package)
 	  "import ("
 	  "\"context\""
 	  "\"github.com/aws/aws-sdk-go-v2/service/s3\""
 	  "\"net/http\""
 	  ")"))
-   (list "// BB_SERVER is the server body."
-	 "type Bb_server struct {}"
+   (list "// BBS_SERVER is the server body."
+	 "type Bbs_server struct {}"
 
 	 "// H_LIMIT_OF_XML_PARAMETERS limits the size of XML parameters"
 	 "// in a request body."
@@ -2114,13 +2121,13 @@
 
 	 "// MAKE_REQUEST_ID makes a new request-id."
 	 (string-append
-	  "func (bbs *Bb_server) make_request_id() uint64 {"
+	  "func (bbs *Bbs_server) make_request_id() uint64 {"
 	  "panic(e)}")
 
 	 "// RESPOND_ON_ACTION_ERROR is called on an action error and"
 	 "// makes a response for it."
 	 (string-append
-	  "func (bbs *Bb_server) respond_on_action_error"
+	  "func (bbs *Bbs_server) respond_on_action_error"
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, e error) {"
 	  "panic(e)}")
@@ -2128,7 +2135,7 @@
 	 "// RESPOND_ON_INPUT_ERROR is called on an input error and"
 	 "// makes a response for it."
 	 (string-append
-	  "func (bbs *Bb_server) respond_on_input_error"
+	  "func (bbs *Bbs_server) respond_on_input_error"
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, m map[string]error) {"
 	  "panic(m)}")
@@ -2136,7 +2143,7 @@
 	 "// COPE_WITH_WRITE_ERROR is called on a write error of response"
 	 "// payload and makes a response for it."
 	 (string-append
-	  "func (bbs *Bb_server) cope_with_write_error"
+	  "func (bbs *Bbs_server) cope_with_write_error"
 	  "(ctx context.Context, w http.ResponseWriter,"
 	  " r *http.Request, e error) {"
 	  "panic(e)}")
@@ -2154,7 +2161,7 @@
 	 ;;"// RESPOND_ON_INPUT_ERROR is called on an error on"
 	 ;;"// interning enumerations and makes a response for it."
 	 ;;(string-append
-	 ;;"func (bbs *Bb_server) respond_on_input_error"
+	 ;;"func (bbs *Bbs_server) respond_on_input_error"
 	 ;;"(ctx context.Context, w http.ResponseWriter,"
 	 ;;" r *http.Request, name string) {"
 	 ;;"panic(fmt.Errorf(\"Bad parameter %s\", name))}")
@@ -2162,15 +2169,15 @@
 	 ;;"// RESPOND_ON_MISSING_INPUT is called on an internal error"
 	 ;;"// and makes a response for it."
 	 ;;(string-append
-	 ;;"func (bbs *Bb_server) respond_on_missing_input"
+	 ;;"func (bbs *Bbs_server) respond_on_missing_input"
 	 ;;"(ctx context.Context, w http.ResponseWriter,"
 	 ;;" r *http.Request, name string) {"
 	 ;;"panic(fmt.Errorf(\"Missing path: %s\", name))}")
 
 	 ;;"// RECORD_INPUT_ERROR is called on an error on interning a"
 	 ;;"// parameter to record it in the context."
-	 ;;"var v = ctx.Value("input-errors").(*[]Bb_input_error_record)"
-	 ;;"*v = append(*v, Bb_input_error_record{key, e})}"
+	 ;;"var v = ctx.Value("input-errors").(*[]Bbs_input_error_record)"
+	 ;;"*v = append(*v, Bbs_input_error_record{key, e})}"
 	 ;;(string-append
 	 ;;	  "func record_input_error"
 	 ;;	  "(ctx context.Context, key string, e error) {"
