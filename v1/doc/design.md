@@ -1,0 +1,615 @@
+# Design Memo of Baby-server
+
+## Overall Implementation
+
+Baby-server implements the actions following the API defined by
+AWS-SDK.  Whereas AWS-SDK defines the client side, it is identical to
+the server side.  Especially, SDK's function signatures of the actions
+with their input/output records are likely to be used unchanged (or
+with little tweaks).  Baby-server uses those function signatures, and
+provides implementations of them in "api-action.go".
+
+The main behaviors of the actions are in "copying.go", "listing.go",
+and "deleting.go".
+
+Baby-server uses an RPC (remote procedure call) stub generator which
+generates the server side stubs from the definition in Smithy IDL
+(interface definition language).  The stubs are in "dispatcher.go",
+"handler.go", and "marshaler.go".  The stub generator is "stub.scm" in
+"adhoc-stub-generator" directory.  Use Gnu-Guile (v3) to run
+"stub.scm".  Guile is a dialect of Scheme language.
+
+----------------
+
+## Server Control
+
+Baby-server handles POST calls on "/bbs.ctl/quit" and "/bbs.ctl/stat",
+where "quit" stops the server, and "stat" dumps memory usage to the
+logger at level=INFO.  Since these commands are not AWS-S3 operations,
+it cannot be requested by AWS-CLI.  See "control-client.go" code in
+"test/minima" to issue these commands.
+
+## Metainfo File
+
+Baby-server stores meta-information in a meta-file named "." +
+object-name + "@meta".  This file is created when:
+
+  - an object is large, to avoid MD5 calculation for an ETag
+  - an object has a checksum value
+  - an object has a tags or metadata headers
+
+An object usually has a meta-file because it is uploaded with a
+checksum value.
+
+A meta-file is usually created at uploading.  However, a meta-file
+(for an existing file) will be created when an access occurs on the
+object (including HEAD/GET accesses).  Baby-server won't remove the
+meta-file when a smaller object replaces the object.
+
+Baby-server keeps the association of a meta-file to a data-file by
+recoding an entity-key in the meta-file.
+
+## Temporary "Scratch" Files
+
+Baby-server creates temporary "scratch" files on copying or uploading.
+An object is once created as a scratch file, and when copying
+completes, it is renamed to the true name.  A name of a scratch file
+is named "." + objectname + "@random".  A random is hex digits.
+
+Scratch files are also created for metainfo files, and for part-files
+for MPUL.
+
+Scratch files are created without serializing accesses and its life
+time is limited to request processing.
+
+## Multipart-Upload (MPUL)
+
+Baby-server creates a temporary directory (named "." + objectname +
+"@mpul") and stores files "info", "list", and "partNNNNN".  The array
+of parts saved in the "list" file are indexed in zero origin (part -
+1).
+
+Although a temporary directory for MPUL is created to store
+part-files, scratch files are not stored in that directory.  Instead,
+scratch files are stored in the same directory where the object will
+be created.
+
+The above mentioned placement of scratch files for MPUL is to allow
+removal of the temporary directory.  On aborting MPUL, it is necessary
+to remove the directory, but on-going copying would prevent removal of
+the directory.  (Such prevention behavior is found on NFS).  Placing
+scratch files outside the temporary directory will avoid that
+behavior.
+
+GetObject with "?partNumber=" is an error in Baby-server.  An object
+uploaded by multipart-upload is concatenated at completion and its
+parts are lost.  Note it is not a legal operation in AWS-S3 to
+download a part while multipart-upload is in-progress.
+
+ListMultipartUploads never returns NextUploadIdMarker in the output.
+
+## Exclusion (Serialization)
+
+Baby-server only excludes modifications on the filesystem.  That is,
+listing and downloading are not exclusive with uploading and copying.
+
+In most cases, operations are prepared outside of exclusion and
+continue with final renaming in exclusion.  Baby-server keeps
+consistency of identity of a file with an "entity-key". An entity-key
+is an internally used file identity, similar to an ETag, but it is
+based on an inode number and an mtime to calculate it fast.
+(Entity-keys are hashed and uniqueness is probabilistic).
+
+Operations performed with exclusion are (1) renaming a scratch-pad
+file to an actual object, and (2) updating its metainfo file.  Other
+operations are outside of exclusion.  In paricular, calculation of an
+ETag is outside of exclusion.
+
+Wait time of exclusion has a limit, and a timeout causes a
+RequestTimeout error.  The limit is set to 5000ms.  It seems large,
+but we found it took rather long in our test environment.
+Configuration "Exclusion_wait" can control the time.
+
+### Access Order of Meta-file and Data-file
+
+Baby-server stores some metainfo in another file, a meta-file, and
+there is an access order restriction between a meta-file and a
+data-file.  Writing is exclusive and Baby-server stores a meta-file
+then a data-file in this order.
+
+Baby-server keeps the association of a meta-file to a data-file by
+storing the entity-key of a data-file in a meta-file.  Reading is
+not exclusive.  But, to be consistent, a meta-file should be read
+before a data-file.
+
+In short, both reading and writing should respect the access order: a
+meta-file then a data-file.
+
+To make this restriction work, both a meta-file and a data-file are
+stored atomically.  Files are created once in a scratch file, them
+renamed to an actual file.
+
+### Exclusion Details
+
+- Accesses to an object file and a meta-info file are serialized by an
+  object name.
+
+- Deletion of an object file and its meta-info file is not atomic.
+  Baby-server performs a deletion of a meta-info file first.  An errro
+  in a deletion of an object may leave an object without meta-info.
+
+- Listing is performed without serialization.  Listing parts of MPUL
+  is loose as well as listing of objects.
+
+- Operations between buckets and objects are not serialized.
+  Exclusion is based on a bucket or on an object.  A bucket can be
+  removed while operations on objects are in progress.
+
+## Chunked-Encoding
+
+### Implementation of Chunked-Transfer
+
+Baby-server uses "httputil.NewChunkedReader" for chunked-transfer.  It
+only checks Transfer-Encoding as it is a single entry "chunked".  This
+restriction is like http.parseTransferEncoding().
+
+### Prioritize Chunked-Encoding to Chunked-Transfer
+
+AWS-S3 seems not to nest (i.e., use both) "transfer-encoding=chunked"
+and "content-encoding=aws-chunked", when both are specified.
+Baby-server ignores "transfer-encoding=chunked" when
+"content-encoding=aws-chunked".
+
+### Chunked-Encoding
+
+??? http header "TE:_chunked"
+
+### Chunked-Encoding with STREAMING-UNSIGNED-PAYLOAD-TRAILER
+
+X-Amz-Content-Sha256=STREAMING-UNSIGNED-PAYLOAD-TRAILER is likely used
+for TLS connections.  In this case, it omits chunk-signatures in chunk
+headers.  Thus, when using with Transfer-Encoding=chunked, it is usual
+a chunked stream.  Also, in this case, "X-Amz-Trailer" is used.
+
+A sample of aws-chunked header from AWS-CLI is:
+
+```
+Accept-Encoding: gzip
+Expect: 100-continue
+Transfer-Encoding: chunked
+Content-Length: -1
+Content-Encoding: aws-chunked
+Trailer:
+X-Amz-Content-Sha256: STREAMING-UNSIGNED-PAYLOAD-TRAILER
+X-Amz-Date: 20260307T142429Z
+X-Amz-Decoded-Content-Length: 8388608
+X-Amz-Sdk-Checksum-Algorithm: CRC64NVME
+X-Amz-Trailer: x-amz-checksum-crc64nvme
+```
+
+"x-amz-content-sha256" values:
+
+  - Actual payload checksum value
+  - UNSIGNED-PAYLOAD
+  - STREAMING-UNSIGNED-PAYLOAD-TRAILER
+  - STREAMING-AWS4-HMAC-SHA256-PAYLOAD
+  - STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER
+  - STREAMING-AWS4-ECDSA-P256-SHA256-PAYLOAD
+  - STREAMING-AWS4-ECDSA-P256-SHA256-PAYLOAD-TRAILER
+
+Here, actual values and UNSIGNED-PAYLOAD are not chunked.
+
+They are listed in:
+
+  - https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
+
+OTHER HINTS:
+
+https://git.deuxfleurs.fr/Deuxfleurs/garage/issues/824
+
+### MEMO: Chunked-Encoding
+
+Transfer-Encoding≠identity ⇔ Content-Length=-1 (omitted)
+
+## Golang's http Sever
+
+Headers "Content-Length", "Transfer-Encoding", and "Trailer" are moved
+from the headers to an http.Request: r.ContentLength and
+r.TransferEncoding, and r.Trailer.  "Host" header, too.
+
+The documentation of r.TransferEncoding says it handles "chunked", but
+it does not.  If it had handled chunked, implementing aws-chunked got
+harder.
+
+r.ContentLength=-1 when "Content-Length" is missing.
+
+----------------
+
+## Peculiar Processing
+
+### HEAD Request on a Directory Response
+
+Baby-server returns NoSuchKey, on a HEAD request on a directory.
+Baby-server ignores all non-regular files in a bucket.
+
+### Ignoring a Trailing-Slash in URL
+
+Baby-server ignores a trailing-slash on a bucket name in list-objects
+requests.  It rewrites URL's path and drops a trailing-slash before
+passing it to http.ServeMux.  Configuration "Keep_trailing_slash" will
+disable this behavior.
+
+It is a bit tedious to ignore a trailing-slash using patterns of
+http.ServeMux (go-1.25).  http.ServeMux's pattern matcher treats
+"/{bucket}/" as "/{bucket}/{key...}".  That is, the pattern
+"/{bucket}/" wouldn't match both "/{bucket}" and "/{bucket}/" as we
+hoped for.  The pattern "/{bucket}/{$}" wouldn't work either.
+
+### Fixing an ETag Quoting
+
+Baby-server may attach double-qoutes to an ETag when it misses qoutes.
+Configuration "Strict_etag_quoting" will disable this behavior.
+
+Note "s3cmd" passes ETags without qoutes for a part list of a
+multipart-upload.
+
+### Extra cr+lf at the End of "aws-chunked" Stream
+
+Baby-server accepts one extra cr+lf at the end of chunks in
+"aws-chunked" transfer.  That is, the last part of the chunks is
+"0;chunk-signature=..." + "cr+lf" + "cr+lf".  Configuration
+"Forbid_last_chunk_crlf" will disable this behavior.
+
+Note some S3 clients may attach an extra cr+lf.  MinIO client "mc"
+does, for example.
+
+### PartNumber
+
+A part-number can be specified in downloading to select a particular
+part of an object that is uploaded by MPUL.  Baby-server does not
+support "by-part" downloading, because the file is concatenated to a
+single file after uploading and it does not remember the part
+information of MPUL.  Specifying a part-number except for MPUL actions
+is an error.  But, as an exception, Baby-server treats part-number=1
+as a whole object.  It is because a client may specify a part-number
+to check the object supports by-part downloading.  Returning an error
+to a request with a part-number does not work as a client give up
+downloading (errors such as "NoSuchUpload" (404-Not-Found)).
+
+### Error Code on a Race Condition
+
+Baby-server returns "InternalError" (500-Internal-Server-Error) on a
+race condition, expecting client retries.  Races in Baby-server occur
+in modifying files during API actions, which are usually recovered by
+retries.
+
+----------------
+
+## Error Responses
+
+Error responses are defined in
+[Error Responses](https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html)
+
+Several errors related to S3 are defined in "types" in AWS-SDK:
+https://github.com/aws/aws-sdk-go-v2/service/s3/types/errors.go
+
+- Error Types
+  - "BucketAlreadyExists"
+  - "BucketAlreadyOwnedByYou"
+  - "EncryptionTypeMismatch" (no correponding error code)
+  - "IdempotencyParameterMismatch" (no correponding error code)
+  - "InvalidObjectState"
+  - "InvalidRequest"
+  - "InvalidWriteOffset" (no correponding error code)
+  - "NoSuchBucket"
+  - "NoSuchKey"
+  - "NoSuchUpload"
+  - "NotFound" (no correponding error code)
+  - "ObjectAlreadyInActiveTierError" (no correponding error code)
+  - "ObjectNotInActiveTierError" (no correponding error code)
+  - "TooManyParts" (no correponding error code)
+
+These error types implement methods:
+"Error()", "ErrorCode()", "ErrorFault()", "ErrorMessage()".  There are
+some error related types: "s3/types.Error", "s3/types.ErrorDetails",
+"s3/types.ErrorDocument".
+
+These error types are listed in Smithy "s3.json", but their
+definitions are empty.
+
+There are many other error codes listed in "Error Responses" of the
+API specification.  Those error codes appear in the comment in "types"
+in AWS-SDK:
+https://github.com/aws/aws-sdk-go-v2/service/s3/types/types.go
+
+Errors are not defined in detail.  They are somewhat arbitrary (?).
+
+### List of Error Codes
+
+The file "aws-s3-errors.go" is taken from the "Error Responses"
+section.
+
+The "Error Responses" section in the API specification contains a list
+of error codes.  It contains 88 total error entires, but distinct
+codes are 80 -- it includes nine "InvalidRequest" duplicate entries.
+
+The same list also exists as error codes (a table in XML) in a
+document string in "s3.json".  They are in "shapes" /
+"com.amazonaws.s3#Error" / "Code" / "traits" /
+"smithy.api#documentation".
+
+----------------
+
+## Name Restrictions
+
+[Naming Amazon S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html)
+
+----------------
+
+## Copying a file
+
+Baby-server copies a file by linking a file.  The mtime of a new file
+is not updated.
+
+----------------
+
+## Timestamps of objects
+
+AWS-S3 only manages timestamps of objects in mtime.  Only buckets
+needs ctime and mtime.  An object's mtime is amended when it is
+created with multipart upload.
+
+----------------
+
+## Checksums
+
+Baby-server can only handle "types.ChecksumTypeFullObject".  A request
+of a checksum is ignored when it is not the case.  A returned checksum
+is always for full object.
+
+Baby-server records minimal metadata.  It discards metadata except for
+explicitly provided tags and headers.  Especially, it does not record
+checksums or checksum algorithms, too.  It returns checksums of
+CRC64NVME in spite of an algorithm specified at "PutObject".
+
+Note multiple checksum algorithms can be specified in internal types
+in: types.Object and types.ObjectVersion.
+
+----------------
+
+## Responses
+
+Baby-server does not add "xmlns".  It should be something like:
+  <XXXX xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+
+Following lines are needed to add "xmlns", in type definition,
+  Xmlns string `xml:"xmlns,attr"`
+and in data,
+  Xmlns: "http://s3.amazonaws.com/doc/2006-03-01/"
+
+----------------
+
+## Implementation Limitations
+
+### Request Checks
+
+Baby-server does not check properness of enumerators in XML payload,
+while it checks that in headers.  Baby-server uses the standard
+unmarshaler and it does not know about enumerators.
+
+### No Handling of Trailer Headers
+
+Baby-server does not handle http trailer headers in either requests or
+responses.  It issues an error in log and ignores them when trailer
+headers are received.
+
+### Assuptions on http Server in Golang stdlib
+
+Baby-server assumes key part is clean as a filesystem path, as
+ServMux() handles it.
+
+### No Request Timeout
+
+Baby-server does not set a timeout for request handlers.
+
+### Response with 304-Not-Modified
+
+Baby-server only issues 304 among 3xx status codes.
+respond_on_action_error() handles errors with status=304
+exceptionally.  It returns a response with headers "ETag" and
+"Last-Modified".
+
+Note that a 304 response cannot have a content, and it is required to
+have a header from {Content-Location, Date, ETag, Vary}.
+
+https://www.rfc-editor.org/rfc/rfc9110#status.304
+
+Baby-server returns header "ETag" and "Last-Modified" on
+412-Precondition-Failed, too.
+
+### Golang's bufio
+
+The default buffer size (32KB) may be small.
+
+----------------
+
+## MEMO
+
+### Header "x-amz-sdk-checksum-algorithm"
+
+Baby-server ignores "x-amz-sdk-checksum-algorithm" (note it is with
+"sdk").  This header is said to be a marker used in AWS-SDK.  Note
+"x-amz-sdk-checksum-algorithm" is passed as param.ChecksumAlgorithm in
+the following actions.
+
+- DeleteObjects
+- PutObject
+- PutObjectTagging
+- UploadPart
+
+### I/O Error Handling
+
+Baby-server does not check fully transferring data by io.Copy() in
+GetObject.  Also, it does not check on concatenating part files of
+MPUL.  It ignores the count.
+
+### File Concatenation in MPUL
+
+Baby-server concatenates parts of MPUL by copying.  In addition, it
+calculates an MD5 checksum while concatenating.
+
+### Cancellation in Service
+
+Baby-server does not handle contexts by itself, and assumes the
+libraries (stdlib and AWS-SDK) handle them.  In addition, Baby-server
+would wait indefinitely, because the timeout values on the http server
+are not changed from the default.
+
+### Time Format
+
+Times in http headers are parsed in Golang's time.RFC1123.  Note the
+RFC-1123 uses three letter time-zone.
+
+### (MEMO) Logging
+
+Server logs from Golang's http library is printed at level=ERROR.
+
+### Wait Time Limit of Serialization
+
+Actions of modifying the filesystem are serialized.  Baby-server uses
+100 msec as a limit of wait time for exclusion (The value can be found
+in "Exclusion_wait").  During developing Baby-server, it was noticed
+that the wait limit of 10 msec was not enough, although a serialized
+part of an operation is small.
+
+### Time Format (time.RFC1123)
+
+rclone does not accept "UTC" for "GMT" in time strings, although it
+seems to try a couple of time formats.
+
+----------------
+
+## Clearification of Checksums in AWS-S3 Definition (???)
+
+### Multipart Upload
+
+In CreateMultipartUpload, The checksum algorithm of a target object is
+specified by "x-amz-checksum-algorithm" and "x-amz-checksum-type".
+The algorithm and the type is returned in the response.
+
+In CompleteMultipartUpload, the checksum algorithm of a target object
+is specified by "x-amz-checksum-xxx" and "x-amz-checksum-type".  The
+checksum value is returned in the response.
+
+The checksum type should be equal in CreateMultipartUpload and
+CompleteMultipartUpload.
+
+### UploadPart
+
+In UploadPart, the checksum algorithm is specified by
+"x-amz-checksum-xxx".  The checksum value is returned in the response.
+("x-amz-sdk-checksum-algorithm" is ignored).
+
+### UploadPartCopy
+
+In UploadPartCopy, the checksum algorithm is not explicitly described.
+By the guess from CopyObject, the checksum algorithm is the one
+specified at CreateMultipartUpload.  (The checksum algorithm is
+required in CreateMultipartUpload, and thus, the checksum is never
+copied from the source).  The checksum value is returned in the
+response.
+
+### PutObject
+
+In PutObject, the checksum algorithm is specified by "x-amz-checksum-".
+The checksum value is returned in the response.
+
+### CopyObject
+
+In CopyObject, the checksum algorithm is specified by
+"x-amz-checksum-algorithm", or otherwise, it is copied from the
+source.  The checksum value is returned in the response.
+
+### The Default Checksum Algorithm
+
+The default is "CRC64NVME".  It is described in the User Guide.
+
+Alos, the API document says CRC64NVME checksum is added when an object
+uploaded without a checkusm, in sections CopyObject and PutObject.
+
+### Required or Optional Headers
+
+Required headers are described in Section "Checksums with multipart
+upload operations" in the User Guide.
+
+"x-amz-checksum-algorithm" is requied in CreateMultipartUpload and
+CompleteMultipartUpoad, while it is sometimes optional in UploadPart.
+
+### Implementation
+
+Baby-server fixes the checksum algorithm in CreateMultipartUpload to
+CRC64NVME when none is given.
+
+----------------
+
+## MEMO: Golang http Server
+
+The body stream is "http.expectContinueReader".  It embeds
+"http.body".  Note "http.expectContinueReader" is an "io.ReadCloser"
+and implements http 100-continue.  It is defined in
+"net/http/server.go".
+
+"http.body" is defined in "net/http/transfer.go".  The comment says it
+is to implement an "io.ReadCloser".
+
+----------------
+
+## Client Oddities
+
+### Trailing Slashes
+
+Many S3 clients may attach a slash (or multiple slashes) at the end of
+a URL path of a bucket or an object name.  MinIO client "mc", "s3cmd",
+and "s3fs-fuse" do, for example.
+
+### MinIO MC
+
+- ListObjects: "GET /mybucket1/?object-lock="
+- CreateMultipartUpload: "POST /mybucket1/object2.txt?uploads="
+
+----------------
+
+## MEMO: CODING CONVENTION
+
+### Variable names of os-Dependent Paths
+
+os-dependent paths prefer names including "path" in the source code,
+while os-independent paths ("/"-paths) are given names avoiding
+"path".  For "/"-paths, variables are usually given names such as
+"object", "source", or "target".  os-dependent paths are the results
+of filepath.Clean() or filepath.Join().
+
+Note os-dependence of paths by stdlib packages.
+  - os-independent: "path", "io/fs"
+  - os-dependent: "path/filepath", "os"
+
+----------------
+
+## MEMO: WINDOWS
+
+An inode number is used for creating an "entity-key" which is an
+identity of a file in Baby-server.  The code in stdlib's os.SameFile()
+takes an inode number from fs.FileInfo.  It uses sameFile() and
+loadFileId() in "src/os/types_windows.go".  However, they use
+internals of fs.FileInfo and cannot be easily imitated from outside of
+the package.
+
+  - https://pkg.go.dev/syscall?GOOS=windows
+
+----------------
+
+## References
+
+https://docs.aws.amazon.com/s3/
+
+https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3
