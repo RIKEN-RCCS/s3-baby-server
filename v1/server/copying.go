@@ -82,19 +82,18 @@ type build_concat struct {
 	mpul     *Mpul_info
 }
 
-// UPLOAD_OBJECT performs uploading, where a target of uploading is
-// either for an object or an MPUL part file.  It returns etag and
-// stat.  It accepts metainfo that is only partially filled.
-
-func (bbs *Bbs_server) upload_scratch(ctx context.Context, object string, upload_id string, part int32, body io.Reader, metainfo *Meta_info, checks copy_checks, conditions copy_conditions) ([]byte, []byte, *Aws_s3_error) {
-	var _, rid, _ = get_action_name(ctx)
-	//var scratch = bbs.make_scratch_object_name(object, suffix)
+// UPLOAD_SCRATCH performs uploading to a scratch file.  The target of
+// uploading is either an object or an MPUL part file.  It returns MD5
+// and checksum values.
+func (bbs *Bbs_server) upload_scratch(ctx context.Context, object string, body io.Reader, size_to_check int64, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+	var _, rid, suffix = get_action_name(ctx)
+	var scratch = bbs.make_scratch_object_name(object, suffix)
 
 	var build = build_source{
 		op: BUILD_UPLOAD,
 		upload: build_upload{
 			stream: body,
-			length: checks.size_to_check,
+			length: size_to_check,
 		},
 		copy: build_copy{
 			source:        "",
@@ -106,7 +105,7 @@ func (bbs *Bbs_server) upload_scratch(ctx context.Context, object string, upload
 			mpul:     nil,
 		},
 	}
-	var checksum types.ChecksumAlgorithm = checks.checksum
+	//var checksum types.ChecksumAlgorithm = checks.checksum
 
 	{
 		var err1 = bbs.make_intervening_directories(rid, object)
@@ -115,16 +114,147 @@ func (bbs *Bbs_server) upload_scratch(ctx context.Context, object string, upload
 		}
 	}
 
-	var md5v, csum, err1 = bbs.build_scratch(ctx, object, upload_id,
-		part, build, metainfo, checksum, checks, conditions)
-	if err1 != nil {
-		return nil, nil, err1
+	/*
+		var md5v, csum, err1 = bbs.build_scratch(ctx, object, build, checksum)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+	*/
+
+	// Copy a file from a stream.
+
+	var md5v, csum, err2 = bbs.copy_file_as_scratch(ctx, object, scratch,
+		build, checksum)
+	if err2 != nil {
+		return nil, nil, err2
 	}
 
 	return md5v, csum, nil
 }
 
-func (bbs *Bbs_server) upload_object(ctx context.Context, object string, upload_id string, part int32, body io.Reader, md5v []byte, csum []byte, metainfo *Meta_info, checks copy_checks, conditions copy_conditions, cleanup_needed *bool) (string, fs.FileInfo, *Aws_s3_error) {
+// COPY_SCRATCH performs copying to a scratch file.  It returns MD5
+// and checksum values.  Returned csum is one specified by CHECKSUM,
+// or CHECKSUM="" when calcualation is not needed.  Note condition
+// checks are on the source object, and it is checked by the caller.
+func (bbs *Bbs_server) copy_scratch(ctx context.Context, object string, source string, source_entity string, extent *[2]int64, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+	var _, rid, suffix = get_action_name(ctx)
+	var scratch = bbs.make_scratch_object_name(object, suffix)
+
+	var copy_or_link build_op
+	var copy_file_by_linking = (extent == nil)
+	if copy_file_by_linking {
+		copy_or_link = BUILD_LINK
+	} else {
+		copy_or_link = BUILD_COPY
+	}
+
+	var build = build_source{
+		op: copy_or_link,
+		upload: build_upload{
+			stream: nil,
+			length: -1,
+		},
+		copy: build_copy{
+			source:        source,
+			source_entity: source_entity,
+			extent:        extent,
+		},
+		concat: build_concat{
+			partlist: nil,
+			mpul:     nil,
+		},
+	}
+	//var checks = copy_checks{}
+	//var conditions = copy_conditions{}
+
+	{
+		var err1 = bbs.make_intervening_directories(rid, object)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+	}
+
+	/*
+		var md5v, csum, err1 = bbs.build_scratch(ctx, object, build, checksum)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+	*/
+
+	if !copy_file_by_linking {
+		// Copy a file from a stream.
+
+		var md5v, csum, err2 = bbs.copy_file_as_scratch(ctx, object, scratch,
+			build, checksum)
+		if err2 != nil {
+			return nil, nil, err2
+		}
+		return md5v, csum, nil
+	} else {
+		// Copy a file by linking.
+
+		var md5v, csum, err2 = bbs.link_file_as_scratch(ctx, object, scratch,
+			build, checksum)
+		if err2 != nil {
+			return nil, nil, err2
+		}
+		return md5v, csum, nil
+	}
+}
+
+// CONCATENATE_SCRATCH concatenates the parts of an MPUL object and
+// stores a scratch file.  It returns MD5 and checksum values.
+func (bbs *Bbs_server) concatenate_scratch(ctx context.Context, object string, mpulinfo *Mpul_info, partlist *types.CompletedMultipartUpload, checksum types.ChecksumAlgorithm, size_to_check int64) ([]byte, []byte, *Aws_s3_error) {
+	//var location = "/" + object
+	var _, rid, suffix = get_action_name(ctx)
+	var scratch = bbs.make_scratch_object_name(object, suffix)
+
+	var build = build_source{
+		op: BUILD_CONCAT,
+		upload: build_upload{
+			stream: nil,
+			length: 0,
+		},
+		copy: build_copy{
+			source:        "",
+			source_entity: "",
+			extent:        nil,
+		},
+		concat: build_concat{
+			partlist: partlist,
+			mpul:     mpulinfo,
+		},
+	}
+	//var upload_id = ""
+	//var part int32 = 0
+	//var metainfo *Meta_info = mpulinfo.Metainfo
+	//var checksum types.ChecksumAlgorithm = checks.checksum
+
+	{
+		var err1 = bbs.make_intervening_directories(rid, object)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+	}
+
+	/*
+		var md5v, csum, err1 = bbs.build_scratch(ctx, object, build, checksum)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+	*/
+
+	var md5v, csum, err2 = bbs.concat_parts_as_scratch(ctx, object, scratch,
+		build, checksum, size_to_check)
+	if err2 != nil {
+		return nil, nil, err2
+	}
+	return md5v, csum, nil
+}
+
+// UPLOAD_OBJECT renames a scratch file to an object file.  It returns
+// stat.  It accepts metainfo that is only partially filled.
+func (bbs *Bbs_server) upload_object(ctx context.Context, object string, upload_id string, part int32, body io.Reader, md5v []byte, csum []byte, metainfo *Meta_info, checks copy_checks, conditions copy_conditions, cleanup_needed *bool) (fs.FileInfo, *Aws_s3_error) {
 	//var _, _, _ = get_action_name(ctx)
 	//var scratch = bbs.make_scratch_object_name(object, suffix)
 
@@ -147,68 +277,17 @@ func (bbs *Bbs_server) upload_object(ctx context.Context, object string, upload_
 	var checksum types.ChecksumAlgorithm = checks.checksum
 
 	var stat, err2 = bbs.build_object(ctx, object, upload_id,
-		part, build, metainfo, checksum, md5v, csum, checks, conditions, cleanup_needed)
+		part, build, metainfo, checksum, md5v, csum, conditions, cleanup_needed)
 
-	var etag = make_object_etag_from_md5(md5v)
-
-	return etag, stat, err2
+	//var etag = make_object_etag_from_md5(md5v)
+	return stat, err2
 }
 
 // COPY_OBJECT performs copying.  A copying target is either an object
-// or an MPUL part file.  It returns etag, stat and csum.  Returned
-// csum is one specified by CHECKSUM, or CHECKSUM="" when calcualation
-// is not needed.  It accepts metainfo that is only partially filled.
-// Note condition checks are on the source object, and it is checked
-// by the caller.
-
-func (bbs *Bbs_server) copy_scratch(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
-	var _, rid, _ = get_action_name(ctx)
-	//var scratch = bbs.make_scratch_object_name(object, suffix)
-
-	var copy_or_link build_op
-	var copy_file_by_linking = (extent == nil)
-	if copy_file_by_linking {
-		copy_or_link = BUILD_LINK
-	} else {
-		copy_or_link = BUILD_COPY
-	}
-
-	var build = build_source{
-		op: copy_or_link,
-		upload: build_upload{
-			stream: nil,
-			length: -1,
-		},
-		copy: build_copy{
-			source:        source,
-			source_entity: source_entity,
-			extent:        extent,
-		},
-		concat: build_concat{
-			partlist: nil,
-			mpul:     nil,
-		},
-	}
-	var checks = copy_checks{}
-	var conditions = copy_conditions{}
-
-	{
-		var err1 = bbs.make_intervening_directories(rid, object)
-		if err1 != nil {
-			return nil, nil, err1
-		}
-	}
-
-	var md5v, csum, err1 = bbs.build_scratch(ctx, object, upload_id,
-		part, build, metainfo, checksum, checks, conditions)
-	if err1 != nil {
-		return nil, nil, err1
-	}
-
-	return md5v, csum, nil
-}
-
-func (bbs *Bbs_server) copy_object(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, checksum types.ChecksumAlgorithm, md5v []byte, csum []byte, cleanup_needed *bool) (string, fs.FileInfo, []byte, *Aws_s3_error) {
+// or an MPUL part file.  It returns stat.  It accepts metainfo that
+// is only partially filled.  Note condition checks are on the source
+// object, and it is checked by the caller.
+func (bbs *Bbs_server) copy_object(ctx context.Context, object string, upload_id string, part int32, source string, source_entity string, extent *[2]int64, metainfo *Meta_info, checksum types.ChecksumAlgorithm, md5v []byte, csum []byte, cleanup_needed *bool) (fs.FileInfo, *Aws_s3_error) {
 	//var _, rid, suffix = get_action_name(ctx)
 	//var scratch = bbs.make_scratch_object_name(object, suffix)
 
@@ -236,63 +315,18 @@ func (bbs *Bbs_server) copy_object(ctx context.Context, object string, upload_id
 			mpul:     nil,
 		},
 	}
-	var checks = copy_checks{}
+	//var checks = copy_checks{}
 	var conditions = copy_conditions{}
 
 	var stat, err2 = bbs.build_object(ctx, object, upload_id,
-		part, build, metainfo, checksum, md5v, csum, checks, conditions, cleanup_needed)
+		part, build, metainfo, checksum, md5v, csum, conditions, cleanup_needed)
 
-	var etag = make_object_etag_from_md5(md5v)
-
-	return etag, stat, csum, err2
+	return stat, err2
 }
 
-// CONCATENATE_OBJECT concatenates the parts to an MPUL object.  It
-// returns etag and stat.
-
-func (bbs *Bbs_server) concatenate_scratch(ctx context.Context, object string, mpulinfo *Mpul_info, partlist *types.CompletedMultipartUpload, checks copy_checks, conditions copy_conditions) ([]byte, []byte, *Aws_s3_error) {
-	//var location = "/" + object
-	var _, rid, _ = get_action_name(ctx)
-	//var scratch = bbs.make_scratch_object_name(object, suffix)
-
-	var build = build_source{
-		op: BUILD_CONCAT,
-		upload: build_upload{
-			stream: nil,
-			length: 0,
-		},
-		copy: build_copy{
-			source:        "",
-			source_entity: "",
-			extent:        nil,
-		},
-		concat: build_concat{
-			partlist: partlist,
-			mpul:     mpulinfo,
-		},
-	}
-	var upload_id = ""
-	var part int32 = 0
-	var metainfo *Meta_info = mpulinfo.Metainfo
-	var checksum types.ChecksumAlgorithm = checks.checksum
-
-	{
-		var err1 = bbs.make_intervening_directories(rid, object)
-		if err1 != nil {
-			return nil, nil, err1
-		}
-	}
-
-	var md5v, csum, err1 = bbs.build_scratch(ctx, object, upload_id,
-		part, build, metainfo, checksum, checks, conditions)
-	if err1 != nil {
-		return nil, nil, err1
-	}
-
-	return md5v, csum, nil
-}
-
-func (bbs *Bbs_server) concatenate_object(ctx context.Context, object string, mpulinfo *Mpul_info, partlist *types.CompletedMultipartUpload, md5v []byte, csum []byte, checks copy_checks, conditions copy_conditions, cleanup_needed *bool) (string, fs.FileInfo, *Aws_s3_error) {
+// CONCATENATE_OBJECT renames the concatenated file to an MPUL object
+// file.  It returns stats.
+func (bbs *Bbs_server) concatenate_object(ctx context.Context, object string, mpulinfo *Mpul_info, partlist *types.CompletedMultipartUpload, md5v []byte, csum []byte, checksum types.ChecksumAlgorithm, conditions copy_conditions, cleanup_needed *bool) (fs.FileInfo, *Aws_s3_error) {
 	//var location = "/" + object
 	//var _, rid, suffix = get_action_name(ctx)
 	//var scratch = bbs.make_scratch_object_name(object, suffix)
@@ -316,88 +350,17 @@ func (bbs *Bbs_server) concatenate_object(ctx context.Context, object string, mp
 	var upload_id = ""
 	var part int32 = 0
 	var metainfo *Meta_info = mpulinfo.Metainfo
-	var checksum types.ChecksumAlgorithm = checks.checksum
+	//var checksum types.ChecksumAlgorithm = checks.checksum
 
 	var stat, err2 = bbs.build_object(ctx, object, upload_id,
-		part, build, metainfo, checksum, md5v, csum, checks, conditions, cleanup_needed)
+		part, build, metainfo, checksum, md5v, csum, conditions, cleanup_needed)
 
-	var etag = make_object_etag_from_md5(md5v)
+	//var etag = make_object_etag_from_md5(md5v)
 
-	return etag, stat, err2
+	return stat, err2
 }
 
-func (bbs *Bbs_server) build_scratch(ctx context.Context, object string, upload_id string, part int32, build build_source, metainfo *Meta_info, checksum types.ChecksumAlgorithm, checks copy_checks, conditions copy_conditions) ([]byte, []byte, *Aws_s3_error) {
-	//var location = "/" + object
-	var _, _, suffix = get_action_name(ctx)
-
-	bbs_assert(build.op == BUILD_UPLOAD || build.op == BUILD_COPY ||
-		build.op == BUILD_LINK || build.op == BUILD_CONCAT)
-
-	// An MPUL part does not have metainfo.
-
-	bbs_assert((part == 0) == (upload_id == ""))
-	bbs_assert(!(part != 0) || (metainfo == nil))
-
-	var scratch = bbs.make_scratch_object_name(object, suffix)
-
-	var md5v []byte
-	var csum1 []byte
-	switch build.op {
-	case BUILD_UPLOAD:
-		fallthrough
-	case BUILD_COPY:
-		// Copy a file from a stream.
-		var err2 *Aws_s3_error
-		md5v, csum1, err2 = bbs.copy_file_as_scratch(ctx, object, scratch,
-			build, checksum)
-		if err2 != nil {
-			return nil, nil, err2
-		}
-	case BUILD_LINK:
-		// Copy a file by linking.
-		var err4 *Aws_s3_error
-		md5v, csum1, err4 = bbs.link_file_as_scratch(ctx, object, scratch,
-			build, checksum)
-		if err4 != nil {
-			return nil, nil, err4
-		}
-	case BUILD_CONCAT:
-		var err5 *Aws_s3_error
-		md5v, csum1, err5 = bbs.concat_parts_as_scratch(ctx, object, scratch,
-			build, checksum)
-		if err5 != nil {
-			return nil, nil, err5
-		}
-	}
-
-	/*
-		if checks.csum_in_trailer {
-			// Handle the case a checksum is in the trailer.
-
-			var csum1, err1 = bbs.extract_trailer_checksum(ctx, rid, object, checks.checksum)
-			if err1 != nil {
-				return nil, nil, err1
-			}
-			checks.csum_to_check = csum1
-
-			if metainfo != nil && metainfo.Checksum != "" {
-				var csum = hex.EncodeToString(csum1)
-				//var csum, _ = encode_base64(object, csum1)
-				metainfo.Csum = csum
-			}
-		}
-
-		var err3 = bbs.compare_checksums(rid, object, scratch, checksum,
-			md5v, csum1, checks)
-		if err3 != nil {
-			return nil, nil, err3
-		}
-	*/
-
-	return md5v, csum1, nil
-}
-
-func (bbs *Bbs_server) build_object(ctx context.Context, object string, upload_id string, part int32, build build_source, metainfo *Meta_info, checksum types.ChecksumAlgorithm, md5v []byte, csum1 []byte, checks copy_checks, conditions copy_conditions, cleanup_needed *bool) (fs.FileInfo, *Aws_s3_error) {
+func (bbs *Bbs_server) build_object(ctx context.Context, object string, upload_id string, part int32, build build_source, metainfo *Meta_info, checksum types.ChecksumAlgorithm, md5v []byte, csum []byte, conditions copy_conditions, cleanup_needed *bool) (fs.FileInfo, *Aws_s3_error) {
 	var location = "/" + object
 	var action, rid, suffix = get_action_name(ctx)
 
@@ -494,14 +457,14 @@ func (bbs *Bbs_server) build_object(ctx context.Context, object string, upload_i
 
 	{
 		if part != 0 {
-			var csum = base64.StdEncoding.EncodeToString(csum1)
+			var csum64 = base64.StdEncoding.EncodeToString(csum)
 			partinfo = &Mpul_part{
 				Entity_key: entity,
 				ETag:       etag,
 				Size:       size,
 				Mtime:      mtime,
 				Checksum:   checksum,
-				Csum:       csum,
+				Csum:       csum64,
 			}
 		} else {
 			partinfo = nil
@@ -686,7 +649,7 @@ func (bbs *Bbs_server) copy_file_as_scratch(ctx context.Context, object string, 
 		defer func() {
 			var err4 = body1.Close()
 			if err4 != nil {
-				bbs.logger.Warn("op.Close() on copy source failed",
+				bbs.logger.Warn("os.File.Close() on copy source failed",
 					"rid", rid, "path", path, "error", err4)
 				// IGNORE-ERRORS.
 			}
@@ -732,9 +695,9 @@ func (bbs *Bbs_server) link_file_as_scratch(ctx context.Context, object string, 
 	return md5v, crc1, nil
 }
 
-func (bbs *Bbs_server) concat_parts_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum types.ChecksumAlgorithm) ([]byte, []byte, *Aws_s3_error) {
+func (bbs *Bbs_server) concat_parts_as_scratch(ctx context.Context, object string, scratch string, build build_source, checksum types.ChecksumAlgorithm, size_to_check int64) ([]byte, []byte, *Aws_s3_error) {
 	var location = "/" + object
-	var _, rid, _ = get_action_name(ctx)
+	var action, rid, _ = get_action_name(ctx)
 
 	var path = bbs.make_path_of_object(scratch, "")
 
@@ -753,7 +716,7 @@ func (bbs *Bbs_server) concat_parts_as_scratch(ctx context.Context, object strin
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.logger.Warn("op.Close() on concat parts failed",
+			bbs.logger.Warn("os.File.Close() on concat parts failed",
 				"rid", rid, "path", path, "error", err2)
 		}
 		if cleanup_needed {
@@ -805,7 +768,7 @@ func (bbs *Bbs_server) concat_parts_as_scratch(ctx context.Context, object strin
 		defer func() {
 			var err3 = f3.Close()
 			if err3 != nil {
-				bbs.logger.Warn("op.Close() on MPUL data failed",
+				bbs.logger.Warn("os.Close() on MPUL data failed",
 					"rid", rid, "path", partpath, "error", err3)
 				// IGNORE-ERRORS.
 			}
@@ -820,11 +783,29 @@ func (bbs *Bbs_server) concat_parts_as_scratch(ctx context.Context, object strin
 		//bbs.logger.Debug("concat copied", "count", cc)
 	}
 
+	if size_to_check != -1 {
+		var stat, err4 = f1.Stat()
+		if err4 != nil {
+			bbs.logger.Warn("os.File.Stat() failed",
+				"rid", rid, "path", path, "error", err4)
+			return nil, nil, map_os_error(location, err4, nil)
+		}
+		var size = stat.Size()
+		if size != size_to_check {
+			bbs.logger.Info("Size mismatch",
+				"rid", rid, "action", action, "object", object,
+				"concat-size", size, "specified-size", size_to_check)
+			var errz = &Aws_s3_error{Code: InvalidArgument,
+				Message: "Size of concatenated object mismatch."}
+			return nil, nil, errz
+		}
+	}
+
 	cleanup_needed = false
 
 	var err5 = os.Chtimes(path, time.Time{}, mpul.Initiate_time)
 	if err5 != nil {
-		bbs.logger.Warn("op.Chtimes() failed",
+		bbs.logger.Warn("os.Chtimes() failed",
 			"rid", rid, "path", path, "error", err5)
 		// IGNORE-ERRORS.
 	}
@@ -860,7 +841,7 @@ func (bbs *Bbs_server) copy_content_stream(rid uint64, object string, scratch st
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.logger.Warn("op.Close() on copying object failed",
+			bbs.logger.Warn("os.File.Close() on copying object failed",
 				"rid", rid, "path", path, "error", err2)
 		}
 		if cleanup_needed {
@@ -1068,13 +1049,13 @@ func (bbs *Bbs_server) calculate_csum2(rid uint64, object string, checksum types
 
 // COMPARE_CHECKSUMS compares checksums between ones passed and
 // calculated.
-func (bbs *Bbs_server) compare_checksums(rid uint64, object string, scratch string, checksum1 types.ChecksumAlgorithm, md5a []byte, csum1 []byte, checks copy_checks) *Aws_s3_error {
+func (bbs *Bbs_server) compare_checksums(rid uint64, object string, scratch string, checksum1 types.ChecksumAlgorithm, md5a []byte, csum1 []byte, md5_to_check []byte, csum_to_check []byte) *Aws_s3_error {
 	var location = "/" + object
-	if checks.md5_to_check != nil {
-		if bytes.Compare(checks.md5_to_check, md5a) != 0 {
+	if md5_to_check != nil {
+		if bytes.Compare(md5_to_check, md5a) != 0 {
 			bbs.logger.Info("Checksum mismatch",
 				"rid", rid, "object", object, "algorithm", "MD5",
-				"to-check", hex.EncodeToString(checks.md5_to_check),
+				"to-check", hex.EncodeToString(md5_to_check),
 				"calculated", hex.EncodeToString(md5a))
 			var errz = &Aws_s3_error{Code: BadDigest,
 				Message:  "The md5 did not match what we received.",
@@ -1082,12 +1063,11 @@ func (bbs *Bbs_server) compare_checksums(rid uint64, object string, scratch stri
 			return errz
 		}
 	}
-	if checks.csum_to_check != nil {
-		var checksum1 = checks.checksum
-		if bytes.Compare(checks.csum_to_check, csum1) != 0 {
+	if csum_to_check != nil {
+		if bytes.Compare(csum_to_check, csum1) != 0 {
 			bbs.logger.Info("Checksums mismatch",
 				"rid", rid, "object", object, "algorithm", checksum1,
-				"to-check", hex.EncodeToString(checks.csum_to_check),
+				"to-check", hex.EncodeToString(csum_to_check),
 				"calculated", hex.EncodeToString(csum1))
 			var errz = &Aws_s3_error{Code: BadDigest,
 				Message:  "The checksum did not match what we received.",

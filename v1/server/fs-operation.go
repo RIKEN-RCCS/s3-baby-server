@@ -607,7 +607,7 @@ func (bbs *Bbs_server) fetch_json_data(rid uint64, object, path string, data any
 	defer func() {
 		var err2 = f1.Close()
 		if err2 != nil && !errors.Is(err2, fs.ErrClosed) {
-			bbs.logger.Warn("op.Close() on fetching metafile failed",
+			bbs.logger.Warn("os.File.Close() on fetching metafile failed",
 				"rid", rid, "path", path, "error", err2)
 		}
 	}()

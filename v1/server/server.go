@@ -301,7 +301,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		}
 		var err3 = f1.Close()
 		if err3 != nil {
-			logger.Error("op.Close() on a conf file failed",
+			logger.Error("os.File.Close() on a conf file failed",
 				"path", confpath, "error", err3)
 			os.Exit(2)
 		}
