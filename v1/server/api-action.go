@@ -295,19 +295,43 @@ func (bbs *Bbs_server) CompleteMultipartUpload(ctx context.Context, i *s3.Comple
 		return nil, errz
 	}
 
-	// SERIALIZE-ACCESSES (in the concatenation routine).
-
 	var checks = copy_checks{
-		checksum:      checksum,
-		size_to_check: size_to_check,
-		csum_to_check: csum_to_check,
+		checksum:        checksum,
+		csum_in_trailer: false,
+		size_to_check:   size_to_check,
+		csum_to_check:   csum_to_check,
 	}
 	var conditions = copy_conditions{
 		some_match: i.IfMatch,
 		none_match: i.IfNoneMatch,
 	}
-	var etag, _, err6 = bbs.concatenate_object(ctx, object,
+
+	var scratch = bbs.make_scratch_object_name(object, suffix)
+
+	var md5v, csum, err6a = bbs.concatenate_scratch(ctx, object,
 		mpulinfo, partlist, checks, conditions)
+	if err6a != nil {
+		return nil, err6a
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(rid, object, scratch)
+		}
+	}()
+
+	{
+		var err3 = bbs.compare_checksums(rid, object, scratch, checksum,
+			md5v, csum, checks)
+		if err3 != nil {
+			return nil, err3
+		}
+	}
+
+	// SERIALIZE-ACCESSES (in the concatenation routine).
+
+	var etag, _, err6 = bbs.concatenate_object(ctx, object,
+		mpulinfo, partlist, md5v, csum, checks, conditions, &cleanup_needed)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -330,7 +354,7 @@ func (bbs *Bbs_server) CompleteMultipartUpload(ctx context.Context, i *s3.Comple
 
 	{
 		//var checksum2 = types.ChecksumAlgorithmCrc64nvme
-		//var csumset2 *types.Checksum = fill_checksum_union(checksum2, csum2)
+		//var csumset2 *types.Checksum = fill_checksum_union(checksum2, csum)
 		o.ChecksumType = csumset.ChecksumType
 		o.ChecksumCRC32 = csumset.ChecksumCRC32
 		o.ChecksumCRC32C = csumset.ChecksumCRC32C
@@ -515,13 +539,37 @@ func (bbs *Bbs_server) CopyObject(ctx context.Context, i *s3.CopyObjectInput, op
 		}
 	}
 
-	// SERIALIZE-ACCESSES (in the copying routine).
-
 	var upload_id = ""
 	var part int32 = 0
 	var extent *[2]int64 = nil
-	var etag, stat, csum, err6 = bbs.copy_object(ctx, object, upload_id, part,
+
+	var scratch = bbs.make_scratch_object_name(object, suffix)
+
+	var md5v, csum, err6a = bbs.copy_scratch(ctx, object, upload_id, part,
 		source, source_entity, extent, metainfo, checksum)
+	if err6a != nil {
+		return nil, err6a
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(rid, object, scratch)
+		}
+	}()
+
+	{
+		var checks = copy_checks{}
+		var err3 = bbs.compare_checksums(rid, object, scratch, checksum,
+			md5v, csum, checks)
+		if err3 != nil {
+			return nil, err3
+		}
+	}
+
+	// SERIALIZE-ACCESSES (in the copying routine).
+
+	var etag, stat, _, err6 = bbs.copy_object(ctx, object, upload_id, part,
+		source, source_entity, extent, metainfo, checksum, md5v, csum, &cleanup_needed)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2348,19 +2396,21 @@ func (bbs *Bbs_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optF
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
 
+	var trailer_checksum types.ChecksumAlgorithm
 	var checksum types.ChecksumAlgorithm
 	var csum_to_check []byte
 
 	{
-		// Handle the case a checksum is in trailer.
+		// Handle the case a checksum is in the trailer.
 
 		var checksum1, err1 = bbs.check_trailer_checksum(ctx, rid, object)
 		if err1 != nil {
 			return nil, err1
 		}
-		if checksum1 != "" {
-			checksum = checksum1
-			csum_to_check = []byte{}
+		trailer_checksum = checksum1
+		if trailer_checksum != "" {
+			checksum = trailer_checksum
+			csum_to_check = nil
 		} else {
 			var checksum2, csum2, err2 = bbs.decode_checksum_union(rid, object, csumset)
 			if err2 != nil {
@@ -2399,22 +2449,82 @@ func (bbs *Bbs_server) PutObject(ctx context.Context, i *s3.PutObjectInput, optF
 		metainfo = merge_metainfo_with_content_headers(metainfo, h)
 	}
 
-	// SERIALIZE-ACCESSES (in the uploading routine).
-
 	var part int32 = 0
 	var upload_id = ""
 	var checks = copy_checks{
-		checksum:      checksum,
-		size_to_check: size_to_check,
-		md5_to_check:  md5_to_check,
-		csum_to_check: csum_to_check,
+		checksum:        checksum,
+		csum_in_trailer: (trailer_checksum != ""),
+		size_to_check:   size_to_check,
+		md5_to_check:    md5_to_check,
+		csum_to_check:   csum_to_check,
 	}
 	var conditions = copy_conditions{
 		some_match: i.IfMatch,
 		none_match: i.IfNoneMatch,
 	}
-	var etag, stat, err6 = bbs.upload_object(ctx, object,
+
+	var scratch = bbs.make_scratch_object_name(object, suffix)
+
+	var md5v, csum, err6a = bbs.upload_scratch(ctx, object,
 		upload_id, part, i.Body, metainfo, checks, conditions)
+	if err6a != nil {
+		return nil, err6a
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(rid, object, scratch)
+		}
+	}()
+
+	if trailer_checksum != "" {
+		// Handle the case a checksum is in the trailer.
+
+		var err9 = bbs.refill_put_object_input_by_trailer(ctx, rid, object,
+			i, trailer_checksum)
+		if err9 != nil {
+			return nil, err9
+		}
+
+		// UPDATE CSUMSET TO RETURN AS A RESPONSE.
+
+		csumset = &types.Checksum{
+			ChecksumType:      types.ChecksumTypeFullObject,
+			ChecksumCRC32:     i.ChecksumCRC32,
+			ChecksumCRC32C:    i.ChecksumCRC32C,
+			ChecksumCRC64NVME: i.ChecksumCRC64NVME,
+			ChecksumSHA1:      i.ChecksumSHA1,
+			ChecksumSHA256:    i.ChecksumSHA256,
+		}
+		var checksum2, csum_to_check2, err2 = bbs.decode_checksum_union(rid, object, csumset)
+		if err2 != nil {
+			return nil, err2
+		}
+		if checksum2 != checksum || csum_to_check2 == nil {
+			bbs.logger.Warn("Trailer checksum missing",
+				"rid", rid, "action", action, "object", object)
+		}
+		checks.csum_to_check = csum_to_check2
+
+		if metainfo != nil && metainfo.Checksum != "" {
+			var csum = hex.EncodeToString(csum_to_check2)
+			//var csum, _ = encode_base64(object, csum1)
+			metainfo.Csum = csum
+		}
+	}
+
+	{
+		var err3 = bbs.compare_checksums(rid, object, scratch, checksum,
+			md5v, csum, checks)
+		if err3 != nil {
+			return nil, err3
+		}
+	}
+
+	// SERIALIZE-ACCESSES (in the uploading routine).
+
+	var etag, stat, err6 = bbs.upload_object(ctx, object,
+		upload_id, part, i.Body, md5v, csum, metainfo, checks, conditions, &cleanup_needed)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2604,7 +2714,7 @@ func (bbs *Bbs_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, op
 		return nil, err7
 	}
 
-	var csumset = &types.Checksum{
+	var csumset1 = &types.Checksum{
 		ChecksumType:      types.ChecksumTypeFullObject,
 		ChecksumCRC32:     i.ChecksumCRC32,
 		ChecksumCRC32C:    i.ChecksumCRC32C,
@@ -2613,21 +2723,23 @@ func (bbs *Bbs_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, op
 		ChecksumSHA256:    i.ChecksumSHA256,
 	}
 
+	var trailer_checksum types.ChecksumAlgorithm
 	var checksum types.ChecksumAlgorithm
 	var csum_to_check []byte
 
 	{
-		// Handle the case a checksum is in trailer.
+		// Handle the case a checksum is in the trailer.
 
 		var checksum1, err1 = bbs.check_trailer_checksum(ctx, rid, object)
 		if err1 != nil {
 			return nil, err1
 		}
+		trailer_checksum = checksum1
 		if checksum1 != "" {
 			checksum = checksum1
-			csum_to_check = []byte{}
+			csum_to_check = nil
 		} else {
-			var checksum2, csum2, err2 = bbs.decode_checksum_union(rid, object, csumset)
+			var checksum2, csum2, err2 = bbs.decode_checksum_union(rid, object, csumset1)
 			if err2 != nil {
 				return nil, err2
 			}
@@ -2638,18 +2750,74 @@ func (bbs *Bbs_server) UploadPart(ctx context.Context, i *s3.UploadPartInput, op
 
 	var upload_id = mpulinfo.Upload_id
 
-	// SERIALIZE-ACCESSES (in the uploading routine).
-
 	var metainfo *Meta_info = nil
 	var checks = copy_checks{
-		checksum:      checksum,
-		size_to_check: size_to_check,
-		md5_to_check:  md5_to_check,
-		csum_to_check: csum_to_check,
+		checksum:        checksum,
+		csum_in_trailer: (trailer_checksum != ""),
+		size_to_check:   size_to_check,
+		md5_to_check:    md5_to_check,
+		csum_to_check:   csum_to_check,
 	}
 	var conditions = copy_conditions{}
-	var etag, _, err6 = bbs.upload_object(ctx, object,
+
+	var scratch = bbs.make_scratch_object_name(object, suffix)
+
+	var md5v, csum, err6a = bbs.upload_scratch(ctx, object,
 		upload_id, part, i.Body, metainfo, checks, conditions)
+	if err6a != nil {
+		return nil, err6a
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(rid, object, scratch)
+		}
+	}()
+
+	if trailer_checksum != "" {
+		// Handle the case a checksum is in the trailer.
+
+		var err9 = bbs.refill_upload_part_input_by_trailer(ctx, rid, object,
+			i, trailer_checksum)
+		if err9 != nil {
+			return nil, err9
+		}
+
+		var csumset2 = &types.Checksum{
+			ChecksumType:      types.ChecksumTypeFullObject,
+			ChecksumCRC32:     i.ChecksumCRC32,
+			ChecksumCRC32C:    i.ChecksumCRC32C,
+			ChecksumCRC64NVME: i.ChecksumCRC64NVME,
+			ChecksumSHA1:      i.ChecksumSHA1,
+			ChecksumSHA256:    i.ChecksumSHA256,
+		}
+		var checksum2, csum_to_check2, err2 = bbs.decode_checksum_union(rid, object, csumset2)
+		if err2 != nil {
+			return nil, err2
+		}
+		if checksum2 != checksum || csum_to_check2 == nil {
+			bbs.logger.Warn("Trailer checksum missing",
+				"rid", rid, "action", action, "object", object)
+		}
+		checks.csum_to_check = csum_to_check2
+
+		var err3 = bbs.compare_checksums(rid, object, scratch, checksum,
+			md5v, csum, checks)
+		if err3 != nil {
+			return nil, err3
+		}
+
+		if metainfo != nil && metainfo.Checksum != "" {
+			var csum = hex.EncodeToString(csum_to_check2)
+			//var csum, _ = encode_base64(object, csum1)
+			metainfo.Csum = csum
+		}
+	}
+
+	// SERIALIZE-ACCESSES (in the uploading routine).
+
+	var etag, _, err6 = bbs.upload_object(ctx, object,
+		upload_id, part, i.Body, md5v, csum, metainfo, checks, conditions, &cleanup_needed)
 	if err6 != nil {
 		return nil, err6
 	}
@@ -2781,18 +2949,43 @@ func (bbs *Bbs_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyI
 
 	var upload_id = mpulinfo.Upload_id
 
+	var metainfo *Meta_info = nil
+
+	var scratch = bbs.make_scratch_object_name(object, suffix)
+
+	var md5v, csum, err6a = bbs.copy_scratch(ctx, object, upload_id, part,
+		source, source_entity, extent, metainfo, checksum2)
+	if err6a != nil {
+		return nil, err6a
+	}
+	var cleanup_needed = true
+	defer func() {
+		if cleanup_needed {
+			bbs.discard_scratch_file(rid, object, scratch)
+		}
+	}()
+
+	/*
+		{
+			var err3 = bbs.compare_checksums(rid, object, scratch, checksum,
+				md5v, csum1, checks)
+			if err3 != nil {
+				return nil, nil, err3
+			}
+		}
+	*/
+
 	// SERIALIZE-ACCESSES (in the copying routine)
 
-	var metainfo *Meta_info = nil
-	var etag, stat, csum2, err6 = bbs.copy_object(ctx, object, upload_id, part,
-		source, source_entity, extent, metainfo, checksum2)
+	var etag, stat, _, err6 = bbs.copy_object(ctx, object, upload_id, part,
+		source, source_entity, extent, metainfo, checksum2, md5v, csum, &cleanup_needed)
 	if err6 != nil {
 		return nil, err6
 	}
 
 	var mtime = stat.ModTime()
 
-	var csumset2 *types.Checksum = fill_checksum_union(checksum2, csum2)
+	var csumset2 *types.Checksum = fill_checksum_union(checksum2, csum)
 
 	o.CopyPartResult = &types.CopyPartResult{
 		// - ChecksumCRC32 *string

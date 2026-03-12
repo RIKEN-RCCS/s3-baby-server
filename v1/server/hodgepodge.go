@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 )
@@ -862,4 +863,32 @@ func (bbs *Bbs_server) fix_etag_quoting(etag *string, rid uint64) *string {
 			return etag
 		}
 	}
+}
+
+func (bbs *Bbs_server) refill_put_object_input_by_trailer(ctx context.Context, rid uint64, object string, i *s3.PutObjectInput, checksum types.ChecksumAlgorithm) *Aws_s3_error {
+	var csum, err1 = bbs.extract_trailer_checksum(ctx, rid, object, checksum)
+	if err1 != nil {
+		return err1
+	}
+	var csumset = fill_checksum_union(checksum, csum)
+	i.ChecksumCRC32 = csumset.ChecksumCRC32
+	i.ChecksumCRC32C = csumset.ChecksumCRC32C
+	i.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+	i.ChecksumSHA1 = csumset.ChecksumSHA1
+	i.ChecksumSHA256 = csumset.ChecksumSHA256
+	return nil
+}
+
+func (bbs *Bbs_server) refill_upload_part_input_by_trailer(ctx context.Context, rid uint64, object string, i *s3.UploadPartInput, checksum types.ChecksumAlgorithm) *Aws_s3_error {
+	var csum, err1 = bbs.extract_trailer_checksum(ctx, rid, object, checksum)
+	if err1 != nil {
+		return err1
+	}
+	var csumset = fill_checksum_union(checksum, csum)
+	i.ChecksumCRC32 = csumset.ChecksumCRC32
+	i.ChecksumCRC32C = csumset.ChecksumCRC32C
+	i.ChecksumCRC64NVME = csumset.ChecksumCRC64NVME
+	i.ChecksumSHA1 = csumset.ChecksumSHA1
+	i.ChecksumSHA256 = csumset.ChecksumSHA256
+	return nil
 }

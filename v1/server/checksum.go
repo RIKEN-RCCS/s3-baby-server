@@ -156,6 +156,11 @@ func (bbs *Bbs_server) reject_composite_checksum(rid uint64, object string, chec
 	return nil
 }
 
+func encode_base64(object string, csum []byte) (string, *Aws_s3_error) {
+	var s = base64.StdEncoding.EncodeToString(csum)
+	return s, nil
+}
+
 func decode_base64(object string, csum *string) ([]byte, *Aws_s3_error) {
 	if csum == nil {
 		return nil, nil

@@ -53,7 +53,7 @@ ECHO '*** Test list-buckets'
 
 EXPECT_PASS aws s3api list-buckets --no-verify-ssl --no-cli-pager --max-buckets 7 | tee "zzz"
 
-cat "zzz" | tr '\n' '@' | grep -ae '{@ *"Buckets": \[@ *{@ *"Name": "mybucket1",@ *"CreationDate": "[-0-9T:+]*"@ *},@ *{@ *"Name": "mybucket2",@ *"CreationDate": "[-0-9T:+]*"@ *}@ *\]@}@' > /dev/null
+cat "zzz" | tr '\n' '@' | grep -ae '{@ *"Buckets": \[@ *{@ *"Name": "mybucket1",@ *"CreationDate": "[-0-9.T:+]*"@ *},@ *{@ *"Name": "mybucket2",@ *"CreationDate": "[-0-9.T:+]*"@ *}@ *\]@}@' > /dev/null
 
 EXPECT_PASS aws s3api list-buckets --no-verify-ssl --no-cli-pager --max-buckets 7 --prefix "my"
 
@@ -97,7 +97,7 @@ ECHO '*** Test copy-object'
 
 EXPECT_PASS aws s3api copy-object --no-verify-ssl --no-cli-pager --bucket "mybucket1" --key "object3.txt" --copy-source "mybucket1/object1.txt" --tagging-directive REPLACE --tagging "mykey5=myvalue5&mykey6=myvalue6" | tee "zzz"
 
-cat "zzz" | tr '\n' '@' | grep -ae '{@ *"CopyObjectResult": {@ *"ETag": "\\"[a-zA-Z0-9+/=]*\\"",@ *"LastModified": "[-0-9T:+]*",@ *"ChecksumType": "FULL_OBJECT",@ *"ChecksumCRC64NVME": "[0-9a-zA-Z+/=]*"@ *}@}@' > /dev/null
+cat "zzz" | tr '\n' '@' | grep -ae '{@ *"CopyObjectResult": {@ *"ETag": "\\"[a-zA-Z0-9+/=]*\\"",@ *"LastModified": "[-0-9.T:+]*",@ *"ChecksumType": "FULL_OBJECT",@ *"ChecksumCRC64NVME": "[0-9a-zA-Z+/=]*"@ *}@}@' > /dev/null
 
 ECHO ''
 ECHO '*** Test list-objects-v2'
