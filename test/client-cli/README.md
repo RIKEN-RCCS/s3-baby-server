@@ -109,6 +109,12 @@ RCLONE can be installed by "dnf" from Redhat/Rocky EPEL.
 dnf install rclone
 ```
 
+Optionally, enable EPEL first.
+
+```
+dnf install epel-release
+```
+
 Setting for RCLONE can be found in `~/.config/rclone/rclone.conf`.
 The content may look like:
 
@@ -135,6 +141,8 @@ acl = private
 - RCLONE first checks the directory part (prior part of "/") of an
   object.  It sends a HEAD request on that part.
 
+- RCLONE "lsd" (list buckets) does not work with https (???).  RCLONE
+  is rclone v1.73.0.
 ## Google Cloud CLI
 
 ### Running a Test
@@ -301,6 +309,12 @@ s3fs mybucket1 ~/mnt -o url=http://localhost:9000/ -o use_path_request_style -o 
 
 ```
 dnf install s3fs-fuse
+```
+
+Optionally, enable EPEL first.
+
+```
+dnf install epel-release
 ```
 
 ## s4cmd

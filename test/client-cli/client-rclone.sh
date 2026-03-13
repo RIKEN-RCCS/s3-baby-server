@@ -28,7 +28,7 @@
 ECHO ''
 ECHO 'Make a bucket for testing, assuming no buckets exist at the start'
 
-EXEC_ECHO rclone -v lsd s3bbs:
+## EXEC_ECHO rclone -v lsd s3bbs:
 
 EXEC_ECHO rclone --no-check-certificate -v mkdir s3bbs:mybucket1 || true
 EXEC_ECHO rclone --no-check-certificate -v ls s3bbs:mybucket1
