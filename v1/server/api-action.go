@@ -1285,7 +1285,7 @@ func (bbs *Bbs_server) GetObject(ctx context.Context, i *s3.GetObjectInput, optF
 	}
 	var mtime = stat.ModTime()
 	var size = stat.Size()
-	var extent, err4 = scan_range(object, i.Range, size)
+	var extent, err4 = bbs.scan_range(action, rid, object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
 	}
@@ -1640,7 +1640,7 @@ func (bbs *Bbs_server) HeadObject(ctx context.Context, i *s3.HeadObjectInput, op
 	}
 	var mtime = stat.ModTime()
 	var size = stat.Size()
-	var extent, err4 = scan_range(object, i.Range, size)
+	var extent, err4 = bbs.scan_range(action, rid, object, i.Range, size)
 	if err4 != nil {
 		return nil, err4
 	}
@@ -2946,7 +2946,7 @@ func (bbs *Bbs_server) UploadPartCopy(ctx context.Context, i *s3.UploadPartCopyI
 	}
 
 	var size = source_stat.Size()
-	var extent, err24 = scan_range(object, i.CopySourceRange, size)
+	var extent, err24 = bbs.scan_range(action, rid, object, i.CopySourceRange, size)
 	if err24 != nil {
 		return nil, err24
 	}

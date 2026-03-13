@@ -568,14 +568,65 @@ is to implement an "io.ReadCloser".
 
 ### Trailing Slashes
 
-Many S3 clients may attach a slash (or multiple slashes) at the end of
-a URL path of a bucket or an object name.  MinIO client "mc", "s3cmd",
+Many S3 clients attach a slash (or multiple slashes) at the end of a
+URL path of a bucket or an object name.  MinIO client "mc", "s3cmd",
 and "s3fs-fuse" do, for example.
 
-### MinIO MC
+### Fetch-Owner
 
-- ListObjects: "GET /mybucket1/?object-lock="
-- CreateMultipartUpload: "POST /mybucket1/object2.txt?uploads="
+Baby-server does not handle owners and a "fetch-owner" query should be
+an error.  But, Baby-server just ignores it, because some clients
+request it.
+
+### AWS-CLI
+
+AWS-CLI (aws-cli/2.33.20) specifies both http1's
+transfter-encoding=chunked and AWS's content-encoding=aws-chunked.  It
+is necessary to silently ignore http1's chunked.
+
+### MC
+
+MinIO client "mc" attaches an extra cr+lf in a chucked stream.
+
+### RCLONE
+
+RCLONE requires ETags are MD5 values.  RCLONE checks the returned ETag
+against the MD5 sum.  This behavior can be skipped by
+"--ignore-checksum".  Note that RCLONE does not attach the header
+"Content-MD5" by default.
+
+### S3CMD
+
+s3cmd passes ETags without qoutes for a part list of a
+multipart-upload.
+
+### S5CMD
+
+s5cmd specifies at downloads the range larger than an object.  It
+attaches a range "bytes=0-52428799" (50MB) even for small files.
+
+### MEMO on AWS-CLI Behavior
+
+  - AWS-CLI uses http/1.1.  There is likely no way to make AWS-CLI use
+    http/2.0.
+
+  - AWS-CLI attaches "x-amz-checksum-crc64nvme" by default.
+
+### MEMO on RCLONE Behavior
+
+  - RCLONE copies (not upload) an object, when it exists in the remote
+    with a same ETag.
+
+  - RCLONE first checks the directory part (prior part of "/") of an
+    object.  It sends a HEAD request on that part.
+
+  - RCLONE "lsd" (list buckets) does not work with https (???).
+    RCLONE is rclone v1.73.0.
+
+  - RCLONE uses http/2.0.
+
+  - RCLONE does not attach "Content-MD5" nor
+    "x-amz-checksum-crc64nvme" by default.
 
 ----------------
 

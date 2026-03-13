@@ -93,7 +93,8 @@ type Bbs_configuration struct {
 	Xml_parameter_size_limit mbyte_size    `json:"xml_parameter_size_limit"`
 	Verify_fs_write          bool          `json:"verify_fs_write"`
 	Keep_trailing_slash      bool          `json:"keep_trailing_slash"`
-	Accept_fetch_owner       bool          `json:"accept_fetch_owner"`
+	Check_fetch_owner_query  bool          `json:"check_fetch_owner_query"`
+	Check_get_range_bound    bool          `json:"check_get_range_bound"`
 	Strict_etag_quoting      bool          `json:"strict_etag_quoting"`
 	Forbid_last_chunk_crlf   bool          `json:"forbid_last_chunk_crlf"`
 

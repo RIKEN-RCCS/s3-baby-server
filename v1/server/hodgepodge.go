@@ -385,10 +385,10 @@ func check_options_unsupported(bbs *Bbs_server, action string, i *option_check_l
 			Message: "x-amz-expected-bucket-owner is not supported."}
 	}
 
-	// Query "fetch-owner" is not supported but usually it is ignored.
-	// Enabling accept_fetch_owner causes an error.
+	// Baby-server does not support the "fetch-owner" query and
+	// ignores it.  Enabling check_fetch_owner_query forces an error.
 
-	if bbs.config.Accept_fetch_owner {
+	if bbs.config.Check_fetch_owner_query {
 		if i.FetchOwner != nil && *i.FetchOwner == true {
 			return &Aws_s3_error{Code: AccessDenied,
 				Message: "fetch-owner is not allowed."}
@@ -442,41 +442,74 @@ func (bbs *Bbs_server) check_options_ignored(action string, rid uint64, resource
 // bounded by the file size.  A range exceeding the file size are
 // rejected.  Multiple ranges are rejected, too.  Note it fixes the
 // upper bound of rfc-9110 which is inclusive.
-func scan_range(object string, rangestring *string, size int64) (*[2]int64, *Aws_s3_error) {
+func (bbs *Bbs_server) scan_range(action string, rid uint64, object string, rangestring *string, size int64) (*[2]int64, *Aws_s3_error) {
 	var location = "/" + object
 	if rangestring == nil {
 		return nil, nil
-	} else {
-		var r, err3 = httpaide.Scan_rfc9110_ranges(*rangestring)
-		if err3 != nil {
-			var errz = &Aws_s3_error{Code: InvalidArgument,
-				Message:  "Range format is illegal.",
-				Resource: location}
-			return nil, errz
-		}
-		if len(r) != 1 {
-			var errz = &Aws_s3_error{Code: InvalidRange,
-				Message:  "Range is not more than one.",
-				Resource: location}
-			return nil, errz
-		}
-
-		if r[0][1] > size {
-			var errz = &Aws_s3_error{Code: InvalidRange,
-				Resource: location}
-			return nil, errz
-		}
-
-		// Fix an unspecified upper bound.
-
-		var extent *[2]int64
-		if r[0][1] == -1 {
-			extent = &[2]int64{r[0][0], size}
-		} else {
-			extent = &[2]int64{r[0][0], (r[0][1] + 1)}
-		}
-		return extent, nil
 	}
+
+	var r, err3 = httpaide.Scan_rfc9110_ranges(*rangestring)
+	if err3 != nil {
+		bbs.logger.Info("Range format is illegal",
+			"action", action, "rid", rid, "object", object,
+			"range", *rangestring)
+		var errz = &Aws_s3_error{Code: InvalidArgument,
+			Message:  "Range format is illegal.",
+			Resource: location}
+		return nil, errz
+	}
+	if len(r) != 1 {
+		bbs.logger.Info("Range is specified more than one",
+			"action", action, "rid", rid, "object", object,
+			"range", *rangestring)
+		var errz = &Aws_s3_error{Code: InvalidRange,
+			Message:  "Range is not more than one.",
+			Resource: location}
+		return nil, errz
+	}
+
+	// Check range bounds.
+
+	if bbs.config.Check_get_range_bound {
+		if !(r[0][1] < size) {
+			bbs.logger.Info("Range upper limit is beyond file",
+				"action", action, "rid", rid, "object", object,
+				"range", *rangestring)
+			var errz = &Aws_s3_error{Code: InvalidRange,
+				Message:  "Range upper limit is beyond file.",
+				Resource: location}
+			return nil, errz
+		}
+	}
+	if !(0 <= r[0][0] && r[0][0] <= r[0][1]) {
+		bbs.logger.Info("Range bounds are strange",
+			"action", action, "rid", rid, "object", object,
+			"range", *rangestring)
+		if !(0 <= r[0][0]) {
+			var errz = &Aws_s3_error{Code: InvalidRange,
+				Message:  "Range lower limit is negagive.",
+				Resource: location}
+			return nil, errz
+		}
+		if !(r[0][0] <= r[0][1]) {
+			var errz = &Aws_s3_error{Code: InvalidRange,
+				Message:  "Range is empty.",
+				Resource: location}
+			return nil, errz
+		}
+	}
+
+	// Fix the unspecified upper bound (-1), or correct the upper
+	// bound to the object size.
+
+	var extent *[2]int64
+	if r[0][1] == -1 {
+		extent = &[2]int64{r[0][0], size}
+	} else {
+		var bound = (r[0][1] + 1)
+		extent = &[2]int64{r[0][0], min(size, bound)}
+	}
+	return extent, nil
 }
 
 // Request Condition Handling -- It is described in RFC-7232.

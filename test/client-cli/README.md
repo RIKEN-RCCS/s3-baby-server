@@ -71,16 +71,6 @@ aws_access_key_id = s3baby
 aws_secret_access_key = s3babybaby
 ```
 
-### MEMO on AWS-CLI vs. RCLONE Differences
-
-- AWS-CLI uses http/1.1 while that RCLONE uses http/2.0.  There is
-  likely no way to make AWS-CLI use http/2.0.
-
-- AWS-CLI attaches `x-amz-checksum-crc64nvme` by default.  In
-  contrast, RCLONE does not attach `Content-MD5` or
-  `x-amz-checksum-crc64nvme` by default.  RCLONE checks the returned
-  ETag as an MD5 sum.
-
 ### Note on Running AWS-CLI
 
 AWS-CLI accesses "http://169.254.169.254/latest/api/token" for
@@ -129,20 +119,6 @@ endpoint = https://localhost:9000
 acl = private
 ```
 
-### MEMO on RCLONE Behavior
-
-- RCLONE assumes an ETag is an MD5 sum, and checks the checksum
-  against an ETag.  This behavior can be skipped by
-  "--ignore-checksum".
-
-- RCLONE copies (not upload) an object, when it exists in the remote
-  with a same ETag.
-
-- RCLONE first checks the directory part (prior part of "/") of an
-  object.  It sends a HEAD request on that part.
-
-- RCLONE "lsd" (list buckets) does not work with https (???).  RCLONE
-  is rclone v1.73.0.
 ## Google Cloud CLI
 
 ### Running a Test
@@ -153,11 +129,11 @@ Run a test by:
 bash client-gcloud.sh
 ```
 
-### Installing gcloud (and gsutil)
+### Installing gcloud
 
 https://docs.cloud.google.com/sdk/docs/install-sdk
 
-It says "gcloud" can be installed from google's repository:
+"gcloud" can be installed from google's repository:
 
   - Copy the text to "/etc/yum.repos.d/google-cloud-sdk.repo".
   - Install SDK by DNF.
@@ -225,8 +201,10 @@ Setup MC by assigning an alias, for example, "s3baby".  We assume an
 alias name "s3baby" in the test script.
 
 ```
-$ mc alias set "s3baby" "http://localhost:9000" "s3baby" "s3babybaby" --api S3v4
+$ mc alias set "s3baby" "https://localhost:9000" "s3baby" "s3babybaby" --api S3v4
 ```
+
+Configuration of "mc" is stored in "~/.mc/config.json".
 
 Run a test by:
 
@@ -240,19 +218,16 @@ bash client-minio-mc.sh
 wget https://dl.min.io/client/mc/release/linux-amd64/mc
 ```
 
-Configuration of "mc" is stored in "~/.mc/config.json".
-
 ### References on "mc"
 
-- https://github.com/minio/mc
-- https://docs.min.io/enterprise/aistor-object-store/reference/cli/
+  - https://github.com/minio/mc
+  - https://docs.min.io/enterprise/aistor-object-store/reference/cli/
 
 ## s3cmd
 
-### Running a Test
+https://github.com/s3tools/s3cmd
 
-Note: s3cmd "mv" does not work in our test.  Uncertain, but, it seems
-it needs some ACL definition retured from the server side.
+### Running a Test
 
 ```
 s3cmd --configure
@@ -270,12 +245,14 @@ access_token =
 website_endpoint =
 ```
 
+Run a test:
+
 ```
 bash client-s3cmd.sh
 ```
 
-Add `--no-ssl` for http access, or drop it for https access.  Add
-`s3cmd --debug` for tracing s3cmd.
+Add "--no-ssl" for http access, or drop it for https access.  Add
+"s3cmd --debug" for tracing operation of s3cmd.
 
 ### Installing s3cmd
 
@@ -287,6 +264,52 @@ pip3 install --user s3cmd
 ```
 
 It installs: python-magic, s3cmd, python-dateutil.
+
+### MEMO on s3cmd
+
+s3cmd "mv" does not work in our test.  Uncertain, but, it seems it
+needs some ACL definition retured from the server side.
+
+## s4cmd
+
+https://github.com/bloomreach/s4cmd
+
+### Running a Test
+
+s4cmd shares the configuration of AWS-CLI.
+
+```
+bash client-s4cmd.sh
+```
+
+### Installing s4cmd
+
+s4cmd is in Python.  The client in Ubuntu can be installed by apt.
+
+```
+apt install s4cmd
+```
+
+## s5cmd
+
+https://github.com/peak/s5cmd
+
+### Running a Test
+
+s5cmd shares the configuration of AWS-CLI.  But, s5cmd needs
+"--endpoint-url" on the command line.
+
+```
+bash client-s5cmd.sh
+```
+
+### Installing s5cmd
+
+s5cmd binary can be downloaded from
+
+https://github.com/peak/s5cmd/releases
+
+## (WinSCP)
 
 ## s3fs-fuse
 
@@ -316,33 +339,3 @@ Optionally, enable EPEL first.
 ```
 dnf install epel-release
 ```
-
-## s4cmd
-
-https://github.com/bloomreach/s4cmd
-
-### Running a Test
-
-s4cmd shares the configuration of AWS-CLI.
-
-```
-bash client-s4cmd.sh
-```
-
-### Installing s4cmd
-
-s4cmd is in Python.  We used the client in Ubuntu, in this case.
-
-```
-apt install s4cmd
-```
-
-## (s5cmd)
-
-https://github.com/peak/s5cmd
-
-Download from
-
-https://github.com/peak/s5cmd/releases
-
-## (WinSCP)
