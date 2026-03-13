@@ -575,14 +575,16 @@ and "s3fs-fuse" do, for example.
 ### Fetch-Owner
 
 Baby-server does not handle owners and a "fetch-owner" query should be
-an error.  But, Baby-server just ignores it, because some clients
-request it.
+an error.  But, Baby-server just ignores it, because RCLONE requests
+it.
 
 ### AWS-CLI
 
-AWS-CLI (aws-cli/2.33.20) specifies both http1's
-transfter-encoding=chunked and AWS's content-encoding=aws-chunked.  It
-is necessary to silently ignore http1's chunked.
+AWS-CLI uploads data by a chunked stream when via https.  In that
+case, CLI erroneously specifies both http1's transfer-encoding=chunked
+and AWS's content-encoding=aws-chunked.  Baby-server silently ignores
+http1's chunked when both are specified.  The CLI version is
+aws-cli/2.33.20.
 
 ### MC
 
@@ -614,11 +616,13 @@ attaches a range "bytes=0-52428799" (50MB) even for small files.
 
 ### MEMO on RCLONE Behavior
 
+  - RCLONE first checks the directory part (prior part of "/") of an
+    object.  It sends a HEAD request on that part.  Baby-server
+    responds to it with an error (invalied argument), because a
+    directory is a non-object.
+
   - RCLONE copies (not upload) an object, when it exists in the remote
     with a same ETag.
-
-  - RCLONE first checks the directory part (prior part of "/") of an
-    object.  It sends a HEAD request on that part.
 
   - RCLONE "lsd" (list buckets) does not work with https (???).
     RCLONE is rclone v1.73.0.
