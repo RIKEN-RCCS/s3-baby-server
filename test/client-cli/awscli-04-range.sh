@@ -52,4 +52,4 @@ EXEC_ECHO aws s3 rb --no-verify-ssl --no-cli-pager s3://mybucket1
 
 rm -f zzz zzz[123]
 
-ECHO "TEST DONE."
+ECHO_TEST_DONE

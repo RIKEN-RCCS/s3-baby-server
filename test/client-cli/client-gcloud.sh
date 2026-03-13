@@ -24,13 +24,16 @@
 
 . ./cli-fn.sh
 
+## EXEC_ECHO gcloud storage buckets list s3://
 EXEC_ECHO gcloud storage buckets create s3://mybucket1 || true
 
 CLI="gcloud storage"
 CLIGET="gcloud storage cp"
 CLIPUT="gcloud storage cp"
+CLILS="gcloud storage ls"
+CLIRM="gcloud storage rm"
 
-. ./client-copy.sh
+. ./copy-copy.sh
 
 ECHO "Test mv"
 

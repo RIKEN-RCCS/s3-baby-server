@@ -149,12 +149,43 @@ bash client-gcloud.sh
 
 https://docs.cloud.google.com/sdk/docs/install-sdk
 
+It says "gcloud" can be installed from google's repository:
+
+  - Copy the text to "/etc/yum.repos.d/google-cloud-sdk.repo".
+  - Install SDK by DNF.
+
 ```
-$ gcloud config set storage/s3_endpoint_url https://localhost:9000
-$ gcloud config set auth/disable_ssl_validation True
+sudo dnf install libxcrypt-compat.x86_64
+sudo dnf install google-cloud-cli
 ```
 
-BELOW DOES NOT WORK:
+Minimal (?) configuration is set by:
+
+```
+gcloud config set storage/s3_endpoint_url https://localhost:9000
+gcloud config set auth/disable_ssl_validation True
+```
+
+Configuration is stored in
+"~/.config/gcloud/configurations/config_default":
+
+```
+[auth]
+disable_ssl_validation = True
+
+[storage]
+s3_endpoint_url = http://localhost:9000
+```
+
+### MEMO: gcloud-storage Command Usage
+
+https://docs.cloud.google.com/sdk/gcloud/reference/storage
+
+### MEMO: gcloud-storage logs
+
+Logs are stored in "~/.config/gcloud/logs".
+
+### MEMO: Below configuration does not work:
 
 ```
 cat <<EOF > cred
@@ -177,24 +208,6 @@ s3_port = 9000
 aws_access_key_id = s3baby
 aws_secret_access_key = s3babybaby
 ```
-
-Configuration stored in "~/.config/gcloud/configurations/config_default":
-
-```
-[auth]
-disable_ssl_validation = True
-
-[storage]
-s3_endpoint_url = http://localhost:9000
-```
-
-### MEMO: gcloud-storage Command Usage
-
-https://docs.cloud.google.com/sdk/gcloud/reference/storage
-
-### MEMO: gcloud-storage logs
-
-Logs are stored in "~/.config/gcloud/logs".
 
 ## MinIO Client MC
 
