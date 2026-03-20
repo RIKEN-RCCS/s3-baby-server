@@ -468,10 +468,10 @@ func (bbs *Bbs_server) scan_range(action string, rid uint64, object string, rang
 		return nil, errz
 	}
 
-	// Check range bounds.
+	// Check range bounds.  Note upper-bound is -1 when unspecified.
 
 	if bbs.config.Check_get_range_bound {
-		if !(r[0][1] < size) {
+		if !(r[0][1] == -1 || (r[0][1] < size)) {
 			bbs.logger.Info("Range upper limit is beyond file",
 				"action", action, "rid", rid, "object", object,
 				"range", *rangestring)
@@ -481,7 +481,7 @@ func (bbs *Bbs_server) scan_range(action string, rid uint64, object string, rang
 			return nil, errz
 		}
 	}
-	if !(0 <= r[0][0] && r[0][0] <= r[0][1]) {
+	if !(0 <= r[0][0] && (r[0][1] == -1 || r[0][0] <= r[0][1])) {
 		bbs.logger.Info("Range bounds are strange",
 			"action", action, "rid", rid, "object", object,
 			"range", *rangestring)
@@ -491,7 +491,7 @@ func (bbs *Bbs_server) scan_range(action string, rid uint64, object string, rang
 				Resource: location}
 			return nil, errz
 		}
-		if !(r[0][0] <= r[0][1]) {
+		if !(r[0][1] == -1 || r[0][0] <= r[0][1]) {
 			var errz = &Aws_s3_error{Code: InvalidRange,
 				Message:  "Range is empty.",
 				Resource: location}
