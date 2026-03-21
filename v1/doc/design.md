@@ -67,24 +67,29 @@ time is limited to request processing.
 
 ## Exclusion (Serialization)
 
+### Exclusion Overview
+
 Baby-server only excludes modifications on the filesystem.  That is,
 listing and downloading are not exclusive with uploading and copying.
 
 In most cases, operations are prepared outside of exclusion and
-continue with final renaming in exclusion.  Baby-server keeps
-consistency of identity of a file with an "entity-key".  An entity-key
-is an internally used file identity, similar to an ETag, but it is
-based on an inode number and an mtime to calculate it fast.
+continue with final renaming in exclusion.  Operations performed with
+exclusion are (1) updating its metainfo file, and (2) renaming a
+scratch file to an actual object.  Other operations are outside of
+exclusion.
 
-Operations performed with exclusion are (1) updating its metainfo
-file, and (2) renaming a scratch file to an actual object.  Other
-operations are outside of exclusion.
+Wait time of exclusion has a limit, and a timeout aborts a request by
+a RequestTimeout error.  The limit should be large because requests
+are queued for exclusion.  The limit is set to 5000ms.  It seems too
+large, but we found the work in exclusion took rather long in our test
+environment (with Lustre via NFS translator).  Configuration
+"Exclusion_wait" can control the time.
 
-Wait time of exclusion has a limit, and a timeout causes a
-RequestTimeout error.  The limit is set to 5000ms.  It seems large,
-but we found it took rather long in our test environment (with Lustre
-via NFS translator).  Configuration "Exclusion_wait" can control the
-time.
+Baby-server keeps consistency of identity of a file with an
+"entity-key".  An entity-key is an identity of a file, similar to an
+ETag, but it is based on an inode number and an mtime to calculate it
+fast.  Baby-server often performs a recheck of an entity-key after
+exclusion to detect a race condtion.
 
 ### Access Order of Metainfo File and Object File
 
@@ -121,6 +126,8 @@ scratch file, them renamed to an actual file.
 
 
 ## Multipart-Upload (MPUL)
+
+### MPUL Implementation
 
 Baby-server creates a temporary directory (named
 "." + objectname + "@mpul") and stores files "info", "list", and
@@ -310,11 +317,6 @@ the following actions.
 - PutObjectTagging
 - UploadPart
 
-### I/O Error Handling
-
-Baby-server does not check fully transferring data by io.Copy() in
-GetObject.  It ignores the count.
-
 ### Fix Checksum Algorithm
 
 Baby-server fixes the checksum algorithm in CreateMultipartUpload to
@@ -343,6 +345,11 @@ unmarshaler and it does not know about enumerators.
 ### No Request Timeout
 
 Baby-server does not set a timeout for request handlers.
+
+### I/O Error Handling
+
+Baby-server does not check fully transferring data by io.Copy() in
+GetObject.  It ignores the count.
 
 ### Response with 304-Not-Modified
 
@@ -411,19 +418,34 @@ Times in http headers are parsed in Golang's time.RFC1123.  Note the
 RFC-1123 uses three letter time-zone.
 
 
-### (MEMO) Logging
+### Logging from http Library
 
 Logs from Golang's http library is printed at level=ERROR.
 
 
 ## Error Codes
 
+### List of Error Codes
+
+The file "aws-s3-errors.go" lists the errors taken from the "Error
+Responses" section.  The "Error Responses" section in the API
+specification contains a list of error codes.  It contains 88 total
+error entires, but distinct codes are 80 -- it includes nine
+"InvalidRequest" duplicate entries.
+
+The same list also exists as error codes (a table in XML) in a
+document string in "s3.json".  They are in "shapes" /
+"com.amazonaws.s3#Error" / "Code" / "traits" /
+"smithy.api#documentation".
+
 ### Error Types
+
+AWS-SDK defines errors, but are not defined in detail.  They are
+somewhat arbitrary.  Baby-server does not utilize the defined error
+types.
 
 Error responses are defined in
 [Error Responses](https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html)
-
-Errors are not defined in detail.  They are somewhat arbitrary.
 
 Several S3-related errors are defined in "types" in AWS-SDK:
 https://github.com/aws/aws-sdk-go-v2/service/s3/types/errors.go
@@ -458,19 +480,6 @@ There are many other error codes listed in "Error Responses" of the
 API specification.  Those error codes appear in the comment in "types"
 in AWS-SDK:
 https://github.com/aws/aws-sdk-go-v2/service/s3/types/types.go
-
-### List of Error Codes
-
-The file "aws-s3-errors.go" lists the errors taken from the "Error
-Responses" section.  The "Error Responses" section in the API
-specification contains a list of error codes.  It contains 88 total
-error entires, but distinct codes are 80 -- it includes nine
-"InvalidRequest" duplicate entries.
-
-The same list also exists as error codes (a table in XML) in a
-document string in "s3.json".  They are in "shapes" /
-"com.amazonaws.s3#Error" / "Code" / "traits" /
-"smithy.api#documentation".
 
 
 ## Golang's http Sever
