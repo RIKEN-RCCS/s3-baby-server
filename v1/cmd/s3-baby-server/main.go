@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"s3-baby-server/server"
@@ -93,7 +94,8 @@ func main() {
 		cred_pair = "--,--"
 		args_optional = args[2:]
 	case "version":
-		fmt.Fprintf(os.Stdout, "%s\n", server.Bbs_version)
+		fmt.Fprintf(os.Stdout, "%s %s\n",
+			server.Bbs_version, runtime.Version())
 		args_optional = []string{}
 		os.Exit(0)
 	case "help":

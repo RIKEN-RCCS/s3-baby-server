@@ -1,14 +1,31 @@
 # README
 
-S3 Baby-server is a file server of AWS-S3 protocol.  It is designed to
+S3 Baby-server is a file server by AWS-S3 protocol.  It is designed to
 share existing files in a filesystem via S3.  In contrast, most
 full-fledged servers store files in chunks (of manageable sizes) and
 are not adequate for this purpose.  Baby-server is similar to "rclone
 serve s3".
 
 Baby-server can be used in combination with "Lens3" to run multiple
-servers at a single http end-point.  See for Lens3
+servers at a single http endpoint.  See for Lens3
 https://github.com/RIKEN-RCCS/lens3.
+
+## Installation
+
+Prepare Golang.  Then, build.  It builds the binary
+"v1/s3-baby-server".
+
+```
+cd v1
+make get
+make
+```
+
+Or, less likely,
+
+```
+go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.3.1
+```
 
 ## Running the server
 
@@ -18,31 +35,15 @@ https://github.com/RIKEN-RCCS/lens3.
 
 where "~/pool" specifies a pool directory where buckets are created.
 Existing directories in the pool are considered as buckets.  "--cred"
-specifies a credential pair separated by a comma (access-key and
-secret-access-key).  A credential pair can be specified by the
-environment variable "S3BBS_CRED", too (in the same comma-separated
-pair format).
-
-## Installation
-
-Prepare Golang.  Then, build.
-
-```
-cd v1
-make get
-make
-```
-
-Or,
-
-```
-go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.2.1
-```
+specifies a credential pair separated by a comma
+(access-key,secret-access-key).  A credential pair can be specified by
+the environment variable "S3BBS_CRED", too (in the same
+comma-separated pair format).
 
 ## Restrictions
 
-- Object names cannot begin with a dot (".").  They are hidden and
-  internally used.
+- Object names cannot begin with a dot (".").  Such names are
+  internally used as hidden metainfo.
 
 - Object names cannot be end with "/".
 
@@ -65,8 +66,8 @@ go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.2.1
 - Tags are not supported on buckets.  Tags on a CreateBucket request
   are ignored.
 
-- ETags are MD5.  ETags are always strong.  Baby-server may record an
-  ETag as object's metainfo, when the file size is large.
+- ETags are always strong.  ETags are MD5 and cost to calculate.  So,
+  Baby-server records an ETag in object's metainfo.
 
 - GetObjectAttributes returns no "ObjectParts" infomation.
   Baby-server does not retain parts information after finishing
@@ -76,18 +77,19 @@ go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.2.1
   "if-unmodified-since", and "x-amz-if-match-last-modified-time"
   invokes an error, although they should be ignored.
 
-- ContentType of a response is "binary/octet-stream".  We are not sure
-  it is better be "application/octet-stream".
+- ContentType of a response is "binary/octet-stream".  It would better
+  be "application/octet-stream".
 
 - Files are created with the mode of process's umask.  Set the umask
   before running Baby-server if neccessary.
 
 ## Metainfo Files
 
-- Baby-server stores metadata information in a file "." + object-name
-  + "@meta" in the same directory as an object.  Metadata includes an
-  ETag, a checksum value, tags, and meta-headers.  Metainfo files will
-  be created even by operations like listing objects.
+- Baby-server stores metadata information in a file
+  "." + object-name + "@meta" in the same directory as an object.
+  Metadata includes an ETag, a checksum value, tags, and meta-headers.
+  Metainfo files will be created even by operations like listing
+  objects.
 
 ## Access Logs
 
@@ -103,6 +105,11 @@ go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.2.1
   as directory paths or user id, because they can be something that
   should not be disclosed to a client.
 
+## Implementation Note for Developers
+
+An implementation note of Baby-server is
+[design.md](./v1/doc/design.md).
+
 ## Other Restrictions
 
 ### Restrictions on Bucket and Object Names
@@ -111,7 +118,8 @@ Restrictions on names for buckets and objects are stricter than
 AWS-S3, Google GCS, or MinIO.
 
 Characters of bucket names are from the set "[a-z0-9-]".  Bucket names
-should not start or end with "-".  DOTS (".") ARE FORBIDDEN.
+should not start or end with a minus sign ("-").  DOTS (".") ARE
+FORBIDDEN.
 
 Characters of object names are from the set
 "[a-zA-Z0-9!$&'()+,-./;=@_]" plus utf-8 characters.
@@ -158,8 +166,3 @@ implements the following actions.
 - PutObjectTagging
 - UploadPart
 - UploadPartCopy
-
-## For Developers
-
-An implementation note of Baby-server is
-[design.md](./v1/doc/design.md)
