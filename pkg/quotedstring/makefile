@@ -1,4 +1,4 @@
-# makefile
+## makefile
 
 all::
 	go build
@@ -9,8 +9,14 @@ get::
 tidy::
 	go mod tidy
 
-test1::
+fmt::
+	go fmt
+
+vet::
+	go vet
+
+test-scan::
 	go test -run 'TestScan'
 
-test2::
+test-slog::
 	go test -run 'TestSlog'

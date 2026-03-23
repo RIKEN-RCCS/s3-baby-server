@@ -1,4 +1,4 @@
-# makefile
+## makefile
 
 all::
 	echo "Please go to the parent directory and make."

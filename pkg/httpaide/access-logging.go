@@ -64,7 +64,9 @@ func (w *ResponseWriter2) Write(s []byte) (int, error) {
 }
 
 // LOG_ACCESS formats an access log entry.  It generates a line
-// without a newline.  USER may be an access-key in S3-Baby-server.
+// without a newline.  It takes the client-host from the header
+// "X-Forwarded-For", or r.RemoteAddr if the header is not set.  USER
+// will be an access-key in S3-Baby-server.
 func Log_access(request *http.Request, code int, length int64, user string) string {
 	var uid string
 	if user != "" {
@@ -77,7 +79,10 @@ func Log_access(request *http.Request, code int, length int64, user string) stri
 	// u: user
 	// rf: Referer
 
-	var h = request.RemoteAddr
+	var h = request.Header.Get("X-Forwarded-For")
+	if h == "" {
+		h = request.RemoteAddr
+	}
 	var l = "-"
 	var u = uid
 	var t = time.Now().Format(common_log_time_layout)

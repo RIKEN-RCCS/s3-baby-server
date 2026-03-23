@@ -1,4 +1,4 @@
-# makefile
+## makefile
 
 s3-baby-server::
 	go build ./cmd/s3-baby-server

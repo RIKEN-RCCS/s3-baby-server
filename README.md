@@ -83,6 +83,11 @@ comma-separated pair format).
 - Files are created with the mode of process's umask.  Set the umask
   before running Baby-server if neccessary.
 
+- The size of XML parameters passed in the message body is limited
+  (2MB).  Multipart uploads, object deletion, or setting tags may be
+  affected.  The size can be changed by configuration
+  "xml_parameter_size_limit".
+
 ## Metainfo Files
 
 - Baby-server stores metadata information in a file
