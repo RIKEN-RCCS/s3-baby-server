@@ -73,20 +73,11 @@ const empty_payload_hash_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b9
 
 var check_all_digits_re = regexp.MustCompile(`^[0-9]+$`)
 
-// PROXY_ATTACHED_HEADERS lists headers dropped in signing, which a
-// proxy may change.  See the section "ProxyPass" in the Apache-HTTPD
-// document.  It includes other often-used headers: "Connection",
-// "X-Forwarded-Proto", "X-Real-Ip".
-var proxy_attached_headers = []string{
-	"Accept-Encoding",
+// EXCLUDED_HEADERS lists headers dropped in signing, which may
+// confuse the signer.  (Not sure such exclusion is needed).
+var excluded_headers = []string{
 	"Amz-Sdk-Invocation-Id",
 	"Amz-Sdk-Request",
-	"X-Forwarded-For",
-	"X-Forwarded-Host",
-	"X-Forwarded-Server",
-	"Connection",
-	"X-Forwarded-Proto",
-	"X-Real-Ip",
 }
 
 var Verbose = false
@@ -309,20 +300,11 @@ func adjust_x_amz_date(d string) string {
 		d[13:])
 }
 
-/*
-type Signing_credential struct {
-	Host       string
-	Access_key string
-	Secret_key string
-}
-*/
-
-// SIGN_BY_CREDENTIAL replaces an authorization header in a request
-// for a given key-pair.  HOST is copied to the Host header and it is
-// an endpoint "host:port".  KEYPAIR[0] is an access-key and
+// SIGN_BY_CREDENTIAL replaces an authorization header in a request by
+// one for a given key-pair.  HOST is copied to the Host header and it
+// is an endpoint "host:port".  KEYPAIR[0] is an access-key and
 // KEYPAIR[1] is a secret-key.  It returns an error from
-// Signer.SignHTTP().  Note that it drops the headers attached by a
-// proxy, which would confuse the signer.
+// signer.SignHTTP().
 func Sign_by_credential(r *http.Request, host string, keypair [2]string) error {
 	if false {
 		fmt.Printf("*** r.Host(1)=%v\n", r.Host)
@@ -332,7 +314,7 @@ func Sign_by_credential(r *http.Request, host string, keypair [2]string) error {
 
 	signing_verbose("*** new host=", host)
 
-	for _, h := range proxy_attached_headers {
+	for _, h := range excluded_headers {
 		r.Header.Del(h)
 	}
 
