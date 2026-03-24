@@ -73,11 +73,27 @@ const empty_payload_hash_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b9
 
 var check_all_digits_re = regexp.MustCompile(`^[0-9]+$`)
 
-// EXCLUDED_HEADERS lists headers dropped in signing, which may
-// confuse the signer.  (Not sure such exclusion is needed).
+// EXCLUDED_HEADERS lists headers dropped before signing, which may
+// confuse the signer.
 var excluded_headers = []string{
 	"Amz-Sdk-Invocation-Id",
 	"Amz-Sdk-Request",
+}
+
+// PROXY_ATTACHED_HEADERS lists headers dropped in signing, which may
+// change in proxies and confuse signing.  This should include the
+// hop-by-hop headers.  (This list is not used any more because
+// signing shall be performed after changes of headers by a proxy).
+var proxy_attached_headers = []string{
+	"Accept-Encoding",
+	"Amz-Sdk-Invocation-Id",
+	"Amz-Sdk-Request",
+	"Connection",
+	"X-Forwarded-For",
+	"X-Forwarded-Host",
+	"X-Forwarded-Server",
+	"X-Forwarded-Proto",
+	"X-Real-Ip",
 }
 
 var Verbose = false

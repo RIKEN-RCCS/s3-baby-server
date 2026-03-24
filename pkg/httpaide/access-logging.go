@@ -35,6 +35,7 @@ package httpaide
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -79,10 +80,14 @@ func Log_access(request *http.Request, code int, length int64, user string) stri
 	// u: user
 	// rf: Referer
 
-	var h = request.Header.Get("X-Forwarded-For")
+	// Choose the first entry of "X-Forwarded-For".
+
+	var h1 = request.Header.Get("X-Forwarded-For")
+	var h = strings.Split(h1, ",")[0]
 	if h == "" {
 		h = request.RemoteAddr
 	}
+
 	var l = "-"
 	var u = uid
 	var t = time.Now().Format(common_log_time_layout)
@@ -98,12 +103,4 @@ func Log_access(request *http.Request, code int, length int64, user string) stri
 		h, l, u, t, r,
 		s, b, rf, ua)
 	return msg1
-
-	/*
-		var _, err1 = f.WriteString(msg1)
-		if err1 != nil {
-			slog.Error("Mux() Wrinting access log failed",
-				"err", err1)
-		}
-	*/
 }

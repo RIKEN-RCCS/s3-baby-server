@@ -147,10 +147,16 @@ type prior_handler struct {
 func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var start_time = time.Now()
 
-	var auth, err1 = sv.bbs.attest_authorization(w, r)
+	var auth1, err1 = sv.bbs.attest_authorization(w, r)
 	if err1 != nil {
 		return
 	}
+
+	var auth2 = r.Header.Get("Lens3-User")
+	if auth2 == "" {
+		auth2 = auth1
+	}
+	var user = auth2[:min(len(auth2), 16)]
 
 	var rid = sv.bbs.make_request_id()
 	var suffix = sv.bbs.make_scratch_suffix(rid)
@@ -209,7 +215,6 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sv.sx.ServeHTTP(w2, r2)
 
 	var q_length = r2.ContentLength
-	var user = auth[:min(len(auth), 16)]
 	var code = w2.Status_code
 	var r_length = w2.Content_length
 
