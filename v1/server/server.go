@@ -539,6 +539,9 @@ func (bbs *Bbs_server) attest_authorization(w http.ResponseWriter, r *http.Reque
 	var timewindow = time_sec_duration(bbs.config.Sign_valid_window)
 	var key, reason = awss3aide.Check_credential(r, bbs.cred_pair, timewindow)
 	if reason != nil {
+		if key == "" {
+			key = "--"
+		}
 		bbs.logger.Info("Bad authorization", "key", key, "reason", reason)
 		time.Sleep(1 * time.Second)
 		http.Error(w, "Bad authorization", 401)

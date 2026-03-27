@@ -1,8 +1,8 @@
-// control.go
+// control-client.go
 
-// This is part of the command "bbs-ctl".  It processes server-control
-// "quit" or "stat".  It sends a request "POST_/bbs.ctl/quit" or
-// "POST_/bbs.ctl/stat" to Baby-server.
+// This is a control command example.  It posts a server-control
+// request "POST_/bbs.ctl/{command}" to Baby-server, where the command
+// is "quit", "stat", or "ping"
 
 package main
 
@@ -81,7 +81,7 @@ func control_server(command string, cfg *aws.Config) error {
 	}
 	var rspn, err6 = c.Do(r)
 	if err6 != nil {
-		slog.Error("http/Client.Do() failed",
+		slog.Error("http.Client.Do() failed",
 			"error", err6)
 		return err6
 	}
@@ -90,12 +90,10 @@ func control_server(command string, cfg *aws.Config) error {
 	if rspn.StatusCode == http.StatusOK {
 		return nil
 	} else {
-		var err8 = fmt.Errorf("http/Client.Do() returns not OK",
-			"status", rspn.StatusCode)
-		slog.Debug("http/Client.Do() not good",
+		var err8 = fmt.Errorf("http.Client.Do() returns status=%d",
+			rspn.StatusCode)
+		slog.Debug("http.Client.Do() not good",
 			"error", err8)
 		return err8
 	}
-
-	return nil
 }

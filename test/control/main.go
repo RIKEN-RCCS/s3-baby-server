@@ -26,7 +26,7 @@ import (
 )
 
 var command_name = "bbs-ctl"
-var command_list = []string{"quit", "stat", "test-buckets", "test-objects"}
+var command_list = []string{"quit", "stat", "ping"}
 
 func main() {
 	var options = flag.NewFlagSet("", flag.ExitOnError)
@@ -92,12 +92,14 @@ func main() {
 	}
 
 	switch cmd {
-	case "quit", "stat":
+	case "quit", "stat", "ping":
 		control_server(cmd, cfg)
-	case "test-buckets":
-		test_with_many_buckets(cfg, 1000)
-	case "test-objects":
-		test_with_many_objects(cfg, 1000)
+		/*
+			case "test-buckets":
+				test_with_many_buckets(cfg, 1000)
+			case "test-objects":
+				test_with_many_objects(cfg, 1000)
+		*/
 	}
 }
 

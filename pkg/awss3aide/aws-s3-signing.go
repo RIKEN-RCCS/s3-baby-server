@@ -117,7 +117,7 @@ var E_bad_sign = errors.New("bad-sign")
 // by using AWS-SDK, and compares it with the one in the request.
 // Note it does not calculate the message digest and uses a given one.
 // Date in "X-Amz-Date" should be around the present time within a
-// timewindow tolerance.  It returns "anon" as an access-key when no
+// timewindow tolerance.  It returns "" as an access-key when no
 // key is found.  Failure reasons are one of {"no-auth", "bad-auth",
 // "bad-date", "outdated-date", "wrong-key", "cannot-sign",
 // "bad-sign"}.  It substitutes "Host" by "X-Forwarded-Host" if it is
@@ -128,12 +128,12 @@ func Check_credential(rqst1 *http.Request, keypair [2]string, timewindow time.Du
 	signing_verbose("*** authorization=", header1)
 	if header1 == "" {
 		signing_verbose("*** empty authorization=", header1)
-		return "anon", E_no_auth
+		return "", E_no_auth
 	}
 	var auth_passed = Scan_aws_authorization(header1)
 	if auth_passed == nil {
 		signing_verbose("*** bad-auth=", header1)
-		return "anon", E_bad_auth
+		return "", E_bad_auth
 	}
 
 	var access_key = auth_passed.Credential[0]

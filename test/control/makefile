@@ -1,4 +1,4 @@
-# makefile
+## makefile
 
 all::
 	@echo "Usage: make bbs-ctl or get"
@@ -8,6 +8,12 @@ bbs-ctl::
 
 get::
 	go get
+
+fmt::
+	go fmt
+
+vet::
+	go vet
 
 # Make self-signed certificate pairs for testing.  Or, use files that
 # may be found in /etc/pki/tls/certs/ and /etc/pki/tls/private/.

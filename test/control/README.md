@@ -1,4 +1,4 @@
-# Test by bbs-ctl
+# Control Client of Baby-Server
 
-"bbs-ctl" is an AWS-S3 client using AWS-SDK-GO-V2.  It is to stress
-the server.
+"bbs-ctl" posts a control command to the url "/bbs.ctl/".  Commands
+are "quit", "stat", and "ping".
