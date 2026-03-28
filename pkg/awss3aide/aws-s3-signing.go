@@ -80,14 +80,14 @@ var excluded_headers = []string{
 	"Amz-Sdk-Request",
 }
 
-// PROXY_ATTACHED_HEADERS lists headers dropped in signing, which may
+// EXCLUDED_HEADERS_2 lists headers dropped in signing, which may
 // change in proxies and confuse signing.  This should include the
-// hop-by-hop headers.  (This list is not used any more because
-// signing shall be performed after changes of headers by a proxy).
-var proxy_attached_headers = []string{
-	"Accept-Encoding",
+// hop-by-hop headers.  (* This list is not used because dropping
+// headers is the reponsibility of the signing side. *).
+var excluded_headers_2 = []string{
 	"Amz-Sdk-Invocation-Id",
 	"Amz-Sdk-Request",
+	"Accept-Encoding",
 	"Connection",
 	"X-Forwarded-For",
 	"X-Forwarded-Host",
