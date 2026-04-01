@@ -43,8 +43,19 @@ The test scripts don't work with "dash" ("sh" in Ubuntu).  dash lacks
 
 ### Running a Test
 
+Prepare `cli-conf.sh`, which specifies the bucket name and the
+access-key.  For example,
+
 ```
-bash client-awscli.sh
+BKT=lenticularis-oddity-x1
+export AWS_ACCESS_KEY_ID=abcdefghijkl
+export AWS_SECRET_ACCESS_KEY=abcdefghijklmnopqrstuvwxyz
+```
+
+Run the test by
+
+```
+bash object-awscli.sh
 ```
 
 Test stops on an error.
@@ -59,7 +70,8 @@ The CLI can be installed in user-mode (non-root):
 
 `./aws/install -i ~/opt/aws-cli -b ~/bin`
 
-Setting of `~/.aws/config` may look like:
+An access-key can be stored either in environment variables or in
+setting `~/.aws/config`.  Setting of `~/.aws/config` may look like:
 
 ```
 [default]
@@ -67,8 +79,8 @@ s3 =
      signature_version = s3v4
 ec2_metadata_disabled = true
 endpoint_url = http://127.0.0.1:9000
-aws_access_key_id = s3baby
-aws_secret_access_key = s3babybaby
+# aws_access_key_id = abcdefghijkl
+# aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
 ```
 
 ### Note on Running AWS-CLI
@@ -81,52 +93,23 @@ the enviroment variable:
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
-## RCLONE
-
-### Running a Test
-
-Run a test by:
-
-```
-bash client-rclone.sh
-```
-
-### Installing RCLONE
-
-RCLONE can be installed by "dnf" from Redhat/Rocky EPEL.
-
-```
-dnf install rclone
-```
-
-Optionally, enable EPEL first.
-
-```
-dnf install epel-release
-```
-
-Setting for RCLONE can be found in `~/.config/rclone/rclone.conf`.
-The content may look like:
-
-```
-[s3bbs]
-type = s3
-provider = Other
-env_auth = false
-access_key_id = s3baby
-secret_access_key = s3babybaby
-endpoint = https://localhost:9000
-acl = private
-```
-
 ## Google Cloud CLI
 
 ### Running a Test
 
-Run a test by:
+Prepare `cli-conf.sh`, which specifies the bucket name and the
+access-key.  For example,
 
 ```
-bash client-gcloud.sh
+BKT=lenticularis-oddity-x1
+export AWS_ACCESS_KEY_ID=abcdefghijkl
+export AWS_SECRET_ACCESS_KEY=abcdefghijklmnopqrstuvwxyz
+```
+
+Run the test by
+
+```
+bash object-gcloud.sh
 ```
 
 ### Installing gcloud
@@ -169,19 +152,9 @@ https://docs.cloud.google.com/sdk/gcloud/reference/storage
 
 Logs are stored in "~/.config/gcloud/logs".
 
-### MEMO: Below configuration does not work:
+### MEMO: Store Access-key in "~/.boto"
 
-```
-cat <<EOF > cred
-{
-"accessKeyId": "s3baby",
-"secretAccessKey": "s3babybaby"
-}
-EOF
-gcloud secrets create 'test_secret' --data-file=cred
-```
-
-Configuration stored in "~/.boto":
+Configuration can be stored in "~/.boto":
 
 ```
 [s3]
@@ -189,27 +162,77 @@ use-sigv4=True
 [Credentials]
 s3_host = localhost
 s3_port = 9000
-aws_access_key_id = s3baby
-aws_secret_access_key = s3babybaby
+aws_access_key_id = abcdefghijkl
+aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
+```
+
+An access-key can be stored in environment variables or in boto3
+setting "~/.boto".
+
+## RCLONE
+
+### Running a Test
+
+Prepare `cli-conf.sh`, which specifies the bucket name.  For example,
+
+```
+BKT=lenticularis-oddity-x1
+```
+
+Set the access-key in `~/.config/rclone/rclone.conf`.  Environment
+variables do not work.  See below for configuration.
+
+Run the test by
+
+```
+bash object-rclone.sh
+```
+
+### Installing RCLONE
+
+RCLONE can be installed by "dnf" from Redhat/Rocky EPEL.
+
+```
+dnf install rclone
+```
+
+Optionally, enable EPEL first.
+
+```
+dnf install epel-release
+```
+
+Setting for RCLONE can be found in `~/.config/rclone/rclone.conf`.
+The content may look like:
+
+```
+[s3bbs]
+type = s3
+provider = Other
+env_auth = false
+access_key_id = abcdefghijkl
+secret_access_key = abcdefghijklmnopqrstuvwxyz
+endpoint = https://localhost:9000
+acl = private
 ```
 
 ## MinIO Client MC
 
 ### Running a Test
 
-Setup MC by assigning an alias, for example, "s3baby".  We assume an
-alias name "s3baby" in the test script.
+Set up MC by assigning an alias with an arbitrary name, "s3baby", for
+example.  The test script assumes the alias as "s3baby".
 
 ```
-$ mc alias set "s3baby" "https://localhost:9000" "s3baby" "s3babybaby" --api S3v4
+$ mc alias set --api S3v4 --insecure "s3baby" "https://localhost:9000" "abcdefghijkl" "abcdefghijklmnopqrstuvwxyz"
 ```
 
-Configuration of "mc" is stored in "~/.mc/config.json".
+Configuration of "mc" is stored in `~/.mc/config.json`.
 
-Run a test by:
+Run the test by
 
 ```
-bash client-minio-mc.sh
+bash object-minio-mc.sh
 ```
 
 ### Installing "mc"
@@ -229,30 +252,23 @@ https://github.com/s3tools/s3cmd
 
 ### Running a Test
 
-```
-s3cmd --configure
-```
-
-"~/.s3cfg" needs the following fields, at least.  Specifying
-"host_bucket" uses path-style bucket naming.
+Prepare `cli-conf.sh`, which specifies the bucket name.  For example,
 
 ```
-host_base = localhost:9000
-host_bucket = localhost:9000
-access_key = s3baby
-secret_key = s3babybaby
-access_token =
-website_endpoint =
+BKT=lenticularis-oddity-x1
 ```
 
-Run a test:
+Set the access-key in `~/.s3cfg`.  Environment variables do not work.
+See below for configuration.
+
+Run the test by
 
 ```
-bash client-s3cmd.sh
+bash object-s3cmd.sh
 ```
 
-Add "--no-ssl" for http access, or drop it for https access.  Add
-"s3cmd --debug" for tracing operation of s3cmd.
+Add `--no-ssl` for http access, or drop it for https access.  Add
+`s3cmd --debug` for tracing operation of s3cmd.
 
 ### Installing s3cmd
 
@@ -265,10 +281,28 @@ pip3 install --user s3cmd
 
 It installs: python-magic, s3cmd, python-dateutil.
 
+### Configuring s3cmd
+
+```
+s3cmd --configure
+```
+
+`~/.s3cfg` needs the following fields, at least.  Empty "host_bucket"
+uses path-style bucket naming.
+
+```
+host_base = localhost:9000
+host_bucket =
+access_key = abcdefghijkl
+secret_key = abcdefghijklmnopqrstuvwxyz
+access_token =
+website_endpoint =
+```
+
 ### MEMO on s3cmd
 
-s3cmd "mv" does not work in our test.  Uncertain, but, it seems it
-needs some ACL definition retured from the server side.
+s3cmd "mv" seems not work in our test environment.  Uncertain, but, it
+seems it needs some ACL definition returned from the server side.
 
 ## s4cmd
 
@@ -276,15 +310,30 @@ https://github.com/bloomreach/s4cmd
 
 ### Running a Test
 
+Prepare `cli-conf.sh`, which specifies the bucket name and the
+access-key.  For example,
+
+```
+BKT=lenticularis-oddity-x1
+export AWS_ACCESS_KEY_ID=abcdefghijkl
+export AWS_SECRET_ACCESS_KEY=abcdefghijklmnopqrstuvwxyz
+```
+
 s4cmd shares the configuration of AWS-CLI.
 
 ```
-bash client-s4cmd.sh
+bash object-s4cmd.sh
 ```
 
 ### Installing s4cmd
 
-s4cmd is in Python.  The client in Ubuntu can be installed by apt.
+s4cmd is in Python.
+
+```
+pip3 install --user s4cmd
+```
+
+Or, the client in Ubuntu can be installed by apt.
 
 ```
 apt install s4cmd
@@ -296,11 +345,21 @@ https://github.com/peak/s5cmd
 
 ### Running a Test
 
-s5cmd shares the configuration of AWS-CLI.  But, s5cmd needs
-"--endpoint-url" on the command line.
+Prepare `cli-conf.sh`, which specifies the bucket name and the
+access-key.  For example,
 
 ```
-bash client-s5cmd.sh
+BKT=lenticularis-oddity-x1
+export AWS_ACCESS_KEY_ID=abcdefghijkl
+export AWS_SECRET_ACCESS_KEY=abcdefghijklmnopqrstuvwxyz
+```
+
+s5cmd shares the configuration of AWS-CLI.  However, s5cmd needs
+"--endpoint-url" on the command line.  The test script will extract an
+EP entry from "endpoint-url" in `~/.aws/config`.
+
+```
+bash object-s5cmd.sh
 ```
 
 ### Installing s5cmd
