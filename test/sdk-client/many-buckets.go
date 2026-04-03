@@ -1,6 +1,4 @@
-// repeat-make-bucket.go
-
-// This is a part of the command "bbs-ctl", and runs server tests.
+// Test by making many buckets.
 
 package main
 
@@ -23,11 +21,8 @@ import (
 	//smithy "github.com/aws/smithy-go"
 )
 
-func test_with_many_buckets(cfg *aws.Config, n int) error {
+func test_with_many_buckets(cfg *aws.Config, client *s3.Client, n int) error {
 	log.Printf("Testing create-bucket n=%d\n", n)
-
-	var client = s3.NewFromConfig(*cfg)
-	//log.Printf("AWS-S3 client=%#v\n", client)
 
 	var err1 = control_server("stat", cfg)
 	if err1 != nil {

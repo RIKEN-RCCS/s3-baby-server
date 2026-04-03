@@ -1,6 +1,4 @@
-// repeat-copy.go
-
-// This is a part of the command "bbs-ctl", and runs server tests.
+// Test by making many objects.
 
 package main
 
@@ -9,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"math/rand"
 	"sync"
 	"time"
@@ -23,12 +22,10 @@ import (
 // DATASET is a bin of randomly sized random data.
 var dataset [][]byte
 
-func test_with_many_objects(cfg *aws.Config, n int) error {
+func test_with_many_objects(cfg *aws.Config, client *s3.Client, n int) error {
 	log.Printf("Testing upload/download objects n=%d\n", n)
 	var bucket = "mybucket1"
 
-	var client = s3.NewFromConfig(*cfg)
-	//log.Printf("AWS-S3 client=%#v\n", client)
 	var xclient = transfermanager.New(client, func(o *transfermanager.Options) {
 		//o.PartSizeBytes = part_size
 	})
@@ -71,11 +68,12 @@ func test_with_many_objects(cfg *aws.Config, n int) error {
 	return nil
 }
 
-// PREPARE_DATASET makes randomly sized data, at least 100 bytes.
-func prepare_dataset(m int, size int64) error {
-	dataset = make([][]byte, m)
-	for i := range m {
-		var s = rand.Int63n(size) + 100
+// PREPARE_DATASET fills DATASET with n randomly sized data, in range
+// of bytes from 100 to ub+100.
+func prepare_dataset(n int, ub int64) error {
+	dataset = make([][]byte, n)
+	for i := range n {
+		var s = rand.Int63n(ub) + 100
 		var d = make([]byte, s)
 		var _, err1 = rand.Read(d)
 		if err1 != nil {
@@ -134,8 +132,8 @@ func create_many_objects(xclient *transfermanager.Client, client *s3.Client, buc
 			var err5 = op_delete_one_object(ctx2, client, bucket, object)
 			if err5 != nil {
 				cancel()
-				log.Fatalf("op_delete_one_object() failed; object=%s error=%v",
-					err5)
+				slog.Error("op_delete_one_object() failed",
+					"object", object, "error", err5)
 				return
 			}
 		})

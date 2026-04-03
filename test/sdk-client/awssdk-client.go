@@ -1,6 +1,4 @@
-// awssdk-client.go
-
-// This is a part of the command "bbs-ctl", and runs server tests.
+// AWS-SDK Client
 
 // Note the AWS-SDK examples use "feature/s3/manager" for copying
 // large objects but it is deprecated.  New one is
