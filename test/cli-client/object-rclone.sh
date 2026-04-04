@@ -38,23 +38,23 @@ ECHO "Test cp"
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-01k.txt s3bbs:${BKT}/data/object1.txt
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/data/object1.txt "zzz1"
-cmp "zzz1" data-01k.txt
+EXEC_ECHO cmp "zzz1" data-01k.txt
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-08k.txt s3bbs:${BKT}/data/object2.txt
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/data/object2.txt "zzz1"
-cmp "zzz1" data-08k.txt
+EXEC_ECHO cmp "zzz1" data-08k.txt
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-04m.txt s3bbs:${BKT}/data/object3.txt
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/data/object3.txt "zzz1"
-cmp "zzz1" data-04m.txt
+EXEC_ECHO cmp "zzz1" data-04m.txt
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-20m.txt s3bbs:${BKT}/data/object4.txt
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/data/object4.txt "zzz1"
-cmp "zzz1" data-20m.txt
+EXEC_ECHO cmp "zzz1" data-20m.txt
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-01g.txt s3bbs:${BKT}/data/object5.txt
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/data/object5.txt "zzz1"
-cmp "zzz1" data-01g.txt
+EXEC_ECHO cmp "zzz1" data-01g.txt
 
 ECHO "Clean up"
 
@@ -69,13 +69,11 @@ ECHO '*** Test uploading/downloading'
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-01k.txt s3bbs:${BKT}/object1.txt
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/object1.txt "zzz1"
-
-cmp "zzz1" data-01k.txt
+EXEC_ECHO cmp "zzz1" data-01k.txt
 
 EXEC_ECHO rclone --no-check-certificate -v copyto data-20m.txt s3bbs:${BKT}/object2.txt
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/object2.txt "zzz1"
-
-cmp "zzz1" data-20m.txt
+EXEC_ECHO cmp "zzz1" data-20m.txt
 
 EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:${BKT}/object1.txt
 EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:${BKT}/object2.txt
@@ -92,8 +90,7 @@ EXEC_ECHO rclone --no-check-certificate -v copy datafiles s3bbs:${BKT}/data/
 EXEC_ECHO rclone --no-check-certificate -v ls s3bbs:${BKT}/data/
 
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/data/data01.txt "zzz1"
-
-cmp "zzz1" data-08k.txt
+EXEC_ECHO cmp "zzz1" data-08k.txt
 
 EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:${BKT}/data/
 
@@ -103,8 +100,7 @@ ECHO '*** Test uploading/downloading, again'
 EXEC_ECHO rclone --no-check-certificate -v copyto data-01g.txt s3bbs:${BKT}/object1.txt
 
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/object1.txt "zzz1"
-
-cmp "zzz1" data-01g.txt
+EXEC_ECHO cmp "zzz1" data-01g.txt
 
 EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:${BKT}/object1.txt
 
@@ -115,8 +111,7 @@ EXEC_ECHO rclone --no-check-certificate -v copyto data-01k.txt s3bbs:${BKT}/obje
 EXEC_ECHO rclone --no-check-certificate -v moveto s3bbs:${BKT}/object1.txt s3bbs:${BKT}/object2.txt
 
 EXEC_ECHO rclone --no-check-certificate -v copyto s3bbs:${BKT}/object2.txt "zzz1"
-
-cmp "zzz1" data-01k.txt
+EXEC_ECHO cmp "zzz1" data-01k.txt
 
 EXEC_ECHO rclone --no-check-certificate -v delete s3bbs:${BKT}/object2.txt
 

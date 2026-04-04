@@ -5,17 +5,18 @@
 . ./cli-fn.sh
 . ./cli-conf.sh
 
-#flags=--no-ssl
+FLG="--ssl --no-check-certificate"
+#FLG="--no-ssl"
 
-CLILB="s3cmd ${flags} la"
-CLIMB="s3cmd ${flags} mb"
-CLIRB="s3cmd ${flags} rb"
+CLILB="s3cmd ${FLG} la"
+CLIMB="s3cmd ${FLG} mb"
+CLIRB="s3cmd ${FLG} rb"
 
-CLILS="s3cmd ${flags} ls"
-CLIPUT="s3cmd ${flags} put"
-CLIGET="s3cmd ${flags} get"
-CLIRM="s3cmd ${flags} del"
-CLIMV="s3cmd ${flags} mv"
+CLILS="s3cmd ${FLG} ls"
+CLIPUT="s3cmd ${FLG} put"
+CLIGET="s3cmd ${FLG} get"
+CLIRM="s3cmd ${FLG} del"
+CLIMV="s3cmd ${FLG} mv"
 
 ## EXEC_ECHO ${CLILB} s3://
 ## EXEC_ECHO ${CLIMB} s3://${BKT} || true

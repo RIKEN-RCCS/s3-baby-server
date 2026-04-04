@@ -3,28 +3,23 @@
 
 // Chunked Reader
 
-// This implements an http chunked-stream with Content-Encoding:
-// "aws-chunked".  THIS CHUNKED-READER IGNORES SIGNATURES.
+// This implements a chunked stream with Transfer-Encoding: "chunked"
+// (defined by http1) and Content-Encoding: "aws-chunked" (defined by
+// aws).  THIS CHUNKED-READER IGNORES SIGNATURES.
 //
-// Chunk type "Chunked_HTTP1" is for http1-chunked-streams.
-// "Chunked_AWSS3" is for aws-chunked-streams, including UNSIGNED
-// (UNSIGNED-PAYLOAD) and SIGNED streams.  AN unsigned chunked-stream
-// is almost the same as Golang's "httputil.NewChunkedReader()", but,
-// it may have trailers.
+// Chunk type "Chunked_HTTP1" is for http1-chunked streams.  Chunk
+// type "Chunked_AWSS3" is for aws-chunked streams, including unsigned
+// and signed streams.  An unsigned chunked stream is almost the same
+// as Golang's "httputil.NewChunkedReader()", but it may handle
+// trailers.
 //
-// It assumes Golang's http server does not handle
-// Transfer-Encoding=chunked.  AWS-S3's chunked-encoding seems to
-// ignore http's chunked-transfer.  In other words, two chunked
-// processing does not nest.  So, handling chunked-transfer may
-// corrupt the body stream.
+// It assumes Golang's http server does NOT handle http1-chunked
+// streams.  Current AWS-CLI sets both "transfer-encoding" and
+// "content-encoding", but "transfer-encoding" should be ignored.
+// Properly handling "transfer-encoding" will corrupt the body stream.
 //
-// This chunked-reader checks for aws-chunked by looking at
-// headers "x-amz-content-sha256" and "x-amz-decoded-content-length".
-// "content-encoding" header seems unreliable as it may be missing.
-// (Note MinIO MC client lacks a Content-Encoding header).
-//
-// This implements the following keyword values assigned to
-// "x-amz-content-sha256":
+// This does not implement all the keyword values assignable to
+// "x-amz-content-sha256", only the following:
 //   - UNSIGNED-PAYLOAD
 //   - STREAMING-UNSIGNED-PAYLOAD-TRAILER
 //   - STREAMING-AWS4-HMAC-SHA256-PAYLOAD
@@ -33,13 +28,13 @@
 // MEMO: "aws-chunked" is described in AWS-S3 signature v4 documents.  See
 //   - https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html
 //
-// Headers for "aws-chunked" look like the following
+// MEMO: Headers for "aws-chunked" look like the following
 //   Content-Encoding: aws-chunked
 //   X-Amz-Content-Sha256: STREAMING-AWS4-HMAC-SHA256-PAYLOAD
 //   X-Amz-Decoded-Content-Length: nnnn
 //   Content-Length: <missing>
 //
-// Each aws-chunk has a header line which looks like:
+// MEMO: Each aws-chunk has a header line which looks like:
 //   100000;chunk-signature=be348984ab8e284170b29e2bb5a424370e4203c81c981d5eb5e8534912ac1c5d
 
 package server
@@ -63,8 +58,9 @@ import (
 // bufio.Reader as it peeks the stream to check the existence of a
 // chunk-header.  M_HUNTING_HEADER is the state of the reader.
 // CONTENT_LENGTH is the total size including chunk headers.  It can
-// be -1.  PAYLOAD_LENGTH is the size of data.  CHUNKS holds the
-// signatures read so far.  CHUNK_LENGTH=0 means hits an EOF.
+// be -1.  PAYLOAD_LENGTH is the size of data.  It can be -1.  CHUNKS
+// holds the signatures read so far.  CHUNK_LENGTH=0 means it hits an
+// EOF.  TRAILER_HEADERS is not used, it is just a record.
 type Chunked_reader struct {
 	r                      *bufio.Reader
 	chunked                Chunked_type
@@ -101,11 +97,12 @@ type chunk_record struct {
 	signature    string
 }
 
-// Keys (some from defined) stored in "x-amz-content-sha256" besides
-// an actual hash value.  The value "actual-value" is a dummy.
+// Keywords stored in "x-amz-content-sha256" (some of the defined
+// keywords).  A keyword is stored besides an actual hash value in
+// "x-amz-content-sha256".  The value "actual-value" is a dummy.
 const (
 	sha256_actual_value         string = "actual-value"
-	sha256_key_nochunked        string = "UNSIGNED-PAYLOAD"
+	sha256_key_not_chunked      string = "UNSIGNED-PAYLOAD"
 	sha256_key_unsigned_trailer string = "STREAMING-UNSIGNED-PAYLOAD-TRAILER"
 	sha256_key_hmac             string = "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
 	sha256_key_hmac_trailer     string = "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER"
@@ -147,52 +144,54 @@ const (
 )
 
 // NEW_CHUNKED_READER returns a modified io.Reader of the body.  It
-// also returns the payload length or -1 (not content-length).  User
-// should use the returned stream in later operation even when it the
+// also returns the payload length (not content-length) or -1.  User
+// should use the returned stream in later operation even when the
 // stream is not chunked, because it may consume the underlying stream
-// to verify the chunked-ness.  Note it is possible both http1-chunked
-// and aws-chunked simultaneously.
-func New_chunked_reader(w http.ResponseWriter, q *http.Request, body io.Reader, rid uint64, forbid_last_chunk_crlf bool, logger *slog.Logger) (io.Reader, Chunked_type, int64, error) {
-	var chunked, signing, trailer, err1 = check_chunked_stream(q)
-	if err1 != nil {
-		return body, Chunked_NO, -1, err1
-	}
+// to verify the chunked-ness.
+func New_chunked_reader(w http.ResponseWriter, q *http.Request, body io.Reader, chunked Chunked_type, signing bool, trailer bool, forbid_last_chunk_crlf bool, rid uint64, logger *slog.Logger) (io.Reader, int64, error) {
+	var content int64 = q.ContentLength
 	if chunked == Chunked_NO {
-		return body, Chunked_NO, -1, nil
+		return body, content, nil
 	}
 
 	var h = q.Header
-	var payload int64 = -1
-	{
+	var payload int64
+	var trailer_headers []string
+
+	if chunked == Chunked_HTTP1 {
+		payload = -1
+		if trailer {
+			for k, _ := range q.Trailer {
+				trailer_headers = append(trailer_headers, k)
+			}
+		}
+	} else if chunked == Chunked_AWSS3 {
 		var decoded_content_length = h.Get("X-Amz-Decoded-Content-Length")
-		if chunked == Chunked_AWSS3 && decoded_content_length == "" {
-			return body, chunked, -1, &Chunked_reader_error{
+		if decoded_content_length == "" {
+			return body, -1, &Chunked_reader_error{
 				Msg: missing_decoded_content_length, Reader: nil, Nested: nil}
 		}
-		var payload2, err2 = strconv.ParseInt(decoded_content_length, 10, 64)
+		var err2 error
+		payload, err2 = strconv.ParseInt(decoded_content_length, 10, 64)
 		if err2 != nil {
-			return body, chunked, -1, &Chunked_reader_error{
+			return body, -1, &Chunked_reader_error{
 				Msg: bad_decoded_content_length, Reader: nil, Nested: err2}
 		}
-		payload = payload2
+		if trailer {
+			trailer_headers = h["X-Amz-Trailer"]
+		}
 	}
 
-	var body2 = make_io_reader_bufio_reader(body)
+	var body2 = make_bufio_reader(body)
 	var _, _, _, err3 = lookat_chunk_header(body2, signing, nil)
 	if err3 != nil {
-		return body2, chunked, -1, err3
-	}
-
-	var trailer_headers []string
-	if trailer {
-		trailer_headers = h["X-Amz-Trailer"]
+		return body2, -1, err3
 	}
 
 	logger.Log(context.Background(), LevelTrace,
 		"Chunked-stream", "chunked", chunked,
 		"signing", signing, "trailer", trailer)
 
-	var content = q.ContentLength
 	var body3 = &Chunked_reader{
 		r:                      body2,
 		chunked:                chunked,
@@ -208,10 +207,10 @@ func New_chunked_reader(w http.ResponseWriter, q *http.Request, body io.Reader, 
 		http_headers:           h,
 		//chunks: make([]chunk_record),
 	}
-	return body3, chunked, payload, nil
+	return body3, payload, nil
 }
 
-func make_io_reader_bufio_reader(r1 io.Reader) *bufio.Reader {
+func make_bufio_reader(r1 io.Reader) *bufio.Reader {
 	var r2, ok = r1.(*bufio.Reader)
 	if ok {
 		return r2
@@ -358,8 +357,10 @@ func (r *Chunked_reader) consume_cr_lf() error {
 	return nil
 }
 
-// It needs to assign headers listed in "x-amz-trailer".  NOTE IT
-// REPLACES HEADER ENTRIES, NOT APPEND.
+// READ_CHUNK_TRAILER reads the trailer and replaces the header
+// entries of the request.  It does not check the assigned headers are
+// listed in "trailer" or "x-amz-trailer".  NOTE IT REPLACES HEADER
+// ENTRIES, NOT APPEND.
 func (r *Chunked_reader) read_chunk_trailer() error {
 	var rx = textproto.NewReader(r.r)
 	var h, err1 = rx.ReadMIMEHeader()
@@ -373,73 +374,69 @@ func (r *Chunked_reader) read_chunk_trailer() error {
 	return nil
 }
 
-func check_http1_chunked(q *http.Request) bool {
+// CHECK_CHUNKED_HTTP1 checks the request is http1-chunked.  It
+// returns three booleans of chunked-ness, signature existence (always
+// false), and trailer existence.  (It never returns an error).
+func check_chunked_http1(q *http.Request) (bool, bool, bool, error) {
 	var enc = q.TransferEncoding
-	return len(enc) == 1 && strings.EqualFold(enc[0], "chunked")
+	var chunked = (len(enc) == 1 && strings.EqualFold(enc[0], "chunked"))
+	var trailer = len(q.Trailer) != 0
+	return chunked, false, trailer, nil
 }
 
-// CHECK_CHUNKED_STREAM checks the request is chunked.  It returns a
-// chunked-type, existence of a sign and a trailer.  IT IGNORES THE
-// TRANSFER-ENCODING WHEN AWS-CHUNKED IS USED.  It errs on some of
-// inconsistencies in "content-encoding" and "x-amz-content-sha256".
-func check_chunked_stream(q *http.Request) (Chunked_type, bool, bool, error) {
+// CHECK_CHUNKED_AWSS3 checks the request is aws-chunked.  It returns
+// three booleans of chunked-ness, signature existence, and trailer
+// existence.  It checks inconsistencies in "content-encoding" and
+// "x-amz-content-sha256".  Note that "x-amz-content-sha256" has a
+// special keyword for aws-chunked streams.  It is not aws-chunked
+// when it is parsed as hex digits.
+func check_chunked_awss3(q *http.Request) (bool, bool, bool, error) {
 	var h = q.Header
-	var http1_chunked = check_http1_chunked(q)
 	var aws_chunked = (h.Get("Content-Encoding") == "aws-chunked")
+
 	var sha = h.Get("X-Amz-Content-Sha256")
 	var _, err1 = hex.DecodeString(sha)
-	var actualvalue = (err1 == nil)
+	var not_aws_chunked = (err1 == nil)
 
 	var errx1 = fmt.Errorf(("Bad chunked-stream (aws-chunked)" +
 		" with content-sha256=%s"), sha)
-	var errx3 = fmt.Errorf(("Bad chunked-stream (not aws-chunked)" +
+	var errx3 = fmt.Errorf(("Bad chunked-stream (not-chunked)" +
 		" with content-sha256=%s"), sha)
 
-	if actualvalue {
+	if not_aws_chunked {
 		if aws_chunked {
-			return Chunked_NO, false, false, &Chunked_reader_error{
+			return false, false, false, &Chunked_reader_error{
 				Msg: inconsitent_headers, Reader: nil, Nested: errx1}
 		}
-		if http1_chunked {
-			return Chunked_HTTP1, false, false, nil
-		} else {
-			return Chunked_NO, false, false, nil
-		}
+		return false, false, false, nil
 	} else {
-		/*
-			var length = q.ContentLength
-			if length == -1 {
-				return Chunked_NO, false, "", &Chunked_reader_error{
-					Msg: inconsitent_headers, Reader: nil, Nested: errx4}
-			}
-		*/
 		switch sha {
-		case sha256_key_nochunked:
+		case sha256_key_not_chunked:
 			if aws_chunked {
-				return Chunked_NO, false, false, &Chunked_reader_error{
+				return false, false, false, &Chunked_reader_error{
 					Msg: inconsitent_headers, Reader: nil, Nested: errx1}
 			}
-			return Chunked_NO, false, false, nil
+			return false, false, false, nil
 		case sha256_key_unsigned_trailer:
 			if !aws_chunked {
-				return Chunked_NO, false, false, &Chunked_reader_error{
+				return false, false, false, &Chunked_reader_error{
 					Msg: inconsitent_headers, Reader: nil, Nested: errx3}
 			}
-			return Chunked_AWSS3, false, true, nil
+			return true, false, true, nil
 		case sha256_key_hmac:
 			if !aws_chunked {
-				return Chunked_NO, false, false, &Chunked_reader_error{
+				return false, false, false, &Chunked_reader_error{
 					Msg: inconsitent_headers, Reader: nil, Nested: errx3}
 			}
-			return Chunked_AWSS3, true, false, nil
+			return true, true, false, nil
 		case sha256_key_hmac_trailer:
 			if !aws_chunked {
-				return Chunked_NO, false, false, &Chunked_reader_error{
+				return false, false, false, &Chunked_reader_error{
 					Msg: inconsitent_headers, Reader: nil, Nested: errx3}
 			}
-			return Chunked_AWSS3, true, true, nil
+			return true, true, true, nil
 		default:
-			return Chunked_NO, false, false, &Chunked_reader_error{
+			return false, false, false, &Chunked_reader_error{
 				Msg: unknown_sha256_key, Reader: nil, Nested: errx1}
 		}
 	}

@@ -7,8 +7,7 @@
 . ./cli-conf.sh
 
 # It seems "--ignore-certificate" is not readly yet.
-
-# FLG=--ignore-certificate
+# FLG="--ignore-certificate"
 
 CLIMB="s4cmd ${FLG} mb"
 CLIRB="false"

@@ -38,7 +38,7 @@ import (
 	"github.com/riken-rccs/s3-baby-server/pkg/httpaide"
 )
 
-const Bbs_version = "v1.3.1-b"
+const Bbs_version = "v1.3.1"
 const Bbs_metafile_format = "v1.3"
 
 type Bbs_server struct {
@@ -97,6 +97,7 @@ type Bbs_configuration struct {
 	Check_get_range_bound    bool          `json:"check_get_range_bound"`
 	Strict_etag_quoting      bool          `json:"strict_etag_quoting"`
 	Forbid_last_chunk_crlf   bool          `json:"forbid_last_chunk_crlf"`
+	Nesting_chunked_stream   bool          `json:"nesting_chunked_stream"`
 
 	// Anonymize_ower bool
 	// File_creation_mode fs.FileMode
@@ -192,10 +193,10 @@ func (sv *prior_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"Request-Header", "header", h)
 	}
 
-	if r.Trailer != nil {
-		sv.bbs.logger.Error("http trailer header is unsupported",
-			"trailer", r.Trailer)
-	}
+	//if r.Trailer != nil {
+	//	sv.bbs.logger.Error("http trailer header is unsupported",
+	//		"trailer", r.Trailer)
+	//}
 
 	// Drop (multiple) trailing-slashes in the path by rewriting.
 	// Some clients attach a slash-suffix to a bucket/object name.
@@ -278,7 +279,7 @@ func Start_server(dump_conf bool, cred, cert [2]string, pool_directory, addr, co
 		Server_control_name:      "bbs.ctl",
 		Site_base_url:            nil,
 		Exclusion_wait:           5000,
-		Sign_valid_window:        60,
+		Sign_valid_window:        15,
 		Etag_save_threshold:      1,
 		Xml_parameter_size_limit: 2,
 		/*Dump_request_header:      true,*/

@@ -14,20 +14,13 @@ CLIRM="aws s3 rm --no-verify-ssl --no-cli-pager"
 CLIMB="aws s3 mb --no-verify-ssl --no-cli-pager"
 CLIRB="aws s3 rb --no-verify-ssl --no-cli-pager"
 
-. ./copy-copy.sh
+EXEC_ECHO aws s3 ls --no-verify-ssl --no-cli-pager s3://
 
-ECHO "Test mv"
+EXEC_ECHO ${CLIMB} s3://mybucket1
 
-EXEC_ECHO ${CLIPUT} data-01k.txt s3://${BKT}/object1.txt
-EXEC_ECHO ${CLIMV} s3://${BKT}/object1.txt s3://${BKT}/object2.txt
-EXEC_ECHO ${CLIGET} s3://${BKT}/object2.txt "zzz1"
-EXEC_ECHO cmp "zzz1" data-01k.txt
-rm -f "zzz1"
+EXEC_ECHO ${CLIPUT} data-01k.txt s3://mybucket1/object1.txt
+EXEC_ECHO ${CLIRM} s3://mybucket1/object1.txt
 
-ECHO "Clean up"
-
-EXEC_ECHO ${CLIRM} s3://${BKT}/object2.txt
-
-rm -f "zzz1"
+EXEC_ECHO ${CLIRB} s3://mybucket1
 
 ECHO_TEST_DONE

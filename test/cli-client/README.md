@@ -41,9 +41,9 @@ The test scripts don't work with "dash" ("sh" in Ubuntu).  dash lacks
 
 ## AWS-CLI
 
-### Running a Test
+### Running Test
 
-Prepare `cli-conf.sh`, which specifies the bucket name and the
+Prepare "cli-conf.sh", which specifies the bucket name and the
 access-key.  For example,
 
 ```
@@ -71,17 +71,20 @@ The CLI can be installed in user-mode (non-root):
 `./aws/install -i ~/opt/aws-cli -b ~/bin`
 
 An access-key can be stored either in environment variables or in
-setting `~/.aws/config`.  Setting of `~/.aws/config` may look like:
+setting "~/.aws/config".  Setting of "~/.aws/config" may look like:
 
 ```
 [default]
 s3 =
      signature_version = s3v4
+     addressing_style = path
 ec2_metadata_disabled = true
 endpoint_url = http://127.0.0.1:9000
 # aws_access_key_id = abcdefghijkl
 # aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
 ```
+
+"addressing_style=path" seems to have no effect (?)
 
 ### Note on Running AWS-CLI
 
@@ -93,11 +96,23 @@ the enviroment variable:
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
+Setting PYTHONWARNINGS seems to have no effect in AWS-CLI (it is a
+comma separated list).  Warnings are issued on a site without a proper
+certificate.
+
+```
+export PYTHONWARNINGS="ignore::InsecureRequestWarning"
+```
+
 ## Google Cloud CLI
 
-### Running a Test
+"gcloud-storage" command is for AWS-S3.
 
-Prepare `cli-conf.sh`, which specifies the bucket name and the
+https://docs.cloud.google.com/sdk/gcloud/reference/storage
+
+### Running Test
+
+Prepare "cli-conf.sh", which specifies the bucket name and the
 access-key.  For example,
 
 ```
@@ -114,9 +129,7 @@ bash object-gcloud.sh
 
 ### Installing gcloud
 
-https://docs.cloud.google.com/sdk/docs/install-sdk
-
-"gcloud" can be installed from google's repository:
+"gcloud" can be installed from google's repository
 
   - Copy the text to "/etc/yum.repos.d/google-cloud-sdk.repo".
   - Install SDK by DNF.
@@ -126,15 +139,17 @@ sudo dnf install libxcrypt-compat.x86_64
 sudo dnf install google-cloud-cli
 ```
 
-Minimal (?) configuration is set by:
+https://docs.cloud.google.com/sdk/docs/install-sdk
+
+Minimal configuration is set by
 
 ```
 gcloud config set storage/s3_endpoint_url https://localhost:9000
 gcloud config set auth/disable_ssl_validation True
 ```
 
-Configuration is stored in
-"~/.config/gcloud/configurations/config_default":
+The configuration is stored in
+"~/.config/gcloud/configurations/config_default".
 
 ```
 [auth]
@@ -144,17 +159,13 @@ disable_ssl_validation = True
 s3_endpoint_url = http://localhost:9000
 ```
 
-### MEMO: gcloud-storage Command Usage
-
-https://docs.cloud.google.com/sdk/gcloud/reference/storage
-
 ### MEMO: gcloud-storage logs
 
 Logs are stored in "~/.config/gcloud/logs".
 
-### MEMO: Store Access-key in "~/.boto"
+### MEMO: Configuration in "~/.boto"
 
-Configuration can be stored in "~/.boto":
+Access-key can be stored in "~/.boto".  The setting looks like
 
 ```
 [s3]
@@ -166,14 +177,14 @@ aws_access_key_id = abcdefghijkl
 aws_secret_access_key = abcdefghijklmnopqrstuvwxyz
 ```
 
-An access-key can be stored in environment variables or in boto3
-setting "~/.boto".
+An access-key can be stored in environment variables as well as in
+boto3 setting "~/.boto".
 
 ## RCLONE
 
-### Running a Test
+### Running Test
 
-Prepare `cli-conf.sh`, which specifies the bucket name.  For example,
+Prepare "cli-conf.sh", which specifies the bucket name.  For example,
 
 ```
 BKT=lenticularis-oddity-x1
@@ -190,16 +201,12 @@ bash object-rclone.sh
 
 ### Installing RCLONE
 
-RCLONE can be installed by "dnf" from Redhat/Rocky EPEL.
-
-```
-dnf install rclone
-```
-
-Optionally, enable EPEL first.
+RCLONE can be installed by "dnf" from Redhat/Rocky EPEL.  It is in
+EPEL, so, optionally, enable EPEL first.
 
 ```
 dnf install epel-release
+dnf install rclone
 ```
 
 Setting for RCLONE can be found in `~/.config/rclone/rclone.conf`.
@@ -218,10 +225,10 @@ acl = private
 
 ## MinIO Client MC
 
-### Running a Test
+### Running Test
 
 Set up MC by assigning an alias with an arbitrary name, "s3baby", for
-example.  The test script assumes the alias as "s3baby".
+example.  The test script assumes the alias is "s3baby".
 
 ```
 $ mc alias set --api S3v4 --insecure "s3baby" "https://localhost:9000" "abcdefghijkl" "abcdefghijklmnopqrstuvwxyz"
@@ -250,15 +257,15 @@ wget https://dl.min.io/client/mc/release/linux-amd64/mc
 
 https://github.com/s3tools/s3cmd
 
-### Running a Test
+### Running Test
 
-Prepare `cli-conf.sh`, which specifies the bucket name.  For example,
+Prepare "cli-conf.sh", which specifies the bucket name.  For example,
 
 ```
 BKT=lenticularis-oddity-x1
 ```
 
-Set the access-key in `~/.s3cfg`.  Environment variables do not work.
+Set the access-key in "~/.s3cfg".  Environment variables do not work.
 See below for configuration.
 
 Run the test by
@@ -267,8 +274,9 @@ Run the test by
 bash object-s3cmd.sh
 ```
 
-Add `--no-ssl` for http access, or drop it for https access.  Add
-`s3cmd --debug` for tracing operation of s3cmd.
+Add `--no-ssl` for http access, or `--ssl` and
+`--no-check-certificate` for https access (drop them as SSL is
+default).  Add `s3cmd --debug` for tracing operations of s3cmd.
 
 ### Installing s3cmd
 
@@ -287,7 +295,7 @@ It installs: python-magic, s3cmd, python-dateutil.
 s3cmd --configure
 ```
 
-`~/.s3cfg` needs the following fields, at least.  Empty "host_bucket"
+"~/.s3cfg" needs the following fields, at least.  Empty "host_bucket"
 uses path-style bucket naming.
 
 ```
@@ -308,9 +316,9 @@ seems it needs some ACL definition returned from the server side.
 
 https://github.com/bloomreach/s4cmd
 
-### Running a Test
+### Running Test
 
-Prepare `cli-conf.sh`, which specifies the bucket name and the
+Prepare "cli-conf.sh", which specifies the bucket name and the
 access-key.  For example,
 
 ```
@@ -339,13 +347,18 @@ Or, the client in Ubuntu can be installed by apt.
 apt install s4cmd
 ```
 
+### Mandatory SSL Certificate Checks
+
+Skipping certificate checks is not implemented.  Testing requires a
+proper certificate.
+
 ## s5cmd
 
 https://github.com/peak/s5cmd
 
-### Running a Test
+### Running Test
 
-Prepare `cli-conf.sh`, which specifies the bucket name and the
+Prepare "cli-conf.sh", which specifies the bucket name and the
 access-key.  For example,
 
 ```

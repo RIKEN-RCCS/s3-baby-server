@@ -950,25 +950,104 @@ func (bbs *Bbs_server) compare_checksums(rid uint64, object string, scratch stri
 	return nil
 }
 
-func (bbs *Bbs_server) make_chunked_reader(object string, rid uint64, body io.Reader, length int64, w http.ResponseWriter, q *http.Request) (io.Reader, int64, Chunked_type, *Aws_s3_error) {
+func (bbs *Bbs_server) make_chunked_reader(object string, rid uint64, body1 io.Reader, length int64, w http.ResponseWriter, q *http.Request) (io.Reader, int64, Chunked_type, *Aws_s3_error) {
 	var location = "/" + object
 	var forbid_last_chunk_crlf = bbs.config.Forbid_last_chunk_crlf
 	var logger = bbs.logger
-	var r2, chunked, length2, err1 = New_chunked_reader(w, q, body, rid,
-		forbid_last_chunk_crlf, logger)
+
+	var http1, signing_http1, trailer_http1, err1 = check_chunked_http1(q)
 	if err1 != nil {
 		bbs.logger.Info("Making chunked-reader failed",
-			"rid", rid, "object", object, "chunked", chunked,
+			"rid", rid, "object", object,
 			"error", err1)
 		var errz = &Aws_s3_error{Code: InvalidRequest,
 			Message:  "Making chunked-reader failed.",
 			Resource: location}
 		return nil, -1, Chunked_NO, errz
 	}
-
-	if chunked == Chunked_NO {
-		// Fix length to the original one if not chunked.
-		length2 = length
+	var awss3, signing_awss3, trailer_awss3, err2 = check_chunked_awss3(q)
+	if err2 != nil {
+		bbs.logger.Info("Making chunked-reader failed",
+			"rid", rid, "object", object,
+			"error", err2)
+		var errz = &Aws_s3_error{Code: InvalidRequest,
+			Message:  "Making chunked-reader failed.",
+			Resource: location}
+		return nil, -1, Chunked_NO, errz
 	}
-	return r2, length2, chunked, nil
+
+	var nesting = bbs.config.Nesting_chunked_stream
+
+	if nesting && http1 && awss3 {
+		// Make a nested chunked stream.
+		if trailer_http1 && trailer_awss3 {
+			bbs.logger.Info("Making chunked-reader failed",
+				"rid", rid, "object", object,
+				"error", "nested stream both require trailer")
+			var errz = &Aws_s3_error{Code: InvalidRequest,
+				Message:  "Making chunked-reader failed.",
+				Resource: location}
+			return nil, -1, Chunked_NO, errz
+		}
+		var body2, _, err3 = New_chunked_reader(w, q, body1,
+			Chunked_HTTP1, signing_http1, trailer_http1,
+			forbid_last_chunk_crlf, rid, logger)
+		if err3 != nil {
+			bbs.logger.Info("Making chunked-reader failed",
+				"rid", rid, "object", object, "chunked", Chunked_HTTP1,
+				"error", err3)
+			var errz = &Aws_s3_error{Code: InvalidRequest,
+				Message:  "Making chunked-reader failed.",
+				Resource: location}
+			return nil, -1, Chunked_NO, errz
+		}
+		var body3, length2, err4 = New_chunked_reader(w, q, body2,
+			Chunked_AWSS3, signing_awss3, trailer_awss3,
+			forbid_last_chunk_crlf, rid, logger)
+		if err4 != nil {
+			bbs.logger.Info("Making chunked-reader failed",
+				"rid", rid, "object", object, "chunked", Chunked_AWSS3,
+				"error", err4)
+			var errz = &Aws_s3_error{Code: InvalidRequest,
+				Message:  "Making chunked-reader failed.",
+				Resource: location}
+			return nil, -1, Chunked_NO, errz
+		}
+		return body3, length2, Chunked_AWSS3, nil
+	} else if awss3 {
+		// Choose an aws-chunked with priority, when both are
+		// asserted.  This is the behavior for coordinating with
+		// AWS-CLI.
+
+		var body2, length2, err3 = New_chunked_reader(w, q, body1,
+			Chunked_AWSS3, signing_awss3, trailer_awss3,
+			forbid_last_chunk_crlf, rid, logger)
+		if err3 != nil {
+			bbs.logger.Info("Making chunked-reader failed",
+				"rid", rid, "object", object, "chunked", Chunked_AWSS3,
+				"error", err3)
+			var errz = &Aws_s3_error{Code: InvalidRequest,
+				Message:  "Making chunked-reader failed.",
+				Resource: location}
+			return nil, -1, Chunked_NO, errz
+		}
+		return body2, length2, Chunked_AWSS3, nil
+	} else if http1 {
+		var body2, length2, err3 = New_chunked_reader(w, q, body1,
+			Chunked_HTTP1, signing_http1, trailer_http1,
+			forbid_last_chunk_crlf, rid, logger)
+		if err3 != nil {
+			bbs.logger.Info("Making chunked-reader failed",
+				"rid", rid, "object", object, "chunked", Chunked_HTTP1,
+				"error", err3)
+			var errz = &Aws_s3_error{Code: InvalidRequest,
+				Message:  "Making chunked-reader failed.",
+				Resource: location}
+			return nil, -1, Chunked_NO, errz
+		}
+		return body2, length2, Chunked_HTTP1, nil
+	} else {
+		// Return the original length if not chunked.
+		return body1, length, Chunked_NO, nil
+	}
 }
