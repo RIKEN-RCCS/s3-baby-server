@@ -6,13 +6,15 @@
 export AWS_EC2_METADATA_DISABLED=true
 export PYTHONWARNINGS="ignore::InsecureRequestWarning"
 
-CLIGET="aws s3 cp --no-verify-ssl --no-cli-pager --no-progress"
-CLIPUT="aws s3 cp --no-verify-ssl --no-cli-pager --no-progress"
-CLILS="aws s3 ls --no-verify-ssl --no-cli-pager"
-CLIMV="aws s3 mv --no-verify-ssl --no-cli-pager"
-CLIRM="aws s3 rm --no-verify-ssl --no-cli-pager"
-CLIMB="aws s3 mb --no-verify-ssl --no-cli-pager"
-CLIRB="aws s3 rb --no-verify-ssl --no-cli-pager"
+FLG="--no-verify-ssl"
+
+CLIGET="aws s3 cp ${FLG} --no-cli-pager --no-progress"
+CLIPUT="aws s3 cp ${FLG} --no-cli-pager --no-progress"
+CLILS="aws s3 ls ${FLG} --no-cli-pager"
+CLIMV="aws s3 mv ${FLG} --no-cli-pager"
+CLIRM="aws s3 rm ${FLG} --no-cli-pager"
+CLIMB="aws s3 mb ${FLG} --no-cli-pager"
+CLIRB="aws s3 rb ${FLG} --no-cli-pager"
 
 . ./copy-copy.sh
 
