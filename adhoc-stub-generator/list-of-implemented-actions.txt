@@ -1,0 +1,25 @@
+## List of implemented actions
+
+AbortMultipartUpload
+CompleteMultipartUpload
+CopyObject
+CreateBucket
+CreateMultipartUpload
+DeleteBucket
+DeleteObject
+DeleteObjects
+DeleteObjectTagging
+GetObject
+GetObjectAttributes
+GetObjectTagging
+HeadBucket
+HeadObject
+ListBuckets
+ListMultipartUploads
+ListObjects
+ListObjectsV2
+ListParts
+PutObject
+PutObjectTagging
+UploadPart
+UploadPartCopy

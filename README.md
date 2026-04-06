@@ -1,31 +1,153 @@
-# 概要
-S3互換のサーバー作成
+# README
 
+S3 Baby-server is a file server by AWS-S3 protocol.  It is designed to
+share existing files in a filesystem via S3.  In contrast, most
+full-fledged servers store files in chunks (of manageable sizes) and
+are not adequate for this purpose.  Baby-server is similar to "rclone
+serve s3".
 
-# サーバーの起動
-**必須引数**
-| コマンド | デフォルト値 | 説明 |
-| --- | --- | --- |
-| serve PATH | None | Specify the directory to serve in PATH |
+Baby-server can be used in combination with "Lens3" to run multiple
+servers at a single http endpoint.  See for Lens3
+https://github.com/RIKEN-RCCS/lens3.
 
-```
-go run . serve ../s3_baby_server_test
-```
+## Installation
 
-**オプション引数**  
-| コマンド | デフォルト値 | 説明 |
-| --- | --- | --- |
-| addr | 127.0.0.1:9000 | IPaddress:Port |
-| logPath | None | Log output path |
-| auth-key | admin,admin | Set key pair: access_key_id, secret_access_key |
-
-認証キーに関しては環境変数**AUTH_KEY**を変数、"access key","secret access key"を値に指定することで設定可能
+Prepare Golang.  Then, build.  It builds the binary
+"v1/s3-baby-server".
 
 ```
-go run . serve ../s3_baby_server_test --logPath serverLog.log
+cd v1
+make get
+make
 ```
 
-# API
+Or, less likely,
+
+```
+go install github.com/RIKEN-RCCS/s3-baby-server/v1@v1.3.1
+```
+
+## Running the server
+
+```
+./s3-baby-server serve 127.0.0.1:9000 ~/pool --cred s3baby,s3babybaby
+```
+
+where "~/pool" specifies a pool directory where buckets are created.
+Existing directories in the pool are considered as buckets.  "--cred"
+specifies a credential pair separated by a comma
+(access-key,secret-access-key).  A credential pair can be specified by
+the environment variable "S3BBS_CRED", too (in the same
+comma-separated pair format).
+
+## Restrictions
+
+- Object names cannot begin with a dot (".").  Such names are
+  internally used as hidden metainfo.
+
+- Object names cannot be end with "/".
+
+- Bucket names cannot include any dots (".").  It is more restrictive
+  compared to other S3 servers.
+
+- Object versions are not supported at all.
+
+- Copying by "CopyObject" is only allowed inside a bucket.
+
+- Symbolic links in a filesystem are not followed.  It is an error
+  when an object name (a path) includes symbolic links.  It is to
+  avoid files are stored in unexpected paths.
+
+- Baby-server does not return owner information.  "Ower" in responses
+  is always missing in ListObjects, etc.  The value of query
+  "fetch-owner" is ignored.  Configuration on "accept_fetch_owner"
+  changes "fetch-owner" to be an error.
+
+- Tags are not supported on buckets.  Tags on a CreateBucket request
+  are ignored.
+
+- ETags are always strong.  ETags are MD5 and cost to calculate.  So,
+  Baby-server records an ETag in object's metainfo.
+
+- GetObjectAttributes returns no "ObjectParts" infomation.
+  Baby-server does not retain parts information after finishing
+  multi-part uploads.
+
+- Badly formatted http-date in http-headers "if-modified-since",
+  "if-unmodified-since", and "x-amz-if-match-last-modified-time"
+  invokes an error, although they should be ignored.
+
+- ContentType of a response is "binary/octet-stream".  It would better
+  be "application/octet-stream".
+
+- Files are created with the mode of process's umask.  Set the umask
+  before running Baby-server if neccessary.
+
+- The size of XML parameters passed in the message body is limited
+  (2MB).  Multipart uploads, object deletion, or setting tags may be
+  affected.  The size can be changed by configuration
+  "xml_parameter_size_limit".
+
+## Metainfo Files
+
+- Baby-server stores metadata information in a file
+  "." + object-name + "@meta" in the same directory as an object.
+  Metadata includes an ETag, a checksum value, tags, and meta-headers.
+  Metainfo files will be created even by operations like listing
+  objects.
+
+## Access Logs
+
+- Baby-server prints access logs to stdout by "-log-access" option.
+
+- Baby-server also stores access logs in the directory ".s3bbs/log"
+  when it exists in the pool directory.  The file name is
+  ".s3bbs/log/access-log".
+
+## Terse Error Messages
+
+- Errors returned to a client do not contain information from OS such
+  as directory paths or user id, because they can be something that
+  should not be disclosed to a client.
+
+## Implementation Note for Developers
+
+An implementation note of Baby-server is
+[design.md](./v1/doc/design.md).
+
+## Other Restrictions
+
+### Restrictions on Bucket and Object Names
+
+Restrictions on names for buckets and objects are stricter than
+AWS-S3, Google GCS, or MinIO.
+
+Characters of bucket names are from the set "[a-z0-9-]".  Bucket names
+should not start or end with a minus sign ("-").  DOTS (".") ARE
+FORBIDDEN.
+
+Characters of object names are from the set
+"[a-zA-Z0-9!$&'()+,-./;=@_]" plus utf-8 characters.
+
+### Restrictions on mtime
+
+Baby-server only distinguishes between ctime and mtime on buckets.  It
+uses mtime for objects.
+
+The mtime of an object may not correct when copying.  As Baby-server
+performs simple copying by making a hard-link of a file, mtime is not
+updated.
+
+### Security (IMPORTANT)
+
+Baby-server does not check the message digest in signing.  It uses the
+given hash value without checking it.
+
+## Implemented API Actions
+
+Baby-server is based on 2019-03-27 Release of AWS-S3 API.  Baby-server
+implements the following actions.
+
 - AbortMultipartUpload
 - CompleteMultipartUpload
 - CopyObject
@@ -49,55 +171,3 @@ go run . serve ../s3_baby_server_test --logPath serverLog.log
 - PutObjectTagging
 - UploadPart
 - UploadPartCopy
-
-
-# ディレクトリ構成
-```
-/s3-baby-server
-├── cmd
-│    └── server_cmd_analyze.go(引数確認)
-│
-├── internal
-│    ├── api（各APIごとの受け口）
-│    │    ├── handler_base.go（各APIの共通処理をまとめるベースハンドラ）
-│    │    ├── http3options.go（HTTPリクエストに関する構造体）
-│    │    ├── abort_multipart_upload.go
-│    │    ├── complete_multipart_upload.go
-│    │    ├── copy_object.go
-│    │    │
-│    │
-│    │
-│    ├── model（データ構造）
-│    │    ├── s3option_model.go（データの受け渡し用の構造体）
-│    │    ├── s3response_model.go（レスポンス形式にまとめる構造体）
-│    │    ├── set_checksum.go（チェックサムの結果をレスポンス形式にまとめる構造体）
-│    │    ├── complete_multipart_upload.go（リクエストの値、処理結果をまとめる構造体）
-│    │    ├── copy_object.go
-│    │
-│    │
-│    ├── server（初期設定）
-│    │    ├── recover.go（panicリカバリ）
-│    │    ├── server.go（サーバーの初期化）
-│    │    └── logger.go（ログ作成）
-│    │
-│    │
-│    └── service（各APIで使う機能）
-│         ├── filesystem.go（ファイルシステムを扱う構造体）
-│         ├── s3multipart.go（マルチパートアップロードを扱う構造体）
-│         ├── s3tag_utils.go（タグを扱う構造体）
-│         ├── s3processing.go（各APIで指定されるパラメータの内部処理を扱う構造体）
-│         ├── s3error.go（S3特有のエラー構造体）
-│         ├── s3options.go（http3optionsのインターフェース）
-│         └── s3service.go（各APIのリクエスト受け取り、結果を返す）
-│
-│
-├── pkg
-│    └── utils（共通処理を入れる）
-│         ├── check_size_utils.go（上限値のチェック処理）
-│         ├── convert_utils.go（データ型変換処理）
-│         ├── file_utils.go（ファイル操作処理）
-│         └── hash_utils.go（ハッシュ計算処理）
-│
-│
-└── main.go(server_cmd_analyze.goの呼び出し)
-```

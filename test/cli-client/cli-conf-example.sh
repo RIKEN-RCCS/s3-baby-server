@@ -1,0 +1,3 @@
+BKT=lenticularis-oddity-x1
+export AWS_ACCESS_KEY_ID=abcdefghijkl
+export AWS_SECRET_ACCESS_KEY=abcdefghijklmnopqrstuvwxyz
