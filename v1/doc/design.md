@@ -248,11 +248,11 @@ Configuration "Strict_etag_quoting" will disable this behavior.
 Note "s3cmd" passes ETags without qoutes for a part list of a
 multipart-upload.
 
-### Extra cr+lf at the End of "aws-chunked" Stream
+### Extra cr+lf at the End of Chunked Streams
 
-Baby-server accepts one extra cr+lf at the end of chunks in
-"aws-chunked" transfer.  That is, the last part of the chunks is
-"0;chunk-signature=..." + "cr+lf" + "cr+lf".  Configuration
+Baby-server accepts the existence of (empty) trailers, when no
+trailers are expected.  That is, it accepts one extra cr+lf at the end
+of chunks, which ends trailers.  Configuration
 "Forbid_last_chunk_crlf" will disable this behavior.
 
 Note MinIO client "mc" may attach an extra cr+lf, for example.
