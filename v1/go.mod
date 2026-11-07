@@ -9,6 +9,7 @@ replace github.com/riken-rccs/s3-baby-server/pkg/httpaide => ../pkg/httpaide
 require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.98.0
 	github.com/aws/smithy-go v1.24.3
+	github.com/cloudflare/circl v1.6.5
 	github.com/riken-rccs/s3-baby-server/pkg/awss3aide v1.2.6
 	github.com/riken-rccs/s3-baby-server/pkg/httpaide v1.2.5
 )
@@ -23,4 +24,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 )
